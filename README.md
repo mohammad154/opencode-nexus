@@ -167,7 +167,7 @@ Use the orchestrating skill to implement JWT authentication with tests.
 | `writing-plans` | Creating `.opencode/plans/PLAN.md` |
 | `using-feature-branches` | Starting isolated task work |
 | `orchestrating` | Executing plan tasks with subagents |
-| `finishing-a-development-branch` | Per-task checkpoint or all tasks done — merge/PR/keep/discard |
+| `finishing-a-development-branch` | Per-task checkpoint or all tasks done — merge/PR/keep/discard; records branch disposition for plan-end cleanup |
 
 Expected high-level flow:
 
@@ -179,6 +179,7 @@ Expected high-level flow:
 6. Code-quality review
 7. Per-task checkpoint: merge/PR/keep/discard, then wait for "continue task N+1"
 8. Repeat until all tasks complete
+9. Plan-end cleanup: orchestrator dispatches implementer to delete merged or discarded `feature/task-*` branches
 
 ## Context preservation design
 

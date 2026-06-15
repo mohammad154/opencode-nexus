@@ -18,6 +18,8 @@ permission:
     "git checkout main*": deny
     "git checkout master*": deny
     "*": ask
+    "git branch -d*": allow
+    "git branch -D*": allow
   task:
     "*": deny
 ---
@@ -37,3 +39,12 @@ When `branch_policy: isolated` in `.opencode/CONTEXT.md`:
 - Create the feature branch from `base_branch` only.
 - Never merge, rebase, or cherry-pick from another task's feature branch.
 - If prior task work is required, return BLOCKED and ask the orchestrator to merge the prior task into `base_branch` first.
+
+## Branch cleanup delegation
+
+When dispatched for branch cleanup (not implementation):
+
+- Delete only the branches listed in the dispatch prompt.
+- Do not implement code, edit files, or commit.
+- Confirm the current branch is `base_branch` before deleting (return `BLOCKED` if not).
+- Return `DONE` or `BLOCKED` with a summary of deleted, skipped, and failed branches.

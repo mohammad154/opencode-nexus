@@ -22,6 +22,7 @@ Present these choices:
 After the user chooses:
 
 - Update `.opencode/CONTEXT.md` with merge state.
+- Record branch disposition in `task_branches` (see below).
 - Remind the user the orchestrator will wait for an explicit "continue task N+1" before the next task starts.
 
 ## All tasks complete
@@ -32,6 +33,35 @@ After all tasks are approved (or when the user requests final integration on the
 2. Push branch and create a PR.
 3. Keep branch unmerged for later.
 4. Discard branch changes.
+
+Map each user choice to a `disposition` value:
+
+| User choice | disposition |
+|-------------|-------------|
+| Merge locally into `base_branch` | `merged` |
+| Push branch and create a PR | `pr_pending` |
+| Keep branch unmerged for later | `kept` |
+| Discard branch changes | `discarded` |
+
+## Track branch disposition in CONTEXT.md
+
+After each per-task checkpoint or final integration choice, update `task_branches` in `.opencode/CONTEXT.md`:
+
+```yaml
+task_branches:
+  - task: 1
+    branch: feature/task-1-auth
+    disposition: merged   # merged | discarded | kept | pr_pending
+  - task: 2
+    branch: feature/task-2-tests
+    disposition: kept
+```
+
+Rules:
+
+- **merged** or **discarded** → eligible for plan-end cleanup (implementer deletes the branch).
+- **kept** or **pr_pending** → never delete in batch cleanup.
+- Upsert the entry for the current task; do not remove entries for prior tasks.
 
 ## Detect the base branch
 
@@ -48,3 +78,4 @@ Rules:
 - Confirm user intent before merge or discard actions.
 - If creating a PR, include task summary and test evidence.
 - Update `.opencode/CONTEXT.md` with final state.
+- In **continuous** mode (no per-task finishing UI), default disposition to `kept` unless the user explicitly requests merge or discard for a task.

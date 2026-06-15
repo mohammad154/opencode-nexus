@@ -31,7 +31,7 @@ Announce which skill you are using: "Using brainstorming to clarify requirements
 | Requirements are clear, need a plan file | `writing-plans` |
 | Plan exists, start or continue implementation | `orchestrating` |
 | About to implement on a task branch | `using-feature-branches` |
-| All tasks reviewed and approved | `finishing-a-development-branch` |
+| All tasks reviewed and approved | `finishing-a-development-branch` (records branch disposition; plan-end cleanup dispatches implementer) |
 
 Skill order for new work:
 

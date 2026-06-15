@@ -48,6 +48,26 @@ Run the per-task loop for each pending task in `.opencode/plans/PLAN.md`.
 
 On resume after checkpoint: `git checkout <base_branch>` and optionally `git pull` before creating the next isolated branch (user may have merged the prior task).
 
+## Plan completion
+
+When all tasks in `.opencode/plans/PLAN.md` are marked done:
+
+1. Load `finishing-a-development-branch` if not already run for the last task (record `task_branches` dispositions).
+2. Build `branches_to_delete` from `.opencode/CONTEXT.md` `task_branches` where `disposition` is `merged` or `discarded`.
+3. If the list is empty, skip cleanup dispatch.
+4. `git checkout <base_branch>` (orchestrator — never delete branches directly).
+5. Dispatch `implementer` using `branch-cleanup-prompt.md` with the branch list and dispositions.
+6. Save handoff to `.opencode/handoffs/plan-cleanup-implementer.json`.
+7. Update `.opencode/CONTEXT.md` with `cleanup_status: complete` and the removed branch names.
+8. If implementer returns `BLOCKED`, surface errors to the user; do not claim cleanup succeeded.
+
+Edge cases:
+
+- **No eligible branches:** user kept all branches or has open PRs — skip dispatch.
+- **Delete fails** (`git branch -d` on unmerged): implementer returns `BLOCKED`; do not force-delete unless disposition is `discarded`.
+- **Stacked policy:** same cleanup rules; disposition drives eligibility.
+- **Continuous mode:** run plan-end cleanup once after the final task's reviews; default disposition to `kept` unless user explicitly requests merge or discard.
+
 ## Subagent context protocol
 
 When dispatching subagents, always include:
@@ -65,6 +85,7 @@ Subagents must read the task file and context file at the start of their run.
 - Never skip spec review.
 - Never skip code review.
 - Never merge task branches automatically without explicit user confirmation.
+- Never delete task branches directly (`git branch -d` / `-D`); delegate deletion to `implementer` at plan completion.
 - Never auto-continue past a completed task when `execution_mode: checkpoint`.
 - If a subagent returns BLOCKED or NEEDS_CONTEXT, resolve before continuing.
 - **Pre-dispatch branch validation** (when `branch_policy: isolated`): before dispatching implementer or reviewers for task N, confirm the feature branch was created from `base_branch`, not branched off or merged with a prior task branch. Run `git diff <base_branch>...<feature-branch>` — it must not include files or commits belonging only to earlier unmerged tasks.
