@@ -15,6 +15,13 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 1
 fi
 
+backup_path() {
+  local target="$1"
+  if [ -f "$target" ]; then
+    cp "$target" "${target}.bak.$(date +%Y%m%d%H%M%S)"
+  fi
+}
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG_DIR="${OPENCODE_CONFIG_DIR:-$HOME/.config/opencode}"
 AGENTS_DIR="$CONFIG_DIR/agents"
@@ -27,7 +34,7 @@ PLUGIN_SPEC="${NEXUS_PLUGIN_SPEC:-nexus@git+https://github.com/mohammad154/openc
 mkdir -p "$CONFIG_DIR" "$AGENTS_DIR"
 
 if [ -f "$CONFIG_FILE" ]; then
-  cp "$CONFIG_FILE" "$CONFIG_FILE.bak"
+  backup_path "$CONFIG_FILE"
 else
   printf '{\n  "$schema": "https://opencode.ai/config.json"\n}\n' > "$CONFIG_FILE"
 fi
@@ -70,6 +77,7 @@ apply_env_reasoning spec-reviewer NEXUS_SPEC_REVIEWER_REASONING_EFFORT
 apply_env_reasoning code-reviewer NEXUS_CODE_REVIEWER_REASONING_EFFORT
 
 TMP_JSON="$(mktemp)"
+trap 'rm -f "$TMP_JSON"' EXIT
 jq --arg plugin "$PLUGIN_SPEC" --argjson models "$MODELS_JSON" '
   .plugin = (.plugin // []) |
   if (.plugin | index($plugin)) then . else .plugin += [$plugin] end |
@@ -83,9 +91,7 @@ mv "$TMP_JSON" "$CONFIG_FILE"
 for agent in orchestrator implementer spec-reviewer code-reviewer; do
   target="$AGENTS_DIR/$agent.md"
   source="$SCRIPT_DIR/agents/$agent.md"
-  if [ -f "$target" ]; then
-    cp "$target" "$target.bak"
-  fi
+  backup_path "$target"
   cp "$source" "$target"
 done
 
