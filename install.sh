@@ -10,7 +10,8 @@ if ! command -v opencode >/dev/null 2>&1; then
 fi
 
 if ! command -v jq >/dev/null 2>&1; then
-  echo "Error: jq is required for non-destructive opencode.json merge."
+  echo "Error: 'jq' is not installed."
+  echo "Install jq first — see the Prerequisites section in README.md."
   exit 1
 fi
 

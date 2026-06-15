@@ -5,16 +5,18 @@ Use this template when dispatching `implementer`.
 ```text
 You are implementing task: [TASK_ID] [TASK_TITLE]
 
-## Task Description
-[Paste full task text from .opencode/tasks/task-N.md]
+## Required Reading (do this first)
+1. Read .opencode/tasks/task-N.md
+2. Read .opencode/CONTEXT.md
+3. Confirm you are on branch: [feature/task-N-slug]
 
 ## Acceptance Criteria
-[Paste explicit acceptance criteria]
+[Paste explicit acceptance criteria summary]
 
 ## Context
-- Plan path: .opencode/plans/PLAN.md
-- Context path: .opencode/CONTEXT.md
-- Branch: [feature/task-N-slug]
+- Base branch: [base-branch]
+- Feature branch: [feature/task-N-slug]
+- Handoff output path: .opencode/handoffs/task-N-implementer.json
 - Constraints: follow project conventions, minimal scope
 
 ## Instructions
@@ -22,8 +24,9 @@ You are implementing task: [TASK_ID] [TASK_TITLE]
 2. Implement only this task.
 3. Add or update tests relevant to this task.
 4. Run verification commands.
-5. Commit changes on the assigned branch.
-6. Return status and structured handoff.
+5. Commit changes on the assigned feature branch (never on base branch).
+6. Write handoff JSON to .opencode/handoffs/task-N-implementer.json
+7. Return status and summary
 
 ## Report Format
 Status: DONE | DONE_WITH_CONCERNS | BLOCKED | NEEDS_CONTEXT
@@ -34,15 +37,4 @@ Tests:
 - <command>: <result>
 Notes for reviewer:
 - <important note>
-
-Also output JSON:
-{
-  "task_id": "[TASK_ID]",
-  "status": "DONE",
-  "branch": "[feature/task-N-slug]",
-  "commit_hash": "<short-hash>",
-  "files_changed": ["<file>"],
-  "tests_run": "<summary>",
-  "notes_for_reviewer": "<notes>"
-}
 ```

@@ -18,6 +18,7 @@ Also create or refresh `.opencode/CONTEXT.md` with:
 
 - Active objective
 - Current phase
+- `base_branch` (detect dynamically — do not assume `main`)
 - Pending blockers
 - Next action
 

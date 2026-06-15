@@ -66,7 +66,7 @@ jq --version
 ## One-command install
 
 ```bash
-git clone https://github.com/mohammad154/opencode-nexus.git /tmp/opencode-nexus && cd /tmp/opencode-nexus && ./install.sh && cd / && rm -rf /tmp/opencode-nexus
+git clone https://github.com/mohammad154/opencode-nexus.git /tmp/opencode-nexus && cd /tmp/opencode-nexus && ./install.sh && rm -rf /tmp/opencode-nexus
 ```
 
 This installer:
@@ -78,7 +78,9 @@ This installer:
 
 ## Customize agent models
 
-Models are **not hardcoded** in agent files. You choose them via `~/.config/opencode/nexus.models.json`.
+Models are configured in `~/.config/opencode/opencode.json` under the `agent` key — that is what OpenCode reads at runtime.
+
+`~/.config/opencode/nexus.models.json` is an optional **installer input file** only. When you run `install.sh`, it merges your choices from `nexus.models.json` into `opencode.json`. You do not need `nexus.models.json` if you edit `opencode.json` directly.
 
 On first install, an example file is created at `~/.config/opencode/nexus.models.example.json`. Copy and edit it:
 
@@ -134,14 +136,15 @@ You can also set models directly in `~/.config/opencode/opencode.json` under the
 ## One-command uninstall
 
 ```bash
-git clone https://github.com/mohammad154/opencode-nexus.git /tmp/opencode-nexus && cd /tmp/opencode-nexus && ./uninstall.sh && cd / && rm -rf /tmp/opencode-nexus
+git clone https://github.com/mohammad154/opencode-nexus.git /tmp/opencode-nexus && cd /tmp/opencode-nexus && ./uninstall.sh && rm -rf /tmp/opencode-nexus
 ```
 
 ## Usage
 
 1. Restart OpenCode after install.
 2. Select the **orchestrator** primary agent (Tab to switch agents).
-3. Open a project repository and describe what you want in plain language:
+3. Open a **git** project repository (`git init` if needed).
+4. Describe what you want in plain language:
 
 ```text
 Implement JWT authentication with tests.
@@ -184,7 +187,13 @@ The workflow persists state in files so subagents do not rely only on transient 
 - `.opencode/tasks/task-N.md`
 - `.opencode/handoffs/task-N-<role>.json`
 
-Reviewers evaluate exact changes with:
+Reviewers evaluate exact changes with (base branch is detected dynamically — not always `main`):
+
+```bash
+git diff <base-branch>...feature/task-N-<slug>
+```
+
+Example when base branch is `main`:
 
 ```bash
 git diff main...feature/task-N-<slug>
@@ -192,10 +201,18 @@ git diff main...feature/task-N-<slug>
 
 ## Windows fallback
 
-If git-backed plugin installation has issues on Windows, install package content locally and point OpenCode to it (pattern inspired by Superpowers):
+If git-backed plugin installation has issues on Windows, install package content locally and point OpenCode to it (pattern inspired by Superpowers).
+
+**PowerShell:**
 
 ```powershell
-npm install opencode-nexus@git+https://github.com/mohammad154/opencode-nexus.git --prefix "$HOME\.config\opencode"
+npm install opencode-nexus@git+https://github.com/mohammad154/opencode-nexus.git --prefix "$env:USERPROFILE\.config\opencode"
+```
+
+**Git Bash:**
+
+```bash
+npm install opencode-nexus@git+https://github.com/mohammad154/opencode-nexus.git --prefix "$HOME/.config/opencode"
 ```
 
 Then add this plugin entry in `~/.config/opencode/opencode.json`:
@@ -208,9 +225,9 @@ Then add this plugin entry in `~/.config/opencode/opencode.json`:
 
 ## Project layout
 
-- `agents/` - agent permissions and prompts (models configured via `nexus.models.json`)
-- `config/default-models.json` - bundled default models
-- `config/models.example.json` - user override template
-- `skills/` - reusable workflow skills and dispatch templates
-- `.opencode/plugins/nexus.js` - plugin hooks (`config`, message bootstrap, compaction context)
-- `install.sh`, `uninstall.sh` - global setup scripts
+- `agents/` — agent permissions and prompts (models live in `opencode.json`)
+- `config/default-models.json` — bundled default models for `install.sh`
+- `config/models.example.json` — optional installer input template (`nexus.models.json`)
+- `skills/` — reusable workflow skills and dispatch templates
+- `.opencode/plugins/nexus.js` — plugin hooks (`config`, message bootstrap, compaction context)
+- `install.sh`, `uninstall.sh` — global setup scripts

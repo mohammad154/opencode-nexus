@@ -52,6 +52,11 @@ Skill order for new work:
 - Use **orchestrator** as the primary agent for end-to-end workflow.
 - Dispatch subagents only through orchestrator permissions.
 
+## Git requirement
+
+This workflow requires a git repository for feature branches and review diffs.
+If the project is not a git repo, ask the user to run `git init` (or open a git project) before orchestrating.
+
 ## Context Preservation Rules
 
 - Keep durable state in files, not only in chat context.

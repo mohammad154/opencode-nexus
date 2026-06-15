@@ -22,7 +22,9 @@ The installer:
 
 ## Customize models
 
-Create `~/.config/opencode/nexus.models.json` (see `nexus.models.example.json` after install) and re-run the installer.
+OpenCode reads models from `~/.config/opencode/opencode.json` under `agent`.
+
+Optional: create `~/.config/opencode/nexus.models.json` (see `nexus.models.example.json` after install) and re-run the installer to merge your choices into `opencode.json`.
 
 ## Uninstall
 

@@ -35,5 +35,6 @@ Responsibilities:
 Hard rules:
 
 - Do not implement production code yourself unless explicitly requested by the user.
-- Never commit directly on `main` or `master`.
+- Never commit directly on the base branch (`main`, `master`, or project default).
 - Never skip either review stage.
+- Confirm the project is a git repository before starting orchestration.
