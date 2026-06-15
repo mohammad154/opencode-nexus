@@ -2,12 +2,14 @@
 
 OpenCode Nexus is a shareable multi-agent workflow plugin for OpenCode with strong context-preservation defaults.
 
-It implements:
+It provides four workflow agents with **recommended default models** (fully customizable):
 
-- Orchestrator (`opencode-go/minimax-m3`)
-- Implementer (`opencode/deepseek-v4-flash-free`, `reasoningEffort: max`)
-- Spec Reviewer (`opencode-go/deepseek-v4-pro`, `reasoningEffort: max`)
-- Code Reviewer (`opencode-go/deepseek-v4-pro`, `reasoningEffort: max`)
+| Agent | Default model | Notes |
+|-------|---------------|-------|
+| Orchestrator | `opencode-go/minimax-m3` | Primary controller |
+| Implementer | `opencode/deepseek-v4-flash-free` | `reasoningEffort: max` |
+| Spec Reviewer | `opencode-go/deepseek-v4-pro` | `reasoningEffort: max` |
+| Code Reviewer | `opencode-go/deepseek-v4-pro` | `reasoningEffort: max` |
 
 ## Why this workflow
 
@@ -70,8 +72,64 @@ git clone https://github.com/mohammad154/opencode-nexus.git /tmp/opencode-nexus 
 This installer:
 
 - Adds the Nexus plugin entry to `~/.config/opencode/opencode.json` without overwriting other config
+- Merges agent model settings into `opencode.json` (customizable — see below)
 - Copies Nexus agent definitions to `~/.config/opencode/agents/`
 - Creates backups for existing Nexus agent files (`*.bak`)
+
+## Customize agent models
+
+Models are **not hardcoded** in agent files. You choose them via `~/.config/opencode/nexus.models.json`.
+
+On first install, an example file is created at `~/.config/opencode/nexus.models.example.json`. Copy and edit it:
+
+```bash
+cp ~/.config/opencode/nexus.models.example.json ~/.config/opencode/nexus.models.json
+```
+
+Example `~/.config/opencode/nexus.models.json`:
+
+```json
+{
+  "orchestrator": {
+    "model": "anthropic/claude-sonnet-4-20250514"
+  },
+  "implementer": {
+    "model": "openai/gpt-4.1",
+    "reasoningEffort": "high"
+  },
+  "spec-reviewer": {
+    "model": "opencode-go/deepseek-v4-pro"
+  },
+  "code-reviewer": {
+    "model": "opencode-go/deepseek-v4-pro",
+    "reasoningEffort": "max"
+  }
+}
+```
+
+Only include agents you want to override; omitted agents keep the bundled defaults.
+
+Apply changes by re-running `./install.sh`.
+
+### Environment variable overrides (optional)
+
+You can also override models for a one-off install:
+
+```bash
+export NEXUS_ORCHESTRATOR_MODEL="anthropic/claude-sonnet-4-20250514"
+export NEXUS_IMPLEMENTER_MODEL="opencode/deepseek-v4-flash-free"
+export NEXUS_IMPLEMENTER_REASONING_EFFORT="max"
+./install.sh
+```
+
+Supported variables:
+
+- `NEXUS_ORCHESTRATOR_MODEL`
+- `NEXUS_IMPLEMENTER_MODEL`, `NEXUS_IMPLEMENTER_REASONING_EFFORT`
+- `NEXUS_SPEC_REVIEWER_MODEL`, `NEXUS_SPEC_REVIEWER_REASONING_EFFORT`
+- `NEXUS_CODE_REVIEWER_MODEL`, `NEXUS_CODE_REVIEWER_REASONING_EFFORT`
+
+You can also set models directly in `~/.config/opencode/opencode.json` under the `agent` key ([OpenCode agents docs](https://opencode.ai/docs/agents/)).
 
 ## One-command uninstall
 
@@ -131,7 +189,9 @@ Then add this plugin entry in `~/.config/opencode/opencode.json`:
 
 ## Project layout
 
-- `agents/` - OpenCode markdown agent definitions
+- `agents/` - agent permissions and prompts (models configured via `nexus.models.json`)
+- `config/default-models.json` - bundled default models
+- `config/models.example.json` - user override template
 - `skills/` - reusable workflow skills and dispatch templates
 - `.opencode/plugins/nexus.js` - plugin hooks (`config`, message bootstrap, compaction context)
 - `install.sh`, `uninstall.sh` - global setup scripts

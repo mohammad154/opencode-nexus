@@ -1,0 +1,17 @@
+{
+  "orchestrator": {
+    "model": "opencode-go/minimax-m3"
+  },
+  "implementer": {
+    "model": "opencode/deepseek-v4-flash-free",
+    "reasoningEffort": "max"
+  },
+  "spec-reviewer": {
+    "model": "opencode-go/deepseek-v4-pro",
+    "reasoningEffort": "max"
+  },
+  "code-reviewer": {
+    "model": "opencode-go/deepseek-v4-pro",
+    "reasoningEffort": "max"
+  }
+}

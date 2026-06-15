@@ -1,8 +1,6 @@
 ---
 description: Verifies implementer output matches the task specification exactly, with no missing or extra scope.
 mode: subagent
-model: opencode-go/deepseek-v4-pro
-reasoningEffort: max
 permission:
   edit: deny
   bash:

@@ -1,8 +1,6 @@
 ---
 description: Implements a single task from the plan. Writes code, tests, and commits to the assigned feature branch.
 mode: subagent
-model: opencode/deepseek-v4-flash-free
-reasoningEffort: max
 permission:
   edit: allow
   bash:

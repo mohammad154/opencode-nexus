@@ -1,7 +1,6 @@
 ---
 description: Primary workflow controller. Brainstorms, plans, delegates to implementer and reviewers. Never writes production code directly.
 mode: primary
-model: opencode-go/minimax-m3
 permission:
   edit:
     ".opencode/**": allow

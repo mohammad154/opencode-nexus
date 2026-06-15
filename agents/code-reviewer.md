@@ -1,8 +1,6 @@
 ---
 description: Performs code quality review after spec compliance is approved.
 mode: subagent
-model: opencode-go/deepseek-v4-pro
-reasoningEffort: max
 permission:
   edit: deny
   bash:

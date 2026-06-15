@@ -12,11 +12,19 @@ CONFIG_DIR="${OPENCODE_CONFIG_DIR:-$HOME/.config/opencode}"
 AGENTS_DIR="$CONFIG_DIR/agents"
 CONFIG_FILE="$CONFIG_DIR/opencode.json"
 PLUGIN_SPEC="${NEXUS_PLUGIN_SPEC:-nexus@git+https://github.com/mohammad154/opencode-nexus.git}"
+NEXUS_AGENTS='["orchestrator","implementer","spec-reviewer","code-reviewer"]'
 
 if [ -f "$CONFIG_FILE" ]; then
   TMP_JSON="$(mktemp)"
-  jq --arg plugin "$PLUGIN_SPEC" '
-    .plugin = ((.plugin // []) | map(select(. != $plugin)))
+  jq --arg plugin "$PLUGIN_SPEC" --argjson names "$NEXUS_AGENTS" '
+    .plugin = ((.plugin // []) | map(select(. != $plugin))) |
+    reduce $names[] as $name (.;
+      if .agent[$name] then
+        .agent[$name] |= del(.model, .reasoningEffort) |
+        if .agent[$name] == {} then .agent |= del(.[$name]) else . end
+      else .
+      end
+    )
   ' "$CONFIG_FILE" > "$TMP_JSON"
   mv "$TMP_JSON" "$CONFIG_FILE"
 fi
@@ -33,3 +41,4 @@ done
 
 echo "Uninstall complete."
 echo "Note: project-local workflow files under .opencode/ were not modified."
+echo "Note: $CONFIG_DIR/nexus.models.json was kept so you can reinstall with the same model choices."

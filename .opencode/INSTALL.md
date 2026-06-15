@@ -16,8 +16,13 @@ curl -fsSL https://raw.githubusercontent.com/mohammad154/opencode-nexus/main/ins
 The installer:
 
 - Merges the Nexus plugin entry into `~/.config/opencode/opencode.json`
+- Merges agent model settings (defaults + optional `nexus.models.json`)
 - Copies Nexus agents to `~/.config/opencode/agents/`
 - Backs up any existing Nexus agent files as `*.bak`
+
+## Customize models
+
+Create `~/.config/opencode/nexus.models.json` (see `nexus.models.example.json` after install) and re-run the installer.
 
 ## Uninstall
 
