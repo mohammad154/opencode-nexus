@@ -21,14 +21,50 @@ It implements:
 You must have OpenCode installed before installing this project.
 
 - OpenCode install guide: [https://opencode.ai/docs/installation/](https://opencode.ai/docs/installation/)
-- `jq` is required by the installer to merge `opencode.json` safely
+- [`jq`](https://jqlang.org/) — a small command-line JSON processor. The installer uses it to merge the Nexus plugin entry into your existing `opencode.json` without overwriting your other settings.
+
+### Install jq
+
+**Ubuntu / Debian / WSL:**
+
+```bash
+sudo apt update && sudo apt install -y jq
+```
+
+**macOS (Homebrew):**
+
+```bash
+brew install jq
+```
+
+**Fedora / RHEL:**
+
+```bash
+sudo dnf install -y jq
+```
+
+**Windows (winget):**
+
+```powershell
+winget install jqlang.jq
+```
+
+**Windows (Chocolatey):**
+
+```powershell
+choco install jq
+```
+
+Verify installation:
+
+```bash
+jq --version
+```
 
 ## One-command install
 
-Replace `<YOUR-USERNAME>` with your GitHub username:
-
 ```bash
-git clone https://github.com/<YOUR-USERNAME>/opencode-nexus.git /tmp/opencode-nexus && cd /tmp/opencode-nexus && ./install.sh && cd / && rm -rf /tmp/opencode-nexus
+git clone https://github.com/mohammad154/opencode-nexus.git /tmp/opencode-nexus && cd /tmp/opencode-nexus && ./install.sh && cd / && rm -rf /tmp/opencode-nexus
 ```
 
 This installer:
@@ -40,7 +76,7 @@ This installer:
 ## One-command uninstall
 
 ```bash
-git clone https://github.com/<YOUR-USERNAME>/opencode-nexus.git /tmp/opencode-nexus && cd /tmp/opencode-nexus && ./uninstall.sh && cd / && rm -rf /tmp/opencode-nexus
+git clone https://github.com/mohammad154/opencode-nexus.git /tmp/opencode-nexus && cd /tmp/opencode-nexus && ./uninstall.sh && cd / && rm -rf /tmp/opencode-nexus
 ```
 
 ## Usage
@@ -82,7 +118,7 @@ git diff main...feature/task-N-<slug>
 If git-backed plugin installation has issues on Windows, install package content locally and point OpenCode to it (pattern inspired by Superpowers):
 
 ```powershell
-npm install opencode-nexus@git+https://github.com/<YOUR-USERNAME>/opencode-nexus.git --prefix "$HOME\.config\opencode"
+npm install opencode-nexus@git+https://github.com/mohammad154/opencode-nexus.git --prefix "$HOME\.config\opencode"
 ```
 
 Then add this plugin entry in `~/.config/opencode/opencode.json`:

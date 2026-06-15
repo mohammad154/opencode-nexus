@@ -11,7 +11,7 @@ fi
 CONFIG_DIR="${OPENCODE_CONFIG_DIR:-$HOME/.config/opencode}"
 AGENTS_DIR="$CONFIG_DIR/agents"
 CONFIG_FILE="$CONFIG_DIR/opencode.json"
-PLUGIN_SPEC="${NEXUS_PLUGIN_SPEC:-nexus@git+https://github.com/<YOUR-USERNAME>/opencode-nexus.git}"
+PLUGIN_SPEC="${NEXUS_PLUGIN_SPEC:-nexus@git+https://github.com/mohammad154/opencode-nexus.git}"
 
 if [ -f "$CONFIG_FILE" ]; then
   TMP_JSON="$(mktemp)"
