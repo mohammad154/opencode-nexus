@@ -140,12 +140,31 @@ git clone https://github.com/mohammad154/opencode-nexus.git /tmp/opencode-nexus 
 ## Usage
 
 1. Restart OpenCode after install.
-2. Open a project repository.
-3. Prompt with:
+2. Select the **orchestrator** primary agent (Tab to switch agents).
+3. Open a project repository and describe what you want in plain language:
 
 ```text
-Use the orchestrating skill to implement <feature> with tests.
+Implement JWT authentication with tests.
 ```
+
+You do **not** need to type `Use the orchestrating skill...` every time. The Nexus plugin injects `using-nexus` at session start, which instructs the orchestrator to automatically load the right skill (`brainstorming` → `writing-plans` → `orchestrating` → `finishing-a-development-branch`) based on your request.
+
+Explicit skill invocation still works if you prefer it:
+
+```text
+Use the orchestrating skill to implement JWT authentication with tests.
+```
+
+### Included skills (auto-routed)
+
+| Skill | When it triggers |
+|-------|------------------|
+| `using-nexus` | Injected at session start (bootstrap) |
+| `brainstorming` | New feature, unclear requirements |
+| `writing-plans` | Creating `.opencode/plans/PLAN.md` |
+| `using-feature-branches` | Starting isolated task work |
+| `orchestrating` | Executing plan tasks with subagents |
+| `finishing-a-development-branch` | All tasks reviewed, choose merge/PR/keep/discard |
 
 Expected high-level flow:
 

@@ -91,5 +91,4 @@ done
 echo "Installation complete."
 echo "Agent models configured in $CONFIG_FILE under .agent"
 echo "To customize models, edit $MODELS_FILE (see nexus.models.example.json) and re-run install.sh"
-echo "Restart OpenCode, then try:"
-echo "\"Use the orchestrating skill to implement a small feature with tests.\""
+echo "Restart OpenCode, select the orchestrator agent, then describe your feature in plain language."

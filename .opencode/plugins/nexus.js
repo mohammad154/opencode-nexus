@@ -26,6 +26,13 @@ function getBootstrapText() {
   const raw = fs.readFileSync(skillPath, "utf8");
   const body = stripFrontmatter(raw).trim();
 
+  const toolMapping = `**Tool Mapping for OpenCode:**
+- \`Skill\` tool → OpenCode \`skill\` tool
+- \`Task\` subagents → @implementer, @spec-reviewer, @code-reviewer
+- \`TodoWrite\` → \`todowrite\`
+
+Use OpenCode's native \`skill\` tool to load Nexus skills automatically based on task phase.`;
+
   bootstrapCache = [
     "<EXTREMELY_IMPORTANT>",
     BOOTSTRAP_MARKER,
@@ -33,6 +40,8 @@ function getBootstrapText() {
     "The using-nexus skill content below is already loaded; do not load it again.",
     "",
     body,
+    "",
+    toolMapping,
     "</EXTREMELY_IMPORTANT>",
   ].join("\n");
 
