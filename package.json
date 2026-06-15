@@ -1,0 +1,8 @@
+{
+  "name": "opencode-nexus",
+  "version": "0.1.0",
+  "description": "OpenCode Nexus multi-agent workflow plugin",
+  "type": "module",
+  "main": ".opencode/plugins/nexus.js",
+  "license": "MIT"
+}
