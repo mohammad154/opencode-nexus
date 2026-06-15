@@ -31,3 +31,9 @@ Requirements:
 - Run relevant tests.
 - Commit work with a clear commit message on the assigned feature branch.
 - Return status as one of: DONE, DONE_WITH_CONCERNS, BLOCKED, NEEDS_CONTEXT.
+
+When `branch_policy: isolated` in `.opencode/CONTEXT.md`:
+
+- Create the feature branch from `base_branch` only.
+- Never merge, rebase, or cherry-pick from another task's feature branch.
+- If prior task work is required, return BLOCKED and ask the orchestrator to merge the prior task into `base_branch` first.

@@ -28,11 +28,15 @@ git diff <base-branch>...<feature-branch>
 
 ## Branch policy
 
+Read `branch_policy` from `.opencode/CONTEXT.md`. Default to `isolated` when unset.
+
 - Never commit directly to the base branch.
 - Create one branch per task: `feature/task-N-<slug>`.
 - Keep commits scoped to the active task.
 
-## Recommended branch flow
+### `isolated` (default, recommended)
+
+Each task branch is created from `base_branch` only. Reviews show only that task's changes.
 
 1. `git checkout <base-branch>`
 2. `git pull` (if project policy allows)
@@ -40,3 +44,40 @@ git diff <base-branch>...<feature-branch>
 4. Implement and commit
 5. Review with `git diff <base-branch>...feature/task-N-<slug>`
 6. Merge or keep branch based on user choice
+
+**Never** branch task N+1 off `feature/task-N-...`.
+
+With `isolated` + `execution_mode: checkpoint`, merge task N into `base_branch` before starting task N+1. Create the next branch from the updated `base_branch` — **not** by merging task N's branch into task N+1's branch.
+
+**Forbidden when `branch_policy: isolated`:**
+
+- `git merge feature/task-N-...` while on `feature/task-N+1-...`
+- `git rebase feature/task-N-...` onto task N+1
+- Creating task N+1 by branching off `feature/task-N-...` instead of `base_branch`
+
+### `stacked` (opt-in only)
+
+Use only when the user explicitly chose `stacked` in `.opencode/CONTEXT.md`.
+
+1. Branch task N+1 off the previous task branch: `feature/task-N-<slug>`
+2. Review with `git diff feature/task-N-<slug>...feature/task-N+1-<slug>`
+
+## Isolation recovery
+
+If a task branch already contains a prior task's commits (e.g. fast-forward merge of task N into task N+1), do not dispatch reviewers until fixed.
+
+1. Merge the prior task branch into `base_branch` (user confirms).
+2. Rebase the current task branch onto `base_branch`.
+3. Verify: `git diff <base-branch>...<feature-branch>` shows **only** the current task's changes.
+
+```bash
+git checkout <base-branch>
+git merge feature/task-N-<slug>
+
+git checkout feature/task-N+1-<slug>
+git rebase <base-branch>
+
+git diff <base-branch>...feature/task-N+1-<slug>
+```
+
+If rebase conflicts, resolve preserving the current task's intent, then re-run the diff check.

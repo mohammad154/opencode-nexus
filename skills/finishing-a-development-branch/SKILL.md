@@ -6,7 +6,27 @@ compatibility: opencode
 
 # Finishing a Development Branch
 
-After all tasks are approved, present these choices:
+## Per-task checkpoint
+
+When `execution_mode: checkpoint` in `.opencode/CONTEXT.md`, run this skill **after each task** passes both reviews — not only after all tasks complete.
+
+Scope all options to the **current task branch** named in `.opencode/CONTEXT.md`.
+
+Present these choices:
+
+1. Merge locally into `base_branch`.
+2. Push branch and create a PR.
+3. Keep branch unmerged for later.
+4. Discard branch changes.
+
+After the user chooses:
+
+- Update `.opencode/CONTEXT.md` with merge state.
+- Remind the user the orchestrator will wait for an explicit "continue task N+1" before the next task starts.
+
+## All tasks complete
+
+After all tasks are approved (or when the user requests final integration on the last task), present the same choices for the final branch if not already integrated.
 
 1. Merge locally into `base_branch` (read from `.opencode/CONTEXT.md`; detect dynamically if unset — do not assume `main`).
 2. Push branch and create a PR.

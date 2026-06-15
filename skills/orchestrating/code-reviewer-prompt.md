@@ -24,6 +24,11 @@ Review code quality and risks:
 - Maintainability
 - Test adequacy
 
+When `branch_policy: isolated`, run `git diff [base-branch]...[feature/task-N-slug]`. If changes from earlier unmerged tasks appear in the diff, return:
+
+VERDICT: ISOLATION_VIOLATION
+- <describe contamination and required recovery: merge prior task to base_branch, rebase current branch>
+
 ## Output Format
 VERDICT: APPROVED
 or

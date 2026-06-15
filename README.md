@@ -167,16 +167,18 @@ Use the orchestrating skill to implement JWT authentication with tests.
 | `writing-plans` | Creating `.opencode/plans/PLAN.md` |
 | `using-feature-branches` | Starting isolated task work |
 | `orchestrating` | Executing plan tasks with subagents |
-| `finishing-a-development-branch` | All tasks reviewed, choose merge/PR/keep/discard |
+| `finishing-a-development-branch` | Per-task checkpoint or all tasks done — merge/PR/keep/discard |
 
 Expected high-level flow:
 
 1. Brainstorming
 2. Planning (`.opencode/plans/PLAN.md`)
-3. Task execution on feature branch
-4. Spec review
-5. Code-quality review
-6. Finish branch (merge/PR/keep/discard)
+3. Confirm workflow preferences (`branch_policy: isolated`, `execution_mode: checkpoint` recommended)
+4. Task execution on feature branch (from `base_branch` when isolated)
+5. Spec review
+6. Code-quality review
+7. Per-task checkpoint: merge/PR/keep/discard, then wait for "continue task N+1"
+8. Repeat until all tasks complete
 
 ## Context preservation design
 
@@ -186,6 +188,13 @@ The workflow persists state in files so subagents do not rely only on transient 
 - `.opencode/CONTEXT.md`
 - `.opencode/tasks/task-N.md`
 - `.opencode/handoffs/task-N-<role>.json`
+
+Workflow preferences in `.opencode/CONTEXT.md`:
+
+- `branch_policy: isolated` — each task branches off `base_branch` (recommended)
+- `execution_mode: checkpoint` — pause after each task for inspect/merge (recommended)
+
+If a task branch inherits prior task commits, merge the prior task to `base_branch` and rebase the current branch before review. See [docs/workflow.md](docs/workflow.md).
 
 Reviewers evaluate exact changes with (base branch is detected dynamically — not always `main`):
 

@@ -19,11 +19,13 @@ Also create or refresh `.opencode/CONTEXT.md` with:
 - Active objective
 - Current phase
 - `base_branch` (detect dynamically — do not assume `main`)
+- `branch_policy`: `isolated` | `stacked` (set during orchestration if not yet chosen)
+- `execution_mode`: `checkpoint` | `continuous` (set during orchestration if not yet chosen)
 - Pending blockers
 - Next action
 
 Planning rules:
 
-- Keep tasks small and independently reviewable.
+- Keep tasks small and independently reviewable against `base_branch` when `branch_policy: isolated`.
 - Prefer minimal diffs and existing patterns.
 - Do not start implementation in this skill.

@@ -16,8 +16,14 @@ You are implementing task: [TASK_ID] [TASK_TITLE]
 ## Context
 - Base branch: [base-branch]
 - Feature branch: [feature/task-N-slug]
+- Branch policy: [isolated | stacked] (from .opencode/CONTEXT.md)
 - Handoff output path: .opencode/handoffs/task-N-implementer.json
 - Constraints: follow project conventions, minimal scope
+
+## Branch policy constraints (when isolated)
+- Create the feature branch from base_branch only.
+- Never merge, rebase, or cherry-pick from another task's feature branch.
+- If prior task work is required on this branch, return BLOCKED and ask the orchestrator to merge the prior task into base_branch first.
 
 ## Instructions
 1. Ask clarifying questions if anything is ambiguous.
