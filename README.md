@@ -7,9 +7,9 @@ It provides four workflow agents with **recommended default models** (fully cust
 | Agent | Default model | Notes |
 |-------|---------------|-------|
 | Orchestrator | `opencode-go/minimax-m3` | Primary controller |
-| Implementer | `opencode/deepseek-v4-flash-free` | `reasoningEffort: max` |
-| Spec Reviewer | `opencode-go/deepseek-v4-pro` | `reasoningEffort: max` |
-| Code Reviewer | `opencode-go/deepseek-v4-pro` | `reasoningEffort: max` |
+| Implementer | `opencode/deepseek-v4-flash-free` | Subagent |
+| Spec Reviewer | `opencode-go/deepseek-v4-pro` | Subagent |
+| Code Reviewer | `opencode-go/deepseek-v4-pro` | Subagent |
 
 ## Why this workflow
 
