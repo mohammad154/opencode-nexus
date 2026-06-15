@@ -223,6 +223,12 @@ Then add this plugin entry in `~/.config/opencode/opencode.json`:
 }
 ```
 
+## Support the project
+
+If OpenCode Nexus is useful to you, consider subscribing to [OpenCode Go](https://opencode.ai/go?ref=KC87DT6PSB) with this referral link — we both get **$5** in usage credit when you subscribe:
+
+**https://opencode.ai/go?ref=KC87DT6PSB**
+
 ## Project layout
 
 - `agents/` — agent permissions and prompts (models live in `opencode.json`)
