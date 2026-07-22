@@ -28,7 +28,7 @@ function getBootstrapText() {
 
   const toolMapping = `**Tool Mapping for OpenCode:**
 - \`Skill\` tool → OpenCode \`skill\` tool
-- \`Task\` subagents → @implementer, @spec-reviewer, @code-reviewer, @blast-analyzer, @knowledge-graph
+- \`Task\` subagents → @implementer, @spec-reviewer, @code-reviewer, @blast-analyzer, @knowledge-graph, @reconciler
 - \`TodoWrite\` → \`todowrite\`
 
 **Cross-pollinated capabilities (new in V2):**
@@ -38,8 +38,8 @@ function getBootstrapText() {
 - \`outcome-memory\` – LESSONS.md (Graphify save-result/reflect) accumulates outcome memory: anti-patterns carry forward
 - \`writing-plans\` – now improve-grade: file:line evidence, effort/confidence, STOP, drift check (plan_commit SHA), verification gates
 - \`orchestrating\` – blast-before-implement, outcome memory write after reviews, drift check, graph context passed to subagents
-- Multi-platform installer: \`install.sh --only claude,cursor,codex,gemini,opencode\` (Graphify installer pattern)
-- Graph hook (Claude Code): post-commit via scripts/nexus-graph.sh
+- Multi-platform installer: \`install.sh --only claude,cursor,codex,gemini,opencode,antigravity\` (Graphify installer pattern)
+- Optional graph refresh: \`scripts/install-git-hook.sh\` (post-commit) in a consumer repo
 
 Use OpenCode's native \`skill\` tool to load Nexus skills automatically based on task phase.`;
 

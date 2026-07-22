@@ -250,8 +250,8 @@ fi
 
 # ── scripts check ──
 echo ""; echo "[scripts] Checking:"
-for s in nexus-graph.sh nexus-graph.js nexus-blast.sh nexus-blast.js; do if [[ -f "$SCRIPT_DIR/scripts/$s" ]]; then echo "  ✓ scripts/$s"; else echo "  ✗ missing $s"; fi; done
-chmod +x "$SCRIPT_DIR/scripts/nexus-graph.sh" "$SCRIPT_DIR/scripts/nexus-blast.sh" 2>/dev/null || true
+for s in nexus-graph.sh nexus-graph.js nexus-blast.sh nexus-blast.js install-git-hook.sh; do if [[ -f "$SCRIPT_DIR/scripts/$s" ]]; then echo "  ✓ scripts/$s"; else echo "  ✗ missing $s"; fi; done
+chmod +x "$SCRIPT_DIR/scripts/nexus-graph.sh" "$SCRIPT_DIR/scripts/nexus-blast.sh" "$SCRIPT_DIR/scripts/install-git-hook.sh" 2>/dev/null || true
 chmod a+r "$SCRIPT_DIR/scripts/nexus-graph.js" "$SCRIPT_DIR/scripts/nexus-blast.js" 2>/dev/null || true
 
 cat <<END
