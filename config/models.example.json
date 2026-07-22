@@ -1,5 +1,5 @@
 {
-  "_comment": "Copy to ~/.config/opencode/nexus.models.json and edit. Re-run install.sh to apply. Only include agents you want to override.",
+  "_comment": "Copy to ~/.config/opencode/nexus.models.json and edit. Re-run install.sh to apply. Only include agents you want to override. V2 ships 7 agents.",
   "orchestrator": {
     "model": "anthropic/claude-sonnet-4-20250514"
   },
@@ -11,6 +11,17 @@
     "model": "opencode-go/deepseek-v4-pro"
   },
   "code-reviewer": {
+    "model": "opencode-go/deepseek-v4-pro",
+    "reasoningEffort": "max"
+  },
+  "blast-analyzer": {
+    "model": "opencode-go/deepseek-v4-pro",
+    "reasoningEffort": "max"
+  },
+  "knowledge-graph": {
+    "model": "opencode/deepseek-v4-flash-free"
+  },
+  "reconciler": {
     "model": "opencode-go/deepseek-v4-pro",
     "reasoningEffort": "max"
   }

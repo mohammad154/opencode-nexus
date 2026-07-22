@@ -1,10 +1,10 @@
 ---
 name: finishing-a-development-branch
-description: Use after all tasks pass review to choose how to finalize the branch safely
+description: Use after tasks pass review to choose how to finalize the branch safely — with outcome memory (LESSONS) capture and reconcile awareness
 compatibility: opencode
 ---
 
-# Finishing a Development Branch
+# Finishing a Development Branch (V2 – with outcome memory)
 
 ## Per-task checkpoint
 
@@ -23,6 +23,7 @@ After the user chooses:
 
 - Update `.opencode/CONTEXT.md` with merge state.
 - Record branch disposition in `task_branches` (see below).
+- **Outcome memory**: load `outcome-memory` skill – write entry to `.opencode/knowledge/LESSONS.md` capturing: what changed (file:line), blast level, what reviewers flagged, lesson for future tasks (type, applicable when, recommendation).
 - Remind the user the orchestrator will wait for an explicit "continue task N+1" before the next task starts.
 
 ## All tasks complete
@@ -58,10 +59,42 @@ task_branches:
 ```
 
 Rules:
-
 - **merged** or **discarded** → eligible for plan-end cleanup (implementer deletes the branch).
 - **kept** or **pr_pending** → never delete in batch cleanup.
 - Upsert the entry for the current task; do not remove entries for prior tasks.
+
+## Outcome memory (new – V2 – after each disposition)
+
+After disposition recorded:
+
+1. Ensure `.opencode/knowledge/` exists – create if not.
+2. Append entry to `.opencode/knowledge/LESSONS.md` via template from `outcome-memory` skill:
+```markdown
+### [YYYY-MM-DD HH:MM] task-N <slug> – <SUCCESS|SUCCESS_WITH_REWORK|DISCARDED|BLOCKED>
+> branch: feature/task-N-<slug> | base: <base> | plan_commit: <sha>
+> verifiers: build=[ok|fail] test=[ok|fail] lint=[ok|fail]
+> blast: risk=[LOW|MEDIUM|HIGH] score=[N] callers=[N]
+
+Changed:
+- `path/file:line` – ...
+
+Review notes:
+- Spec: ...
+- Code: [severity][file:line] ...
+- Blast verification: callers checked [...]
+
+Lesson:
+- <one-paragraph, repo-specific lesson>
+- Type: [pattern | anti-pattern | gotcha | constraint | verification]
+- Applicable when: <condition>
+- Recommendation: <actionable, file:line>
+
+References:
+- handoff: ...
+- blast: .opencode/knowledge/blast/task-N.md
+```
+
+3. If LESSONS.md > 200 lines, consider promoting patterns: group entries by file prefix or type, add `## Summary (as of date)` at bottom with promoted patterns.
 
 ## Detect the base branch
 
@@ -73,9 +106,22 @@ Before merge or PR actions, resolve `base_branch`:
 4. Record the chosen value in `.opencode/CONTEXT.md` as `base_branch`.
 
 Rules:
-
 - Never force-push to `main` or `master`.
 - Confirm user intent before merge or discard actions.
-- If creating a PR, include task summary and test evidence.
+- If creating a PR, include task summary and test evidence + blast summary when present.
 - Update `.opencode/CONTEXT.md` with final state.
 - In **continuous** mode (no per-task finishing UI), default disposition to `kept` unless the user explicitly requests merge or discard for a task.
+
+## Plan-end finalization (after all tasks)
+
+- Optionally run `reconcile` if drift suspected (plan_commit vs HEAD).
+- Build final LESSONS summary:
+  - What went well
+  - Surprise dependencies discovered via graph/blast
+  - Recommendations for next plan
+- Present same choices for final branch if not already integrated.
+- Then proceed to branch cleanup dispatch as described in orchestrating skill (orchestrator checks out base, dispatches implementer via branch-cleanup-prompt.md).
+
+## Branch cleanup note
+
+Branch deletion eligibility same as before. At plan end, finishing skill builds branches_to_delete from task_branches where disposition merged/discarded, but does NOT delete itself – delegates to orchestrator → implementer as before.

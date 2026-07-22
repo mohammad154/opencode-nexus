@@ -1,0 +1,12 @@
+# Generated / local install artifacts (not part of the package)
+.opencode/knowledge/
+.cursor/
+.claude/
+.gemini/
+.antigravity/
+.agents/
+.codex/
+
+# Editor / OS
+*.bak.*
+.DS_Store

@@ -13,5 +13,17 @@
   "code-reviewer": {
     "model": "opencode-go/deepseek-v4-pro",
     "reasoningEffort": "max"
+  },
+  "blast-analyzer": {
+    "model": "opencode-go/deepseek-v4-pro",
+    "reasoningEffort": "max"
+  },
+  "knowledge-graph": {
+    "model": "opencode/deepseek-v4-flash-free",
+    "reasoningEffort": "max"
+  },
+  "reconciler": {
+    "model": "opencode-go/deepseek-v4-pro",
+    "reasoningEffort": "max"
   }
 }
