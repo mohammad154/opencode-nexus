@@ -63,6 +63,38 @@ Verify:
 jq --version
 ```
 
+Install `rg` ([ripgrep](https://github.com/BurntSushi/ripgrep)) and `fd` ([fd](https://github.com/sharkdp/fd)) — optional but recommended for faster file discovery and caller grep when `node` is missing:
+
+**Ubuntu / Debian / WSL:**
+```bash
+sudo apt update && sudo apt install -y ripgrep fd-find
+# Debian/Ubuntu ship the fd binary as fdfind — scripts expect `fd`
+command -v fd >/dev/null || sudo ln -sf "$(command -v fdfind)" /usr/local/bin/fd
+```
+
+**macOS (Homebrew):**
+```bash
+brew install ripgrep fd
+```
+
+**Fedora / RHEL:**
+```bash
+sudo dnf install -y ripgrep fd-find
+command -v fd >/dev/null || sudo ln -sf "$(command -v fdfind)" /usr/local/bin/fd
+```
+
+**Windows (winget):**
+```powershell
+winget install BurntSushi.ripgrep.MSVC
+winget install sharkdp.fd
+```
+
+Verify:
+```bash
+rg --version
+fd --version
+```
+
 ## One-command install (multi-platform auto-detect)
 
 ```bash
