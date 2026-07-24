@@ -57,15 +57,16 @@ Run the per-task loop for each pending task in `.opencode/plans/PLAN.md`.
 12. If code review fails, route fixes back to implementer and repeat.
 13. **Outcome memory**: After both reviews pass, write entry to `.opencode/knowledge/LESSONS.md` via the pattern in that file (see finishing-a-development-branch + outcome-memory). Include: task id, what was changed, blast level, what reviewers flagged, lesson learned.
 14. Mark task done in `.opencode/CONTEXT.md` and `.opencode/plans/PLAN.md` (`- [x]`). Update `task_branches` dispositions later via finishing skill.
-15. Complete the task based on `execution_mode`:
+15. Load `finishing-a-development-branch` for **this task's branch only** — merge into `base_branch` when `merge_policy: always_to_base` (default).
+16. Complete the task based on `execution_mode`:
     - **`execution_mode: checkpoint`:**
-      - Load `finishing-a-development-branch` for **this task's branch only**.
       - Set `current_phase: awaiting_checkpoint` and `next_action: continue task N+1` (or finish if last task).
       - **Stop.** Do not dispatch the next task until the user explicitly says to continue.
     - **`execution_mode: continuous`:**
+      - `git checkout <base_branch>` (prior task should already be merged).
       - Proceed to the next pending task.
 
-On resume after checkpoint: `git checkout <base_branch>` and optionally `git pull` before creating the next isolated branch (user may have merged the prior task). Re-run graph build + blast for next task.
+On resume after checkpoint: `git checkout <base_branch>` and optionally `git pull` before creating the next isolated branch (prior task must already be merged into `base_branch`). Re-run graph build + blast for next task.
 
 ## Plan completion
 
@@ -85,7 +86,7 @@ Edge cases:
 - **No eligible branches:** user kept all branches or has open PRs — skip dispatch.
 - **Delete fails** (`git branch -d` on unmerged): implementer returns `BLOCKED`; do not force-delete unless disposition is `discarded`.
 - **Stacked policy:** same cleanup rules; disposition drives eligibility.
-- **Continuous mode:** run plan-end cleanup once after the final task's reviews; default disposition to `kept` unless user explicitly requests merge or discard.
+- **Continuous mode:** merge each task to `base_branch` after reviews when `merge_policy: always_to_base`; run plan-end cleanup once after the final task's reviews.
 
 ## Task-N.md template (enhanced — improve-grade)
 
@@ -181,7 +182,7 @@ If drift detected during implementer:
 
 - Never skip spec review.
 - Never skip code review.
-- Never merge task branches automatically without explicit user confirmation.
+- Always merge each completed task branch into `base_branch` after reviews pass when `merge_policy: always_to_base` (project default). Only defer merge when `merge_policy: prompt`.
 - Never delete task branches directly (`git branch -d` / `-D`); delegate deletion to `implementer` at plan completion.
 - Never auto-continue past a completed task when `execution_mode: checkpoint`.
 - If a subagent returns BLOCKED or NEEDS_CONTEXT, resolve before continuing.

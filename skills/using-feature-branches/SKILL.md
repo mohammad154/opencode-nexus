@@ -26,6 +26,24 @@ Review diff command:
 git diff <base-branch>...<feature-branch>
 ```
 
+## Merge policy (project default)
+
+Read `merge_policy` from `.opencode/CONTEXT.md`. Default to `always_to_base` for this project.
+
+When `merge_policy: always_to_base` (default):
+
+- **After each task passes spec + code review**, merge the feature branch into `base_branch` before starting the next task.
+- The next task branch must be created from the updated `base_branch` so it includes prior work.
+- Do not ask whether to merge — merging is the required integration step unless the user sets `merge_policy: prompt`.
+
+```bash
+git checkout <base-branch>
+git merge feature/task-N-<slug>   # fast-forward or merge commit
+git checkout -b feature/task-N+1-<slug>
+```
+
+Override only when the user sets `merge_policy: prompt` in `.opencode/CONTEXT.md` (present choices via `finishing-a-development-branch`).
+
 ## Branch policy
 
 Read `branch_policy` from `.opencode/CONTEXT.md`. Default to `isolated` when unset.
@@ -43,11 +61,11 @@ Each task branch is created from `base_branch` only. Reviews show only that task
 3. `git checkout -b feature/task-N-<slug>`
 4. Implement and commit
 5. Review with `git diff <base-branch>...feature/task-N-<slug>`
-6. Merge or keep branch based on user choice
+6. After reviews pass: merge into `base_branch` (see Merge policy). Record disposition `merged`.
 
 **Never** branch task N+1 off `feature/task-N-...`.
 
-With `isolated` + `execution_mode: checkpoint`, merge task N into `base_branch` before starting task N+1. Create the next branch from the updated `base_branch` — **not** by merging task N's branch into task N+1's branch.
+Always merge task N into `base_branch` before starting task N+1 (when `merge_policy: always_to_base`). Create the next branch from the updated `base_branch` — **not** by merging task N's branch into task N+1's branch.
 
 **Forbidden when `branch_policy: isolated`:**
 
@@ -66,7 +84,7 @@ Use only when the user explicitly chose `stacked` in `.opencode/CONTEXT.md`.
 
 If a task branch already contains a prior task's commits (e.g. fast-forward merge of task N into task N+1), do not dispatch reviewers until fixed.
 
-1. Merge the prior task branch into `base_branch` (user confirms).
+1. Merge the prior task branch into `base_branch`.
 2. Rebase the current task branch onto `base_branch`.
 3. Verify: `git diff <base-branch>...<feature-branch>` shows **only** the current task's changes.
 

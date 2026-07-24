@@ -10,7 +10,21 @@ compatibility: opencode
 
 When `execution_mode: checkpoint` in `.opencode/CONTEXT.md`, run this skill **after each task** passes both reviews — not only after all tasks complete.
 
-Scope all options to the **current task branch** named in `.opencode/CONTEXT.md`.
+Scope to the **current task branch** named in `.opencode/CONTEXT.md`.
+
+Read `merge_policy` from `.opencode/CONTEXT.md`. Default to `always_to_base`.
+
+### `merge_policy: always_to_base` (default)
+
+After reviews pass:
+
+1. Merge locally into `base_branch` (do not ask — this is required so the next task branch starts from updated code).
+2. Record disposition `merged` in `task_branches`.
+3. Update `.opencode/CONTEXT.md` with merge state.
+4. **Outcome memory**: load `outcome-memory` skill – write entry to `.opencode/knowledge/LESSONS.md` capturing: what changed (file:line), blast level, what reviewers flagged, lesson for future tasks (type, applicable when, recommendation).
+5. If `execution_mode: checkpoint`, remind the user the orchestrator will wait for an explicit "continue task N+1" before the next task starts.
+
+### `merge_policy: prompt` (opt-in only)
 
 Present these choices:
 
@@ -19,12 +33,7 @@ Present these choices:
 3. Keep branch unmerged for later.
 4. Discard branch changes.
 
-After the user chooses:
-
-- Update `.opencode/CONTEXT.md` with merge state.
-- Record branch disposition in `task_branches` (see below).
-- **Outcome memory**: load `outcome-memory` skill – write entry to `.opencode/knowledge/LESSONS.md` capturing: what changed (file:line), blast level, what reviewers flagged, lesson for future tasks (type, applicable when, recommendation).
-- Remind the user the orchestrator will wait for an explicit "continue task N+1" before the next task starts.
+After the user chooses, update CONTEXT, record disposition, and write outcome memory as above.
 
 ## All tasks complete
 
@@ -107,10 +116,12 @@ Before merge or PR actions, resolve `base_branch`:
 
 Rules:
 - Never force-push to `main` or `master`.
-- Confirm user intent before merge or discard actions.
+- When `merge_policy: always_to_base`, merge after each task without prompting.
+- When `merge_policy: prompt`, confirm user intent before merge or discard actions.
 - If creating a PR, include task summary and test evidence + blast summary when present.
 - Update `.opencode/CONTEXT.md` with final state.
-- In **continuous** mode (no per-task finishing UI), default disposition to `kept` unless the user explicitly requests merge or discard for a task.
+- In **continuous** mode with `merge_policy: always_to_base`, merge each task branch to `base_branch` after reviews; disposition `merged`.
+- In **continuous** mode with `merge_policy: prompt`, default disposition to `kept` unless the user explicitly requests merge or discard for a task.
 
 ## Plan-end finalization (after all tasks)
 
