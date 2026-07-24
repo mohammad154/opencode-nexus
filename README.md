@@ -6,15 +6,133 @@ It ships **7 agents** and **10 skills** with recommended default models (fully c
 
 ## Agents
 
-| Agent | Default model | Role |
-|-------|---------------|------|
-| Orchestrator | `opencode-go/minimax-m3` | Primary controller – auto-routes skills, enforces blast-before-implement, drift check |
-| Implementer | `opencode/deepseek-v4-flash-free` | Subagent – drift + STOP handling, blast verification, verification gates |
-| Spec Reviewer | `opencode-go/deepseek-v4-pro` | Subagent – file:line acceptance fidelity, blast scope fidelity, isolation violation detection |
-| Code Reviewer | `opencode-go/deepseek-v4-pro` | Subagent – severity-tagged findings, blast regression check, LESSONS anti-pattern guard |
-| Blast Analyzer | `opencode-go/deepseek-v4-pro` | Subagent – computes graph reverse index → Mermaid blast diagram + risk score + JSON |
-| Knowledge Graph | `opencode/deepseek-v4-flash-free` | Subagent – builds `.opencode/knowledge/graph.json` (dependency-light), jq recipes |
-| Reconciler | `opencode-go/deepseek-v4-pro` | Subagent – verifies DONE still holds, classifies BLOCKED (drift/env/scope/auth), retires fixed-elsewhere |
+Nexus ships **7 agents**: one primary controller and six specialized subagents. The orchestrator delegates work; only the implementer writes production code. Agent definitions live in [`agents/`](agents/).
+
+```text
+User request
+     │
+     ▼
+orchestrator ──► knowledge-graph (map codebase)
+     │           blast-analyzer (per-task safety)
+     ▼
+implementer (code on feature branch)
+     │
+     ├──► spec-reviewer (did we build the right thing?)
+     └──► code-reviewer (did we build it well?)
+     │
+     ▼
+reconciler (when plans drift or tasks get BLOCKED)
+```
+
+| Agent | Type | Default model | Role |
+|-------|------|---------------|------|
+| `orchestrator` | primary | `opencode-go/minimax-m3` | Workflow controller – routes skills, dispatches subagents, never writes production code |
+| `implementer` | subagent | `opencode/deepseek-v4-flash-free` | Writes code, tests, and commits on feature branches |
+| `knowledge-graph` | subagent | `opencode/deepseek-v4-flash-free` | Builds `.opencode/knowledge/graph.json` and answers dependency queries |
+| `blast-analyzer` | subagent | `opencode-go/deepseek-v4-pro` | Computes blast radius before each task (Mermaid + risk score) |
+| `spec-reviewer` | subagent | `opencode-go/deepseek-v4-pro` | First review gate – acceptance criteria and blast scope fidelity |
+| `code-reviewer` | subagent | `opencode-go/deepseek-v4-pro` | Second review gate – quality, security, blast regression, LESSONS |
+| `reconciler` | subagent | `opencode-go/deepseek-v4-pro` | Drift recovery – verifies DONE tasks, classifies BLOCKED tasks |
+
+### orchestrator
+
+Primary workflow controller. Does **not** write production code.
+
+- Auto-routes Nexus skills (`brainstorming`, `writing-plans`, `orchestrating`, etc.)
+- Maintains `.opencode/plans/PLAN.md`, `.opencode/CONTEXT.md`, and task files
+- Ensures knowledge graph exists before planning or dispatch
+- Runs blast-radius analysis **before** every implementer dispatch
+- Dispatches one implementer at a time with blast + graph + LESSONS context
+- Enforces two-stage review: spec-reviewer → code-reviewer (both blast-aware)
+- Writes LESSONS entries via `outcome-memory` after reviews pass
+- Delegates to reconciler when implementer returns `BLOCKED` (drift STOP)
+- At plan end: final reconcile + branch cleanup via implementer
+
+See [`agents/orchestrator.md`](agents/orchestrator.md).
+
+### implementer
+
+The only agent that writes production code. Implements **one task** per dispatch.
+
+- Runs drift check (`plan_commit` vs `HEAD`) before editing; returns `BLOCKED` on STOP
+- Uses blast report to update direct callers when signatures change
+- Runs exact verification gates from the task file (not prose like "run tests")
+- Commits on the assigned feature branch: `[task-N] <title>: <what>`
+- Returns `DONE`, `DONE_WITH_CONCERNS`, `BLOCKED`, or `NEEDS_CONTEXT`
+- Also handles **branch cleanup** when dispatched at plan completion (deletes merged/discarded branches)
+
+See [`agents/implementer.md`](agents/implementer.md).
+
+### knowledge-graph
+
+Builds a lightweight, dependency-free map of the codebase.
+
+- Runs `scripts/nexus-graph.sh` / `nexus-graph.js`
+- Produces `.opencode/knowledge/graph.json`, `graph.md`, `index.md`
+- Tracks import edges (EXTRACTED vs INFERRED), hub nodes, language stats
+- Answers ad-hoc queries ("who imports X?") via `jq` reverse index
+- Never edits production code – only `.opencode/knowledge/`
+
+See [`agents/knowledge-graph.md`](agents/knowledge-graph.md).
+
+### blast-analyzer
+
+Computes **blast radius** – what might break from a proposed change.
+
+- Reads `graph.json` reverse index for the task's target files
+- Outputs risk level (LOW / MEDIUM / HIGH), Mermaid diagram, and caller list
+- Writes `.opencode/knowledge/blast/task-N.md` + `.json`
+- Runs **before** implementer starts; HIGH risk triggers extra scrutiny in spec review
+- Never edits production code
+
+See [`agents/blast-analyzer.md`](agents/blast-analyzer.md).
+
+### spec-reviewer
+
+First review gate: **did the implementer build the right thing?** Read-only.
+
+- Checks acceptance criteria with file:line evidence
+- Verifies blast scope fidelity (callers updated when signatures change?)
+- Detects out-of-scope changes and isolation violations
+- Checks drift (does plan evidence still hold?)
+- Returns `APPROVED`, `REQUEST_CHANGES`, `ISOLATION_VIOLATION`, or `BLOCKED`
+
+See [`agents/spec-reviewer.md`](agents/spec-reviewer.md).
+
+### code-reviewer
+
+Second review gate: **did they build it well?** Read-only.
+
+- Correctness, edge cases, security, maintainability
+- Test quality; for MEDIUM/HIGH blast, checks caller-path coverage
+- Blast regression check (callers still work?)
+- LESSONS anti-pattern guard (`.opencode/knowledge/LESSONS.md`)
+- Severity-tagged findings: HIGH / MEDIUM / LOW
+
+See [`agents/code-reviewer.md`](agents/code-reviewer.md).
+
+### reconciler
+
+Recovery and drift handler when plans go stale or tasks get blocked.
+
+- Verifies DONE tasks still hold after new commits
+- Investigates `BLOCKED` tasks: `DRIFT_BLOCK`, `ENV_BLOCK`, `SCOPE_BLOCK`, `AUTH_BLOCK`
+- Refreshes blast reports for remaining TODO tasks
+- Retires findings fixed elsewhere (findings triage table in PLAN.md)
+- Writes `.opencode/knowledge/reconcile-<timestamp>.md` and updates `CONTEXT.md`
+- Never edits production code
+
+See [`agents/reconciler.md`](agents/reconciler.md).
+
+### Default model tiers
+
+| Tier | Agents | Rationale |
+|------|--------|-----------|
+| Coordination | `orchestrator` (`minimax-m3`) | Routing, state management, multi-step delegation |
+| Fast / code | `implementer`, `knowledge-graph` (`deepseek-v4-flash-free`) | Code generation and graph builds – higher throughput |
+| Deep reasoning | `blast-analyzer`, `spec-reviewer`, `code-reviewer`, `reconciler` (`deepseek-v4-pro`, `reasoningEffort: max`) | Safety analysis, review, and drift recovery |
+
+All models are fully customizable – see [Customize agent models](#customize-agent-models) below.
 
 ## Why this workflow (V2)
 
