@@ -163,7 +163,11 @@ The orchestrator cannot delete branches (`git branch -d` / `-D` are denied). Aft
 
 ## Orchestrator task permissions
 
-The orchestrator agent denies all subagent dispatch by default (`"*": deny`) and then allows only named agents: `implementer`, `spec-reviewer`, `code-reviewer`, `blast-analyzer`, `knowledge-graph`, `reconciler`. Branch deletion (`git branch -d` / `-D`) is denied on orchestrator and allowed on implementer. OpenCode evaluates permission rules with **last matching rule wins**, so wildcard must come first and specific `allow` entries after. Do not reorder these rules — see [OpenCode permissions docs](https://opencode.ai/docs/permissions/).
+The orchestrator agent denies all subagent dispatch by default (`"*": deny`) and then allows the six canonical roles. On Claude/Cursor/Antigravity the installer rewrites those keys to `nexus-*` to match installed agent filenames.
+
+Canonical → local name resolution and **mandatory two-stage review gates** live in [`skills/orchestrating/dispatch.md`](../skills/orchestrating/dispatch.md). After implementer finishes, orchestrator **must** run stage-1 spec review then stage-2 code review as separate dispatches (never skip, never parallel) and verify both APPROVED handoff JSONs before finishing — on OpenCode, Claude, Cursor, Codex, Gemini, and Antigravity alike.
+
+Branch deletion (`git branch -d` / `-D`) is denied on orchestrator and allowed on implementer. OpenCode evaluates permission rules with **last matching rule wins**, so wildcard must come first and specific `allow` entries after. Do not reorder these rules — see [OpenCode permissions docs](https://opencode.ai/docs/permissions/).
 
 ## Multi-platform installer pattern (Graphify-inspired)
 

@@ -43,7 +43,7 @@ Primary workflow controller. Does **not** write production code.
 - Ensures knowledge graph exists before planning or dispatch
 - Runs blast-radius analysis **before** every implementer dispatch
 - Dispatches one implementer at a time with blast + graph + LESSONS context
-- Enforces two-stage review: spec-reviewer → code-reviewer (both blast-aware)
+- Enforces two-stage review on **every platform**: `spec-reviewer` → `code-reviewer` (never skip, never parallel). Local names may be `nexus-*` where the installer prefixes agents. Handoff JSON gates are required before finishing — see [`skills/orchestrating/dispatch.md`](skills/orchestrating/dispatch.md).
 - Writes LESSONS entries via `outcome-memory` after reviews pass
 - Delegates to reconciler when implementer returns `BLOCKED` (drift STOP)
 - At plan end: final reconcile + branch cleanup via implementer
@@ -222,11 +222,11 @@ git clone https://github.com/mohammad154/opencode-nexus.git /tmp/opencode-nexus 
 The installer auto-detects installed platforms and drops the right artifacts:
 
 - **OpenCode** (`~/.config/opencode/`): plugin entry in `opencode.json`, agent defs in `agents/`, model merging, backup `*.bak.timestamp`
-- **Claude Code** (`~/.claude/skills/nexus-*/` + `~/.claude/agents/nexus-*.md`): one-level skill dirs (Claude discovers `skills/<name>/SKILL.md` only). Optional graph refresh: `scripts/install-git-hook.sh` in a consumer repo
-- **Cursor** (`~/.cursor/rules/nexus-*.mdc` + project `.cursor/rules/`): each skill as `.mdc` (`using-nexus` always-on; others agent-requested)
-- **Codex** (`~/.codex/skills/nexus-*/`): skill bundle (recursive discovery)
-- **Gemini CLI** (`~/.gemini/skills/nexus-*/` + `~/.agents/skills/nexus-*/`): one-level skill dirs (Gemini ignores nested `skills/nexus/<name>/`)
-- **Antigravity** (`~/.gemini/config/skills/nexus-*/` + project `.agents/rules/nexus.md` + `.agents/workflows/nexus.md`): Graphify-compatible AG layout
+- **Claude Code** (`~/.claude/skills/nexus-*/` + `~/.claude/agents/nexus-*.md`): agents get Claude `name:` + `tools:` frontmatter (required by [sub-agents docs](https://code.claude.com/docs/en/sub-agents)). Optional graph refresh: `scripts/install-git-hook.sh`
+- **Cursor** (`~/.cursor/rules/nexus-*.mdc` + `~/.cursor/skills/nexus-*/` + `~/.cursor/agents/nexus-*.md`): rules + [Agent Skills](https://cursor.com/docs/skills) + [subagents](https://cursor.com/docs/subagents) with `name:` frontmatter
+- **Codex** (`~/.agents/skills/nexus-*/` primary per [Codex skills](https://developers.openai.com/codex/skills) + `~/.codex/skills/nexus-*/` compat)
+- **Gemini CLI** (`~/.gemini/skills/nexus-*/` + `~/.agents/skills/nexus-*/`)
+- **Antigravity** (`~/.gemini/config/skills/nexus-*/` universal + `~/.gemini/antigravity/skills/` + workspace `.agents/skills/`)
 
 Scripts are always verified as present (`scripts/nexus-graph.sh`, `nexus-graph.js`, `nexus-blast.sh`, `nexus-blast.js`) – dependency-light, no pip.
 

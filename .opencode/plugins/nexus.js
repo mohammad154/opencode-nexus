@@ -28,7 +28,10 @@ function getBootstrapText() {
 
   const toolMapping = `**Tool Mapping for OpenCode:**
 - \`Skill\` tool → OpenCode \`skill\` tool
-- \`Task\` subagents → @implementer, @spec-reviewer, @code-reviewer, @blast-analyzer, @knowledge-graph, @reconciler
+- \`Task\` / Agent subagents (canonical) → implementer, spec-reviewer, code-reviewer, blast-analyzer, knowledge-graph, reconciler
+- Prefixed installs (Claude/Cursor/AG) → nexus-<canonical> (see skills/orchestrating/dispatch.md)
+- Two-stage review required on every platform: spec then code; both APPROVED handoff JSONs before finish
+- Codex/Gemini (skills-only): isolated reviewer turns still write the same handoff JSON gates
 - \`TodoWrite\` → \`todowrite\`
 
 **Cross-pollinated capabilities (new in V2):**

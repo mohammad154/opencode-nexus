@@ -121,54 +121,196 @@ else echo "[opencode] Skipped"; fi
 skill_desc() { # skill_desc <SKILL.md>
   grep -m1 '^description:' "$1" 2>/dev/null | sed 's/^description:[[:space:]]*//' || basename "$(dirname "$1")"
 }
+# Rewrite frontmatter name: to match folder (Cursor/Codex/Gemini require name == parent folder)
+rewrite_skill_name() { # rewrite_skill_name <SKILL.md> <new-name>
+  local f=$1 new=$2
+  [[ -f "$f" ]] || return 0
+  if grep -q '^name:' "$f" 2>/dev/null; then
+    sed "s/^name:[[:space:]]*.*/name: $new/" "$f" >"$f.tmp" && mv "$f.tmp" "$f"
+  else
+    # Insert name after opening ---
+    awk -v n="$new" 'BEGIN{done=0} /^---[[:space:]]*$/{print; if(!done){print "name: " n; done=1; next}} {print}' "$f" >"$f.tmp" && mv "$f.tmp" "$f"
+  fi
+}
 install_skills_flat() { # install_skills_flat <dest_skills_root> [prefix]
   # Writes <root>/<prefix><skill-name>/SKILL.md (+ siblings). One level deep for discovery.
-  local root=$1 prefix=${2:-nexus-} sk n d
+  local root=$1 prefix=${2:-nexus-} sk n d skill_name
   [[ -z "$root" ]] && return
   mkdir -p "$root" 2>/dev/null || return
   for sk in "$SCRIPT_DIR"/skills/*; do
     [[ -d "$sk" ]] || continue
     n="$(basename "$sk")"
-    d="$root/${prefix}${n}"
+    skill_name="${prefix}${n}"
+    d="$root/${skill_name}"
     mkdir -p "$d"
     cp -r "$sk"/* "$d"/ 2>/dev/null || true
+    [[ -f "$d/SKILL.md" ]] && rewrite_skill_name "$d/SKILL.md" "$skill_name"
   done
 }
 strip_skill_frontmatter() { # stdin → body without YAML frontmatter
   awk 'BEGIN{fm=0} /^---[[:space:]]*$/{if(NR==1){fm=1;next} if(fm==1){fm=2;next}} fm!=1{print}' 
 }
+agent_body() { # agent_body <src.md> → markdown body after frontmatter
+  strip_skill_frontmatter <"$1"
+}
+agent_desc() { # agent_desc <src.md>
+  grep -m1 '^description:' "$1" 2>/dev/null | sed 's/^description:[[:space:]]*//' || basename "$1" .md
+}
+
+# OpenCode task-permission rewrite for prefixed agent names (orchestrator allow-list)
+rewrite_opencode_task_keys() { # stdin → stdout
+  sed -E \
+    -e 's/^([[:space:]]+)implementer: allow/\1nexus-implementer: allow/' \
+    -e 's/^([[:space:]]+)spec-reviewer: allow/\1nexus-spec-reviewer: allow/' \
+    -e 's/^([[:space:]]+)code-reviewer: allow/\1nexus-code-reviewer: allow/' \
+    -e 's/^([[:space:]]+)blast-analyzer: allow/\1nexus-blast-analyzer: allow/' \
+    -e 's/^([[:space:]]+)knowledge-graph: allow/\1nexus-knowledge-graph: allow/' \
+    -e 's/^([[:space:]]+)reconciler: allow/\1nexus-reconciler: allow/' \
+    -e 's/@implementer\b/@nexus-implementer/g' \
+    -e 's/@spec-reviewer\b/@nexus-spec-reviewer/g' \
+    -e 's/@code-reviewer\b/@nexus-code-reviewer/g' \
+    -e 's/@blast-analyzer\b/@nexus-blast-analyzer/g' \
+    -e 's/@knowledge-graph\b/@nexus-knowledge-graph/g' \
+    -e 's/@reconciler\b/@nexus-reconciler/g'
+}
+
+# Claude Code: name+description required; tools allowlist (docs: code.claude.com/docs/en/sub-agents)
+# Reviewers need Write for .opencode/handoffs/*.json only (enforced in prompt body).
+install_claude_agent() { # install_claude_agent <src.md> <dest.md>
+  local src=$1 dest=$2 base name desc tools
+  [[ -f "$src" ]] || return 0
+  base="$(basename "$src" .md)"
+  name="nexus-$base"
+  desc="$(agent_desc "$src")"
+  case "$base" in
+    orchestrator)
+      # Claude Agent tool allowlist — only Nexus subagents (docs: Agent(name1, name2))
+      tools="Agent(nexus-implementer, nexus-spec-reviewer, nexus-code-reviewer, nexus-blast-analyzer, nexus-knowledge-graph, nexus-reconciler), Read, Grep, Glob, Bash, Write, Edit, Skill"
+      ;;
+    implementer)
+      tools="Read, Grep, Glob, Bash, Edit, Write"
+      ;;
+    spec-reviewer|code-reviewer|blast-analyzer|knowledge-graph|reconciler)
+      tools="Read, Grep, Glob, Bash, Write"
+      ;;
+    *)
+      tools="Read, Grep, Glob, Bash, Write"
+      ;;
+  esac
+  {
+    echo "---"
+    echo "name: $name"
+    echo "description: $desc"
+    echo "tools: $tools"
+    echo "model: inherit"
+    echo "---"
+    echo ""
+    agent_body "$src" | rewrite_opencode_task_keys
+  } >"$dest"
+}
+
+# Cursor: name + description; filename also used. OpenCode permission keys ignored by Cursor.
+# Docs: cursor.com/docs/subagents — do NOT set readonly on reviewers (need handoff JSON writes).
+install_cursor_agent() { # install_cursor_agent <src.md> <dest.md>
+  local src=$1 dest=$2 base name desc
+  [[ -f "$src" ]] || return 0
+  base="$(basename "$src" .md)"
+  name="nexus-$base"
+  desc="$(agent_desc "$src")"
+  {
+    echo "---"
+    echo "name: $name"
+    echo "description: $desc"
+    echo "model: inherit"
+    echo "---"
+    echo ""
+    # Keep OpenCode permission block as documentation for dual-use; Cursor ignores unknown keys
+    # but we strip mode/permission to avoid confusion and rely on prompt constraints.
+    agent_body "$src" | rewrite_opencode_task_keys
+  } >"$dest"
+}
+
+# Generic prefixed copy (Codex/AG best-effort agents) — adds name: for Cursor/Claude compat readers
+install_prefixed_agent() { # install_prefixed_agent <src.md> <dest.md>
+  local src=$1 dest=$2
+  [[ -f "$src" ]] || return 0
+  install_cursor_agent "$src" "$dest"
+}
+
+install_prefixed_agents_dir() { # install_prefixed_agents_dir <dest_agents_dir>
+  local dest=$1 ag
+  [[ -z "$dest" ]] && return
+  mkdir -p "$dest" 2>/dev/null || return
+  for ag in "$SCRIPT_DIR"/agents/*.md; do
+    [[ -f "$ag" ]] || continue
+    install_prefixed_agent "$ag" "$dest/nexus-$(basename "$ag")"
+  done
+}
+
+install_claude_agents_dir() {
+  local dest=$1 ag
+  [[ -z "$dest" ]] && return
+  mkdir -p "$dest" 2>/dev/null || return
+  for ag in "$SCRIPT_DIR"/agents/*.md; do
+    [[ -f "$ag" ]] || continue
+    install_claude_agent "$ag" "$dest/nexus-$(basename "$ag")"
+  done
+}
+
+install_cursor_agents_dir() {
+  local dest=$1 ag
+  [[ -z "$dest" ]] && return
+  mkdir -p "$dest" 2>/dev/null || return
+  for ag in "$SCRIPT_DIR"/agents/*.md; do
+    [[ -f "$ag" ]] || continue
+    install_cursor_agent "$ag" "$dest/nexus-$(basename "$ag")"
+  done
+}
 
 # ── Claude Code ──
+# Docs: skills → ~/.claude/skills/<name>/SKILL.md ; agents → ~/.claude/agents/*.md
+# Agents REQUIRE frontmatter name + description (identity = name field, not filename).
 if want claude; then
   echo ""; echo "[claude] Installing (CLI+IDE)..."
   CD="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"; CAD="$CD/agents"; mkdir -p "$CAD"
-  # Claude discovers ~/.claude/skills/<name>/SKILL.md (one level — not skills/nexus/<name>)
   install_skills_flat "$CD/skills" "nexus-"
+  install_claude_agents_dir "$CAD"
   gt="$(git rev-parse --show-toplevel 2>/dev/null || true)"
-  [[ -n "$gt" ]] && install_skills_flat "$gt/.claude/skills" "nexus-"
-  for ag in "$SCRIPT_DIR"/agents/*.md; do cp -f "$ag" "$CAD/nexus-$(basename "$ag")" 2>/dev/null || true; done
-  # Remove obsolete invalid Claude hook artifact from older installers
-  # (Claude Code has no post-commit event; use scripts/install-git-hook.sh in a consumer repo)
+  if [[ -n "$gt" ]]; then
+    install_skills_flat "$gt/.claude/skills" "nexus-"
+    install_claude_agents_dir "$gt/.claude/agents"
+  fi
   rm -f "$CD/hooks/nexus-graph.json" 2>/dev/null || true
-  echo "  [claude] Done → $CD/skills/nexus-*/ + $CAD/nexus-*.md"
+  echo "  [claude] Done → $CD/skills/nexus-*/ + $CAD/nexus-*.md (name: frontmatter set)"
   echo "  Tip: in a project repo, run scripts/install-git-hook.sh to refresh the graph on commit"
 fi
 
-# ── Cursor (CLI cursor-agent/cursor + IDE) ──
+# ── Cursor (CLI + IDE) ──
+# Docs: rules → ~/.cursor/rules/*.mdc ; skills → ~/.cursor/skills/ + ~/.agents/skills/
+#        agents → ~/.cursor/agents/*.md (also reads ~/.claude/agents, ~/.codex/agents)
+# Agents: name + description; body required after frontmatter.
 if want cursor; then
   echo ""; echo "[cursor] Installing (CLI + IDE)..."
-  CUR_R="${CURSOR_RULES_DIR:-$HOME/.cursor/rules}"; CUR_A="${CURSOR_AGENTS_DIR:-$HOME/.cursor/agents}"; mkdir -p "$CUR_R" "$CUR_A"
+  CUR_R="${CURSOR_RULES_DIR:-$HOME/.cursor/rules}"; CUR_A="${CURSOR_AGENTS_DIR:-$HOME/.cursor/agents}"
+  CUR_S="${CURSOR_SKILLS_DIR:-$HOME/.cursor/skills}"
+  mkdir -p "$CUR_R" "$CUR_A" "$CUR_S"
   GIT_TOP="$(git rev-parse --show-toplevel 2>/dev/null || true)"; PROJ_R=""; [[ -n "$GIT_TOP" ]] && PROJ_R="$GIT_TOP/.cursor/rules"
+  # Always-on / agent-requested rules (using-nexus alwaysApply)
   for sk in "$SCRIPT_DIR"/skills/*; do
     [[ -d "$sk" ]] || continue; n="$(basename "$sk")"; s="$sk/SKILL.md"; [[ -f "$s" ]] || continue
     dst="$CUR_R/nexus-$n.mdc"; bak "$dst"
     desc="$(skill_desc "$s")"
-    # Agent-requested rule: description only (no globs) — Cursor attaches when relevant
-    # using-nexus is the session router → alwaysApply
     if [[ "$n" == "using-nexus" ]]; then
       { echo "---"; echo "description: $desc"; echo "alwaysApply: true"; echo "---"; echo ""; strip_skill_frontmatter <"$s"; } >"$dst"
     else
       { echo "---"; echo "description: $desc"; echo "alwaysApply: false"; echo "---"; echo ""; strip_skill_frontmatter <"$s"; } >"$dst"
+    fi
+    if [[ "$n" == "orchestrating" ]]; then
+      for extra in dispatch.md implementer-prompt.md spec-reviewer-prompt.md code-reviewer-prompt.md branch-cleanup-prompt.md; do
+        if [[ -f "$sk/$extra" ]]; then
+          { echo ""; echo "---"; echo ""; echo "## Attached: $extra"; echo ""; cat "$sk/$extra"; } >>"$dst"
+        fi
+      done
     fi
     if [[ -n "$PROJ_R" && "$PROJ_R" != "$CUR_R" ]]; then
       mkdir -p "$PROJ_R" 2>/dev/null || true
@@ -177,64 +319,92 @@ if want cursor; then
       fi
     fi
   done
-  for ag in "$SCRIPT_DIR"/agents/*.md; do cp -f "$ag" "$CUR_A/nexus-$(basename "$ag")" 2>/dev/null || true; done
-  echo "  [cursor] Done → global: $CUR_R/nexus-*.mdc + agents: $CUR_A/nexus-*.md"
-  [[ -n "$PROJ_R" ]] && echo "         project-local: $PROJ_R/nexus-*.mdc"
+  # Native Agent Skills paths (cursor.com/docs/skills) — name must match folder
+  install_skills_flat "$CUR_S" "nexus-"
+  install_skills_flat "${HOME}/.agents/skills" "nexus-"
+  install_cursor_agents_dir "$CUR_A"
+  if [[ -n "$GIT_TOP" ]]; then
+    install_skills_flat "$GIT_TOP/.cursor/skills" "nexus-"
+    install_skills_flat "$GIT_TOP/.agents/skills" "nexus-"
+    install_cursor_agents_dir "$GIT_TOP/.cursor/agents"
+  fi
+  echo "  [cursor] Done → rules: $CUR_R/nexus-*.mdc + skills: $CUR_S/nexus-*/ + agents: $CUR_A/nexus-*.md"
+  [[ -n "$PROJ_R" ]] && echo "         project-local: .cursor/rules|skills|agents + .agents/skills"
 fi
 
-# ── Codex (recursive **/SKILL.md — flat nexus-* dirs for consistent names) ──
+# ── Codex ──
+# Docs (developers.openai.com/codex/skills): USER=$HOME/.agents/skills ; also ~/.codex/skills (legacy/compat)
+# Cursor also loads ~/.codex/skills and .codex/skills
 if want codex; then
   echo ""; echo "[codex] Installing (CLI)..."
-  COD="${CODEX_CONFIG_DIR:-$HOME/.codex}/skills"
-  install_skills_flat "$COD" "nexus-"
-  echo "  [codex] Done → $COD/nexus-*/"
+  install_skills_flat "${CODEX_CONFIG_DIR:-$HOME/.codex}/skills" "nexus-"
+  install_skills_flat "${HOME}/.agents/skills" "nexus-"
+  install_prefixed_agents_dir "${CODEX_CONFIG_DIR:-$HOME/.codex}/agents"
+  gt="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+  if [[ -n "$gt" ]]; then
+    install_skills_flat "$gt/.agents/skills" "nexus-"
+    install_skills_flat "$gt/.codex/skills" "nexus-"
+    install_prefixed_agents_dir "$gt/.codex/agents"
+  fi
+  echo "  [codex] Done → ~/.agents/skills/nexus-*/ + ~/.codex/skills/nexus-*/ (+ agents)"
 fi
 
-# ── Gemini CLI: ~/.gemini/skills/<name>/SKILL.md (one level; NOT config/skills, NOT nested nexus/) ──
+# ── Gemini CLI ──
+# Docs: ~/.gemini/skills/ or ~/.agents/skills/ ; workspace .gemini/skills/ or .agents/skills/
+# One level deep only.
 if want gemini; then
   echo ""; echo "[gemini] Installing (CLI: gemini)..."
   for base in "${GEMINI_CONFIG_DIR:-$HOME/.gemini}" "$HOME/.config/gemini"; do
     install_skills_flat "$base/skills" "nexus-"
+    install_prefixed_agents_dir "$base/agents"
   done
-  # Cross-framework Agent Skills locations
   install_skills_flat "${HOME}/.agents/skills" "nexus-"
+  install_prefixed_agents_dir "${HOME}/.agents/agents"
   gt="$(git rev-parse --show-toplevel 2>/dev/null || true)"
   if [[ -n "$gt" ]]; then
     install_skills_flat "$gt/.gemini/skills" "nexus-"
     install_skills_flat "$gt/.agents/skills" "nexus-"
+    install_prefixed_agents_dir "$gt/.agents/agents"
   fi
-  echo "  [gemini] Done → ~/.gemini/skills/nexus-*/ (+ ~/.agents/skills/nexus-*/)"
+  echo "  [gemini] Done → ~/.gemini/skills/nexus-*/ + ~/.agents/skills/nexus-*/"
 fi
 
-# ── Antigravity: global ~/.gemini/config/skills/<name>/ + project .agents/rules + .agents/workflows ──
+# ── Antigravity ──
+# Docs (antigravity.google/docs/skills): global ~/.gemini/config/skills/ ; workspace .agents/skills/
+# Also recognized: ~/.gemini/antigravity/skills/ (IDE). Universal path: ~/.gemini/config/skills/
 if want antigravity; then
   echo ""; echo "[antigravity] Installing (IDE + Gemini config/skills)..."
-  # Antigravity global skill path (Graphify-compatible)
   for b in "${GEMINI_CONFIG_DIR:-$HOME/.gemini}" "$HOME/.config/gemini"; do
     install_skills_flat "$b/config/skills" "nexus-"
+    install_skills_flat "$b/antigravity/skills" "nexus-"
   done
-  # Legacy AG home (best-effort)
   for b in "${ANTIGRAVITY_CONFIG_DIR:-$HOME/.antigravity}" "$HOME/.config/antigravity"; do
     install_skills_flat "$b/skills" "nexus-"
-    mkdir -p "$b/agents" 2>/dev/null || true
-    for ag in "$SCRIPT_DIR"/agents/*.md; do cp -f "$ag" "$b/agents/nexus-$(basename "$ag")" 2>/dev/null || true; done
+    install_prefixed_agents_dir "$b/agents"
   done
   gt="$(git rev-parse --show-toplevel 2>/dev/null || true)"
   if [[ -n "$gt" ]]; then
     install_skills_flat "$gt/.gemini/config/skills" "nexus-"
-    # Always-on rules + slash workflow (Graphify Antigravity pattern: .agents/rules + .agents/workflows)
-    mkdir -p "$gt/.agents/rules" "$gt/.agents/workflows"
+    install_skills_flat "$gt/.agents/skills" "nexus-"
+    # Legacy singular .agent/skills still supported by AG
+    install_skills_flat "$gt/.agent/skills" "nexus-"
+    mkdir -p "$gt/.agents/rules" "$gt/.agents/workflows" "$gt/.agent/workflows"
     {
       echo "# Nexus (always-on)"
       echo ""
       echo "You have OpenCode Nexus multi-agent workflow skills installed as \`nexus-*\`."
       echo "Prefer the Nexus router: load skill \`nexus-using-nexus\` for phase routing."
       echo "Before implementing, run blast-radius; keep durable state under \`.opencode/\`."
-      echo "Skills live under \`.gemini/config/skills/nexus-*/\` and \`.agents/skills/nexus-*/\` when present."
+      echo "Skills: \`.agents/skills/nexus-*/\` and \`~/.gemini/config/skills/nexus-*/\`."
+      echo ""
+      echo "## Mandatory two-stage review"
+      echo "After implementer finishes: dispatch \`nexus-spec-reviewer\`, wait for APPROVED handoff JSON,"
+      echo "then dispatch \`nexus-code-reviewer\`, wait for APPROVED. Never skip either stage."
+      echo "See \`nexus-orchestrating/dispatch.md\` for name resolution and jq gates."
     } >"$gt/.agents/rules/nexus.md"
     {
       echo "---"
-      echo "description: Run Nexus orchestrated workflow (plan → graph → blast → implement → review)"
+      echo "description: Run Nexus orchestrated workflow (plan → graph → blast → implement → dual review)"
       echo "---"
       echo ""
       echo "Invoke the Nexus workflow for the current request."
@@ -242,10 +412,13 @@ if want antigravity; then
       echo "2. Ensure knowledge graph via \`scripts/nexus-graph.sh\` when useful."
       echo "3. Blast-before-implement via \`scripts/nexus-blast.js\`."
       echo "4. Persist plan/context/handoffs under \`.opencode/\`."
+      echo "5. After implementer: \`nexus-spec-reviewer\` then \`nexus-code-reviewer\` (see dispatch.md)."
+      echo "6. Require both APPROVED handoff JSONs before finishing the task."
     } >"$gt/.agents/workflows/nexus.md"
-    echo "  Project AG: $gt/.agents/rules/nexus.md + $gt/.agents/workflows/nexus.md"
+    cp -f "$gt/.agents/workflows/nexus.md" "$gt/.agent/workflows/nexus.md" 2>/dev/null || true
+    echo "  Project AG: $gt/.agents/skills + rules/workflows (+ .agent/skills legacy)"
   fi
-  echo "  [antigravity] Done → ~/.gemini/config/skills/nexus-*/ (+ .agents/rules|workflows)"
+  echo "  [antigravity] Done → ~/.gemini/config/skills/nexus-*/ + ~/.gemini/antigravity/skills/nexus-*/"
 fi
 
 # ── scripts check ──

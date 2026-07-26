@@ -52,16 +52,41 @@ Platform detection:
 ## Verify post-install
 
 ```bash
-./scripts/nexus-graph.sh                   # → .opencode/knowledge/graph.json + graph.md + index.md
-node ./scripts/nexus-blast.js --mermaid    # → Mermaid blast diagram + risk + JSON
-ls ~/.config/opencode/agents/              # 7 agents present
-ls ~/.claude/skills/nexus-*/SKILL.md 2>/dev/null || echo "Claude Code not installed – skipped"
+./scripts/nexus-graph.sh
+node ./scripts/nexus-blast.js --mermaid
+
+# OpenCode — bare agent ids + permission.task
+ls ~/.config/opencode/agents/{orchestrator,implementer,spec-reviewer,code-reviewer}.md
+
+# Claude — name: frontmatter required (docs: code.claude.com/docs/en/sub-agents)
+head -5 ~/.claude/agents/nexus-spec-reviewer.md   # must show name: nexus-spec-reviewer
+test -f ~/.claude/skills/nexus-orchestrating/dispatch.md
+
+# Cursor — agents + skills (docs: cursor.com/docs/subagents + skills)
+head -5 ~/.cursor/agents/nexus-code-reviewer.md   # must show name: nexus-code-reviewer
+test -d ~/.cursor/skills/nexus-orchestrating
+
+# Codex — USER skills at ~/.agents/skills (docs: developers.openai.com/codex/skills)
+grep '^name:' ~/.agents/skills/nexus-orchestrating/SKILL.md   # name: nexus-orchestrating
+
+# Gemini — ~/.gemini/skills or ~/.agents/skills
+test -f ~/.gemini/skills/nexus-orchestrating/SKILL.md
+
+# Antigravity — ~/.gemini/config/skills (+ ~/.gemini/antigravity/skills)
+test -d ~/.gemini/config/skills/nexus-orchestrating
+test -d ~/.gemini/antigravity/skills/nexus-orchestrating
 ```
 
-### Verify OpenCode path specifically
+### Two-stage review contract (every platform)
 
-- Check `~/.config/opencode/opencode.json` contains `nexus@git+…` under `plugin`
-- Check `~/.config/opencode/agents/` has 7 agents: orchestrator, implementer, spec-reviewer, code-reviewer, blast-analyzer, knowledge-graph, reconciler
+After implementer finishes task N, both must exist before finishing:
+
+```bash
+jq -e '.verdict=="APPROVED"' .opencode/handoffs/task-N-spec-reviewer.json
+jq -e '.verdict=="APPROVED"' .opencode/handoffs/task-N-code-reviewer.json
+```
+
+Name resolution + paths: `skills/orchestrating/dispatch.md`.
 
 ## Customize models
 

@@ -95,36 +95,49 @@ if want cursor; then
   CR="${CURSOR_RULES_DIR:-$HOME/.cursor/rules}"
   rm -f "$CR"/nexus-*.mdc "$CR"/nexus-*.md 2>/dev/null || true
   rm -f "$HOME/.cursor/agents"/nexus-*.md 2>/dev/null || true
+  rm_nexus_skills "${CURSOR_SKILLS_DIR:-$HOME/.cursor/skills}"
   GT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
-  if [[ -n "$GT" && -d "$GT/.cursor/rules" ]]; then
+  if [[ -n "$GT" ]]; then
     rm -f "$GT/.cursor/rules"/nexus-*.mdc 2>/dev/null || true
     rm -f "$GT/.cursor/agents"/nexus-*.md 2>/dev/null || true
-    echo "  [cursor] Also cleaned $GT/.cursor/rules/"
+    rm_nexus_skills "$GT/.cursor/skills"
+    echo "  [cursor] Also cleaned $GT/.cursor/{rules,skills,agents}"
   fi
-  echo "  [cursor] Removed $CR/nexus-*.mdc + agents/nexus-*.md"
+  echo "  [cursor] Removed $CR/nexus-*.mdc + agents + skills"
 fi
 
 if want codex; then
   echo ""; echo "[codex] Removing..."
   rm_nexus_skills "${CODEX_CONFIG_DIR:-$HOME/.codex}/skills"
-  echo "  [codex] Removed ~/.codex/skills/nexus-*/"
+  rm -f "${CODEX_CONFIG_DIR:-$HOME/.codex}"/agents/nexus-*.md 2>/dev/null || true
+  # Shared USER skills path — only remove nexus-* (gemini/cursor may share)
+  rm_nexus_skills "${HOME}/.agents/skills"
+  GT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+  if [[ -n "$GT" ]]; then
+    rm_nexus_skills "$GT/.agents/skills"
+    rm_nexus_skills "$GT/.codex/skills"
+    rm -f "$GT/.codex"/agents/nexus-*.md 2>/dev/null || true
+  fi
+  echo "  [codex] Removed ~/.codex/skills/nexus-*/ + ~/.agents/skills/nexus-*/"
 fi
 
 if want gemini; then
   echo ""; echo "[gemini] Removing..."
   for b in "${GEMINI_CONFIG_DIR:-$HOME/.gemini}" "$HOME/.config/gemini"; do
     rm_nexus_skills "$b/skills"
-    # legacy nested path from older installers
     rm -rf "$b/skills/nexus" "$b/config/skills/nexus" 2>/dev/null || true
+    rm -f "$b"/agents/nexus-*.md 2>/dev/null || true
   done
   rm_nexus_skills "${HOME}/.agents/skills"
+  rm -f "${HOME}/.agents"/agents/nexus-*.md 2>/dev/null || true
   GT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
   if [[ -n "$GT" ]]; then
     rm_nexus_skills "$GT/.gemini/skills"
     rm_nexus_skills "$GT/.agents/skills"
     rm -rf "$GT/.gemini/skills/nexus" "$GT/.gemini/config/skills/nexus" 2>/dev/null || true
+    rm -f "$GT/.agents"/agents/nexus-*.md 2>/dev/null || true
   fi
-  echo "  [gemini] Removed ~/.gemini/skills/nexus-* (+ ~/.agents/skills/nexus-*)"
+  echo "  [gemini] Removed ~/.gemini/skills/nexus-* (+ agents + ~/.agents/skills/nexus-*)"
 fi
 
 if want antigravity; then
@@ -134,18 +147,20 @@ if want antigravity; then
     rm -rf "$b/skills/nexus" "$b/config/skills/nexus" 2>/dev/null || true
     rm -f "$b"/agents/nexus-*.md 2>/dev/null || true
   done
-  # AG global skills under Gemini config/skills
   for b in "${GEMINI_CONFIG_DIR:-$HOME/.gemini}" "$HOME/.config/gemini"; do
     rm_nexus_skills "$b/config/skills"
+    rm_nexus_skills "$b/antigravity/skills"
     rm -rf "$b/config/skills/nexus" 2>/dev/null || true
   done
   GT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
   if [[ -n "$GT" ]]; then
-    rm -rf "$GT/.antigravity/skills/nexus" "$GT/.antigravity/config/skills/nexus" 2>/dev/null || true
     rm_nexus_skills "$GT/.antigravity/skills"
     rm_nexus_skills "$GT/.gemini/config/skills"
+    rm_nexus_skills "$GT/.agents/skills"
+    rm_nexus_skills "$GT/.agent/skills"
     rm -f "$GT/.antigravity"/agents/nexus-*.md 2>/dev/null || true
     rm -f "$GT/.agents/rules/nexus.md" "$GT/.agents/workflows/nexus.md" 2>/dev/null || true
+    rm -f "$GT/.agent/workflows/nexus.md" 2>/dev/null || true
   fi
   echo "  [antigravity] Removed AG skills + .agents/rules|workflows/nexus.md"
   (( FORCE_ALL )) || echo "  Note: Gemini CLI ~/.gemini/skills kept. Use '--only gemini' or --all to remove."
