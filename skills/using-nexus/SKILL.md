@@ -50,7 +50,11 @@ Skill order for new work (V2):
 4. `using-feature-branches` (when execution starts)
 5. Per task: `blast-radius` → implementer → **spec-reviewer** → **code-reviewer** → `outcome-memory` (LESSONS entry). Both reviewers are mandatory on every platform — see `orchestrating/dispatch.md`.
 6. `finishing-a-development-branch` per checkpoint
-7. At plan end: `reconcile` → `finishing-a-development-branch` (final) → plan-end cleanup → final LESSONS reflect
+7. At plan end: `reconcile` → `finishing-a-development-branch` (final) → plan-end cleanup (delete any remaining `feature/task-*` branches) → final LESSONS reflect
+
+## Branch cleanup (default)
+
+`branch_cleanup_policy: always` — delete merged/discarded `feature/task-*` branches when each task's work ends. Plan-end cleanup is a mandatory safety net. Branches marked `kept` or `pr_pending` are never deleted.
 
 ## Subagent dispatch (all platforms)
 

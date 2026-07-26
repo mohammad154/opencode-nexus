@@ -1,5 +1,5 @@
 ---
-name: nexus-orchestrating
+name: orchestrating
 description: Use to execute a plan through branch-scoped implementation with graph awareness, blast-radius checks, two-stage review, outcome memory, and structured handoffs
 compatibility: opencode
 ---
@@ -17,11 +17,12 @@ compatibility: opencode
 
 Before the per-task loop (or when resuming if preferences are missing):
 
-1. If `branch_policy` or `execution_mode` are unset in `.opencode/CONTEXT.md`, ask:
+1. If `branch_policy`, `execution_mode`, or `branch_cleanup_policy` are unset in `.opencode/CONTEXT.md`, ask:
    - **Branch policy:** isolated (each task branches off `base_branch`, reviewable in isolation) or stacked (branch task N+1 off task N)?
    - **Execution mode:** checkpoint (pause after each task for inspect/merge) or continuous (run all remaining tasks)?
    - Recommend **isolated** and **checkpoint** for multi-task plans.
-2. Record answers in `.opencode/CONTEXT.md`. Do not re-ask on resume unless the user requests a change.
+2. Set `branch_cleanup_policy: always` by default (delete merged/discarded `feature/task-*` branches when each task's work ends). Override only if the user explicitly requests `defer_to_plan_end` or `never`.
+3. Record answers in `.opencode/CONTEXT.md`. Do not re-ask on resume unless the user requests a change.
 
 Run the per-task loop for each pending task in `.opencode/plans/PLAN.md`.
 
@@ -59,7 +60,8 @@ Run the per-task loop for each pending task in `.opencode/plans/PLAN.md`.
 14. **Outcome memory**: After both reviews pass, write entry to `.opencode/knowledge/LESSONS.md` via the pattern in that file (see finishing-a-development-branch + outcome-memory). Include: task id, what was changed, blast level, what reviewers flagged, lesson learned.
 15. Mark task done in `.opencode/CONTEXT.md` and `.opencode/plans/PLAN.md` (`- [x]`). Update `task_branches` dispositions later via finishing skill.
 16. Load `finishing-a-development-branch` for **this task's branch only** — merge into `base_branch` when `merge_policy: always_to_base` (default).
-17. Complete the task based on `execution_mode`:
+17. **Branch cleanup** (when `branch_cleanup_policy: always`, default): `git checkout <base_branch>`, then dispatch `implementer` via `branch-cleanup-prompt.md` to delete this task's branch if disposition is `merged` or `discarded`. Record `deleted_at` on success. Do not proceed to the next task while a merged branch still exists.
+18. Complete the task based on `execution_mode`:
     - **`execution_mode: checkpoint`:**
       - Set `current_phase: awaiting_checkpoint` and `next_action: continue task N+1` (or finish if last task).
       - **Stop.** Do not dispatch the next task until the user explicitly says to continue.
@@ -74,8 +76,8 @@ On resume after checkpoint: `git checkout <base_branch>` and optionally `git pul
 When all tasks in `.opencode/plans/PLAN.md` are marked done:
 
 1. Load `finishing-a-development-branch` if not already run for the last task (record `task_branches` dispositions).
-2. Build `branches_to_delete` from `.opencode/CONTEXT.md` `task_branches` where `disposition` is `merged` or `discarded`.
-3. If the list is empty, skip cleanup dispatch.
+2. Build `branches_to_delete` from `.opencode/CONTEXT.md` `task_branches` where `disposition` is `merged` or `discarded` and `deleted_at` is unset (safety net for any branches missed during per-task cleanup).
+3. If the list is empty, set `cleanup_status: complete` and skip dispatch. Otherwise cleanup is **mandatory** — do not end the plan with stale `feature/task-*` branches.
 4. `git checkout <base_branch>` (orchestrator — never delete branches directly).
 5. Dispatch `implementer` using `branch-cleanup-prompt.md` with the branch list and dispositions.
 6. Save handoff to `.opencode/handoffs/plan-cleanup-implementer.json`.

@@ -1,5 +1,5 @@
 ---
-name: nexus-finishing-a-development-branch
+name: finishing-a-development-branch
 description: Use after tasks pass review to choose how to finalize the branch safely — with outcome memory (LESSONS) capture and reconcile awareness
 compatibility: opencode
 ---
@@ -13,6 +13,7 @@ When `execution_mode: checkpoint` in `.opencode/CONTEXT.md`, run this skill **af
 Scope to the **current task branch** named in `.opencode/CONTEXT.md`.
 
 Read `merge_policy` from `.opencode/CONTEXT.md`. Default to `always_to_base`.
+Read `branch_cleanup_policy` from `.opencode/CONTEXT.md`. Default to `always` (delete merged/discarded `feature/task-*` branches when work on that task ends).
 
 ### `merge_policy: always_to_base` (default)
 
@@ -21,8 +22,9 @@ After reviews pass:
 1. Merge locally into `base_branch` (do not ask — this is required so the next task branch starts from updated code).
 2. Record disposition `merged` in `task_branches`.
 3. Update `.opencode/CONTEXT.md` with merge state.
-4. **Outcome memory**: load `outcome-memory` skill – write entry to `.opencode/knowledge/LESSONS.md` capturing: what changed (file:line), blast level, what reviewers flagged, lesson for future tasks (type, applicable when, recommendation).
-5. If `execution_mode: checkpoint`, remind the user the orchestrator will wait for an explicit "continue task N+1" before the next task starts.
+4. **Branch cleanup** (when `branch_cleanup_policy: always`, default): orchestrator dispatches `implementer` via `branch-cleanup-prompt.md` to delete this task's `feature/task-N-<slug>` branch (`git branch -d`). Do not leave merged task branches around.
+5. **Outcome memory**: load `outcome-memory` skill – write entry to `.opencode/knowledge/LESSONS.md` capturing: what changed (file:line), blast level, what reviewers flagged, lesson for future tasks (type, applicable when, recommendation).
+6. If `execution_mode: checkpoint`, remind the user the orchestrator will wait for an explicit "continue task N+1" before the next task starts.
 
 ### `merge_policy: prompt` (opt-in only)
 
@@ -68,9 +70,10 @@ task_branches:
 ```
 
 Rules:
-- **merged** or **discarded** → eligible for plan-end cleanup (implementer deletes the branch).
-- **kept** or **pr_pending** → never delete in batch cleanup.
+- **merged** or **discarded** → delete when task work ends (`branch_cleanup_policy: always`, default) or at plan-end cleanup (safety net for any still present).
+- **kept** or **pr_pending** → never delete.
 - Upsert the entry for the current task; do not remove entries for prior tasks.
+- Record `deleted_at` on the task_branches entry after successful cleanup.
 
 ## Outcome memory (new – V2 – after each disposition)
 
@@ -135,4 +138,6 @@ Rules:
 
 ## Branch cleanup note
 
-Branch deletion eligibility same as before. At plan end, finishing skill builds branches_to_delete from task_branches where disposition merged/discarded, but does NOT delete itself – delegates to orchestrator → implementer as before.
+**Default: delete merged/discarded `feature/task-*` branches when each task finishes** (`branch_cleanup_policy: always`). The orchestrator never runs `git branch -d` / `-D` itself — it dispatches `implementer` via `branch-cleanup-prompt.md` after each task merge and again at plan end for any branches still present.
+
+At plan end, build `branches_to_delete` from `task_branches` where disposition is `merged` or `discarded` and `deleted_at` is unset. Plan-end cleanup is mandatory when eligible branches remain — do not skip.

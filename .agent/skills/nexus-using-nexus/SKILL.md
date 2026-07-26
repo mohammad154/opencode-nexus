@@ -1,5 +1,5 @@
 ---
-name: nexus-using-nexus
+name: using-nexus
 description: Use when starting any Nexus session - establishes automatic skill selection and workflow routing for orchestrator-driven development with graph and blast awareness
 compatibility: opencode
 ---

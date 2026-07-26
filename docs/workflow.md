@@ -154,7 +154,7 @@ The workflow uses filesystem artifacts in `.opencode/` for durable coordination 
 
 ## Branch cleanup at plan completion
 
-The orchestrator cannot delete branches (`git branch -d` / `-D` are denied). After all tasks pass review and finishing choices are recorded in `task_branches` (see `finishing-a-development-branch` skill):
+The orchestrator cannot delete branches (`git branch -d` / `-D` are denied). **Default (`branch_cleanup_policy: always`):** after each task merge, the orchestrator dispatches `implementer` to delete that task's `feature/task-*` branch. At plan end, any remaining eligible branches are deleted the same way.
 
 1. Orchestrator checks out `base_branch`.
 2. Orchestrator dispatches `implementer` with `branch-cleanup-prompt.md`.
