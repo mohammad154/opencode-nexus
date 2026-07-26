@@ -11,48 +11,109 @@ echo "Installing OpenCode Nexus (multi-platform)..."; echo ""
 ONLY=""; FORCE_ALL=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --only=*) ONLY="$(echo "${1#--only=}" | tr ',' ' ' | tr 'A-Z' 'a-z')"; shift ;;
-    --only)   shift; ONLY="$(echo "${1:-}" | tr ',' ' ' | tr 'A-Z' 'a-z')"; shift || true ;;
-    --all)    FORCE_ALL=1; shift ;;
+    --only=*) ONLY="${1#--only=}"; shift ;;
+    --only)
+      shift
+      if [[ $# -eq 0 || "$1" == -* ]]; then
+        echo "Error: --only requires a platform list (e.g. --only opencode)" >&2
+        exit 1
+      fi
+      ONLY="$1"
+      shift
+      ;;
+    --all) FORCE_ALL=1; shift ;;
     --uninstall) exec "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/uninstall.sh" "${@:2}" ;;
     -h|--help)
       cat <<'USAGE'
 Usage: ./install.sh [--only p1[,p2]] [--all]
 Platforms: opencode, claude, cursor, codex, gemini, antigravity, all  (alias: ag=antigravity)
+  --only opencode        ONLY OpenCode (never touches Claude/Cursor/Gemini/Antigravity)
   --only cursor          Cursor CLI (cursor-agent) + IDE (~/.cursor/rules/*.mdc + project-local)
   --only antigravity     Antigravity (~/.gemini/config/skills + .agents/rules + .agents/workflows)
   --only gemini          Gemini CLI (~/.gemini/skills/<skill>/ one-level deep)
   --only claude,cursor   two platforms
   --all                  force all even if binaries missing
   --uninstall            delegate to uninstall.sh
+
+With no --only: auto-detect each platform independently and install for every detected one.
 USAGE
       exit 0 ;;
-    *,*) ONLY="$(echo "$1" | tr ',' ' ' | tr 'A-Z' 'a-z')"; shift ;;  # bare csv compat
-    *) shift ;;
+    *,*) ONLY="$1"; shift ;;  # bare csv compat: ./install.sh opencode,claude
+    *)
+      echo "Error: unknown argument: $1 (use --only PLATFORM or --help)" >&2
+      exit 1
+      ;;
   esac
 done
 
-# normalize aliases
-ONLY="$(echo "$ONLY" | tr ' ' '\n' | sed -e 's/^ag$/antigravity/' -e 's/^antigrav$/antigravity/' | tr '\n' ' ' | xargs echo -n "")"
+# Normalize ONLY → space-separated canonical platform names (no leading/trailing space)
+# Do NOT use `xargs echo -n ""` — that prefixes a blank arg and can confuse matching.
+normalize_only() {
+  local raw="$1" t out=()
+  raw="$(echo "$raw" | tr ',A-Z' ' a-z')"
+  for t in $raw; do
+    case "$t" in
+      ag|antigrav) out+=(antigravity) ;;
+      opencode|claude|cursor|codex|gemini|antigravity|all) out+=("$t") ;;
+      "") ;;
+      *)
+        echo "Error: unknown platform in --only: '$t'" >&2
+        echo "Allowed: opencode claude cursor codex gemini antigravity all" >&2
+        exit 1
+        ;;
+    esac
+  done
+  # Always return 0: empty --only is valid (auto-detect). A failing ((0)) under
+  # set -e inside command substitution would abort the whole installer.
+  if ((${#out[@]})); then
+    printf '%s' "${out[*]}"
+  fi
+  return 0
+}
+ONLY="$(normalize_only "$ONLY")"
 
-want() { # want <platform> — --only filters; --all only forces missing-binary installs
-  local p=$1
+want() { # want <platform> — --only is an explicit allowlist; never install outside it
+  local p=$1 x
   if [[ -n "$ONLY" ]]; then
-    grep -qw "$p" <<<"$ONLY" && return 0
-    grep -qw "all" <<<"$ONLY" && return 0
+    for x in $ONLY; do
+      [[ "$x" == "$p" || "$x" == "all" ]] && return 0
+    done
     return 1
   fi
   return 0
 }
 
+# Install only if allowlisted AND (detected, --all, or explicit --only for that platform).
+# --only is an allowlist AND an explicit install request for listed platforms.
+# Without --only: auto-detect only (never silently write Antigravity/Claude/Cursor trees).
+should_install() {
+  local p=$1
+  want "$p" || return 1
+  (( FORCE_ALL )) && return 0
+  [[ -n "$ONLY" ]] && return 0
+  detect "$p"
+}
+
 detect() { # detect <platform> — use $HOME not ~ so TMP_HOME isolation tests work
+  # IMPORTANT: do NOT treat unrelated tools as Antigravity.
+  # - `ag` is often The Silver Searcher, not Antigravity
+  # - Gemini CLI / ~/.gemini must NOT imply Antigravity
   case $1 in
     opencode)    command -v opencode >/dev/null 2>&1 ;;
     claude)      command -v claude >/dev/null 2>&1 || [[ -d "$HOME/.claude" ]] ;;
-    cursor)      command -v cursor-agent >/dev/null 2>&1 || command -v cursor >/dev/null 2>&1 || [[ -d "$HOME/.cursor" || -f ".cursorrules" || -d ".cursor" ]] ;;
+    cursor)      command -v cursor-agent >/dev/null 2>&1 || command -v cursor >/dev/null 2>&1 || [[ -d "$HOME/.cursor" || -f "$HOME/.cursorrules" ]] ;;
+    # Note: do not treat a relative ./.cursor in the installer checkout as "Cursor is installed"
     codex)       command -v codex >/dev/null 2>&1 || [[ -d "$HOME/.codex" ]] ;;
-    gemini)      command -v gemini >/dev/null 2>&1 || [[ -d "$HOME/.gemini" || -d "$HOME/.config/gemini" ]] ;;
-    antigravity) command -v antigravity >/dev/null 2>&1 || command -v ag >/dev/null 2>&1 || [[ -d "$HOME/.antigravity" || -d "$HOME/.config/antigravity" || -d "$HOME/.gemini" ]] || command -v gemini >/dev/null 2>&1 ;;
+    gemini)      command -v gemini >/dev/null 2>&1 || [[ -d "$HOME/.gemini/skills" || -d "$HOME/.config/gemini" ]] ;;
+    antigravity)
+      # Real Antigravity only — never treat `ag` (silver searcher), `gemini`, or bare ~/.gemini as AG
+      command -v antigravity >/dev/null 2>&1 \
+        || command -v agy >/dev/null 2>&1 \
+        || [[ -d "$HOME/.antigravity" \
+           || -d "$HOME/.config/antigravity" \
+           || -d "$HOME/.gemini/antigravity" \
+           || -d "$HOME/.gemini/antigravity-cli" ]]
+      ;;
     *) return 1 ;;
   esac
 }
@@ -70,16 +131,32 @@ PLUGIN_SPEC="${NEXUS_PLUGIN_SPEC:-nexus@git+https://github.com/mohammad154/openc
 
 echo "Platform detection:"
 for p in opencode claude cursor codex gemini antigravity; do
-  s="not detected"; detect "$p" && s="detected"; (( FORCE_ALL )) && s="$s (forced)"
-  if want "$p"; then echo "  $p: $s → will install"; else echo "  $p: $s → skipped (--only)"; fi
-done; echo ""
+  s="not detected"
+  detect "$p" && s="detected" || true
+  if (( FORCE_ALL )); then s="$s (forced)"; fi
+  if ! want "$p"; then
+    echo "  $p: $s → skipped (--only)"
+  elif should_install "$p"; then
+    if [[ -n "$ONLY" && "$s" == "not detected" ]]; then
+      echo "  $p: $s → will install (--only)"
+    else
+      echo "  $p: $s → will install"
+    fi
+  else
+    echo "  $p: $s → skipped (not detected; use --all or --only $p to force)"
+  fi
+done
+if [[ -n "$ONLY" ]]; then
+  echo ""
+  echo "Strict --only allowlist: $ONLY"
+  echo "No other platforms will be installed or modified."
+fi
+echo ""
 
 # ── OpenCode ──
-if want opencode; then
+if should_install opencode; then
   echo "[opencode] Installing..."
-  if ! command -v opencode >/dev/null 2>&1 && (( ! FORCE_ALL )); then
-    echo "  Skip: opencode binary missing (use --all to force)"
-  elif ! command -v jq >/dev/null 2>&1; then
+  if ! command -v jq >/dev/null 2>&1; then
     echo "  Error: jq required for opencode path (sudo apt install jq). Other platforms still work."
   else
     mkdir -p "$CONFIG_DIR" "$AGENTS_DIR"
@@ -270,7 +347,7 @@ install_cursor_agents_dir() {
 # ── Claude Code ──
 # Docs: skills → ~/.claude/skills/<name>/SKILL.md ; agents → ~/.claude/agents/*.md
 # Agents REQUIRE frontmatter name + description (identity = name field, not filename).
-if want claude; then
+if should_install claude; then
   echo ""; echo "[claude] Installing (CLI+IDE)..."
   CD="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"; CAD="$CD/agents"; mkdir -p "$CAD"
   install_skills_flat "$CD/skills" "nexus-"
@@ -289,7 +366,7 @@ fi
 # Docs: rules → ~/.cursor/rules/*.mdc ; skills → ~/.cursor/skills/ + ~/.agents/skills/
 #        agents → ~/.cursor/agents/*.md (also reads ~/.claude/agents, ~/.codex/agents)
 # Agents: name + description; body required after frontmatter.
-if want cursor; then
+if should_install cursor; then
   echo ""; echo "[cursor] Installing (CLI + IDE)..."
   CUR_R="${CURSOR_RULES_DIR:-$HOME/.cursor/rules}"; CUR_A="${CURSOR_AGENTS_DIR:-$HOME/.cursor/agents}"
   CUR_S="${CURSOR_SKILLS_DIR:-$HOME/.cursor/skills}"
@@ -335,7 +412,7 @@ fi
 # ── Codex ──
 # Docs (developers.openai.com/codex/skills): USER=$HOME/.agents/skills ; also ~/.codex/skills (legacy/compat)
 # Cursor also loads ~/.codex/skills and .codex/skills
-if want codex; then
+if should_install codex; then
   echo ""; echo "[codex] Installing (CLI)..."
   install_skills_flat "${CODEX_CONFIG_DIR:-$HOME/.codex}/skills" "nexus-"
   install_skills_flat "${HOME}/.agents/skills" "nexus-"
@@ -352,7 +429,7 @@ fi
 # ── Gemini CLI ──
 # Docs: ~/.gemini/skills/ or ~/.agents/skills/ ; workspace .gemini/skills/ or .agents/skills/
 # One level deep only.
-if want gemini; then
+if should_install gemini; then
   echo ""; echo "[gemini] Installing (CLI: gemini)..."
   for base in "${GEMINI_CONFIG_DIR:-$HOME/.gemini}" "$HOME/.config/gemini"; do
     install_skills_flat "$base/skills" "nexus-"
@@ -372,7 +449,7 @@ fi
 # ── Antigravity ──
 # Docs (antigravity.google/docs/skills): global ~/.gemini/config/skills/ ; workspace .agents/skills/
 # Also recognized: ~/.gemini/antigravity/skills/ (IDE). Universal path: ~/.gemini/config/skills/
-if want antigravity; then
+if should_install antigravity; then
   echo ""; echo "[antigravity] Installing (IDE + Gemini config/skills)..."
   for b in "${GEMINI_CONFIG_DIR:-$HOME/.gemini}" "$HOME/.config/gemini"; do
     install_skills_flat "$b/config/skills" "nexus-"

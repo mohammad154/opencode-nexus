@@ -9,32 +9,73 @@ echo "Uninstalling OpenCode Nexus (multi-platform)..."
 ONLY=""; FORCE_ALL=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --only=*) ONLY="$(echo "${1#--only=}" | tr ',' ' ' | tr 'A-Z' 'a-z')"; shift ;;
-    --only)   shift; ONLY="$(echo "${1:-}" | tr ',' ' ' | tr 'A-Z' 'a-z')"; shift || true ;;
-    --all)    FORCE_ALL=1; shift ;;
+    --only=*) ONLY="${1#--only=}"; shift ;;
+    --only)
+      shift
+      if [[ $# -eq 0 || "$1" == -* ]]; then
+        echo "Error: --only requires a platform list (e.g. --only opencode)" >&2
+        exit 1
+      fi
+      ONLY="$1"
+      shift
+      ;;
+    --all) FORCE_ALL=1; shift ;;
     -h|--help)
       cat <<'USAGE'
 Usage: ./uninstall.sh [--only p1[,p2]] [--all]
 Platforms: opencode, claude, cursor, codex, gemini, antigravity, all (alias: ag=antigravity)
+  --only opencode     only OpenCode
   --only cursor       only Cursor CLI+IDE
   --only antigravity  only Antigravity (Gemini CLI skills kept unless --only gemini/--all)
-  --all               force all even if missing
+  --all               remove from all known platform paths
 USAGE
       exit 0 ;;
-    *) shift ;;
+    *,*) ONLY="$1"; shift ;;
+    *)
+      echo "Error: unknown argument: $1 (use --only PLATFORM or --help)" >&2
+      exit 1
+      ;;
   esac
 done
-ONLY="$(echo "$ONLY" | tr ' ' '\n' | sed 's/^ag$/antigravity/' | tr '\n' ' ' | xargs echo -n "")"
 
-want() {
-  local p=$1
-  if [[ -n "$ONLY" ]]; then
-    grep -qw "$p" <<<"$ONLY" && return 0
-    grep -qw "all" <<<"$ONLY" && return 0
-    return 1
+normalize_only() {
+  local raw="$1" t out=()
+  raw="$(echo "$raw" | tr ',A-Z' ' a-z')"
+  for t in $raw; do
+    case "$t" in
+      ag|antigrav) out+=(antigravity) ;;
+      opencode|claude|cursor|codex|gemini|antigravity|all) out+=("$t") ;;
+      "") ;;
+      *)
+        echo "Error: unknown platform in --only: '$t'" >&2
+        exit 1
+        ;;
+    esac
+  done
+  # Always return 0: empty --only is valid. A failing ((0)) under set -e
+  # inside command substitution would abort the whole uninstaller.
+  if ((${#out[@]})); then
+    printf '%s' "${out[*]}"
   fi
   return 0
 }
+ONLY="$(normalize_only "$ONLY")"
+
+want() {
+  local p=$1 x
+  if [[ -n "$ONLY" ]]; then
+    for x in $ONLY; do
+      [[ "$x" == "$p" || "$x" == "all" ]] && return 0
+    done
+    return 1
+  fi
+  # No --only: uninstall all platforms (same as historical behavior)
+  return 0
+}
+
+if [[ -n "$ONLY" ]]; then
+  echo "Strict --only allowlist: $ONLY"
+fi
 
 bak_restore() {
   local t=$1; local latest; latest="$(ls -t "$t".bak.* 2>/dev/null | head -1 || true)"

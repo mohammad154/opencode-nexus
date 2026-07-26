@@ -237,6 +237,9 @@ Scripts are always verified as present (`scripts/nexus-graph.sh`, `nexus-graph.j
 ./install.sh --only claude,opencode
 ./install.sh --only cursor
 ./install.sh --all   # force even if binary not detected (still drops files)
+
+`--only` is a **strict allowlist**: `--only opencode` never writes Claude/Cursor/Codex/Gemini/Antigravity paths.
+Without `--only`, each **independently detected** platform is installed (Antigravity is detected only via `antigravity`/`agy` binaries or AG-specific dirs — not via `ag`, `gemini`, or bare `~/.gemini`).
 ```
 
 ### Re-run / update
