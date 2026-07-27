@@ -1,0 +1,10 @@
+{
+  "_comment": "Default Nexus workflow settings. Copy fields into .opencode/CONTEXT.md or override via /nexus --profile. Default profile is balanced.",
+  "workflowProfile": "balanced",
+  "reviewPolicy": "risk-based",
+  "branchPolicy": "per-feature",
+  "lessonPolicy": "noteworthy-only",
+  "graphPolicy": "cache-by-commit",
+  "cleanupPolicy": "script",
+  "blastPolicy": "per-execution-unit"
+}

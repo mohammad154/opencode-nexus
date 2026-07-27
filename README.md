@@ -2,23 +2,23 @@
 
 OpenCode Nexus is a shareable multi-agent workflow plugin for OpenCode with strong context-preservation defaults, a lightweight knowledge graph (Graphify-inspired), blast-radius safety (CodeLookup-inspired), and improve-grade planning (shadcn/improve).
 
-It ships **7 agents** and **10 skills** with recommended default models (fully customizable) and a **multi-platform installer** that auto-detects OpenCode, Claude Code, Cursor, Codex, and Gemini/Antigravity from one command.
+It ships **8 agents** and **10 skills** with recommended default models (fully customizable), **V3 workflow profiles** (`fast` / `balanced` / `strict`), and a **multi-platform installer** that auto-detects OpenCode, Claude Code, Cursor, Codex, and Gemini/Antigravity from one command.
 
 ## Agents
 
-Nexus ships **7 agents**: one primary controller and six specialized subagents. The orchestrator delegates work; only the implementer writes production code. Agent definitions live in [`agents/`](agents/).
+Nexus ships **8 agents**: one primary controller and seven specialized subagents. The orchestrator delegates work; only the implementer writes production code. Agent definitions live in [`agents/`](agents/).
 
 ```text
 User request
      │
      ▼
-orchestrator ──► knowledge-graph (map codebase)
-     │           blast-analyzer (per-task safety)
+orchestrator ──► classify profile (fast|balanced|strict)
+     │           scripts: graph / blast / cost estimate / cleanup
      ▼
-implementer (code on feature branch)
+implementer (code on feature or task branch)
      │
-     ├──► spec-reviewer (did we build the right thing?)
-     └──► code-reviewer (did we build it well?)
+     ├─ low/med ─► unified-reviewer
+     └─ high/strict ─► spec-reviewer → code-reviewer
      │
      ▼
 reconciler (when plans drift or tasks get BLOCKED)
@@ -26,88 +26,72 @@ reconciler (when plans drift or tasks get BLOCKED)
 
 | Agent | Type | Default model | Role |
 |-------|------|---------------|------|
-| `orchestrator` | primary | `opencode-go/minimax-m3` | Workflow controller – routes skills, dispatches subagents, never writes production code |
-| `implementer` | subagent | `opencode/deepseek-v4-flash-free` | Writes code, tests, and commits on feature branches |
-| `knowledge-graph` | subagent | `opencode/deepseek-v4-flash-free` | Builds `.opencode/knowledge/graph.json` and answers dependency queries |
-| `blast-analyzer` | subagent | `opencode-go/deepseek-v4-pro` | Computes blast radius before each task (Mermaid + risk score) |
-| `spec-reviewer` | subagent | `opencode-go/deepseek-v4-pro` | First review gate – acceptance criteria and blast scope fidelity |
-| `code-reviewer` | subagent | `opencode-go/deepseek-v4-pro` | Second review gate – quality, security, blast regression, LESSONS |
-| `reconciler` | subagent | `opencode-go/deepseek-v4-pro` | Drift recovery – verifies DONE tasks, classifies BLOCKED tasks |
+| `orchestrator` | primary | `opencode-go/minimax-m3` | Workflow controller – profiles, scripts-first graph/blast/cleanup, dispatches subagents |
+| `implementer` | subagent | `opencode/deepseek-v4-flash-free` | Writes code, tests, commits (one task or one execution unit) |
+| `unified-reviewer` | subagent | `opencode-go/deepseek-v4-pro` | Combined spec+quality review for fast/balanced low–medium risk |
+| `knowledge-graph` | subagent | `opencode/deepseek-v4-flash-free` | Optional; prefer `scripts/nexus-graph.sh` (commit cache) |
+| `blast-analyzer` | subagent | `opencode/deepseek-v4-flash-free` | Optional; prefer `scripts/nexus-blast.js` |
+| `spec-reviewer` | subagent | `opencode-go/deepseek-v4-pro` | Dual-review stage 1 – acceptance + blast fidelity |
+| `code-reviewer` | subagent | `opencode-go/deepseek-v4-pro` | Dual-review stage 2 – quality, security, regression |
+| `reconciler` | subagent | `opencode-go/deepseek-v4-pro` | Drift recovery – verifies DONE, classifies BLOCKED |
 
 ### orchestrator
 
-Primary workflow controller. Does **not** write production code.
+Primary workflow controller. Does **not** write production code (unless user explicitly requests direct implementation).
 
-- Auto-routes Nexus skills (`brainstorming`, `writing-plans`, `orchestrating`, etc.)
-- Maintains `.opencode/plans/PLAN.md`, `.opencode/CONTEXT.md`, and task files
-- Ensures knowledge graph exists before planning or dispatch
-- Runs blast-radius analysis **before** every implementer dispatch
-- Dispatches one implementer at a time with blast + graph + LESSONS context
-- Enforces two-stage review on **every platform**: `spec-reviewer` → `code-reviewer` (never skip, never parallel). Local names may be `nexus-*` where the installer prefixes agents. Handoff JSON gates are required before finishing — see [`skills/orchestrating/dispatch.md`](skills/orchestrating/dispatch.md).
-- Writes LESSONS entries via `outcome-memory` after reviews pass
-- Delegates to reconciler when implementer returns `BLOCKED` (drift STOP)
-- At plan end: final reconcile + branch cleanup via implementer
+- Auto-routes Nexus skills; sets **`workflow_profile`** (`fast`|`balanced`|`strict`, default **balanced**)
+- Shows cost estimate: `node scripts/nexus-estimate-cost.js --tasks N --profile <p>`
+- Maintains `.opencode/plans/PLAN.md`, `.opencode/CONTEXT.md`, task files, execution-unit JSON
+- Graph/blast via **scripts** (cache-by-commit); agents optional
+- Dispatches implementer per task (`strict`) or per execution unit (`fast`/`balanced`)
+- Review: dual (strict/high-risk), **unified-reviewer** (low/medium), or skip (docs-only fast) — see [`dispatch.md`](skills/orchestrating/dispatch.md)
+- LESSONS via `lessonPolicy` (noteworthy-only vs every-task)
+- Branch cleanup via `scripts/nexus-branch-cleanup.sh` (not an LLM dispatch)
 
-See [`agents/orchestrator.md`](agents/orchestrator.md).
+See [`agents/orchestrator.md`](agents/orchestrator.md) and [`skills/orchestrating/profiles.md`](skills/orchestrating/profiles.md).
 
 ### implementer
 
-The only agent that writes production code. Implements **one task** per dispatch.
+Writes production code. One **task** (`strict`) or one **execution unit** (`fast`/`balanced`) per dispatch.
 
-- Runs drift check (`plan_commit` vs `HEAD`) before editing; returns `BLOCKED` on STOP
-- Uses blast report to update direct callers when signatures change
-- Runs exact verification gates from the task file (not prose like "run tests")
-- Commits on the assigned feature branch: `[task-N] <title>: <what>`
+- Drift check before editing; returns `BLOCKED` on STOP
+- Uses blast report for callers; reference-first reading
+- Runs exact verification gates; commits on the assigned feature branch
 - Returns `DONE`, `DONE_WITH_CONCERNS`, `BLOCKED`, or `NEEDS_CONTEXT`
-- Also handles **branch cleanup** when dispatched at plan completion (deletes merged/discarded branches)
 
 See [`agents/implementer.md`](agents/implementer.md).
 
+### unified-reviewer
+
+Combined spec + quality gate for **fast/balanced** low–medium risk work.
+
+- Acceptance criteria + code quality + blast callers in one pass
+- Escalates to dual review when change looks high-risk
+- Writes `.opencode/handoffs/<id>-unified-reviewer.json`
+
+See [`agents/unified-reviewer.md`](agents/unified-reviewer.md).
+
 ### knowledge-graph
 
-Builds a lightweight, dependency-free map of the codebase.
-
-- Runs `scripts/nexus-graph.sh` / `nexus-graph.js`
-- Produces `.opencode/knowledge/graph.json`, `graph.md`, `index.md`
-- Tracks import edges (EXTRACTED vs INFERRED), hub nodes, language stats
-- Answers ad-hoc queries ("who imports X?") via `jq` reverse index
-- Never edits production code – only `.opencode/knowledge/`
+Optional agent — **prefer** `bash scripts/nexus-graph.sh` (commit cache, `--force` to rebuild).
 
 See [`agents/knowledge-graph.md`](agents/knowledge-graph.md).
 
 ### blast-analyzer
 
-Computes **blast radius** – what might break from a proposed change.
-
-- Reads `graph.json` reverse index for the task's target files
-- Outputs risk level (LOW / MEDIUM / HIGH), Mermaid diagram, and caller list
-- Writes `.opencode/knowledge/blast/task-N.md` + `.json`
-- Runs **before** implementer starts; HIGH risk triggers extra scrutiny in spec review
-- Never edits production code
+Optional agent — **prefer** `node scripts/nexus-blast.js --files ... --task <id> --mermaid`.
 
 See [`agents/blast-analyzer.md`](agents/blast-analyzer.md).
 
 ### spec-reviewer
 
-First review gate: **did the implementer build the right thing?** Read-only.
-
-- Checks acceptance criteria with file:line evidence
-- Verifies blast scope fidelity (callers updated when signatures change?)
-- Detects out-of-scope changes and isolation violations
-- Checks drift (does plan evidence still hold?)
-- Returns `APPROVED`, `REQUEST_CHANGES`, `ISOLATION_VIOLATION`, or `BLOCKED`
+Dual-review stage 1: **did the implementer build the right thing?**
 
 See [`agents/spec-reviewer.md`](agents/spec-reviewer.md).
 
 ### code-reviewer
 
-Second review gate: **did they build it well?** Read-only.
-
-- Correctness, edge cases, security, maintainability
-- Test quality; for MEDIUM/HIGH blast, checks caller-path coverage
-- Blast regression check (callers still work?)
-- LESSONS anti-pattern guard (`.opencode/knowledge/LESSONS.md`)
-- Severity-tagged findings: HIGH / MEDIUM / LOW
+Dual-review stage 2: **did they build it well?**
 
 See [`agents/code-reviewer.md`](agents/code-reviewer.md).
 
@@ -115,35 +99,29 @@ See [`agents/code-reviewer.md`](agents/code-reviewer.md).
 
 Recovery and drift handler when plans go stale or tasks get blocked.
 
-- Verifies DONE tasks still hold after new commits
-- Investigates `BLOCKED` tasks: `DRIFT_BLOCK`, `ENV_BLOCK`, `SCOPE_BLOCK`, `AUTH_BLOCK`
-- Refreshes blast reports for remaining TODO tasks
-- Retires findings fixed elsewhere (findings triage table in PLAN.md)
-- Writes `.opencode/knowledge/reconcile-<timestamp>.md` and updates `CONTEXT.md`
-- Never edits production code
-
 See [`agents/reconciler.md`](agents/reconciler.md).
 
 ### Default model tiers
 
 | Tier | Agents | Rationale |
 |------|--------|-----------|
-| Coordination | `orchestrator` (`minimax-m3`) | Routing, state management, multi-step delegation |
-| Fast / code | `implementer`, `knowledge-graph` (`deepseek-v4-flash-free`) | Code generation and graph builds – higher throughput |
-| Deep reasoning | `blast-analyzer`, `spec-reviewer`, `code-reviewer`, `reconciler` (`deepseek-v4-pro`, `reasoningEffort: max`) | Safety analysis, review, and drift recovery |
+| Coordination | `orchestrator` | Routing, profile selection, delegation |
+| Fast / code | `implementer`, optional graph/blast scripts | Throughput; scripts avoid LLM for deterministic work |
+| Review | `unified-reviewer` (medium effort); dual reviewers `max` for high-risk | Risk-tiered reasoning — see `config/workflow-profiles.json` modelTiers |
+| Recovery | `reconciler` (`reasoningEffort: max`) | Drift / BLOCKED classification |
 
 All models are fully customizable – see [Customize agent models](#customize-agent-models) below.
 
-## Why this workflow (V2)
+## Why this workflow (V3)
 
-- Prevents context loss with durable files under `.opencode/` – survives compaction (plugin surfaces knowledge + LESSONS in `experimental.session.compacting`).
-- Uses feature branches for precise review boundaries, with isolation recovery.
-- **Graph before code**: lightweight knowledge graph (`graph.json` + `graph.md` + `index.md`) built via shell+optional node/jq (no Python/pip/tree-sitter) gives every agent a view of the whole project – hub/god nodes, importers, language breakdown.
-- **Blast-before-implement**: every task pre-computes what callers might break via reverse dependency BFS (Mermaid diagram + LOW/MEDIUM/HIGH risk) – spec reviews catch scope creep early.
-- Enforces two-stage review per task: spec compliance (file:line evidence, blast fidelity, STOP/drift) then code quality (severity tags, blast regression, LESSONS check).
-- **Outcome memory**: `.opencode/knowledge/LESSONS.md` accumulates repo-specific anti-patterns across tasks (Graphify save-result/reflect pattern) so reviewers learn instead of starting cold.
-- **Drift-resilient planning**: PLAN.md stamps git commit SHA; task files have STOP conditions, effort/confidence, verification gates, file:line evidence; `reconcile` verifies DONE still holds, investigates BLOCKED, retires fixed-elsewhere findings (shadcn/improve pattern).
-- Keeps final branch integration as an explicit user decision. Multi-platform installer pattern borrowed from Graphify/CodeLookup.
+- **Profiles** trade assurance vs speed: `balanced` default; `strict` for security/migrations/public API/HIGH blast.
+- Durable `.opencode/` artifacts survive compaction.
+- **Scripts-first** for graph (commit cache), blast, branch cleanup, cost estimate.
+- Feature or task branches with isolation recovery under strict.
+- Risk-based review (unified or dual) instead of always paying two reviewers.
+- Outcome memory with **noteworthy-only** writes under fast/balanced.
+- Drift-resilient planning (plan_commit, STOP, reconcile).
+- Multi-platform installer.
 
 ## Prerequisites (light dependency)
 
@@ -228,7 +206,7 @@ The installer auto-detects installed platforms and drops the right artifacts:
 - **Gemini CLI** (`~/.gemini/skills/nexus-*/` + `~/.agents/skills/nexus-*/`)
 - **Antigravity** (`~/.gemini/config/skills/nexus-*/` universal + `~/.gemini/antigravity/skills/` + workspace `.agents/skills/`)
 
-Scripts are always verified as present (`scripts/nexus-graph.sh`, `nexus-graph.js`, `nexus-blast.sh`, `nexus-blast.js`) – dependency-light, no pip.
+Scripts are always verified as present (`scripts/nexus-graph.sh`, `nexus-graph.js`, `nexus-blast.sh`, `nexus-blast.js`, `nexus-branch-cleanup.sh`, `nexus-estimate-cost.js`) – dependency-light, no pip.
 
 ### Install only specific platforms
 
@@ -512,21 +490,24 @@ If OpenCode Nexus is useful to you, subscribe to [OpenCode Go](https://opencode.
   - `knowledge-graph/` – lightweight Graphify for agents (shell+node/jq, no python): build/query graph.json + wiki
   - `blast-radius/` – pre-implementation blast via nexus-blast.js (Mermaid + risk)
   - `using-feature-branches/` – branch policy + isolation recovery
-  - `orchestrating/` – per-task loop: blast → branch → drift → implementer (graph+blast+LESSONS) → reviews (blast fidelity + LESSONS guard) → LESSONS entry
+  - `orchestrating/` – profile-aware loop: blast → branch → drift → implementer → review (unified or dual) → LESSONS → script cleanup; includes `profiles.md`, `dispatch.md`
   - `reconcile/` – verify DONE, investigate BLOCKED, refresh drift, retire fixed-elsewhere (from shadcn/improve reconcile)
-  - `outcome-memory/` – LESSONS.md pattern from Graphify save-result/reflect
-  - `using-nexus/` – bootstrap router (auto-loads right skill per phase, multi-skill awareness)
-  - `finishing-a-development-branch/` – merge/PR/keep/discard + disposition + LESSONS capture + plan-end cleanup delegation
+  - `outcome-memory/` – LESSONS.md with noteworthy-only / every-task policies
+  - `using-nexus/` – bootstrap router (profiles + scripts-first)
+  - `finishing-a-development-branch/` – merge/PR/keep/discard + script cleanup
+- `config/`:
+  - `default-workflow.json`, `workflow-profiles.json` – V3 profile defaults and review matrix
+  - `default-models.json`, `models.example.json`
 - `scripts/`:
-  - `nexus-graph.sh` – shell+optional node graph builder → `.opencode/knowledge/graph.json` + `graph.md` + `index.md`
-  - `nexus-graph.js` – precise extractor (called inside shell script when node present)
-  - `nexus-blast.sh` – shell fallback blast (rg heuristics)
-  - `nexus-blast.js` – precise blast (reverse index BFS, Mermaid, risk scoring, --task artifact)
-- `.opencode/plugins/nexus.js` – plugin hooks (config, bootstrap injection with V2 marker, compaction context surfacing graph.md + LESSONS tail + last reconcile)
-- `docs/workflow.md` – workflow diagram + graph/blast/reconcile/LESSONS integration notes
-- `install.sh` – multi-platform auto-detect (OpenCode, Claude Code, Cursor, Codex, Gemini, Antigravity) – Graphify pattern, correct one-level skill dirs, `--only` filter, backup timestamps
-- `uninstall.sh` – multi-platform inverse, same `--only`/`--all` filters
-- `scripts/install-git-hook.sh` – optional post-commit graph refresh for consumer repos
+  - `nexus-graph.sh` / `nexus-graph.js` – graph builder with commit cache
+  - `nexus-blast.sh` / `nexus-blast.js` – blast radius
+  - `nexus-branch-cleanup.sh` – guarded branch deletion (replaces LLM cleanup)
+  - `nexus-estimate-cost.js` / `.sh` – pre-run call-count estimate
+- `.opencode/plugins/nexus.js` – plugin hooks (config, bootstrap, compaction)
+- `docs/workflow.md` – V3 workflow + profiles
+- `install.sh` – multi-platform installer (includes `unified-reviewer`)
+- `uninstall.sh` – multi-platform inverse
+- `scripts/install-git-hook.sh` – optional post-commit graph refresh
 
 ## Acknowledgements (cross-pollinated)
 

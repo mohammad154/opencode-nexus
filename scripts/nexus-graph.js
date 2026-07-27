@@ -16,6 +16,7 @@
 
 import fs from "fs";
 import path from "path";
+import { execSync } from "child_process";
 
 const fileListPath = process.argv[2];
 const root = process.argv[3] || process.cwd();
@@ -210,20 +211,34 @@ for (const e of allEdges) {
   deduped.push(e);
 }
 
+let generated_at_commit = "unknown";
+try {
+  generated_at_commit = execSync("git rev-parse HEAD", {
+    cwd: root,
+    encoding: "utf8",
+  }).trim();
+} catch {
+  /* non-git workspace */
+}
+
 const graph = {
   version: 1,
   root,
   generated_at: now,
+  generated_at_commit,
+  generator_version: "2.1",
   stats: {
     total_files: rawFiles.length,
     nodes: nodes.length,
     edges: deduped.length,
-    external_edges: deduped.filter(e => e.external).length,
+    external_edges: deduped.filter((e) => e.external).length,
   },
   nodes,
   edges: deduped,
   // For quick lookups
-  files: Object.fromEntries(rawFiles.map(f => [escapeId(rel(f)), escapeId(rel(f))])),
+  files: Object.fromEntries(
+    rawFiles.map((f) => [escapeId(rel(f)), escapeId(rel(f))]),
+  ),
 };
 
 fs.mkdirSync(outDir, { recursive: true });

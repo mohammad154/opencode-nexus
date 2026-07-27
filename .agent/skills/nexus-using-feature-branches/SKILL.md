@@ -1,10 +1,10 @@
 ---
 name: nexus-using-feature-branches
-description: Use when starting task execution to isolate changes on feature branches and keep review diffs precise
+description: Use when starting task execution to isolate changes on feature branches and keep review diffs precise — supports per-task (strict) and per-feature (fast/balanced) policies
 compatibility: opencode
 ---
 
-# Using Feature Branches
+# Using Feature Branches (V3)
 
 ## Prerequisites
 
@@ -28,74 +28,60 @@ git diff <base-branch>...<feature-branch>
 
 ## Merge policy (project default)
 
-Read `merge_policy` from `.opencode/CONTEXT.md`. Default to `always_to_base` for this project.
+Read `merge_policy` from `.opencode/CONTEXT.md`. Default to `always_to_base`.
 
 When `merge_policy: always_to_base` (default):
 
-- **After each task passes spec + code review**, merge the feature branch into `base_branch` before starting the next task.
-- The next task branch must be created from the updated `base_branch` so it includes prior work.
-- Do not ask whether to merge — merging is the required integration step unless the user sets `merge_policy: prompt`.
+- After the active **review unit** passes (task in strict, execution unit in fast/balanced), merge the feature branch into `base_branch` before starting the next unit.
+- Do not ask whether to merge unless `merge_policy: prompt`.
+
+## Branch policy (profile-aware)
+
+Read `workflow_profile` and `branch_policy` from `.opencode/CONTEXT.md`.
+
+| Profile / policy | Branch naming | Cadence |
+|------------------|---------------|---------|
+| `strict` / `isolated` | `feature/task-N-<slug>` | One branch per task from `base_branch` |
+| `strict` / `stacked` | `feature/task-N-<slug>` | Task N+1 off task N (opt-in) |
+| `balanced` / `fast` (`per-feature`) | `feature/<feature-slug>` | One branch per execution unit / feature |
+
+Never commit directly to the base branch.
+
+### `per-feature` (default for balanced/fast)
 
 ```bash
 git checkout <base-branch>
-git merge feature/task-N-<slug>   # fast-forward or merge commit
-git checkout -b feature/task-N+1-<slug>
+git checkout -b feature/<feature-slug>
+# implement all tasks in the execution unit
+# review once
+git checkout <base-branch>
+git merge feature/<feature-slug>
+bash scripts/nexus-branch-cleanup.sh --base <base-branch> --out .opencode/handoffs/<id>-cleanup.json feature/<feature-slug>
 ```
 
-Override only when the user sets `merge_policy: prompt` in `.opencode/CONTEXT.md` (present choices via `finishing-a-development-branch`).
+### `isolated` (default for strict)
 
-## Branch policy
-
-Read `branch_policy` from `.opencode/CONTEXT.md`. Default to `isolated` when unset.
-
-- Never commit directly to the base branch.
-- Create one branch per task: `feature/task-N-<slug>`.
-- Keep commits scoped to the active task.
-
-### `isolated` (default, recommended)
-
-Each task branch is created from `base_branch` only. Reviews show only that task's changes.
+Each task branch is created from `base_branch` only.
 
 1. `git checkout <base-branch>`
-2. `git pull` (if project policy allows)
-3. `git checkout -b feature/task-N-<slug>`
-4. Implement and commit
-5. Review with `git diff <base-branch>...feature/task-N-<slug>`
-6. After reviews pass: merge into `base_branch` (see Merge policy). Record disposition `merged`.
+2. `git checkout -b feature/task-N-<slug>`
+3. Implement and commit
+4. Review with `git diff <base-branch>...feature/task-N-<slug>`
+5. Merge into `base_branch`; script-cleanup the task branch
 
-**Never** branch task N+1 off `feature/task-N-...`.
-
-Always merge task N into `base_branch` before starting task N+1 (when `merge_policy: always_to_base`). Create the next branch from the updated `base_branch` — **not** by merging task N's branch into task N+1's branch.
-
-**Forbidden when `branch_policy: isolated`:**
-
-- `git merge feature/task-N-...` while on `feature/task-N+1-...`
-- `git rebase feature/task-N-...` onto task N+1
-- Creating task N+1 by branching off `feature/task-N-...` instead of `base_branch`
+**Forbidden when `branch_policy: isolated`:** merging/rebasing another task's feature branch into the current task branch; creating task N+1 off task N.
 
 ### `stacked` (opt-in only)
 
-Use only when the user explicitly chose `stacked` in `.opencode/CONTEXT.md`.
+Use only when the user explicitly chose `stacked`.
 
-1. Branch task N+1 off the previous task branch: `feature/task-N-<slug>`
+1. Branch task N+1 off the previous task branch
 2. Review with `git diff feature/task-N-<slug>...feature/task-N+1-<slug>`
 
 ## Isolation recovery
 
-If a task branch already contains a prior task's commits (e.g. fast-forward merge of task N into task N+1), do not dispatch reviewers until fixed.
+If a strict/isolated task branch already contains a prior task's commits, do not dispatch reviewers until fixed (merge prior → base, rebase current onto base, re-verify diff).
 
-1. Merge the prior task branch into `base_branch`.
-2. Rebase the current task branch onto `base_branch`.
-3. Verify: `git diff <base-branch>...<feature-branch>` shows **only** the current task's changes.
+## Cleanup
 
-```bash
-git checkout <base-branch>
-git merge feature/task-N-<slug>
-
-git checkout feature/task-N+1-<slug>
-git rebase <base-branch>
-
-git diff <base-branch>...feature/task-N+1-<slug>
-```
-
-If rebase conflicts, resolve preserving the current task's intent, then re-run the diff check.
+Prefer `scripts/nexus-branch-cleanup.sh` (ancestor checks). Do not LLM-dispatch solely for `git branch -d`.

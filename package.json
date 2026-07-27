@@ -1,7 +1,7 @@
 {
   "name": "opencode-nexus",
-  "version": "0.2.0",
-  "description": "OpenCode Nexus multi-agent workflow plugin – V2 cross-pollinated: knowledge graph (Graphify), blast-radius (CodeLookup), improve-grade planning (shadcn/improve), multi-platform installer",
+  "version": "1.0.0",
+  "description": "OpenCode Nexus multi-agent workflow plugin – V3 profiles (fast/balanced/strict), scripts-first graph/blast/cleanup, risk-based review, multi-platform installer",
   "type": "module",
   "main": ".opencode/plugins/nexus.js",
   "license": "MIT"

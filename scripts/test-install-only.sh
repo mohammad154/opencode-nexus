@@ -53,11 +53,11 @@ echo "$out" | grep -qv '\[antigravity\]'
 echo "$out" | grep -q 'claude: not detected → skipped'
 echo "$out" | grep -q 'cursor: not detected → skipped'
 
-if find "$HOME" \( -path '*/config/skills/*' -o -path '*/antigravity/*' -o -path '*/.antigravity/*' \) \
+if find "$HOME" \( -path '*/.gemini/config/skills/*' -o -path '*/antigravity/*' -o -path '*/.antigravity/*' \) \
     -iname '*nexus*' 2>/dev/null | grep -q .; then
   echo "FAIL: auto-detect wrote Antigravity paths:" >&2
   find "$HOME" -iname '*nexus*' 2>/dev/null >&2 || true
   exit 1
 fi
-test "$(find "$HOME/.gemini/skills" -iname '*nexus*' 2>/dev/null | wc -l)" -gt 0
+test "$(find "$HOME/.gemini/skills" "$HOME/.config/gemini/skills" -iname '*nexus*' 2>/dev/null | wc -l)" -gt 0
 echo "PASS: default install detects gemini, skips Antigravity (ignores ag binary)"

@@ -1,5 +1,5 @@
 {
-  "_comment": "Copy to ~/.config/opencode/nexus.models.json and edit. Re-run install.sh to apply. Only include agents you want to override. V2 ships 7 agents.",
+  "_comment": "Copy to ~/.config/opencode/nexus.models.json and edit. Re-run install.sh to apply. V3 adds unified-reviewer; prefer scripts for blast/graph. Risk tiers: see config/workflow-profiles.json modelTiers.",
   "orchestrator": {
     "model": "anthropic/claude-sonnet-4-20250514"
   },
@@ -7,19 +7,25 @@
     "model": "opencode/deepseek-v4-flash-free",
     "reasoningEffort": "high"
   },
+  "unified-reviewer": {
+    "model": "opencode-go/deepseek-v4-pro",
+    "reasoningEffort": "high"
+  },
   "spec-reviewer": {
-    "model": "opencode-go/deepseek-v4-pro"
+    "model": "opencode-go/deepseek-v4-pro",
+    "reasoningEffort": "max"
   },
   "code-reviewer": {
     "model": "opencode-go/deepseek-v4-pro",
     "reasoningEffort": "max"
   },
   "blast-analyzer": {
-    "model": "opencode-go/deepseek-v4-pro",
-    "reasoningEffort": "max"
+    "model": "opencode/deepseek-v4-flash-free",
+    "reasoningEffort": "medium"
   },
   "knowledge-graph": {
-    "model": "opencode/deepseek-v4-flash-free"
+    "model": "opencode/deepseek-v4-flash-free",
+    "reasoningEffort": "low"
   },
   "reconciler": {
     "model": "opencode-go/deepseek-v4-pro",

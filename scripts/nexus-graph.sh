@@ -10,6 +10,20 @@
 
 set -euo pipefail
 
+# Optional flags (before positionals): --force | -f  → ignore commit cache
+FORCE_REBUILD="${NEXUS_GRAPH_FORCE:-0}"
+POSITIONAL=()
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --force|-f) FORCE_REBUILD=1; shift ;;
+    --docs-only-skip)
+      # Caller asserts change is documentation-only; skip graph rebuild entirely if cache exists
+      DOCS_ONLY_SKIP=1; shift ;;
+    *) POSITIONAL+=("$1"); shift ;;
+  esac
+done
+set -- "${POSITIONAL[@]+"${POSITIONAL[@]}"}"
+
 ROOT="${1:-}"
 if [ -z "$ROOT" ]; then
   ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
@@ -22,8 +36,40 @@ HAS_RG=0; command -v rg >/dev/null 2>&1 && HAS_RG=1
 HAS_FD=0; command -v fd >/dev/null 2>&1 && HAS_FD=1
 HAS_JQ=0; command -v jq >/dev/null 2>&1 && HAS_JQ=1
 HAS_NODE=0; command -v node >/dev/null 2>&1 && HAS_NODE=1
+GENERATOR_VERSION="2.1"
 
 echo "[nexus-graph] ROOT=$ROOT OUT=$OUT_DIR rg=$HAS_RG fd=$HAS_FD jq=$HAS_JQ node=$HAS_NODE"
+
+# ── cache-by-commit (graphPolicy: cache-by-commit) ────────
+HEAD_COMMIT=""
+if git -C "$ROOT" rev-parse HEAD >/dev/null 2>&1; then
+  HEAD_COMMIT="$(git -C "$ROOT" rev-parse HEAD)"
+fi
+GRAPH_JSON="$OUT_DIR/graph.json"
+if [[ "${DOCS_ONLY_SKIP:-0}" -eq 1 && -f "$GRAPH_JSON" ]]; then
+  echo "[nexus-graph] docs-only skip: keeping existing graph.json"
+  exit 0
+fi
+if [[ "$FORCE_REBUILD" != "1" && -n "$HEAD_COMMIT" && -f "$GRAPH_JSON" ]]; then
+  CACHED_COMMIT=""
+  CACHED_VER=""
+  if [[ "$HAS_JQ" -eq 1 ]]; then
+    CACHED_COMMIT="$(jq -r '.generated_at_commit // empty' "$GRAPH_JSON" 2>/dev/null || true)"
+    CACHED_VER="$(jq -r '.generator_version // empty' "$GRAPH_JSON" 2>/dev/null || true)"
+  else
+    CACHED_COMMIT="$(grep -o '"generated_at_commit"[[:space:]]*:[[:space:]]*"[^"]*"' "$GRAPH_JSON" 2>/dev/null | head -1 | sed 's/.*"\([^"]*\)"$/\1/' || true)"
+    CACHED_VER="$(grep -o '"generator_version"[[:space:]]*:[[:space:]]*"[^"]*"' "$GRAPH_JSON" 2>/dev/null | head -1 | sed 's/.*"\([^"]*\)"$/\1/' || true)"
+  fi
+  if [[ "$CACHED_COMMIT" == "$HEAD_COMMIT" && "$CACHED_VER" == "$GENERATOR_VERSION" ]]; then
+    # Also skip if no tracked source files changed since cache (dirty tree still rebuilds)
+    DIRTY="$(git -C "$ROOT" status --porcelain --untracked-files=no 2>/dev/null | grep -vE '\.(md|mdx|txt|rst)$' || true)"
+    if [[ -z "$DIRTY" ]]; then
+      echo "[nexus-graph] cache hit: generated_at_commit=$HEAD_COMMIT generator_version=$GENERATOR_VERSION — skip rebuild"
+      exit 0
+    fi
+    echo "[nexus-graph] cache commit matches but working tree has non-doc changes — rebuilding"
+  fi
+fi
 
 # ── language detection ────────────────────────────────────
 # Extension→lang mapping
@@ -228,7 +274,7 @@ if [ "$HAS_JQ" -eq 1 ] && [ -f "$OUT_DIR/graph.json" ]; then
     echo "## Graph generation"
     echo "- Command: \`./scripts/nexus-graph.sh [root] [out_dir]\`"
     echo "- Safe to run repeatedly; output is deterministic given repo state."
-    echo "- For incremental: \`./scripts/nexus-graph.sh\` detects cache via SHA (future: --update)."
+    echo "- Cache: skips rebuild when \`generated_at_commit\` == HEAD and \`generator_version\` matches (use \`--force\` to rebuild)."
   } > "$OUT_DIR/index.md"
 else
   # Minimal markdown when jq unavailable
@@ -236,6 +282,26 @@ else
   printf "# Nexus Knowledge Index\n\n- graph.json – raw graph\n- graph.md – summary\n" > "$OUT_DIR/index.md"
 fi
 
+# Stamp commit + generator version onto graph.json (cache key)
+if [[ -f "$OUT_DIR/graph.json" ]]; then
+  STAMP_COMMIT="${HEAD_COMMIT:-unknown}"
+  if [[ "$HAS_JQ" -eq 1 ]]; then
+    tmp="$OUT_DIR/graph.json.tmp"
+    jq --arg c "$STAMP_COMMIT" --arg v "$GENERATOR_VERSION" \
+      '.generated_at_commit=$c | .generator_version=$v' \
+      "$OUT_DIR/graph.json" >"$tmp" && mv "$tmp" "$OUT_DIR/graph.json"
+  elif [[ "$HAS_NODE" -eq 1 ]]; then
+    node -e "
+      const fs=require('fs');
+      const p=process.argv[1];
+      const g=JSON.parse(fs.readFileSync(p,'utf8'));
+      g.generated_at_commit=process.argv[2];
+      g.generator_version=process.argv[3];
+      fs.writeFileSync(p, JSON.stringify(g,null,2));
+    " "$OUT_DIR/graph.json" "$STAMP_COMMIT" "$GENERATOR_VERSION"
+  fi
+fi
+
 mkdir -p "$OUT_DIR/blast"
-echo "[nexus-graph] Done → $OUT_DIR/graph.json + graph.md + index.md"
+echo "[nexus-graph] Done → $OUT_DIR/graph.json + graph.md + index.md (commit=${HEAD_COMMIT:-n/a})"
 echo "[nexus-graph] Tip: run ./scripts/nexus-blast.sh to compute a blast radius from current git diff."

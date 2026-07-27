@@ -1,44 +1,31 @@
-# Branch Cleanup Dispatch Template
+# Branch Cleanup (V3 — script-first)
 
-Use this template when dispatching `implementer` for plan-end branch cleanup.
+**Do not dispatch an LLM implementer for branch deletion.** Use the guarded script:
+
+```bash
+git checkout <base-branch>
+bash scripts/nexus-branch-cleanup.sh --base <base-branch> \
+  --out .opencode/handoffs/plan-cleanup.json \
+  feature/<slug> [feature/<other> ...]
+```
+
+- Merged branches: default `git branch -d` after `merge-base --is-ancestor` check.
+- Discarded unmerged: pass `--force-discard` (uses `-D`) only for those names.
+- Protected: never deletes `main`/`master`/`develop`/`base_branch`.
+
+Fallback (only if script missing): the legacy implementer cleanup prompt below.
+
+---
+
+## Legacy fallback template (avoid)
 
 ```text
 You are performing branch cleanup (not implementation).
+Prefer telling the orchestrator to run scripts/nexus-branch-cleanup.sh instead.
 
-## Required Reading (do this first)
-1. Read .opencode/CONTEXT.md
-2. Confirm you are on branch: [base-branch] (orchestrator should have checked out already)
-
-## Branches to Delete
-[Paste list — one per line, with disposition]
-- feature/task-1-<slug> (disposition: merged)
-- feature/task-2-<slug> (disposition: discarded)
-
-## Context
-- Base branch: [base-branch]
-- Handoff output path: .opencode/handoffs/plan-cleanup-implementer.json
-
-## Instructions
-1. Run `git branch --show-current` and confirm it matches [base-branch]. If not, return BLOCKED.
-2. For each branch in the list:
-   - disposition `merged` → `git branch -d <branch>`
-   - disposition `discarded` → `git branch -D <branch>`
-3. Do not delete branches not listed above.
-4. If `git branch -d` fails for a `merged` branch, return BLOCKED with the git error (do not force-delete).
-5. Write handoff JSON to .opencode/handoffs/plan-cleanup-implementer.json with:
-   - deleted: [branch names successfully removed]
-   - skipped: [branches not in the list or already gone]
-   - failed: [{ branch, error }] for any deletion that failed
-6. Return status and summary.
-
-## Report Format
-Status: DONE | BLOCKED
-Deleted:
-- <branch>
-Skipped:
-- <branch>
-Failed:
-- <branch>: <error>
-Notes:
-- <important note>
+If you must proceed:
+1. Confirm on [base-branch]
+2. For merged: git branch -d <branch> only if ancestor of base
+3. For discarded: git branch -D <branch>
+4. Write .opencode/handoffs/plan-cleanup-implementer.json
 ```

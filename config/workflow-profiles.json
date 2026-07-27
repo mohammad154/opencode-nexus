@@ -1,0 +1,127 @@
+{
+  "_comment": "Profile matrix for Nexus V3. strict preserves legacy high-assurance behavior.",
+  "profiles": {
+    "fast": {
+      "description": "Small low-risk changes: one implementer, scripts for graph/blast, optional unified review, one branch per request",
+      "branchPolicy": "per-feature",
+      "reviewPolicy": "unified-or-skip",
+      "lessonPolicy": "noteworthy-only",
+      "graphPolicy": "cache-by-commit",
+      "blastPolicy": "per-execution-unit",
+      "cleanupPolicy": "script",
+      "batchTasks": true,
+      "implementerPer": "execution-unit",
+      "maxTasksPerBatch": 5,
+      "requireDualReviewOn": [
+        "security",
+        "migration",
+        "public-api",
+        "high-blast"
+      ]
+    },
+    "balanced": {
+      "description": "Normal feature work: feature branch, batched implementer, risk-based review, LESSONS when noteworthy",
+      "branchPolicy": "per-feature",
+      "reviewPolicy": "risk-based",
+      "lessonPolicy": "noteworthy-only",
+      "graphPolicy": "cache-by-commit",
+      "blastPolicy": "per-execution-unit",
+      "cleanupPolicy": "script",
+      "batchTasks": true,
+      "implementerPer": "execution-unit",
+      "maxTasksPerBatch": 5,
+      "requireDualReviewOn": [
+        "security",
+        "migration",
+        "public-api",
+        "high-blast"
+      ]
+    },
+    "strict": {
+      "description": "Legacy high-assurance: per-task branch, blast, dual review, LESSONS every task",
+      "branchPolicy": "per-task",
+      "reviewPolicy": "always-dual",
+      "lessonPolicy": "every-task",
+      "graphPolicy": "rebuild-each-task",
+      "blastPolicy": "per-task",
+      "cleanupPolicy": "script",
+      "batchTasks": false,
+      "implementerPer": "task",
+      "maxTasksPerBatch": 1,
+      "requireDualReviewOn": ["*"]
+    }
+  },
+  "reviewMatrix": {
+    "documentation": {
+      "spec": "skip",
+      "code": "skip-or-lightweight",
+      "unified": false
+    },
+    "test-only": { "spec": "skip", "code": "unified", "unified": true },
+    "small-internal-refactor": {
+      "spec": "skip",
+      "code": "required",
+      "unified": true
+    },
+    "small-feature-with-tests": {
+      "spec": "unified",
+      "code": "unified",
+      "unified": true
+    },
+    "public-api": { "spec": "required", "code": "required", "unified": false },
+    "authentication-security": {
+      "spec": "required",
+      "code": "required",
+      "unified": false
+    },
+    "database-migration": {
+      "spec": "required",
+      "code": "required",
+      "unified": false
+    },
+    "high-blast": { "spec": "required", "code": "required", "unified": false }
+  },
+  "classificationRules": {
+    "fastIf": {
+      "documentationOnly": true,
+      "or": {
+        "filesChangedMax": 2,
+        "estimatedLinesMax": 50,
+        "notPublicApi": true,
+        "notSecuritySensitive": true
+      }
+    },
+    "strictIf": [
+      "securitySensitive",
+      "databaseMigration",
+      "publicApi",
+      "blastRiskHigh"
+    ],
+    "default": "balanced",
+    "escalateToStrictOnHighBlast": true,
+    "allowExplicitOverride": true
+  },
+  "modelTiers": {
+    "low": {
+      "orchestrator": { "reasoningEffort": "low" },
+      "implementer": { "reasoningEffort": "medium" },
+      "unified-reviewer": { "reasoningEffort": "medium" },
+      "spec-reviewer": { "reasoningEffort": "medium" },
+      "code-reviewer": { "reasoningEffort": "medium" }
+    },
+    "medium": {
+      "orchestrator": { "reasoningEffort": "medium" },
+      "implementer": { "reasoningEffort": "high" },
+      "unified-reviewer": { "reasoningEffort": "high" },
+      "spec-reviewer": { "reasoningEffort": "high" },
+      "code-reviewer": { "reasoningEffort": "high" }
+    },
+    "high": {
+      "orchestrator": { "reasoningEffort": "high" },
+      "implementer": { "reasoningEffort": "high" },
+      "spec-reviewer": { "reasoningEffort": "max" },
+      "code-reviewer": { "reasoningEffort": "max" },
+      "reconciler": { "reasoningEffort": "max" }
+    }
+  }
+}

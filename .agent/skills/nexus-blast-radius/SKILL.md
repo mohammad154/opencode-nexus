@@ -19,9 +19,12 @@ From CodeLookup's pattern:
 
 ## When to run
 
-- Automatically before each implementer dispatch (orchestrating skill runs this).
-- Manually when user asks "what will break if I change X?" or "blast radius of Y?".
-- In spec-reviewer / code-reviewer when verify caller handling.
+- Automatically before each implementer dispatch:
+  - `strict`: once per task
+  - `fast`/`balanced`: once per **execution unit** (recompute if scope expands)
+- Prefer `node scripts/nexus-blast.js` over the blast-analyzer agent.
+- Manually when user asks "what will break if I change X?"
+- In reviewers when verifying caller handling.
 
 ## Commands
 

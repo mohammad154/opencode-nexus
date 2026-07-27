@@ -7,7 +7,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const skillsDir = path.resolve(__dirname, "../../skills");
 
 const FRONTMATTER_RE = /^---\n[\s\S]*?\n---\n?/;
-const BOOTSTRAP_MARKER = "NEXUS_BOOTSTRAP_V2";
+const BOOTSTRAP_MARKER = "NEXUS_BOOTSTRAP_V3";
 
 let bootstrapCache;
 
@@ -28,20 +28,23 @@ function getBootstrapText() {
 
   const toolMapping = `**Tool Mapping for OpenCode:**
 - \`Skill\` tool → OpenCode \`skill\` tool
-- \`Task\` / Agent subagents (canonical) → implementer, spec-reviewer, code-reviewer, blast-analyzer, knowledge-graph, reconciler
+- \`Task\` / Agent subagents (canonical) → implementer, unified-reviewer, spec-reviewer, code-reviewer, blast-analyzer, knowledge-graph, reconciler
 - Prefixed installs (Claude/Cursor/AG) → nexus-<canonical> (see skills/orchestrating/dispatch.md)
-- Two-stage review required on every platform: spec then code; both APPROVED handoff JSONs before finish
+- Review is **profile-aware** (default balanced): unified-reviewer OR dual (spec then code) OR skip (docs-only fast). High-risk always dual. See profiles.md + dispatch.md.
+- Prefer scripts for graph/blast/cleanup/cost estimate — do not LLM-dispatch for those.
 - Codex/Gemini (skills-only): isolated reviewer turns still write the same handoff JSON gates
 - \`TodoWrite\` → \`todowrite\`
 
-**Cross-pollinated capabilities (new in V2):**
-- \`knowledge-graph\` – builds .opencode/knowledge/graph.json via nexus-graph.sh (shell + optional node/jq, no pip) for dependency maps, hub nodes, blast radius
-- \`blast-radius\` – pre-implementation safety check via nexus-blast.js → Mermaid blast diagram + risk scoring
-- \`reconcile\` – verifies DONE still holds, investigates BLOCKED, refreshes drift (commit SHA), retires fixed-elsewhere findings
-- \`outcome-memory\` – LESSONS.md (Graphify save-result/reflect) accumulates outcome memory: anti-patterns carry forward
-- \`writing-plans\` – now improve-grade: file:line evidence, effort/confidence, STOP, drift check (plan_commit SHA), verification gates
-- \`orchestrating\` – blast-before-implement, outcome memory write after reviews, drift check, graph context passed to subagents
-- Multi-platform installer: \`install.sh --only claude,cursor,codex,gemini,opencode,antigravity\` (Graphify installer pattern)
+**Cross-pollinated capabilities (V3):**
+- \`workflow profiles\` – fast | balanced (default) | strict — see config/workflow-profiles.json
+- \`knowledge-graph\` – scripts/nexus-graph.sh with commit cache (generated_at_commit)
+- \`blast-radius\` – scripts/nexus-blast.js per task (strict) or execution unit (fast/balanced)
+- \`unified-reviewer\` – combined spec+quality for low/medium risk
+- \`reconcile\` – verifies DONE still holds, investigates BLOCKED, refreshes drift
+- \`outcome-memory\` – LESSONS.md with noteworthy-only (fast/balanced) or every-task (strict)
+- \`writing-plans\` – improve-grade: file:line evidence, effort/confidence, STOP, drift SHA, verification gates
+- \`orchestrating\` – profile-aware batching, script cleanup via nexus-branch-cleanup.sh, cost estimate
+- Multi-platform installer: \`install.sh --only claude,cursor,codex,gemini,opencode,antigravity\`
 - Optional graph refresh: \`scripts/install-git-hook.sh\` (post-commit) in a consumer repo
 
 Use OpenCode's native \`skill\` tool to load Nexus skills automatically based on task phase.`;
@@ -49,7 +52,7 @@ Use OpenCode's native \`skill\` tool to load Nexus skills automatically based on
   bootstrapCache = [
     "<EXTREMELY_IMPORTANT>",
     BOOTSTRAP_MARKER,
-    "You have OpenCode Nexus V2 workflow support (cross-pollinated).",
+    "You have OpenCode Nexus V3 workflow support (profiles + scripts-first).",
     "The using-nexus skill content below is already loaded; do not load it again.",
     "",
     body,
@@ -168,12 +171,15 @@ export const NexusPlugin = async ({ worktree }) => {
       );
       if (alreadyInjected) return;
 
-      // Also guard against V1 marker injection
-      const v1Marker = "NEXUS_BOOTSTRAP_V1";
-      const alreadyV1 = firstUser.parts.some(
-        (p) => p.type === "text" && typeof p.text === "string" && p.text.includes(v1Marker)
+      // Guard against prior bootstrap markers (avoid double-inject)
+      const priorMarkers = ["NEXUS_BOOTSTRAP_V1", "NEXUS_BOOTSTRAP_V2"];
+      const alreadyPrior = firstUser.parts.some(
+        (p) =>
+          p.type === "text" &&
+          typeof p.text === "string" &&
+          priorMarkers.some((m) => p.text.includes(m)),
       );
-      if (alreadyV1) return;
+      if (alreadyPrior) return;
 
       firstUser.parts.unshift({
         ...firstUser.parts[0],

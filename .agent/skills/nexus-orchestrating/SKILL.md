@@ -1,95 +1,108 @@
 ---
-name: orchestrating
-description: Use to execute a plan through branch-scoped implementation with graph awareness, blast-radius checks, two-stage review, outcome memory, and structured handoffs
+name: nexus-orchestrating
+description: Use to execute a plan through branch-scoped implementation with graph awareness, blast-radius checks, profile-aware review, outcome memory, and structured handoffs
 compatibility: opencode
 ---
 
-# Orchestrating
+# Orchestrating (V3 — profiles)
 
 ## Prerequisites
 
 - Confirm the workspace is a git repository before starting.
 - Load `using-feature-branches` and record `base_branch` in `.opencode/CONTEXT.md`.
-- Ensure `.opencode/knowledge/graph.json` exists — if missing, run `scripts/nexus-graph.sh` (auto-build; requires only shell + optional node/jq, no pip).
+- Ensure `.opencode/knowledge/graph.json` exists — run `scripts/nexus-graph.sh` (respects commit cache; use `--force` only when needed).
 - If `reconcile` was requested or drift is suspected, run `reconcile` skill before starting tasks.
+- **Read [`profiles.md`](profiles.md)** — workflow profiles control branch/review/batch behavior.
 
 ## Workflow preferences gate
 
-Before the per-task loop (or when resuming if preferences are missing):
+Before the execution loop (or when resuming if preferences are missing):
 
-1. If `branch_policy`, `execution_mode`, or `branch_cleanup_policy` are unset in `.opencode/CONTEXT.md`, ask:
-   - **Branch policy:** isolated (each task branches off `base_branch`, reviewable in isolation) or stacked (branch task N+1 off task N)?
-   - **Execution mode:** checkpoint (pause after each task for inspect/merge) or continuous (run all remaining tasks)?
-   - Recommend **isolated** and **checkpoint** for multi-task plans.
-2. Set `branch_cleanup_policy: always` by default (delete merged/discarded `feature/task-*` branches when each task's work ends). Override only if the user explicitly requests `defer_to_plan_end` or `never`.
-3. Record answers in `.opencode/CONTEXT.md`. Do not re-ask on resume unless the user requests a change.
-
-Run the per-task loop for each pending task in `.opencode/plans/PLAN.md`.
-
-## Pre-task preamble (run once before first dispatch)
-
-1. Read `.opencode/knowledge/LESSONS.md` if present — carry failure patterns into reviewer guidance.
-2. Run `node scripts/nexus-graph.js` or `bash scripts/nexus-graph.sh` to ensure graph is fresh (safe to run; outputs to `.opencode/knowledge/graph.json` which is git-ignored friendly).
-3. Record `verification_baseline` outcome: run build/test/lint as detected on base_branch + log result — if baseline was already failing, note so; do not let baseline failures block task N's review unless task N touches failing area (STOP condition handles this).
-
-## Per-Task Execution Loop
-
-1. Write or verify `.opencode/tasks/task-N.md` follows the enhanced template (see below). If it lacks:
-   - drift SHA, plan_commit, STOP conditions, verification gates, blast-radius section → patch it now from PLAN.md + graph.
-2. Resolve target files for this task (from task-N.md Scope: In). Run blast analysis:
+1. If `workflow_profile` is unset in `.opencode/CONTEXT.md`:
+   - Classify (see `profiles.md` / `config/workflow-profiles.json`) or ask the user.
+   - **Recommend `balanced`** for normal multi-task features.
+   - Allow explicit override: `fast` | `balanced` | `strict`.
+2. If `branch_policy`, `execution_mode`, or `branch_cleanup_policy` are unset:
+   - Derive defaults from profile (see table in `profiles.md`).
+   - `strict` → recommend `isolated` + `checkpoint` (legacy per-task).
+   - `balanced`/`fast` → `branch_policy: per-feature`, `execution_mode: continuous` unless user wants checkpoint.
+3. Set `branch_cleanup_policy: always` by default; `cleanupPolicy: script` (run `scripts/nexus-branch-cleanup.sh` — **never** dispatch an LLM solely to delete branches).
+4. Run cost estimate and show the user:
    ```bash
-   node scripts/nexus-blast.js --files <csv-of-target-files> --task N --mermaid
-   # fallback: bash scripts/nexus-blast.sh
+   node scripts/nexus-estimate-cost.js --tasks <N> --profile <profile>
    ```
-   This writes `.opencode/knowledge/blast/task-N.md` + `.json` with Mermaid diagram and risk level (LOW/MEDIUM/HIGH).
-   If graph missing, graph build runs automatically inside blast script.
-   If blast level is HIGH, add a note to task-N.md's blast section and flag to spec-reviewer to watch scope creep.
-3. Create branch `feature/task-N-<slug>`:
-   - `branch_policy: isolated` → from `base_branch` (`git checkout <base_branch>` then `git checkout -b feature/task-N-<slug>`)
-   - `branch_policy: stacked` → from the previous task's feature branch
-4. Update `.opencode/CONTEXT.md` with current task, branch, base_branch, plan_commit, knowledge freshness (graph timestamp).
-5. Run **pre-dispatch branch validation** (when `branch_policy: isolated`) — see Hard Rules. If validation fails, run isolation recovery before continuing.
-6. Run **drift check**: `git rev-parse --short HEAD` vs `plan_commit` in CONTEXT.md; if base has moved > threshold or task file's STOP file:line assumption no longer holds, escalate (see Drift handling).
-7. Dispatch **implementer** (platform-resolved name — see `dispatch.md`) using filled `implementer-prompt.md`.
-8. Save implementer handoff JSON to `.opencode/handoffs/task-N-implementer.json`.
-9. **Mandatory two-stage review** — follow `dispatch.md`. Dispatch **spec-reviewer** with filled `spec-reviewer-prompt.md`.
-10. If spec review fails, route fixes back to implementer and repeat (max 3 loops, then escalate). Do **not** dispatch code-reviewer until spec verdict is APPROVED.
-11. Dispatch **code-reviewer** with filled `code-reviewer-prompt.md`. Only after `.opencode/handoffs/task-N-spec-reviewer.json` has `"verdict": "APPROVED"`.
-12. If code review fails, route fixes back to implementer and repeat (then re-run both review stages).
-13. **Gate check**: both reviewer handoffs must show APPROVED (`jq` commands in `dispatch.md`) before continuing.
-14. **Outcome memory**: After both reviews pass, write entry to `.opencode/knowledge/LESSONS.md` via the pattern in that file (see finishing-a-development-branch + outcome-memory). Include: task id, what was changed, blast level, what reviewers flagged, lesson learned.
-15. Mark task done in `.opencode/CONTEXT.md` and `.opencode/plans/PLAN.md` (`- [x]`). Update `task_branches` dispositions later via finishing skill.
-16. Load `finishing-a-development-branch` for **this task's branch only** — merge into `base_branch` when `merge_policy: always_to_base` (default).
-17. **Branch cleanup** (when `branch_cleanup_policy: always`, default): `git checkout <base_branch>`, then dispatch `implementer` via `branch-cleanup-prompt.md` to delete this task's branch if disposition is `merged` or `discarded`. Record `deleted_at` on success. Do not proceed to the next task while a merged branch still exists.
-18. Complete the task based on `execution_mode`:
-    - **`execution_mode: checkpoint`:**
-      - Set `current_phase: awaiting_checkpoint` and `next_action: continue task N+1` (or finish if last task).
-      - **Stop.** Do not dispatch the next task until the user explicitly says to continue.
-    - **`execution_mode: continuous`:**
-      - `git checkout <base_branch>` (prior task should already be merged).
-      - Proceed to the next pending task.
+5. Record answers in `.opencode/CONTEXT.md`. Do not re-ask on resume unless the user requests a change.
 
-On resume after checkpoint: `git checkout <base_branch>` and optionally `git pull` before creating the next isolated branch (prior task must already be merged into `base_branch`). Re-run graph build + blast for next task.
+## Pre-execution preamble (run once before first dispatch)
+
+1. Read `.opencode/knowledge/LESSONS.md` if present — retrieve **top matching** entries by path/subsystem (not necessarily the full file). Write a short `.opencode/knowledge/LESSONS-excerpt.md` for subagents when helpful.
+2. Ensure graph is fresh via **cache-by-commit**:
+   ```bash
+   bash scripts/nexus-graph.sh          # no-op if HEAD matches generated_at_commit
+   # bash scripts/nexus-graph.sh --force  # only when forced / generator bump / user asks
+   # bash scripts/nexus-graph.sh --docs-only-skip  # docs-only changes
+   ```
+   Do **not** dispatch the knowledge-graph agent just to run the script.
+3. Record `verification_baseline` on `base_branch`. Parallelize independent checks (build/test/lint) when safe.
+4. For `fast`/`balanced`: group pending tasks into **execution units** (see `profiles.md`). Write `.opencode/tasks/execution-unit-<id>.json` (+ optional `.md`).
+
+## Execution loop — by profile
+
+### `strict` (legacy per-task — unchanged safety model)
+
+For each pending task in `.opencode/plans/PLAN.md`:
+
+1. Ensure task-N.md template completeness (drift SHA, STOP, gates, blast section).
+2. Blast **this task**:
+   ```bash
+   node scripts/nexus-blast.js --files <csv> --task N --mermaid
+   ```
+3. Branch `feature/task-N-<slug>` per `branch_policy` isolated|stacked.
+4. Update CONTEXT; pre-dispatch branch validation; drift check.
+5. Dispatch **implementer** (one task) — reference-first prompt (`implementer-prompt.md`).
+6. **Mandatory dual review** — `dispatch.md`: spec-reviewer → APPROVED → code-reviewer → APPROVED.
+7. Outcome memory per `lessonPolicy: every-task`.
+8. Finishing/merge; **script cleanup**:
+   ```bash
+   bash scripts/nexus-branch-cleanup.sh --base <base> --out .opencode/handoffs/task-N-cleanup.json feature/task-N-<slug>
+   ```
+9. Checkpoint or continue per `execution_mode`.
+
+On resume: checkout base; run graph script (cache may no-op); blast next task.
+
+### `balanced` / `fast` (batched)
+
+For each pending **execution unit**:
+
+1. Collect Scope: In files across unit tasks → blast **once**:
+   ```bash
+   node scripts/nexus-blast.js --files <csv> --task <unit-id> --mermaid
+   # writes .opencode/knowledge/blast/<unit-id>.md + .json
+   ```
+   Recompute only if implementer edits outside declared scope, or risk is MEDIUM/HIGH after implementation.
+2. Create **one feature branch**: `feature/<feature-slug>` (not per tiny task).
+3. Dispatch **one implementer** for all tasks in the unit (batch prompt). Handoff: `.opencode/handoffs/<unit-id>-implementer.json`.
+4. **Review** per risk matrix (`profiles.md` / `config/workflow-profiles.json`):
+   - documentation → skip review (still run verification gates)
+   - low/medium unified classes → `unified-reviewer` once
+   - public-api / security / migration / HIGH blast → dual spec then code (same as strict)
+5. If HIGH blast discovered mid-flight → escalate to dual review.
+6. LESSONS: write only when `lessonPolicy` says noteworthy (review findings, BLOCKED, surprise deps, lesson prevented error). `fast`/`balanced` default: noteworthy-only.
+7. Merge feature branch into base when unit done (`merge_policy: always_to_base`).
+8. Script cleanup of the feature branch (not an agent).
 
 ## Plan completion
 
-When all tasks in `.opencode/plans/PLAN.md` are marked done:
-
-1. Load `finishing-a-development-branch` if not already run for the last task (record `task_branches` dispositions).
-2. Build `branches_to_delete` from `.opencode/CONTEXT.md` `task_branches` where `disposition` is `merged` or `discarded` and `deleted_at` is unset (safety net for any branches missed during per-task cleanup).
-3. If the list is empty, set `cleanup_status: complete` and skip dispatch. Otherwise cleanup is **mandatory** — do not end the plan with stale `feature/task-*` branches.
-4. `git checkout <base_branch>` (orchestrator — never delete branches directly).
-5. Dispatch `implementer` using `branch-cleanup-prompt.md` with the branch list and dispositions.
-6. Save handoff to `.opencode/handoffs/plan-cleanup-implementer.json`.
-7. Update `.opencode/CONTEXT.md` with `cleanup_status: complete` and the removed branch names.
-8. Generate final outcome summary: append to `.opencode/knowledge/LESSONS.md` a plan-level reflect entry (what went well, surprise dependencies discovered via graph, recommendations for next plan).
-9. If implementer returns `BLOCKED`, surface errors to the user; do not claim cleanup succeeded.
-
-Edge cases:
-- **No eligible branches:** user kept all branches or has open PRs — skip dispatch.
-- **Delete fails** (`git branch -d` on unmerged): implementer returns `BLOCKED`; do not force-delete unless disposition is `discarded`.
-- **Stacked policy:** same cleanup rules; disposition drives eligibility.
-- **Continuous mode:** merge each task to `base_branch` after reviews when `merge_policy: always_to_base`; run plan-end cleanup once after the final task's reviews.
+1. Finishing skill for any remaining dispositions.
+2. Build `branches_to_delete` from CONTEXT (`merged`/`discarded`, no `deleted_at`).
+3. If non-empty:
+   ```bash
+   git checkout <base_branch>
+   bash scripts/nexus-branch-cleanup.sh --base <base> --out .opencode/handoffs/plan-cleanup.json <branches...>
+   ```
+   For `discarded` not merged: add `--force-discard` only for those branches.
+4. Set `cleanup_status: complete`. Do **not** dispatch implementer for cleanup.
+5. Plan-level LESSONS reflect when noteworthy.
 
 ## Task-N.md template (enhanced — improve-grade)
 
@@ -98,10 +111,11 @@ Every task file written during orchestration MUST follow:
 ```markdown
 # Task N: <title>
 > slug: <slug> | effort: XS|S|M|L | confidence: LOW|MEDIUM|HIGH | depends: none | task-2
-> plan_commit: <short-sha> (<full-sha>) | base: <base_branch> | branch: feature/task-N-<slug>
+> plan_commit: <short-sha> (<full-sha>) | base: <base_branch> | branch: feature/task-N-<slug> OR feature/<feature-slug>
 > generated: <ISO timestamp>
 > graph: .opencode/knowledge/graph.json @ <graph timestamp or "missing – run nexus-graph.sh">
-> blast: .opencode/knowledge/blast/task-N.md (risk: LOW|MEDIUM|HIGH, score, if available)
+> blast: .opencode/knowledge/blast/<task-or-unit>.md (risk: LOW|MEDIUM|HIGH, score, if available)
+> execution_unit: <id|none> | profile: fast|balanced|strict
 
 ## Goal
 <one sentence, pasted from PLAN.md>
@@ -110,109 +124,80 @@ Every task file written during orchestration MUST follow:
 - PLAN.md ref: `.opencode/plans/PLAN.md` task-N section
 - Key files (file:line, personally verified in this session):
   - `src/foo.ts:42` – ...
-  - `src/bar.test.ts:5-20` – exemplar pattern
-- Graph insight:
-  - importers of target files: <top 5 from graph.json or "run nexus-graph.sh">
-  - hub proximity: <if target adjacent to god node>
-- Past lesson (from LESSONS.md when present):
-  - e.g. "task-2 modified auth.ts and broke sessions – we added integration test in task-2"
+- Graph insight: importers / hub proximity
+- Past lesson (top matching from LESSONS, not full dump)
 
 ## Scope
 - In: <files allowed to edit>
-- Out: <files DO NOT touch – adjacent but unrelated>
-- Related callers (blast radius – auto-generated by nexus-blast.js):
-  <!-- PASTE from .opencode/knowledge/blast/task-N.md or leave placeholder for orchestrator pre-dispatch -->
-  - `src/caller1.ts` (depth 1, direct)
-  - `src/caller2.ts` (depth 2 via caller1)
-  - Mermaid diagram reference: see blast/task-N.md
+- Out: <files DO NOT touch>
+- Related callers (blast radius)
 
 ## Acceptance criteria
-- [ ] Criterion 1 – machine-checkable, includes positive case
-- [ ] Criterion 2 – includes negative case
+- [ ] Criterion 1
 - [ ] Existing tests still pass: `<exact test command>`
 
-## STOP conditions (if any true → BLOCKED, do not improvise)
-- STOP if target file no longer contains expected symbol at file:line (drift)
-- STOP if `git rev-parse HEAD` diverges > 50 commits from plan_commit or base_branch moved in a way described in reconcile
-- STOP if baseline verification (`npm test` on base) was already failing for this area
-- STOP if blast shows HIGH risk and dependent file count grew > threshold vs when plan written
+## STOP conditions
+- STOP if target file:line missing (drift)
+- STOP if plan_commit drift / base moved incompatibly
+- STOP if HIGH blast and dependent count grew beyond threshold
 - <task-specific STOP>
 
-## Verification gates (exact commands, expected output)
-1. Baseline (on base_branch, before starting): `<build/test/lint command>` → <expected>
-2. Task verification:
-   - `npm run build` – expected: exits 0
-   - `npm test -- <new test file>` – expected: N passing
-   - `git diff <base>...feature/task-N-<slug> --stat` – only expected files changed
-3. Blast check:
-   - Confirm callers from blast report still pass / no new runtime errors
+## Verification gates
+1. Baseline on base_branch
+2. Task verification commands
+3. Blast check for callers
 
 ## Implementation sketch
 - Step 1: ...
-- Step 2: ...
 
 ## Handoff contract
-- Output path: `.opencode/handoffs/task-N-implementer.json`
-- Required fields: status (DONE|DONE_WITH_CONCERNS|BLOCKED|NEEDS_CONTEXT), commit hash, files_changed[], tests[], blast_verified boolean, notes_for_reviewer
+- Output path: `.opencode/handoffs/task-N-implementer.json` OR `.opencode/handoffs/<unit-id>-implementer.json`
+- Required fields: status, commit, files_changed[], tests[], blast_verified, notes_for_reviewer
 ```
 
-## Mandatory two-stage review dispatch
+## Review dispatch
 
-**Read and follow** [`dispatch.md`](dispatch.md) — platform-agnostic name resolution + gates for OpenCode, Claude, Cursor, Codex, Gemini, and Antigravity.
+**Read [`dispatch.md`](dispatch.md)** and [`profiles.md`](profiles.md).
 
-After implementer returns `DONE` / `DONE_WITH_CONCERNS`:
-
-1. Resolve local agent names via `dispatch.md` (`spec-reviewer` on OpenCode; `nexus-spec-reviewer` on Claude/Cursor/AG; isolated reviewer turns on Codex/Gemini if no Agent tool).
-2. Dispatch **spec reviewer** with filled `spec-reviewer-prompt.md` → require `.opencode/handoffs/task-N-spec-reviewer.json` `"verdict":"APPROVED"`.
-3. Dispatch **code reviewer** with filled `code-reviewer-prompt.md` → require `.opencode/handoffs/task-N-code-reviewer.json` `"verdict":"APPROVED"`.
-4. Only then: outcome-memory → mark task done → finishing / merge.
-
-Verify gates before finishing:
+### Dual (strict or high-risk)
 
 ```bash
-jq -e '.verdict=="APPROVED"' .opencode/handoffs/task-N-spec-reviewer.json
-jq -e '.verdict=="APPROVED"' .opencode/handoffs/task-N-code-reviewer.json
+jq -e '.verdict=="APPROVED"' .opencode/handoffs/<id>-spec-reviewer.json
+jq -e '.verdict=="APPROVED"' .opencode/handoffs/<id>-code-reviewer.json
 ```
 
-Never skip, reverse, parallelize, or self-review. Never finish without both APPROVED handoffs.
+### Unified (fast/balanced low-medium)
 
-## Subagent context protocol
+```bash
+jq -e '.verdict=="APPROVED"' .opencode/handoffs/<id>-unified-reviewer.json
+```
 
-When dispatching subagents, always include:
-- Task ID and title
-- Paths: `.opencode/tasks/task-N.md`, `.opencode/CONTEXT.md`, `.opencode/knowledge/graph.json`, `.opencode/knowledge/blast/task-N.md`, `.opencode/knowledge/LESSONS.md`, handoff JSON path
-- Acceptance criteria (concise summary)
-- Feature branch name and base branch name
-- branch_policy and execution_mode from CONTEXT.md
-- plan_commit + drift check instruction
-- Blast level + related callers (paste from blast report)
-- STOP conditions (at least mention that they exist in task file)
-- Verification gates (exact commands – not "run tests")
+Never self-review when a reviewer is required. Never parallelize spec+code when dual is required.
 
-Subagents must read the task file and context file at the start of their run, plus blast report and LESSONS when present.
+## Subagent context protocol (reference-first)
+
+Prefer **paths over pastes**. Dispatch with:
+
+- Task / execution-unit id and title
+- Paths to read: task file(s), `execution-unit-<id>.json`, CONTEXT.md, blast path, LESSONS-excerpt.md, handoff path
+- Concise acceptance criteria summary (bullet list OK; do not paste entire PLAN.md)
+- Branch names, profile, plan_commit
+- Blast risk level (one line) — full Mermaid lives in the blast file
+- STOP reminder + verification gate commands
+
+Do **not** paste full LESSONS.md, full graph.json, or full blast markdown into the prompt when files are available on disk.
 
 ## Drift handling
 
-If drift detected before dispatch:
-- If plan_commit vs current HEAD > 50 commits or base_branch changed → load `reconcile` skill to verify whether task still valid.
-- If target file:line missing → re-read file, update task-N.md Evidence, or return BLOCKED to user asking to re-run writing-plans or reconcile.
-- Do not silently proceed when STOP conditions triggered.
-
-If drift detected during implementer:
-- Implementer returns BLOCKED with evidence (expected file:line not found, graph changed, test infra broken). Orchestrator handles via reconcile or by re-planning task.
+Unchanged: reconcile on HIGH drift / missing file:line; do not silent-proceed on STOP.
 
 ## Hard Rules
 
-- Never skip spec review.
-- Never skip code review.
-- Always dispatch both reviewers using the **platform-resolved** agent name from [`dispatch.md`](dispatch.md).
-- Never mark a task done without both `.opencode/handoffs/task-N-spec-reviewer.json` and `task-N-code-reviewer.json` showing APPROVED (run the jq gates).
-- Always merge each completed task branch into `base_branch` after reviews pass when `merge_policy: always_to_base` (project default). Only defer merge when `merge_policy: prompt`.
-- Never delete task branches directly (`git branch -d` / `-D`); delegate deletion to `implementer` at plan completion.
-- Never auto-continue past a completed task when `execution_mode: checkpoint`.
-- If a subagent returns BLOCKED or NEEDS_CONTEXT, resolve before continuing.
-- **Pre-dispatch branch validation** (when `branch_policy: isolated`): before dispatching implementer or reviewers for task N, confirm the feature branch was created from `base_branch`, not branched off or merged with a prior task branch. Run `git diff <base_branch>...<feature-branch>` — it must not include files or commits belonging only to earlier unmerged tasks.
-- If validation fails: do not dispatch subagents. Guide the user through **isolation recovery** (merge prior task to `base_branch`, rebase current task onto `base_branch`, re-verify diff). See `using-feature-branches`.
-- **Blast-before-implement:** every task dispatch must have a blast report (or graph-missing note). If HIGH risk, spec-reviewer must explicitly approve scope.
-- **Drift check:** every task file must have plan_commit and STOP. Executor must run drift check before editing.
-- **Outcome memory:** after each approved task, write LESSONS entry; include blast level and graph insight.
+- Honor `workflow_profile`. Never silently downgrade `strict`.
+- Escalate to dual review on security / migration / public-api / HIGH blast even under fast/balanced.
+- Prefer scripts for graph, blast, cleanup, cost estimate, jq gates — not LLM agents.
+- Orchestrator may run `scripts/nexus-branch-cleanup.sh` (guarded). Do **not** raw `git branch -d` outside that script.
+- Never mark done without required APPROVED handoff(s) for the active review policy.
+- Never auto-continue past checkpoint when `execution_mode: checkpoint`.
+- Blast-before-implement (per task in strict; per execution unit in balanced/fast).
+- Outcome memory: follow `lessonPolicy` for the active profile.

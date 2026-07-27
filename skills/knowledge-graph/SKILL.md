@@ -18,16 +18,21 @@ Inspired by Graphify (multi-platform knowledge graphs, EXTRACTED/INFERRED taggin
 
 ## When to run automatically
 
-- **Before writing-plans**: ensure graph exists, read hub nodes and stats into PLAN.md Context & Evidence.
-- **Before each task dispatch**: orchestrator re-runs blast for that task if graph timestamp > task timestamp.
+- **Before writing-plans**: ensure graph exists (script uses commit cache — often a no-op).
+- **Before execution** (orchestrating preamble): `bash scripts/nexus-graph.sh` — skips rebuild when `generated_at_commit` matches HEAD and `generator_version` matches.
+- **Force rebuild**: `bash scripts/nexus-graph.sh --force` or `NEXUS_GRAPH_FORCE=1`.
+- **Docs-only changes**: `bash scripts/nexus-graph.sh --docs-only-skip`.
+- Prefer the **script** over dispatching the knowledge-graph agent.
 - **On explicit user request**: "build graph", "show me project structure", "what depends on X?"
-- **When drift HIGH**: re-run graph after reconcile to refresh evidence.
+- **When drift HIGH**: re-run graph after reconcile (`--force` if needed).
 
 ## Commands
 
 ```bash
-# Build / refresh full graph (this is the primary command)
+# Build / refresh full graph (primary — cache-by-commit)
 ./scripts/nexus-graph.sh [root] [out_dir]
+./scripts/nexus-graph.sh --force
+./scripts/nexus-graph.sh --docs-only-skip
 # Example: ./scripts/nexus-graph.sh .                   → .opencode/knowledge/
 # Example: ./scripts/nexus-graph.sh ./src                → ./src/.opencode/knowledge/ (not recommended – prefer project root)
 

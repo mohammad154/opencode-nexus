@@ -168,24 +168,29 @@ if should_install opencode; then
       cp "$MODELS_EXAMPLE" "$CONFIG_DIR/nexus.models.example.json"
       echo "  Created $CONFIG_DIR/nexus.models.example.json"
     fi
-    for spec in "orchestrator:NEXUS_ORCHESTRATOR_MODEL" "implementer:NEXUS_IMPLEMENTER_MODEL" "spec-reviewer:NEXUS_SPEC_REVIEWER_MODEL" "code-reviewer:NEXUS_CODE_REVIEWER_MODEL"; do
+    # Always strip underscore meta-keys and nested _comment so jq agent merge stays object+object
+    MJ="$(jq 'def strip: with_entries(select(.key|startswith("_")|not));
+      strip | with_entries(.value = (if (.value|type)=="object" then (.value|strip) else .value end))' <<<"$MJ")"
+    for spec in "orchestrator:NEXUS_ORCHESTRATOR_MODEL" "implementer:NEXUS_IMPLEMENTER_MODEL" "spec-reviewer:NEXUS_SPEC_REVIEWER_MODEL" "code-reviewer:NEXUS_CODE_REVIEWER_MODEL" "unified-reviewer:NEXUS_UNIFIED_REVIEWER_MODEL"; do
       IFS=: read -r ag envv <<<"$spec"; v="${!envv:-}"; [[ -n "$v" ]] && MJ="$(jq --arg a "$ag" --arg m "$v" '.[$a].model=$m' <<<"$MJ")"
     done
-    for spec in "implementer:NEXUS_IMPLEMENTER_REASONING_EFFORT" "spec-reviewer:NEXUS_SPEC_REVIEWER_REASONING_EFFORT" "code-reviewer:NEXUS_CODE_REVIEWER_REASONING_EFFORT"; do
+    for spec in "implementer:NEXUS_IMPLEMENTER_REASONING_EFFORT" "spec-reviewer:NEXUS_SPEC_REVIEWER_REASONING_EFFORT" "code-reviewer:NEXUS_CODE_REVIEWER_REASONING_EFFORT" "unified-reviewer:NEXUS_UNIFIED_REVIEWER_REASONING_EFFORT"; do
       IFS=: read -r ag envv <<<"$spec"; v="${!envv:-}"; [[ -n "$v" ]] && MJ="$(jq --arg a "$ag" --arg e "$v" '.[$a].reasoningEffort=$e' <<<"$MJ")"
     done
     TMP="$(mktemp)"
     # Keep object context: `.plugin=(...)` would pipe the array and break later merges
+    # Only merge object-valued agent entries (skip any leftover non-objects)
     if ! jq --arg p "$PLUGIN_SPEC" --argjson m "$MJ" '
       .plugin = ((.plugin // []) | if index($p) then . else . + [$p] end)
       | .agent = (.agent // {})
-      | reduce ($m | keys[]) as $k (.; .agent[$k] = ((.agent[$k] // {}) + $m[$k]))
+      | reduce (($m | to_entries[] | select(.value|type=="object")) ) as $e (.;
+          .agent[$e.key] = ((.agent[$e.key] // {}) + $e.value))
     ' "$CONFIG_FILE" >"$TMP"; then
       echo "  Error: failed to merge plugin/models into $CONFIG_FILE"
       rm -f "$TMP"
     else
       mv "$TMP" "$CONFIG_FILE"
-      for ag in orchestrator implementer spec-reviewer code-reviewer blast-analyzer knowledge-graph reconciler; do
+      for ag in orchestrator implementer spec-reviewer code-reviewer unified-reviewer blast-analyzer knowledge-graph reconciler; do
         src="$SCRIPT_DIR/agents/$ag.md"; [[ -f "$src" ]] || continue
         bak "$AGENTS_DIR/$ag.md"; cp "$src" "$AGENTS_DIR/$ag.md"
       done
@@ -240,12 +245,14 @@ rewrite_opencode_task_keys() { # stdin → stdout
     -e 's/^([[:space:]]+)implementer: allow/\1nexus-implementer: allow/' \
     -e 's/^([[:space:]]+)spec-reviewer: allow/\1nexus-spec-reviewer: allow/' \
     -e 's/^([[:space:]]+)code-reviewer: allow/\1nexus-code-reviewer: allow/' \
+    -e 's/^([[:space:]]+)unified-reviewer: allow/\1nexus-unified-reviewer: allow/' \
     -e 's/^([[:space:]]+)blast-analyzer: allow/\1nexus-blast-analyzer: allow/' \
     -e 's/^([[:space:]]+)knowledge-graph: allow/\1nexus-knowledge-graph: allow/' \
     -e 's/^([[:space:]]+)reconciler: allow/\1nexus-reconciler: allow/' \
     -e 's/@implementer\b/@nexus-implementer/g' \
     -e 's/@spec-reviewer\b/@nexus-spec-reviewer/g' \
     -e 's/@code-reviewer\b/@nexus-code-reviewer/g' \
+    -e 's/@unified-reviewer\b/@nexus-unified-reviewer/g' \
     -e 's/@blast-analyzer\b/@nexus-blast-analyzer/g' \
     -e 's/@knowledge-graph\b/@nexus-knowledge-graph/g' \
     -e 's/@reconciler\b/@nexus-reconciler/g'
@@ -262,12 +269,12 @@ install_claude_agent() { # install_claude_agent <src.md> <dest.md>
   case "$base" in
     orchestrator)
       # Claude Agent tool allowlist — only Nexus subagents (docs: Agent(name1, name2))
-      tools="Agent(nexus-implementer, nexus-spec-reviewer, nexus-code-reviewer, nexus-blast-analyzer, nexus-knowledge-graph, nexus-reconciler), Read, Grep, Glob, Bash, Write, Edit, Skill"
+      tools="Agent(nexus-implementer, nexus-spec-reviewer, nexus-code-reviewer, nexus-unified-reviewer, nexus-blast-analyzer, nexus-knowledge-graph, nexus-reconciler), Read, Grep, Glob, Bash, Write, Edit, Skill"
       ;;
     implementer)
       tools="Read, Grep, Glob, Bash, Edit, Write"
       ;;
-    spec-reviewer|code-reviewer|blast-analyzer|knowledge-graph|reconciler)
+    spec-reviewer|code-reviewer|unified-reviewer|blast-analyzer|knowledge-graph|reconciler)
       tools="Read, Grep, Glob, Bash, Write"
       ;;
     *)
@@ -383,7 +390,7 @@ if should_install cursor; then
       { echo "---"; echo "description: $desc"; echo "alwaysApply: false"; echo "---"; echo ""; strip_skill_frontmatter <"$s"; } >"$dst"
     fi
     if [[ "$n" == "orchestrating" ]]; then
-      for extra in dispatch.md implementer-prompt.md spec-reviewer-prompt.md code-reviewer-prompt.md branch-cleanup-prompt.md; do
+      for extra in dispatch.md profiles.md implementer-prompt.md spec-reviewer-prompt.md code-reviewer-prompt.md unified-reviewer-prompt.md branch-cleanup-prompt.md; do
         if [[ -f "$sk/$extra" ]]; then
           { echo ""; echo "---"; echo ""; echo "## Attached: $extra"; echo ""; cat "$sk/$extra"; } >>"$dst"
         fi
@@ -470,27 +477,28 @@ if should_install antigravity; then
       echo "# Nexus (always-on)"
       echo ""
       echo "You have OpenCode Nexus multi-agent workflow skills installed as \`nexus-*\`."
-      echo "Prefer the Nexus router: load skill \`nexus-using-nexus\` for phase routing."
-      echo "Before implementing, run blast-radius; keep durable state under \`.opencode/\`."
+      echo "Prefer the Nexus router: load skill \`nexus-using-nexus\` for phase routing (V3 profiles)."
+      echo "Default profile: **balanced**. Override with \`workflow_profile: fast|balanced|strict\`."
+      echo "Prefer scripts for graph/blast/cleanup/cost estimate. Keep durable state under \`.opencode/\`."
       echo "Skills: \`.agents/skills/nexus-*/\` and \`~/.gemini/config/skills/nexus-*/\`."
       echo ""
-      echo "## Mandatory two-stage review"
-      echo "After implementer finishes: dispatch \`nexus-spec-reviewer\`, wait for APPROVED handoff JSON,"
-      echo "then dispatch \`nexus-code-reviewer\`, wait for APPROVED. Never skip either stage."
-      echo "See \`nexus-orchestrating/dispatch.md\` for name resolution and jq gates."
+      echo "## Review gates (profile-aware)"
+      echo "- \`strict\` or high-risk (security/migration/public-api/HIGH blast): \`nexus-spec-reviewer\` then \`nexus-code-reviewer\`."
+      echo "- \`fast\`/\`balanced\` low–medium: \`nexus-unified-reviewer\` (or skip for docs-only)."
+      echo "See \`nexus-orchestrating/dispatch.md\` and \`profiles.md\`."
     } >"$gt/.agents/rules/nexus.md"
     {
       echo "---"
-      echo "description: Run Nexus orchestrated workflow (plan → graph → blast → implement → dual review)"
+      echo "description: Run Nexus orchestrated workflow (profile → plan → graph → blast → implement → review)"
       echo "---"
       echo ""
       echo "Invoke the Nexus workflow for the current request."
-      echo "1. Load \`nexus-using-nexus\` routing guidance."
-      echo "2. Ensure knowledge graph via \`scripts/nexus-graph.sh\` when useful."
-      echo "3. Blast-before-implement via \`scripts/nexus-blast.js\`."
-      echo "4. Persist plan/context/handoffs under \`.opencode/\`."
-      echo "5. After implementer: \`nexus-spec-reviewer\` then \`nexus-code-reviewer\` (see dispatch.md)."
-      echo "6. Require both APPROVED handoff JSONs before finishing the task."
+      echo "1. Load \`nexus-using-nexus\` (set workflow_profile; default balanced)."
+      echo "2. Cost estimate: \`node scripts/nexus-estimate-cost.js --tasks N --profile <p>\`."
+      echo "3. Graph via \`scripts/nexus-graph.sh\` (commit cache); blast via \`scripts/nexus-blast.js\`."
+      echo "4. Persist plan/context/execution units/handoffs under \`.opencode/\`."
+      echo "5. Review per profile: unified-reviewer OR spec then code (see dispatch.md)."
+      echo "6. Cleanup via \`scripts/nexus-branch-cleanup.sh\` (not an LLM)."
     } >"$gt/.agents/workflows/nexus.md"
     cp -f "$gt/.agents/workflows/nexus.md" "$gt/.agent/workflows/nexus.md" 2>/dev/null || true
     echo "  Project AG: $gt/.agents/skills + rules/workflows (+ .agent/skills legacy)"
@@ -500,15 +508,15 @@ fi
 
 # ── scripts check ──
 echo ""; echo "[scripts] Checking:"
-for s in nexus-graph.sh nexus-graph.js nexus-blast.sh nexus-blast.js install-git-hook.sh; do if [[ -f "$SCRIPT_DIR/scripts/$s" ]]; then echo "  ✓ scripts/$s"; else echo "  ✗ missing $s"; fi; done
-chmod +x "$SCRIPT_DIR/scripts/nexus-graph.sh" "$SCRIPT_DIR/scripts/nexus-blast.sh" "$SCRIPT_DIR/scripts/install-git-hook.sh" 2>/dev/null || true
-chmod a+r "$SCRIPT_DIR/scripts/nexus-graph.js" "$SCRIPT_DIR/scripts/nexus-blast.js" 2>/dev/null || true
+for s in nexus-graph.sh nexus-graph.js nexus-blast.sh nexus-blast.js nexus-branch-cleanup.sh nexus-estimate-cost.js nexus-estimate-cost.sh install-git-hook.sh; do if [[ -f "$SCRIPT_DIR/scripts/$s" ]]; then echo "  ✓ scripts/$s"; else echo "  ✗ missing $s"; fi; done
+chmod +x "$SCRIPT_DIR/scripts/nexus-graph.sh" "$SCRIPT_DIR/scripts/nexus-blast.sh" "$SCRIPT_DIR/scripts/nexus-branch-cleanup.sh" "$SCRIPT_DIR/scripts/nexus-estimate-cost.sh" "$SCRIPT_DIR/scripts/install-git-hook.sh" 2>/dev/null || true
+chmod a+r "$SCRIPT_DIR/scripts/nexus-graph.js" "$SCRIPT_DIR/scripts/nexus-blast.js" "$SCRIPT_DIR/scripts/nexus-estimate-cost.js" 2>/dev/null || true
 
 cat <<END
 
-Installation complete.
+Installation complete (Nexus V3 — profiles: fast|balanced|strict, default balanced).
 Supported (auto-detect):
-  • opencode    CLI → ~/.config/opencode/ (plugin + agents)
+  • opencode    CLI → ~/.config/opencode/ (plugin + agents incl. unified-reviewer)
   • claude      CLI+IDE → ~/.claude/skills/nexus-*/ (git hook: scripts/install-git-hook.sh)
   • cursor      CLI+IDE → ~/.cursor/rules/nexus-*.mdc + <repo>/.cursor/rules/
   • codex       CLI → ~/.codex/skills/nexus-*/
@@ -516,12 +524,10 @@ Supported (auto-detect):
   • antigravity IDE → ~/.gemini/config/skills/nexus-*/ + <repo>/.agents/rules|workflows/
 Next:
   - ./scripts/nexus-graph.sh && ls .opencode/knowledge/
+  - node ./scripts/nexus-estimate-cost.js --tasks 3 --profile balanced
   - node ./scripts/nexus-blast.js --mermaid
+  - bash ./scripts/nexus-branch-cleanup.sh --base <base> <feature-branch>
   - opencode: restart, select orchestrator
-  - claude: restart, ask 'use the nexus knowledge-graph skill'
-  - cursor: restart or run cursor-agent (rules auto-loaded)
-  - antigravity: restart; use /nexus workflow or rules
-  - codex/gemini: run 'codex'/'gemini' with task
   - Customize: edit $CONFIG_DIR/nexus.models.json && re-run install.sh
 Granular:
   ./install.sh --only cursor | --only antigravity | --only claude,cursor | --all
