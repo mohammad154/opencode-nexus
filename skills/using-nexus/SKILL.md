@@ -87,7 +87,9 @@ Requires a git repository for feature branches and review diffs.
 
 ## Red Flags
 
-- "I'll just start coding" → graph script + blast + profile + orchestrating/writing-plans
+- "I'll just start coding" → graph script + blast + profile + orchestrating/writing-plans → **dispatch implementer** (do not code in the orchestrator turn)
+- Pasted "complete implementation plan" / "please implement" → still **dispatch implementer**; only exact `execution_mode: direct` in CONTEXT allows orchestrator self-coding
+- Implementer Task/Agent call failed → STOP and report; never fall back to orchestrator implementing
 - "This is simple" → still blast; hub files can be HIGH → escalate to strict review
 - "Task is BLOCKED" → reconcile
 - Dispatching an LLM to run `jq` / delete a branch / rebuild an unchanged graph → use scripts

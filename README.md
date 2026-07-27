@@ -309,24 +309,23 @@ Use the orchestrating skill to implement JWT authentication with tests.
 | `outcome-memory` | After each task review passes, at plan end, on "what have we learned?" | Appends repo-specific structured entries to `.opencode/knowledge/LESSONS.md` – pattern type, applicable when, recommendation file:line |
 | `finishing-a-development-branch` | Per-task checkpoint or all tasks done | Presents merge/PR/keep/discard, records disposition, writes LESSONS entry, on plan end delegates cleanup + final LESSONS reflect |
 
-Expected high-level flow (V2):
+Expected high-level flow (V3):
 
 1. Brainstorming
 2. Planning (improve-grade) – `.opencode/plans/PLAN.md` with drift SHA, file:line evidence, effort/confidence, STOP, verification gates, findings triage
-3. Knowledge graph build (`.opencode/knowledge/graph.json` + `graph.md` + `index.md`)
-4. Confirm workflow preferences (`branch_policy: isolated`, `execution_mode: checkpoint` recommended)
-5. Per task:
-   a. Blast-radius analysis → `.opencode/knowledge/blast/task-N.md` (Mermaid + risk + caller list)
-   b. Branch creation from `base_branch` (when isolated)
+3. Knowledge graph via script – `bash scripts/nexus-graph.sh` (commit cache)
+4. Set `workflow_profile` (`fast`|`balanced`|`strict`, default **balanced**) + cost estimate
+5. Per execution unit (`balanced`/`fast`) or per task (`strict`):
+   a. Blast via `node scripts/nexus-blast.js` (unit or task)
+   b. Feature/task branch from `base_branch`
    c. Drift check against `plan_commit`
-   d. Implementer (with graph + blast + LESSONS context, STOP/respecting, verification gates)
-   e. Spec review (file:line fidelity, blast scope fidelity)
-   f. Code review (severity, blast regression, LESSONS anti-pattern guard)
-   g. LESSONS.md entry via `outcome-memory`
-   h. Per-task checkpoint: merge/PR/keep/discard + branch disposition note
-6. Repeat until all tasks complete, building LESSONS along the way
+   d. **Dispatch implementer** (orchestrator does not write production code unless CONTEXT has exact `execution_mode: direct`)
+   e. Review per profile: unified-reviewer (low/medium) or dual spec→code (strict / high-risk); never self-review
+   f. LESSONS via `outcome-memory` (noteworthy-only under fast/balanced)
+   g. Merge per policy; checkpoint only when `execution_mode: checkpoint`
+6. Repeat until all units/tasks complete
 7. Reconcile (if drift or BLOCKED) – verify DONE, investigate BLOCKED, retire fixed-elsewhere
-8. Plan-end cleanup: orchestrator dispatches implementer to delete merged/discarded `feature/task-*` branches + final LESSONS reflect
+8. Plan-end cleanup: `bash scripts/nexus-branch-cleanup.sh` for merged/discarded branches (do **not** dispatch implementer solely to delete) + final LESSONS reflect when noteworthy
 
 ### Knowledge graph usage (agents or manual)
 

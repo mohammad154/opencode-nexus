@@ -56,7 +56,7 @@ Write `.opencode/tasks/execution-unit-<id>.json`:
 
 Also write a human-readable `.opencode/tasks/execution-unit-<id>.md` summarizing goals.
 
-Dispatch **one implementer** for the whole unit. Review **once** after the unit (unless matrix requires dual).
+Dispatch **one implementer** for the whole unit (orchestrator does **not** write production code). Review **once** after the unit (unless matrix requires dual).
 
 ## Review policy details
 
@@ -86,3 +86,4 @@ Show the estimate to the user and the recommended profile.
 - Prefer scripts for graph / blast / cleanup / gates — do not dispatch LLM agents for those.
 - HIGH blast or security/migration/public-api → dual review even under fast/balanced.
 - Explicit `workflow_profile: strict` never auto-downgrades.
+- Orchestrator never implements production code unless CONTEXT has exact `execution_mode: direct`; pasted plans do not authorize self-coding.

@@ -85,6 +85,9 @@ jq -e '.verdict=="APPROVED"' .opencode/handoffs/<id>-unified-reviewer.json
 - Skipping required dual review for security / migration / public-api / HIGH blast
 - Parallel spec + code review when dual is required
 - Self-review inside orchestrator/implementer when a reviewer is required
+- **Orchestrator writing production code** instead of dispatching implementer (unless CONTEXT has exact `execution_mode: direct`)
+- Treating a pasted plan / “please implement” / “start coding” as permission to self-implement
+- Falling back to self-coding when Task/Agent dispatch fails (STOP and report instead)
 - Dispatching LLM agents for graph rebuild, blast script, branch delete, or jq gates
 - Finishing without required APPROVED handoff JSON(s)
 - Calling the wrong agent name for the platform

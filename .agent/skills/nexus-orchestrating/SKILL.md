@@ -1,5 +1,5 @@
 ---
-name: nexus-orchestrating
+name: orchestrating
 description: Use to execute a plan through branch-scoped implementation with graph awareness, blast-radius checks, profile-aware review, outcome memory, and structured handoffs
 compatibility: opencode
 ---
@@ -59,7 +59,7 @@ For each pending task in `.opencode/plans/PLAN.md`:
    ```
 3. Branch `feature/task-N-<slug>` per `branch_policy` isolated|stacked.
 4. Update CONTEXT; pre-dispatch branch validation; drift check.
-5. Dispatch **implementer** (one task) — reference-first prompt (`implementer-prompt.md`).
+5. Dispatch **implementer** (one task) — reference-first prompt (`implementer-prompt.md`). **Do not** write production code in the orchestrator turn.
 6. **Mandatory dual review** — `dispatch.md`: spec-reviewer → APPROVED → code-reviewer → APPROVED.
 7. Outcome memory per `lessonPolicy: every-task`.
 8. Finishing/merge; **script cleanup**:
@@ -81,7 +81,7 @@ For each pending **execution unit**:
    ```
    Recompute only if implementer edits outside declared scope, or risk is MEDIUM/HIGH after implementation.
 2. Create **one feature branch**: `feature/<feature-slug>` (not per tiny task).
-3. Dispatch **one implementer** for all tasks in the unit (batch prompt). Handoff: `.opencode/handoffs/<unit-id>-implementer.json`.
+3. Dispatch **one implementer** for all tasks in the unit (batch prompt). Handoff: `.opencode/handoffs/<unit-id>-implementer.json`. **Do not** write production code in the orchestrator turn — only `execution_mode: direct` in CONTEXT permits that.
 4. **Review** per risk matrix (`profiles.md` / `config/workflow-profiles.json`):
    - documentation → skip review (still run verification gates)
    - low/medium unified classes → `unified-reviewer` once
@@ -201,3 +201,5 @@ Unchanged: reconcile on HIGH drift / missing file:line; do not silent-proceed on
 - Never auto-continue past checkpoint when `execution_mode: checkpoint`.
 - Blast-before-implement (per task in strict; per execution unit in balanced/fast).
 - Outcome memory: follow `lessonPolicy` for the active profile.
+- **Orchestrator never implements production code** unless CONTEXT has exact `execution_mode: direct`. Pasted plans / “please implement” do **not** authorize self-coding. Dispatch implementer; if dispatch fails, STOP and report — no self-fallback.
+- Orchestrator edits without implementer are limited to `.opencode/**` (+ script/git orchestration).
