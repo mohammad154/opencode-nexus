@@ -50,3 +50,12 @@ test("none when clean", () => {
   const r = assessDrift({ commit_distance: 1 });
   assert.equal(r.drift, "NONE");
 });
+
+test("acceptance criteria version mismatch is HIGH", () => {
+  const r = assessDrift({
+    commit_distance: 0,
+    acceptance_criteria_version: "a",
+    expected_acceptance_criteria_version: "b",
+  });
+  assert.equal(r.drift, "HIGH");
+});

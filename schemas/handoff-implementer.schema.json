@@ -8,8 +8,12 @@
   "properties": {
     "schema_version": { "type": "string", "enum": ["1.0"] },
     "agent": { "type": "string" },
+    "run_id": { "type": "string" },
     "task_id": { "type": "string" },
     "unit_or_task": { "type": "string" },
+    "reviewed_commit": { "type": ["string", "null"] },
+    "legacy_unverified": { "type": "boolean" },
+    "verification_exempt": { "type": "boolean" },
     "status": {
       "type": "string",
       "enum": ["DONE", "DONE_WITH_CONCERNS", "BLOCKED", "NEEDS_CONTEXT"]

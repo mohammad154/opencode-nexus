@@ -117,9 +117,13 @@ export function assessDrift(input = {}) {
   }
 
   const anchorsFailed = anchors_broken.length > 0;
+  const acceptanceVersionMismatch = reasons.some((r) =>
+    /Acceptance criteria version changed/i.test(r),
+  );
   const semanticHigh =
     anchorsFailed ||
     merge_base_changed ||
+    acceptanceVersionMismatch ||
     reasons.some((r) => /signature changed/i.test(r));
 
   if (semanticHigh) {
@@ -155,7 +159,8 @@ export function assessDrift(input = {}) {
 }
 
 export function isPlanCommitAcceptable(driftReport) {
-  if (!driftReport) return false;
+  if (!driftReport || typeof driftReport !== "object") return false;
+  if (!driftReport.drift) return false;
   return driftReport.drift !== "HIGH";
 }
 

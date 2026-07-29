@@ -7,7 +7,12 @@
   "required": ["schema_version", "run_id", "state", "profile", "transitions"],
   "properties": {
     "schema_version": { "type": "string", "enum": ["1.0"] },
-    "run_id": { "type": "string", "minLength": 1 },
+    "run_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+    },
     "state": {
       "type": "string",
       "enum": [

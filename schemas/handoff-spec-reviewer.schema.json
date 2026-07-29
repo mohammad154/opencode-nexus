@@ -7,8 +7,13 @@
   "required": ["schema_version", "verdict"],
   "properties": {
     "schema_version": { "type": "string", "enum": ["1.0"] },
+    "run_id": { "type": "string" },
     "task_id": { "type": "string" },
     "unit_or_task": { "type": "string" },
+    "reviewed_commit": { "type": ["string", "null"] },
+    "base_commit": { "type": ["string", "null"] },
+    "role": { "type": "string" },
+    "legacy_unverified": { "type": "boolean" },
     "verdict": {
       "type": "string",
       "enum": ["APPROVED", "REQUEST_CHANGES", "ISOLATION_VIOLATION", "BLOCKED"]

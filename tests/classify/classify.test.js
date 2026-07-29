@@ -118,6 +118,26 @@ test("ordinary 3-file change stays balanced not fast", () => {
   assert.equal(r.profile, "balanced");
 });
 
+test("user-api class alone is strict dual", () => {
+  const r = classify({
+    filesChanged: 1,
+    estimatedLines: 10,
+    changeClass: "public-api",
+  });
+  assert.equal(r.profile, "strict");
+  assert.equal(r.review_level, "dual");
+});
+
+test("database-migration class alone is strict dual", () => {
+  const r = classify({
+    filesChanged: 1,
+    estimatedLines: 5,
+    changeClass: "database-migration",
+  });
+  assert.equal(r.profile, "strict");
+  assert.equal(r.review_level, "dual");
+});
+
 test("user forbidDirect forces delegated", () => {
   const r = classify({
     filesChanged: 1,

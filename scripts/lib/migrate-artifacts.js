@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { validateHandoff, validateRunState } from "./schema-validate.js";
+import { assertValidRunId } from "./policy.js";
 
 const RUN_STATE_VERSION = "1.0";
 const HANDOFF_VERSION = "1.0";
@@ -17,10 +18,16 @@ function deepClone(v) {
 /**
  * Normalize legacy (0.9 / missing schema_version) handoffs to 1.0 in memory.
  * Does not write disk unless caller uses write flag elsewhere.
+ * Legacy migrations are marked legacy_unverified and cannot satisfy COMPLETED
+ * without an explicit override.
  */
 export function normalizeHandoff(role, raw) {
   const data = deepClone(raw && typeof raw === "object" ? raw : {});
-  const migrated_from = data.schema_version || LEGACY_HANDOFF;
+  const wasLegacy =
+    !raw?.schema_version ||
+    raw.schema_version === LEGACY_HANDOFF ||
+    raw.schema_version === "0.9";
+  const migrated_from = raw?.schema_version || LEGACY_HANDOFF;
 
   if (!data.schema_version || data.schema_version === LEGACY_HANDOFF) {
     data.schema_version = HANDOFF_VERSION;
@@ -73,6 +80,10 @@ export function normalizeHandoff(role, raw) {
     }
   }
 
+  if (wasLegacy) {
+    data.legacy_unverified = true;
+  }
+
   return { data, migrated_from };
 }
 
@@ -87,10 +98,27 @@ export function runsDir(worktree) {
 }
 
 export function runStatePath(worktree, runId) {
-  return path.join(runsDir(worktree), runId, "state.json");
+  assertValidRunId(runId);
+  const base = path.resolve(runsDir(worktree));
+  const full = path.resolve(base, runId, "state.json");
+  if (
+    !full.startsWith(base + path.sep) &&
+    full !== path.join(base, "state.json")
+  ) {
+    // Ensure resolved path stays under runsDir
+    if (!full.startsWith(base)) {
+      throw new Error(`run_id escapes runs directory: ${runId}`);
+    }
+  }
+  const runDir = path.resolve(base, runId);
+  if (!runDir.startsWith(base + path.sep) && runDir !== base) {
+    throw new Error(`run_id escapes runs directory: ${runId}`);
+  }
+  return full;
 }
 
 export function createEmptyRunState(runId, overrides = {}) {
+  assertValidRunId(runId);
   const t = nowIso();
   return {
     schema_version: RUN_STATE_VERSION,
@@ -107,6 +135,7 @@ export function createEmptyRunState(runId, overrides = {}) {
     blast: null,
     block_reason: null,
     block_code: null,
+    escalation_reasons: [],
     transitions: [],
     created_at: t,
     updated_at: t,
@@ -130,6 +159,7 @@ export function readRunState(worktree, runId) {
 }
 
 export function writeRunState(worktree, state) {
+  assertValidRunId(state.run_id);
   const v = validateRunState(state);
   if (!v.ok) {
     const err = new Error(
@@ -138,7 +168,7 @@ export function writeRunState(worktree, state) {
     err.validation = v;
     throw err;
   }
-  const dir = path.join(runsDir(worktree), state.run_id);
+  const dir = path.dirname(runStatePath(worktree, state.run_id));
   fs.mkdirSync(dir, { recursive: true });
   const target = path.join(dir, "state.json");
   const tmp = `${target}.${process.pid}.${Date.now()}.tmp`;
@@ -168,7 +198,12 @@ export function inferRunFromContext(worktree) {
     ? fs.readFileSync(contextPath, "utf8")
     : "";
   const fields = parseContextYamlish(ctxText);
-  const runId = fields.run_id || `inferred-${Date.now()}`;
+  let runId = fields.run_id || `inferred-${Date.now()}`;
+  try {
+    assertValidRunId(runId);
+  } catch {
+    runId = `inferred-${Date.now()}`;
+  }
   const profile = ["fast", "balanced", "strict"].includes(
     fields.workflow_profile,
   )

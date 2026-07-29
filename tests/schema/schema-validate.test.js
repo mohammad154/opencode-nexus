@@ -64,6 +64,7 @@ test("legacy 0.9 implementer migrates and validates", () => {
   assert.equal(ok, true, JSON.stringify(errors));
   assert.ok(Array.isArray(data.verification_gates));
   assert.equal(data.blast.risk, "UNKNOWN");
+  assert.equal(data.legacy_unverified, true);
 });
 
 test("reviewer missing blast gets UNKNOWN defaults", () => {

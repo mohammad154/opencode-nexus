@@ -77,25 +77,55 @@ export function migrateV1RulesToV2(v1) {
 }
 
 export function loadClassificationRules(profilesPath = DEFAULT_PROFILES) {
+  return loadWorkflowConfig(profilesPath).classificationRules;
+}
+
+/**
+ * Load full workflow config (classificationRules + reviewMatrix).
+ */
+export function loadWorkflowConfig(profilesPath = DEFAULT_PROFILES) {
   let raw = {};
   if (fs.existsSync(profilesPath)) {
     raw = JSON.parse(fs.readFileSync(profilesPath, "utf8"));
   }
-  const rules = raw.classificationRules || {};
-  if (rules.version === 2) {
-    return {
+  const rulesIn = raw.classificationRules || {};
+  let classificationRules;
+  if (rulesIn.version === 2) {
+    classificationRules = {
       ...DEFAULT_V2,
-      ...rules,
+      ...rulesIn,
       risk_weights: {
         ...DEFAULT_V2.risk_weights,
-        ...(rules.risk_weights || {}),
+        ...(rulesIn.risk_weights || {}),
       },
-      thresholds: { ...DEFAULT_V2.thresholds, ...(rules.thresholds || {}) },
-      direct_path: { ...DEFAULT_V2.direct_path, ...(rules.direct_path || {}) },
+      thresholds: { ...DEFAULT_V2.thresholds, ...(rulesIn.thresholds || {}) },
+      direct_path: {
+        ...DEFAULT_V2.direct_path,
+        ...(rulesIn.direct_path || {}),
+      },
     };
+  } else {
+    classificationRules = migrateV1RulesToV2(rulesIn);
   }
-  return migrateV1RulesToV2(rules);
+  return {
+    classificationRules,
+    reviewMatrix: raw.reviewMatrix || {},
+    profiles: raw.profiles || {},
+  };
 }
+
+/** Map change_class strings to hard-trigger / risk flags */
+export const CLASS_FLAGS = {
+  documentation: ["documentation"],
+  formatting: ["formatting"],
+  one_file_internal: ["one_file_internal"],
+  "test-only": ["one_file_internal"],
+  "small-internal-refactor": ["one_file_internal"],
+  "public-api": ["public_api"],
+  "authentication-security": ["security"],
+  "database-migration": ["migration"],
+  "high-blast": ["blast_risk_high"],
+};
 
 function reviewLevelFor(profile, changeClass, reviewMatrix) {
   if (profile === "strict") return "dual";
@@ -122,8 +152,16 @@ function reviewLevelFor(profile, changeClass, reviewMatrix) {
  * @returns {object} classification evidence
  */
 export function classify(input = {}, options = {}) {
-  const rules = options.rules || loadClassificationRules(options.profilesPath);
-  const reviewMatrix = options.reviewMatrix || {};
+  const cfg =
+    options.workflowConfig ||
+    (options.rules
+      ? {
+          classificationRules: options.rules,
+          reviewMatrix: options.reviewMatrix || {},
+        }
+      : loadWorkflowConfig(options.profilesPath));
+  const rules = cfg.classificationRules;
+  const reviewMatrix = cfg.reviewMatrix || options.reviewMatrix || {};
   const reasons = [];
   let risk_score = 0;
   let confidence = 0.7;
@@ -135,6 +173,9 @@ export function classify(input = {}, options = {}) {
   const flags = new Set(
     [].concat(input.flags || [], input.hard_triggers || []),
   );
+
+  // Class name alone activates corresponding flags
+  for (const f of CLASS_FLAGS[changeClass] || []) flags.add(f);
 
   if (input.documentationOnly || changeClass === "documentation") {
     flags.add("documentation");

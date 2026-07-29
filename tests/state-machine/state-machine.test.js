@@ -95,19 +95,37 @@ test("resume does not rewind COMPLETED", () => {
   assert.equal(back.ok, false);
 });
 
-test("REVIEWING → COMPLETED needs APPROVED unified", () => {
+test("REVIEWING → COMPLETED needs APPROVED unified bound to run", () => {
   const state = {
     ...createEmptyRunState("t6"),
     state: "REVIEWING",
     review_level: "unified",
+    current_unit: "unit-a",
+    implementer_commit: "abc123",
   };
   const bad = canTransition(state, "COMPLETED", {
-    unified_handoff: { verdict: "REQUEST_CHANGES" },
+    unified_handoff: { schema_version: "1.0", verdict: "REQUEST_CHANGES" },
   });
   assert.equal(bad.ok, false);
 
+  const unbound = canTransition(state, "COMPLETED", {
+    unified_handoff: {
+      schema_version: "1.0",
+      verdict: "APPROVED",
+      agent: "unified-reviewer",
+    },
+  });
+  assert.equal(unbound.ok, false);
+
   const good = canTransition(state, "COMPLETED", {
-    unified_handoff: { verdict: "APPROVED", agent: "unified-reviewer" },
+    unified_handoff: {
+      schema_version: "1.0",
+      verdict: "APPROVED",
+      agent: "unified-reviewer",
+      run_id: "t6",
+      unit_or_task: "unit-a",
+      reviewed_commit: "abc123",
+    },
   });
   assert.equal(good.ok, true, JSON.stringify(good.errors));
 });
@@ -129,7 +147,16 @@ test("full delegated happy path through BLAST_READY", () => {
     branch: "feature/x",
     blast: state.blast,
     acceptance_criteria: ["works"],
-    drift: { drift: "NONE", reasons: [], schema_version: "1.0" },
+    drift: {
+      schema_version: "1.0",
+      drift: "NONE",
+      reasons: [],
+      commit_distance: 0,
+      plan_commit: "abc",
+      current_head: "def",
+      anchors_broken: [],
+      merge_base_changed: false,
+    },
   });
   assert.equal(toImpl.ok, true, JSON.stringify(toImpl.errors));
 });

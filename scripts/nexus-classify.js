@@ -1,12 +1,9 @@
 #!/usr/bin/env node
 /**
- * Nexus risk classifier CLI
- * Usage:
- *   node scripts/nexus-classify.js --files 2 --lines 40 --class documentation --focused
- *   node scripts/nexus-classify.js --input '{"filesChanged":1,"changeClass":"documentation","focusedValidation":true}'
+ * Nexus risk classifier CLI — loads full workflow config (rules + reviewMatrix).
  */
 import fs from "fs";
-import { classify, loadClassificationRules } from "./lib/classify.js";
+import { classify, loadWorkflowConfig } from "./lib/classify.js";
 
 function parseArgs(argv) {
   const out = { _: [] };
@@ -34,7 +31,9 @@ function main() {
     console.log(`Usage: node scripts/nexus-classify.js [options]
   --files N --lines N --class NAME --focused --docs --security --public-api
   --profile fast|balanced|strict
-  --input path.json | --json '{...}'`);
+  --input path.json | --json '{...}'
+Note: --class public-api|authentication-security|database-migration|high-blast
+      alone triggers the matching hard policy via reviewMatrix + CLASS_FLAGS.`);
     process.exit(0);
   }
 
@@ -53,8 +52,8 @@ function main() {
   if (args.securitySensitive) input.securitySensitive = true;
   if (args.publicApi) input.publicApi = true;
 
-  const rules = loadClassificationRules();
-  const result = classify(input, { rules });
+  const workflowConfig = loadWorkflowConfig();
+  const result = classify(input, { workflowConfig });
   console.log(JSON.stringify(result, null, 2));
 }
 

@@ -22,13 +22,14 @@ import {
   inferRunFromContext,
   normalizeAndValidateHandoff,
 } from "./lib/migrate-artifacts.js";
-import { classify, loadClassificationRules } from "./lib/classify.js";
+import { classify, loadWorkflowConfig } from "./lib/classify.js";
 import {
   transition as smTransition,
   canTransition,
 } from "./lib/state-machine.js";
 import { createDefaultProviders } from "./lib/providers.js";
 import { assessDrift } from "./lib/drift.js";
+import { assertValidRunId } from "./lib/policy.js";
 
 function parseArgs(argv) {
   const out = { _: [], flags: {} };
@@ -128,6 +129,7 @@ function resolveRun(flags) {
 
 function cmdInit(flags) {
   const id = flags["run-id"] || `run-${new Date().toISOString().slice(0, 10)}`;
+  assertValidRunId(id);
   const state = createEmptyRunState(id, {
     profile: flags.profile || "balanced",
   });
@@ -148,7 +150,7 @@ function cmdClassify(flags) {
   if (flags["public-api"]) input.publicApi = true;
   if (flags.profile) input.profileOverride = flags.profile;
 
-  const result = classify(input, { rules: loadClassificationRules() });
+  const result = classify(input, { workflowConfig: loadWorkflowConfig() });
   let state = resolveRun(flags);
   if (state && flags.apply) {
     const r = smTransition(state, "CLASSIFIED", { classification: result });

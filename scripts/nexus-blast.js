@@ -423,8 +423,12 @@ if (opts.mermaidOnly) {
     console.log(renderMermaid(blast));
   }
 } else {
-  // Default: compact JSON
+  // Default: compact JSON; for HIGH risk also emit Mermaid after the JSON block
   console.log(JSON.stringify(report, null, 2));
+  if (blast.level === "HIGH") {
+    console.log("\n---MERMAID---\n");
+    console.log(renderMermaid(blast));
+  }
 }
 
 if (opts.task) {
