@@ -16,11 +16,15 @@ Deterministic ops (do **not** dispatch an agent):
 
 | Op        | Command |
 |-----------|---------|
+| Run / gates | `node scripts/nexus-run.js <init\|classify\|transition\|validate-handoff\|status\|resume\|drift>` |
+| Classify  | `node scripts/nexus-classify.js --files N --lines N --class <c>` |
 | Graph     | `bash scripts/nexus-graph.sh` (`--force` to bypass cache) |
-| Blast     | `node scripts/nexus-blast.js --files ... --task <id> --mermaid` |
+| Blast     | `node scripts/nexus-blast.js --files ...` (JSON default; `--mermaid` or HIGH risk for diagrams; `--task <id>` persists) |
 | Cleanup   | `bash scripts/nexus-branch-cleanup.sh --base <base> --out <json> <branches...>` |
-| Cost est. | `node scripts/nexus-estimate-cost.js --tasks N --profile <p>` |
-| Gates     | `jq -e '...' .opencode/handoffs/...` |
+| Call est. | `node scripts/nexus-estimate-calls.js --tasks N --profile <p>` (shim: `nexus-estimate-cost.js`) |
+| Gates     | `node scripts/nexus-run.js validate-handoff --role <role> --file ...` then `jq -e '...'` |
+
+Optional agents `blast-analyzer` / `knowledge-graph` are **not** in the default install. Prefer scripts. Use `install.sh --with-optional-agents` only for compatibility.
 
 ## Resolve the local agent name
 
@@ -85,9 +89,12 @@ jq -e '.verdict=="APPROVED"' .opencode/handoffs/<id>-unified-reviewer.json
 - Skipping required dual review for security / migration / public-api / HIGH blast
 - Parallel spec + code review when dual is required
 - Self-review inside orchestrator/implementer when a reviewer is required
-- **Orchestrator writing production code** instead of dispatching implementer (unless CONTEXT has exact `execution_mode: direct`)
+- **Orchestrator writing production code** instead of dispatching implementer — exceptions only:
+  - CONTEXT has exact `execution_mode: direct`, **or**
+  - classifier `direct_eligible: true` **and** dispatch unavailable **and** user did not set `execution_mode: delegated`
 - Treating a pasted plan / “please implement” / “start coding” as permission to self-implement
-- Falling back to self-coding when Task/Agent dispatch fails (STOP and report instead)
+- Falling back to self-coding when Task/Agent dispatch fails **unless** the narrow direct-eligible exception above applies (then mandatory verification + handoff JSON)
+- Skipping `nexus-run.js transition` gates before IMPLEMENTING / COMPLETED
 - Dispatching LLM agents for graph rebuild, blast script, branch delete, or jq gates
-- Finishing without required APPROVED handoff JSON(s)
+- Finishing without required APPROVED handoff JSON(s) (`validate-handoff` + jq)
 - Calling the wrong agent name for the platform

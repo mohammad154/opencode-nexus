@@ -1,0 +1,43 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://opencode-nexus.local/schemas/handoff-spec-reviewer.schema.json",
+  "title": "SpecReviewerHandoff",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schema_version", "verdict"],
+  "properties": {
+    "schema_version": { "type": "string", "enum": ["1.0"] },
+    "task_id": { "type": "string" },
+    "unit_or_task": { "type": "string" },
+    "verdict": {
+      "type": "string",
+      "enum": ["APPROVED", "REQUEST_CHANGES", "ISOLATION_VIOLATION", "BLOCKED"]
+    },
+    "plan_commit": { "type": ["string", "null"] },
+    "drift": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "detected": { "type": "boolean" },
+        "reason": { "type": "string" }
+      }
+    },
+    "acceptance": {
+      "type": "array",
+      "items": { "type": "object", "additionalProperties": true }
+    },
+    "blast": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "risk": { "type": "string" },
+        "callers_reviewed": { "type": "array", "items": { "type": "string" } },
+        "pass": { "type": ["boolean", "null"] }
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": { "type": "object", "additionalProperties": true }
+    }
+  }
+}

@@ -43,12 +43,27 @@ Ensures the PLAN is still a true picture of the repo after time and commits have
    - Check whether its verification_baseline still applicable.
    - Check handoff JSONs for status.
 
-### Step 1 — Drift check (from shadcn/improve pattern)
+### Step 1 — Drift check (semantic primary, commit distance secondary)
+
+Prefer the engine helper (does not invent approvals):
+
+```bash
+node scripts/nexus-run.js drift --json '{
+  "plan_commit":"<sha>",
+  "current_head":"<sha>",
+  "commit_distance": <N>,
+  "anchors":[{"file":"path","line":12,"text":"optional"}],
+  "targets":[{"file":"path","signature":"Symbol.or.signature"}],
+  "merge_base_changed": false
+}'
+```
 
 Compare plan_commit vs current HEAD:
 
 - If `git merge-base --is-ancestor <plan_commit> <base_branch>` fails → plan commit not ancestor of current base; base has been reset/rebased – STOP, warn user, recommend re-plan or explicit `reconcile --force` workflow.
-- If drift distance > 50 commits → recommend re-reading PLAN.md assumptions; verify critical file:line evidence still correct for remaining tasks. If broken, mark affected tasks as DRIFTED.
+- **Semantic HIGH** (blocks implement): broken file:line anchors, missing target symbols/signatures, incompatible merge-base, acceptance-criteria version mismatch.
+- Commit distance alone: `<10` NONE/LOW, `10–50` LOW, `>50` → **MEDIUM** (secondary). Re-read PLAN.md assumptions; only escalate to HIGH if anchors/signatures fail.
+- Do **not** treat 50 unrelated documentation commits as HIGH by themselves.
 
 Record in CONTEXT.md:
 ```yaml
@@ -57,7 +72,8 @@ reconcile:
   plan_commit: <short-sha>
   current_head: <short-sha>
   drift_commits: <N>
-  drift_level: NONE|LOW (<10)|MEDIUM (10-50)|HIGH (>50)
+  drift_level: NONE|LOW|MEDIUM|HIGH   # from nexus-run.js drift (semantic)
+  drift_reasons: []
   base_branch: <branch>
 ```
 

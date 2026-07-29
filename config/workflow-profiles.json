@@ -82,7 +82,44 @@
     "high-blast": { "spec": "required", "code": "required", "unified": false }
   },
   "classificationRules": {
-    "fastIf": {
+    "version": 2,
+    "default": "balanced",
+    "hard_strict_triggers": [
+      "security",
+      "migration",
+      "public_api",
+      "credential_handling",
+      "blast_risk_high"
+    ],
+    "risk_weights": {
+      "files_changed_over_5": 2,
+      "estimated_lines_over_200": 2,
+      "high_fan_in_symbol": 3,
+      "missing_tests": 2,
+      "cross_package_change": 2,
+      "generated_file_change": 1,
+      "files_changed_over_2": 1,
+      "estimated_lines_over_50": 1,
+      "exported_symbol_change": 2
+    },
+    "thresholds": {
+      "fast_max": 1,
+      "balanced_max": 5,
+      "strict_min": 6
+    },
+    "direct_path": {
+      "max_risk_score": 0,
+      "max_files": 1,
+      "max_lines": 30,
+      "require_focused_validation": true,
+      "forbid_exported_symbol_change": true,
+      "min_confidence": 0.85,
+      "allowed_classes": ["documentation", "formatting", "one_file_internal"]
+    },
+    "escalateToStrictOnHighBlast": true,
+    "allowExplicitOverride": true,
+    "_deprecated_fastIf": {
+      "_comment": "Legacy v1 shape. Nested 'or' was documented as AND (tiny internal). Migrated by scripts/lib/classify.js loadClassificationRules.",
       "documentationOnly": true,
       "or": {
         "filesChangedMax": 2,
@@ -91,15 +128,7 @@
         "notSecuritySensitive": true
       }
     },
-    "strictIf": [
-      "securitySensitive",
-      "databaseMigration",
-      "publicApi",
-      "blastRiskHigh"
-    ],
-    "default": "balanced",
-    "escalateToStrictOnHighBlast": true,
-    "allowExplicitOverride": true
+    "_deprecated_strictIf": ["securitySensitive", "databaseMigration", "publicApi", "blastRiskHigh"]
   },
   "modelTiers": {
     "low": {

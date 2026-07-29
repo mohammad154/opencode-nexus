@@ -1,8 +1,12 @@
 {
   "name": "opencode-nexus",
-  "version": "1.0.0",
-  "description": "OpenCode Nexus multi-agent workflow plugin – V3 profiles (fast/balanced/strict), scripts-first graph/blast/cleanup, risk-based review, multi-platform installer",
+  "version": "1.1.0",
+  "description": "OpenCode Nexus multi-agent workflow plugin – V3 profiles + executable workflow engine (state machine, classifier, schemas)",
   "type": "module",
   "main": ".opencode/plugins/nexus.js",
-  "license": "MIT"
+  "license": "MIT",
+  "scripts": {
+    "test": "node --test tests/schema/*.test.js tests/migrate/*.test.js tests/classify/*.test.js tests/state-machine/*.test.js tests/drift/*.test.js tests/blast/*.test.js",
+    "test:install": "bash scripts/test-install-only.sh && bash scripts/test-optional-agents.sh"
+  }
 }

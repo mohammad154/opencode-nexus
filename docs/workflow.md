@@ -1,10 +1,12 @@
 # OpenCode Nexus Workflow
 
-OpenCode Nexus provides a structured multi-agent development workflow with a knowledge graph, blast-radius safety, outcome memory, drift-resilient planning, auto-reconciliation, and **V3 workflow profiles** (`fast` / `balanced` / `strict`).
+OpenCode Nexus provides a structured multi-agent development workflow with a knowledge graph, blast-radius safety, outcome memory, drift-resilient planning, auto-reconciliation, **V3 workflow profiles** (`fast` / `balanced` / `strict`), and an **executable workflow engine** (`scripts/nexus-run.js`) that validates transitions and handoffs.
 
 ## V3 profiles (default: balanced)
 
 See [`skills/orchestrating/profiles.md`](../skills/orchestrating/profiles.md) and [`config/workflow-profiles.json`](../config/workflow-profiles.json).
+
+Classification uses a **scoring model** (`node scripts/nexus-classify.js`) — not the deprecated ambiguous `fastIf.or` shape.
 
 | Profile | Branch | Implementer | Review | Graph / blast | LESSONS | Cleanup |
 |---------|--------|-------------|--------|---------------|---------|---------|
@@ -16,17 +18,27 @@ See [`skills/orchestrating/profiles.md`](../skills/orchestrating/profiles.md) an
 User request
     │
     ▼
- classify → workflow_profile (+ cost estimate script)
+ nexus-run init → classify (score) → transitions (GRAPH/BLAST/…)
     │
+    ├─ direct (narrow) → verify → (none review) → complete
     ├─ fast      → implementer → (unified|skip) → script cleanup
     ├─ balanced  → batch unit → implementer → risk review → script cleanup
     └─ strict    → per-task blast → implementer → spec → code → script cleanup
 ```
 
-Cost estimate:
+Call estimate (agent calls, not USD):
 
 ```bash
-node scripts/nexus-estimate-cost.js --tasks 5 --profile balanced
+node scripts/nexus-estimate-calls.js --tasks 5 --profile balanced
+```
+
+Engine gates:
+
+```bash
+node scripts/nexus-run.js init --run-id <id>
+node scripts/nexus-run.js transition --to CLASSIFIED --json '...'
+node scripts/nexus-run.js validate-handoff --role implementer --file .opencode/handoffs/<id>-implementer.json
+node scripts/nexus-run.js status
 ```
 
 ## Overview diagram

@@ -9,6 +9,13 @@ set -euo pipefail
 echo "Installing OpenCode Nexus (multi-platform)..."; echo ""
 
 ONLY=""; FORCE_ALL=0
+WITH_OPTIONAL_AGENTS=0
+PRUNE_OPTIONAL_AGENTS=0
+# Default roster (Phase 1): scripts preferred for graph/blast — optional agents demoted
+DEFAULT_AGENTS=(orchestrator implementer unified-reviewer spec-reviewer code-reviewer reconciler)
+OPTIONAL_AGENTS=(blast-analyzer knowledge-graph)
+if [[ "${NEXUS_OPTIONAL_AGENTS:-}" == "1" ]]; then WITH_OPTIONAL_AGENTS=1; fi
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --only=*) ONLY="${1#--only=}"; shift ;;
@@ -22,10 +29,12 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     --all) FORCE_ALL=1; shift ;;
+    --with-optional-agents) WITH_OPTIONAL_AGENTS=1; shift ;;
+    --prune-optional-agents) PRUNE_OPTIONAL_AGENTS=1; shift ;;
     --uninstall) exec "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/uninstall.sh" "${@:2}" ;;
     -h|--help)
       cat <<'USAGE'
-Usage: ./install.sh [--only p1[,p2]] [--all]
+Usage: ./install.sh [--only p1[,p2]] [--all] [--with-optional-agents] [--prune-optional-agents]
 Platforms: opencode, claude, cursor, codex, gemini, antigravity, all  (alias: ag=antigravity)
   --only opencode        ONLY OpenCode (never touches Claude/Cursor/Gemini/Antigravity)
   --only cursor          Cursor CLI (cursor-agent) + IDE (~/.cursor/rules/*.mdc + project-local)
@@ -33,7 +42,12 @@ Platforms: opencode, claude, cursor, codex, gemini, antigravity, all  (alias: ag
   --only gemini          Gemini CLI (~/.gemini/skills/<skill>/ one-level deep)
   --only claude,cursor   two platforms
   --all                  force all even if binaries missing
+  --with-optional-agents also install knowledge-graph + blast-analyzer (compat; prefer scripts)
+  --prune-optional-agents remove optional agents from target install dirs on upgrade
   --uninstall            delegate to uninstall.sh
+
+Default agents: orchestrator implementer unified-reviewer spec-reviewer code-reviewer reconciler
+Optional (not installed by default): knowledge-graph blast-analyzer — keep using scripts/nexus-graph.sh + nexus-blast.js
 
 With no --only: auto-detect each platform independently and install for every detected one.
 USAGE
@@ -45,6 +59,25 @@ USAGE
       ;;
   esac
 done
+
+nexus_agent_basenames() {
+  local a
+  for a in "${DEFAULT_AGENTS[@]}"; do echo "$a"; done
+  if (( WITH_OPTIONAL_AGENTS )); then
+    for a in "${OPTIONAL_AGENTS[@]}"; do echo "$a"; done
+  fi
+}
+
+prune_optional_from_dir() {
+  local dest=$1 prefix=${2:-}
+  local a
+  (( PRUNE_OPTIONAL_AGENTS )) || return 0
+  [[ -d "$dest" ]] || return 0
+  for a in "${OPTIONAL_AGENTS[@]}"; do
+    rm -f "$dest/${prefix}${a}.md" 2>/dev/null || true
+  done
+}
+
 
 # Normalize ONLY → space-separated canonical platform names (no leading/trailing space)
 # Do NOT use `xargs echo -n ""` — that prefixes a blank arg and can confuse matching.
@@ -190,14 +223,21 @@ if should_install opencode; then
       rm -f "$TMP"
     else
       mv "$TMP" "$CONFIG_FILE"
-      for ag in orchestrator implementer spec-reviewer code-reviewer unified-reviewer blast-analyzer knowledge-graph reconciler; do
+      while IFS= read -r ag; do
         src="$SCRIPT_DIR/agents/$ag.md"; [[ -f "$src" ]] || continue
         bak "$AGENTS_DIR/$ag.md"; cp "$src" "$AGENTS_DIR/$ag.md"
-      done
+      done < <(nexus_agent_basenames)
+      prune_optional_from_dir "$AGENTS_DIR"
+      if (( WITH_OPTIONAL_AGENTS )); then
+        echo "  [opencode] Optional agents included (knowledge-graph, blast-analyzer)"
+      else
+        echo "  [opencode] Optional agents skipped (use --with-optional-agents; prefer scripts)"
+      fi
       echo "  [opencode] Done → $CONFIG_FILE agents: $AGENTS_DIR/"
     fi
   fi
 else echo "[opencode] Skipped"; fi
+
 
 # ── helpers: one-level skill dirs (Claude/Gemini discover only skills/<name>/SKILL.md) ──
 skill_desc() { # skill_desc <SKILL.md>
@@ -325,30 +365,33 @@ install_prefixed_agents_dir() { # install_prefixed_agents_dir <dest_agents_dir>
   local dest=$1 ag
   [[ -z "$dest" ]] && return
   mkdir -p "$dest" 2>/dev/null || return
-  for ag in "$SCRIPT_DIR"/agents/*.md; do
-    [[ -f "$ag" ]] || continue
-    install_prefixed_agent "$ag" "$dest/nexus-$(basename "$ag")"
-  done
+  while IFS= read -r ag; do
+    [[ -f "$SCRIPT_DIR/agents/$ag.md" ]] || continue
+    install_prefixed_agent "$SCRIPT_DIR/agents/$ag.md" "$dest/nexus-$ag.md"
+  done < <(nexus_agent_basenames)
+  prune_optional_from_dir "$dest" "nexus-"
 }
 
 install_claude_agents_dir() {
   local dest=$1 ag
   [[ -z "$dest" ]] && return
   mkdir -p "$dest" 2>/dev/null || return
-  for ag in "$SCRIPT_DIR"/agents/*.md; do
-    [[ -f "$ag" ]] || continue
-    install_claude_agent "$ag" "$dest/nexus-$(basename "$ag")"
-  done
+  while IFS= read -r ag; do
+    [[ -f "$SCRIPT_DIR/agents/$ag.md" ]] || continue
+    install_claude_agent "$SCRIPT_DIR/agents/$ag.md" "$dest/nexus-$ag.md"
+  done < <(nexus_agent_basenames)
+  prune_optional_from_dir "$dest" "nexus-"
 }
 
 install_cursor_agents_dir() {
   local dest=$1 ag
   [[ -z "$dest" ]] && return
   mkdir -p "$dest" 2>/dev/null || return
-  for ag in "$SCRIPT_DIR"/agents/*.md; do
-    [[ -f "$ag" ]] || continue
-    install_cursor_agent "$ag" "$dest/nexus-$(basename "$ag")"
-  done
+  while IFS= read -r ag; do
+    [[ -f "$SCRIPT_DIR/agents/$ag.md" ]] || continue
+    install_cursor_agent "$SCRIPT_DIR/agents/$ag.md" "$dest/nexus-$ag.md"
+  done < <(nexus_agent_basenames)
+  prune_optional_from_dir "$dest" "nexus-"
 }
 
 # ── Claude Code ──
@@ -479,12 +522,12 @@ if should_install antigravity; then
       echo "You have OpenCode Nexus multi-agent workflow skills installed as \`nexus-*\`."
       echo "Prefer the Nexus router: load skill \`nexus-using-nexus\` for phase routing (V3 profiles)."
       echo "Default profile: **balanced**. Override with \`workflow_profile: fast|balanced|strict\`."
-      echo "Prefer scripts for graph/blast/cleanup/cost estimate. Keep durable state under \`.opencode/\`."
+      echo "Prefer scripts for graph/blast/cleanup/call estimate / \`nexus-run.js\` gates. Keep durable state under \`.opencode/\` (incl. runs/*/state.json)."
       echo "Skills: \`.agents/skills/nexus-*/\` and \`~/.gemini/config/skills/nexus-*/\`."
       echo ""
       echo "## Review gates (profile-aware)"
       echo "- \`strict\` or high-risk (security/migration/public-api/HIGH blast): \`nexus-spec-reviewer\` then \`nexus-code-reviewer\`."
-      echo "- \`fast\`/\`balanced\` low–medium: \`nexus-unified-reviewer\` (or skip for docs-only)."
+      echo "- \`fast\`/\`balanced\` low–medium: \`nexus-unified-reviewer\` (or skip for docs-only / direct)."
       echo "See \`nexus-orchestrating/dispatch.md\` and \`profiles.md\`."
     } >"$gt/.agents/rules/nexus.md"
     {
@@ -494,9 +537,9 @@ if should_install antigravity; then
       echo ""
       echo "Invoke the Nexus workflow for the current request."
       echo "1. Load \`nexus-using-nexus\` (set workflow_profile; default balanced)."
-      echo "2. Cost estimate: \`node scripts/nexus-estimate-cost.js --tasks N --profile <p>\`."
-      echo "3. Graph via \`scripts/nexus-graph.sh\` (commit cache); blast via \`scripts/nexus-blast.js\`."
-      echo "4. Persist plan/context/execution units/handoffs under \`.opencode/\`."
+      echo "2. \`node scripts/nexus-run.js init\` + \`nexus-classify.js\`; estimate: \`node scripts/nexus-estimate-calls.js --tasks N --profile <p>\`."
+      echo "3. Graph via \`scripts/nexus-graph.sh\` (commit cache); blast via \`scripts/nexus-blast.js\` (JSON default)."
+      echo "4. Persist plan/context/execution units/handoffs/run state under \`.opencode/\`."
       echo "5. Review per profile: unified-reviewer OR spec then code (see dispatch.md)."
       echo "6. Cleanup via \`scripts/nexus-branch-cleanup.sh\` (not an LLM)."
     } >"$gt/.agents/workflows/nexus.md"
@@ -508,15 +551,15 @@ fi
 
 # ── scripts check ──
 echo ""; echo "[scripts] Checking:"
-for s in nexus-graph.sh nexus-graph.js nexus-blast.sh nexus-blast.js nexus-branch-cleanup.sh nexus-estimate-cost.js nexus-estimate-cost.sh install-git-hook.sh; do if [[ -f "$SCRIPT_DIR/scripts/$s" ]]; then echo "  ✓ scripts/$s"; else echo "  ✗ missing $s"; fi; done
+for s in nexus-graph.sh nexus-graph.js nexus-blast.sh nexus-blast.js nexus-branch-cleanup.sh nexus-estimate-calls.js nexus-estimate-cost.js nexus-estimate-cost.sh nexus-run.js nexus-classify.js install-git-hook.sh; do if [[ -f "$SCRIPT_DIR/scripts/$s" ]]; then echo "  ✓ scripts/$s"; else echo "  ✗ missing $s"; fi; done
 chmod +x "$SCRIPT_DIR/scripts/nexus-graph.sh" "$SCRIPT_DIR/scripts/nexus-blast.sh" "$SCRIPT_DIR/scripts/nexus-branch-cleanup.sh" "$SCRIPT_DIR/scripts/nexus-estimate-cost.sh" "$SCRIPT_DIR/scripts/install-git-hook.sh" 2>/dev/null || true
-chmod a+r "$SCRIPT_DIR/scripts/nexus-graph.js" "$SCRIPT_DIR/scripts/nexus-blast.js" "$SCRIPT_DIR/scripts/nexus-estimate-cost.js" 2>/dev/null || true
+chmod a+r "$SCRIPT_DIR/scripts/nexus-graph.js" "$SCRIPT_DIR/scripts/nexus-blast.js" "$SCRIPT_DIR/scripts/nexus-estimate-calls.js" "$SCRIPT_DIR/scripts/nexus-estimate-cost.js" "$SCRIPT_DIR/scripts/nexus-run.js" "$SCRIPT_DIR/scripts/nexus-classify.js" 2>/dev/null || true
 
 cat <<END
 
-Installation complete (Nexus V3 — profiles: fast|balanced|strict, default balanced).
+Installation complete (Nexus V3 engine — profiles: fast|balanced|strict, default balanced).
 Supported (auto-detect):
-  • opencode    CLI → ~/.config/opencode/ (plugin + agents incl. unified-reviewer)
+  • opencode    CLI → ~/.config/opencode/ (plugin + default agents; optional graph/blast agents demoted)
   • claude      CLI+IDE → ~/.claude/skills/nexus-*/ (git hook: scripts/install-git-hook.sh)
   • cursor      CLI+IDE → ~/.cursor/rules/nexus-*.mdc + <repo>/.cursor/rules/
   • codex       CLI → ~/.codex/skills/nexus-*/
@@ -524,13 +567,15 @@ Supported (auto-detect):
   • antigravity IDE → ~/.gemini/config/skills/nexus-*/ + <repo>/.agents/rules|workflows/
 Next:
   - ./scripts/nexus-graph.sh && ls .opencode/knowledge/
-  - node ./scripts/nexus-estimate-cost.js --tasks 3 --profile balanced
-  - node ./scripts/nexus-blast.js --mermaid
+  - node ./scripts/nexus-estimate-calls.js --tasks 3 --profile balanced
+  - node ./scripts/nexus-blast.js --files <path>   # JSON default; --mermaid on demand
+  - node ./scripts/nexus-run.js init --run-id demo
   - bash ./scripts/nexus-branch-cleanup.sh --base <base> <feature-branch>
   - opencode: restart, select orchestrator
   - Customize: edit $CONFIG_DIR/nexus.models.json && re-run install.sh
 Granular:
   ./install.sh --only cursor | --only antigravity | --only claude,cursor | --all
+  ./install.sh --only opencode --with-optional-agents
 Uninstall:
   ./uninstall.sh [--only p1[,p2]] [--all]
 END

@@ -1,19 +1,20 @@
 #!/usr/bin/env node
 /**
- * nexus-blast.js — blast-radius analysis for Nexus implementers.
- * From CodeLookup: static import graph + git diff → Mermaid blast diagram.
+ * nexus-blast.js — Lite blast-radius analysis (regex graph fallback).
+ *
+ * Default output: compact JSON (risk, dependents, uncertainties, reserved dimensions).
+ * Mermaid: only with --mermaid, or automatically when risk is HIGH.
+ * Markdown reports: --markdown or --task (task writes JSON always; MD when --markdown or HIGH).
  *
  * Usage:
- *   node scripts/nexus-blast.js                          # use git diff base...HEAD
- *   node scripts/nexus-blast.js --base main               # explicit base
- *   node scripts/nexus-blast.js --files src/a.ts,src/b.ts # explicit file list
- *   node scripts/nexus-blast.js --mermaid                 # output only mermaid block
- *   node scripts/nexus-blast.js --json                    # output only json
- *   node scripts/nexus-blast.js --task 3                  # writes .opencode/knowledge/blast/task-3.md
- *   node scripts/nexus-blast.js --explain src/foo.ts      # who depends on this file?
- *
- * Input:  .opencode/knowledge/graph.json (build via nexus-graph.sh if missing)
- * Output: stdout + optional .opencode/knowledge/blast/*.md
+ *   node scripts/nexus-blast.js
+ *   node scripts/nexus-blast.js --base main
+ *   node scripts/nexus-blast.js --files src/a.ts,src/b.ts
+ *   node scripts/nexus-blast.js --json          # explicit JSON (default)
+ *   node scripts/nexus-blast.js --mermaid       # Mermaid only
+ *   node scripts/nexus-blast.js --markdown      # human MD + JSON
+ *   node scripts/nexus-blast.js --task 3
+ *   node scripts/nexus-blast.js --explain src/foo.ts
  */
 
 import fs from "fs";
@@ -21,78 +22,134 @@ import path from "path";
 import { execSync } from "child_process";
 
 const root = (() => {
-  try { return execSync("git rev-parse --show-toplevel", {encoding:"utf8"}).trim(); }
-  catch { return process.cwd(); }
+  try {
+    return execSync("git rev-parse --show-toplevel", {
+      encoding: "utf8",
+    }).trim();
+  } catch {
+    return process.cwd();
+  }
 })();
 
 function readGraph() {
   const gpath = path.join(root, ".opencode", "knowledge", "graph.json");
   if (!fs.existsSync(gpath)) return null;
-  try { return JSON.parse(fs.readFileSync(gpath, "utf8")); } catch { return null; }
+  try {
+    return JSON.parse(fs.readFileSync(gpath, "utf8"));
+  } catch {
+    return null;
+  }
 }
 
 function buildReverseIndex(graph) {
-  // to -> [from,...]  (who imports this file)
   const rev = new Map();
-  for (const e of (graph?.edges || [])) {
+  for (const e of graph?.edges || []) {
     if (e.external) continue;
     if (!rev.has(e.to)) rev.set(e.to, []);
     rev.get(e.to).push(e.from);
-    // Also try suffix matching: if edge.to is import specifier not absolute
-    // Best-effort: match last segment
   }
   return rev;
 }
 
 function normalizePath(p) {
-  return p.replace(/\\/g,"/").replace(/^\.\//,"").replace(/^.*\/\.opencode\/knowledge\/.*$/,"");
+  return p.replace(/\\/g, "/").replace(/^\.\//, "");
 }
 
-// Git helpers
 function gitBaseBranch() {
   try {
-    const head = execSync("git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@'", {encoding:"utf8"}).trim();
+    const head = execSync(
+      "git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@'",
+      { encoding: "utf8" },
+    ).trim();
     if (head) return head;
-  } catch {}
-  for (const b of ["main","master","develop"]) {
-    try { execSync(`git show-ref --verify --quiet refs/heads/${b}`); return b; } catch {}
+  } catch {
+    /* ignore */
+  }
+  for (const b of ["main", "master", "develop"]) {
+    try {
+      execSync(`git show-ref --verify --quiet refs/heads/${b}`);
+      return b;
+    } catch {
+      /* ignore */
+    }
   }
   return "main";
 }
 
 function changedFiles(base) {
   try {
-    const out = execSync(`git diff --name-only ${base}...HEAD 2>/dev/null || git diff --name-only --cached 2>/dev/null || git diff --name-only 2>/dev/null`, {encoding:"utf8"});
-    return out.split("\n").map(s=>s.trim()).filter(Boolean).map(p=>p.replace(/\\/g,"/"));
-  } catch { return []; }
+    const out = execSync(
+      `git diff --name-only ${base}...HEAD 2>/dev/null || git diff --name-only --cached 2>/dev/null || git diff --name-only 2>/dev/null`,
+      { encoding: "utf8" },
+    );
+    return out
+      .split("\n")
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .map((p) => p.replace(/\\/g, "/"));
+  } catch {
+    return [];
+  }
 }
 
 function parseArgs() {
   const args = process.argv.slice(2);
-  const opts = { base: null, files: null, mermaidOnly: false, jsonOnly: false, task: null, explain: null, depth: 2 };
-  for (let i=0;i<args.length;i++) {
-    const a=args[i];
-    if (a==="--base") opts.base=args[++i];
-    else if (a==="--files") opts.files=args[++i].split(",").map(s=>s.trim()).filter(Boolean);
-    else if (a==="--mermaid") opts.mermaidOnly=true;
-    else if (a==="--json") opts.jsonOnly=true;
-    else if (a==="--task") opts.task=args[++i];
-    else if (a==="--explain") opts.explain=args[++i];
-    else if (a==="--depth") opts.depth=parseInt(args[++i],10)||2;
-    else if (a.startsWith("--")) { /* ignore */ }
+  const opts = {
+    base: null,
+    files: null,
+    mermaidOnly: false,
+    jsonOnly: false,
+    markdown: false,
+    task: null,
+    explain: null,
+    depth: 2,
+  };
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i];
+    if (a === "--base") opts.base = args[++i];
+    else if (a === "--files")
+      opts.files = args[++i]
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+    else if (a === "--mermaid") opts.mermaidOnly = true;
+    else if (a === "--json") opts.jsonOnly = true;
+    else if (a === "--markdown") opts.markdown = true;
+    else if (a === "--task") opts.task = args[++i];
+    else if (a === "--explain") opts.explain = args[++i];
+    else if (a === "--depth") opts.depth = parseInt(args[++i], 10) || 2;
   }
   return opts;
 }
 
-function computeBlast(startFiles, graph, revIndex, maxDepth=2) {
-  // BFS from changed files through reverse index (who depends on changed files)
+function computeBlast(startFiles, graph, revIndex, maxDepth = 2) {
   const visited = new Set();
-  const queue = startFiles.map(f => ({ file: f, depth: 0, path: [f] }));
-  const impacts = []; // {file, depth, via:[chain], direct:Boolean}
-  const edges = [];   // for mermaid: from -> to
+  const queue = startFiles.map((f) => ({ file: f, depth: 0, path: [f] }));
+  const impacts = [];
+  const edges = [];
+  const uncertainties = [];
 
   const normalizedGraph = new Map();
-  for (const n of (graph?.nodes || [])) normalizedGraph.set(n.id, n);
+  for (const n of graph?.nodes || []) normalizedGraph.set(n.id, n);
+
+  if (!graph) {
+    uncertainties.push("graph.json missing — dependents may be incomplete");
+  }
+
+  let inferredEdges = 0;
+  for (const e of graph?.edges || []) {
+    if (
+      e.confidence === "INFERRED" ||
+      (typeof e.confidence_score === "number" && e.confidence_score < 1)
+    ) {
+      inferredEdges++;
+    }
+  }
+  if (inferredEdges > 0) {
+    uncertainties.push(
+      `${inferredEdges} graph edge(s) inferred (Lite regex) — treat dependents as incomplete`,
+    );
+  }
 
   while (queue.length > 0) {
     const { file, depth, path: chain } = queue.shift();
@@ -100,45 +157,65 @@ function computeBlast(startFiles, graph, revIndex, maxDepth=2) {
     visited.add(file + ":" + depth);
     if (depth > maxDepth) continue;
 
-    // Find direct dependents via reverse index (exact match)
     let direct = revIndex.get(file) || [];
 
-    // Fallback: suffix matching – graph stores relative paths, import might be bare
     if (direct.length === 0 && graph) {
       const base = path.basename(file);
       for (const [toKey, fromList] of revIndex.entries()) {
-        // heuristic: if toKey ends with file name or file contains/imports referencing basename
         const toBase = path.basename(toKey);
-        if (toBase === base || toKey === file || normalizedPath(toKey).includes(path.basename(file, path.extname(file)))) {
-          // only if not already counted
+        if (
+          toBase === base ||
+          toKey === file ||
+          normalizePath(toKey).includes(path.basename(file, path.extname(file)))
+        ) {
           for (const f of fromList) if (!direct.includes(f)) direct.push(f);
         }
       }
     }
 
     for (const dep of direct) {
-      if (chain.includes(dep)) continue; // cycle guard
-      edges.push({ from: file, to: dep, depth: depth+1 });
-      const entry = { file: dep, depth: depth+1, via: [...chain, dep], direct: depth===0 };
-      // dedup impacts by file keeping shallowest
-      if (!impacts.some(x => x.file===dep)) impacts.push(entry);
-      if (depth+1 < maxDepth) queue.push({ file: dep, depth: depth+1, path: [...chain, dep] });
+      if (chain.includes(dep)) continue;
+      edges.push({ from: file, to: dep, depth: depth + 1 });
+      const entry = {
+        file: dep,
+        depth: depth + 1,
+        via: [...chain, dep],
+        direct: depth === 0,
+      };
+      if (!impacts.some((x) => x.file === dep)) impacts.push(entry);
+      if (depth + 1 < maxDepth)
+        queue.push({ file: dep, depth: depth + 1, path: [...chain, dep] });
     }
   }
 
-  // Risk scoring
   let score = 0;
   for (const imp of impacts) {
-    score += imp.direct ? 3 : (imp.depth===1 ? 2 : 1);
+    score += imp.direct ? 3 : imp.depth === 1 ? 2 : 1;
   }
   let level = "LOW";
   if (score >= 15 || impacts.length >= 10) level = "HIGH";
   else if (score >= 5 || impacts.length >= 3) level = "MEDIUM";
 
-  return { startFiles, impacts, edges, score, level };
-}
+  if (impacts.length === 0 && uncertainties.length > 0) {
+    uncertainties.push(
+      "no downstream dependents detected under Lite graph — do not treat as proven safe",
+    );
+  }
 
-function normalizedPath(p){ return String(p).replace(/\\/g,"/").replace(/^\.\//,""); }
+  return {
+    startFiles,
+    impacts,
+    edges,
+    score,
+    level,
+    risk: level,
+    changed_symbols: [],
+    direct_dependents: impacts.filter((i) => i.direct).map((i) => i.file),
+    tests: [],
+    uncertainties,
+    dimensions: {},
+  };
+}
 
 function renderMermaid(blast) {
   const lines = ["```mermaid", "flowchart TD"];
@@ -146,13 +223,12 @@ function renderMermaid(blast) {
   let idCounter = 0;
   const getId = (f) => {
     if (!idMap.has(f)) {
-      const safe = `n${idCounter++}_${path.basename(f).replace(/[^a-zA-Z0-9]/g,"_")}`;
+      const safe = `n${idCounter++}_${path.basename(f).replace(/[^a-zA-Z0-9]/g, "_")}`;
       idMap.set(f, safe);
     }
     return idMap.get(f);
   };
 
-  // Nodes for changed files (highlighted)
   for (const f of blast.startFiles) {
     const id = getId(f);
     lines.push(`  ${id}[\"${path.basename(f)}<br/>${f}\"]`);
@@ -168,15 +244,29 @@ function renderMermaid(blast) {
     }
   }
 
-  // Edges
   for (const e of blast.edges) {
-    const fromId = getId(e.from);
-    const toId = getId(e.to);
-    lines.push(`  ${fromId} --> ${toId}`);
+    lines.push(`  ${getId(e.from)} --> ${getId(e.to)}`);
   }
 
   lines.push("```");
   return lines.join("\n");
+}
+
+function compactReport(blast) {
+  return {
+    schema_version: "1.0",
+    risk: blast.risk || blast.level,
+    level: blast.level,
+    score: blast.score,
+    changed_symbols: blast.changed_symbols || [],
+    direct_dependents: blast.direct_dependents || [],
+    tests: blast.tests || [],
+    uncertainties: blast.uncertainties || [],
+    dimensions: blast.dimensions || {},
+    files: blast.startFiles,
+    impacts: blast.impacts,
+    edges: blast.edges,
+  };
 }
 
 function renderMarkdown(blast, graph) {
@@ -186,127 +276,172 @@ function renderMarkdown(blast, graph) {
   md.push(`Changed files (${blast.startFiles.length}):`);
   for (const f of blast.startFiles) md.push(`- \`${f}\``);
   md.push("");
+  if (blast.uncertainties?.length) {
+    md.push("## Uncertainties");
+    for (const u of blast.uncertainties) md.push(`- ${u}`);
+    md.push("");
+  }
   if (blast.impacts.length === 0) {
-    md.push("**No downstream dependents detected** (or graph missing for these paths). Safe to change in isolation – but verify with tests.");
+    md.push(
+      "**No downstream dependents detected** under Lite graph. Do not treat as proven isolation — verify with tests.",
+    );
   } else {
-    md.push(`**${blast.impacts.length} downstream file(s) may be affected** (depth ≤ search):`);
+    md.push(`**${blast.impacts.length} downstream file(s) may be affected**:`);
     md.push("");
     md.push("| File | Depth | Via |");
     md.push("|------|-------|-----|");
     for (const imp of blast.impacts.slice(0, 60)) {
-      const via = imp.via.join(" → ");
-      md.push(`| \`${imp.file}\` | ${imp.depth} | ${via} |`);
+      md.push(`| \`${imp.file}\` | ${imp.depth} | ${imp.via.join(" → ")} |`);
     }
-    if (blast.impacts.length > 60) md.push(`| ... and ${blast.impacts.length-60} more – see json |`);
   }
   md.push("");
-  md.push("## Mermaid (blast radius diagram)");
-  md.push("");
-  md.push(renderMermaid(blast));
-  md.push("");
+  const wantMermaid = blast.level === "HIGH";
+  if (wantMermaid) {
+    md.push("## Mermaid (blast radius diagram)");
+    md.push("");
+    md.push(renderMermaid(blast));
+    md.push("");
+  } else {
+    md.push("_Mermaid omitted (use `--mermaid` or HIGH risk)._");
+    md.push("");
+  }
   md.push("## Implementer guidance");
   if (blast.level === "HIGH") {
-    md.push("- ⚠️  HIGH risk: many callers. Update this task's scope in writing, run all downstream tests, consider splitting task.");
-    md.push("- Ensure .opencode/tasks/task-N.md notes dependent files.");
+    md.push(
+      "- HIGH risk: many callers. Update scope, run downstream tests, consider splitting.",
+    );
   } else if (blast.level === "MEDIUM") {
-    md.push("- MEDIUM risk: some callers. Verify callers still behave correctly after the change; add tests for caller paths.");
+    md.push("- MEDIUM risk: verify callers; add tests for caller paths.");
   } else {
-    md.push("- LOW risk: isolated or leaf module. Minimal blast. Proceed, but still run task verification.");
+    md.push("- LOW risk under Lite scoring — still run task verification.");
   }
-  md.push("- Review diff with: `git diff <base>...feature/task-N-<slug>`");
-  md.push("- When in doubt, expand blast search: `node scripts/nexus-blast.js --depth 3 --files <file>`");
-  md.push("");
-  md.push("## How graph was built");
   if (graph) {
-    md.push(`- graph.json nodes=${graph.stats?.nodes ?? graph.nodes?.length} edges=${graph.stats?.edges ?? graph.edges?.length} generated=${graph.generated_at || "unknown"}`);
+    md.push(
+      `- graph.json nodes=${graph.stats?.nodes ?? graph.nodes?.length} edges=${graph.stats?.edges ?? graph.edges?.length}`,
+    );
   } else {
-    md.push("- graph.json missing – results based on git diff only. Run `./scripts/nexus-graph.sh` to improve accuracy.");
+    md.push("- graph.json missing – run `./scripts/nexus-graph.sh`.");
   }
-  md.push(`- Search depth: ${blast.impacts.reduce((m,i)=>Math.max(m,i.depth),0)} (max configured: BFS)`);
   md.push("");
   return md.join("\n");
 }
 
-// ── main ────────────────────────────────────────────────
 const opts = parseArgs();
 
-// Single-file explain mode
 if (opts.explain) {
   const graph = readGraph();
   const rev = buildReverseIndex(graph);
   const direct = rev.get(opts.explain) || [];
-  // Fallback: any edge.to containing basename
   const fallback = [];
-  const base = path.basename(opts.explain);
-  if (graph && direct.length===0) {
+  const baseName = path.basename(opts.explain);
+  if (graph && direct.length === 0) {
     for (const e of graph.edges || []) {
-      if (!e.external && (e.to.includes(base) || path.basename(e.to)===base) ) {
+      if (
+        !e.external &&
+        (e.to.includes(baseName) || path.basename(e.to) === baseName)
+      ) {
         fallback.push(e.from);
       }
     }
   }
   const all = [...new Set([...direct, ...fallback])];
-  console.log(`File: ${opts.explain}`);
-  console.log(`Direct dependents: ${all.length}`);
-  for (const f of all.slice(0,100)) console.log(`  - ${f}`);
-  if (!graph) console.log("\n(graph.json missing – run nexus-graph.sh first for richer results)");
+  console.log(
+    JSON.stringify({ file: opts.explain, direct_dependents: all }, null, 2),
+  );
   process.exit(0);
 }
 
 let startFiles = opts.files;
-let base = opts.base || gitBaseBranch();
+const base = opts.base || gitBaseBranch();
 if (!startFiles) {
   startFiles = changedFiles(base);
   if (startFiles.length === 0) {
-    // fallback: staged + unstaged files
     try {
-      const out = execSync("git diff --name-only HEAD 2>/dev/null; git diff --name-only --cached 2>/dev/null; git ls-files --others --exclude-standard 2>/dev/null", {encoding:"utf8"});
-      startFiles = out.split("\n").map(s=>s.trim()).filter(Boolean).map(p=>p.replace(/\\/g,"/"));
-    } catch { startFiles = []; }
+      const out = execSync(
+        "git diff --name-only HEAD 2>/dev/null; git diff --name-only --cached 2>/dev/null; git ls-files --others --exclude-standard 2>/dev/null",
+        { encoding: "utf8" },
+      );
+      startFiles = out
+        .split("\n")
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .map((p) => p.replace(/\\/g, "/"));
+    } catch {
+      startFiles = [];
+    }
   }
 }
 
 if (startFiles.length === 0) {
-  console.log("No changed files detected (nothing in diff against base).");
-  console.log(`Tip: specify files: node scripts/nexus-blast.js --files src/foo.ts,src/bar.ts`);
+  const empty = {
+    schema_version: "1.0",
+    risk: "UNKNOWN",
+    level: "UNKNOWN",
+    score: 0,
+    changed_symbols: [],
+    direct_dependents: [],
+    tests: [],
+    uncertainties: ["no changed files detected"],
+    dimensions: {},
+    files: [],
+    impacts: [],
+    edges: [],
+  };
+  console.log(JSON.stringify(empty, null, 2));
   process.exit(0);
 }
 
 let graph = readGraph();
 if (!graph) {
-  console.log("[nexus-blast] graph.json missing – attempting auto-build...");
   try {
     const shPath = path.join(root, "scripts", "nexus-graph.sh");
-    if (fs.existsSync(shPath)) execSync(`bash "${shPath}" "${root}"`, {stdio:"inherit", timeout: 120000});
-    graph = readGraph();
-  } catch (e) {
-    console.log("[nexus-blast] auto-build failed:", e.message);
+    if (fs.existsSync(shPath)) {
+      execSync(`bash "${shPath}" "${root}"`, {
+        stdio: "pipe",
+        timeout: 120000,
+      });
+      graph = readGraph();
+    }
+  } catch {
+    /* keep null */
   }
 }
 
 const revIndex = buildReverseIndex(graph);
 const blast = computeBlast(startFiles, graph, revIndex, opts.depth);
+const report = compactReport(blast);
+const wantMermaid = opts.mermaidOnly || blast.level === "HIGH";
 
 if (opts.mermaidOnly) {
   console.log(renderMermaid(blast));
-} else if (opts.jsonOnly) {
-  console.log(JSON.stringify(blast, null, 2));
-} else {
+} else if (opts.markdown) {
   console.log(renderMarkdown(blast, graph));
   console.log("\n---JSON---\n");
-  console.log(JSON.stringify({ files: blast.startFiles, level: blast.level, score: blast.score, impacts: blast.impacts, edges: blast.edges }, null, 2));
+  console.log(JSON.stringify(report, null, 2));
+  if (wantMermaid && blast.level !== "HIGH") {
+    console.log("\n---MERMAID---\n");
+    console.log(renderMermaid(blast));
+  }
+} else {
+  // Default: compact JSON
+  console.log(JSON.stringify(report, null, 2));
 }
 
-// Persist per-task if requested
 if (opts.task) {
   try {
     const outDir = path.join(root, ".opencode", "knowledge", "blast");
-    fs.mkdirSync(outDir, {recursive:true});
-    const mdPath = path.join(outDir, `task-${opts.task}.md`);
-    fs.writeFileSync(mdPath, renderMarkdown(blast, graph));
+    fs.mkdirSync(outDir, { recursive: true });
     const jsonPath = path.join(outDir, `task-${opts.task}.json`);
-    fs.writeFileSync(jsonPath, JSON.stringify({ files: blast.startFiles, level: blast.level, score: blast.score, impacts: blast.impacts, edges: blast.edges }, null, 2));
-    console.error(`\n[nexus-blast] Saved → ${mdPath} + .json`);
+    fs.writeFileSync(jsonPath, JSON.stringify(report, null, 2));
+    const latest = path.join(outDir, "latest.json");
+    fs.writeFileSync(latest, JSON.stringify(report, null, 2));
+    if (opts.markdown || blast.level === "HIGH") {
+      const mdPath = path.join(outDir, `task-${opts.task}.md`);
+      fs.writeFileSync(mdPath, renderMarkdown(blast, graph));
+      console.error(`[nexus-blast] Saved → ${mdPath} + ${jsonPath}`);
+    } else {
+      console.error(`[nexus-blast] Saved → ${jsonPath}`);
+    }
   } catch (e) {
     console.error("[nexus-blast] Failed to save task report:", e.message);
   }

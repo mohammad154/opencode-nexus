@@ -1,0 +1,18 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://opencode-nexus.local/schemas/drift-report.schema.json",
+  "title": "DriftReport",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schema_version", "drift", "reasons"],
+  "properties": {
+    "schema_version": { "type": "string", "enum": ["1.0"] },
+    "drift": { "type": "string", "enum": ["NONE", "LOW", "MEDIUM", "HIGH"] },
+    "reasons": { "type": "array", "items": { "type": "string" } },
+    "commit_distance": { "type": "number" },
+    "plan_commit": { "type": ["string", "null"] },
+    "current_head": { "type": ["string", "null"] },
+    "anchors_broken": { "type": "array", "items": { "type": "string" } },
+    "merge_base_changed": { "type": "boolean" }
+  }
+}

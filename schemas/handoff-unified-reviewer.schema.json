@@ -1,0 +1,38 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://opencode-nexus.local/schemas/handoff-unified-reviewer.schema.json",
+  "title": "UnifiedReviewerHandoff",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schema_version", "verdict"],
+  "properties": {
+    "schema_version": { "type": "string", "enum": ["1.0"] },
+    "agent": { "type": "string" },
+    "unit_or_task": { "type": "string" },
+    "task_id": { "type": "string" },
+    "verdict": {
+      "type": "string",
+      "enum": ["APPROVED", "REQUEST_CHANGES", "ISOLATION_VIOLATION", "BLOCKED"]
+    },
+    "change_class": { "type": "string" },
+    "blast_risk": { "type": "string" },
+    "acceptance": {
+      "type": "array",
+      "items": { "type": "object", "additionalProperties": true }
+    },
+    "findings": {
+      "type": "array",
+      "items": { "type": "object", "additionalProperties": true }
+    },
+    "escalate_to_dual": { "type": "boolean" },
+    "notes": { "type": "string" },
+    "blast": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "pass": { "type": ["boolean", "null"] },
+        "risk": { "type": "string" }
+      }
+    }
+  }
+}

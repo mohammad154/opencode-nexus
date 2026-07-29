@@ -28,31 +28,33 @@ function getBootstrapText() {
 
   const toolMapping = `**Tool Mapping for OpenCode:**
 - \`Skill\` tool → OpenCode \`skill\` tool
-- \`Task\` / Agent subagents (canonical) → implementer, unified-reviewer, spec-reviewer, code-reviewer, blast-analyzer, knowledge-graph, reconciler
+- \`Task\` / Agent subagents (default roster) → implementer, unified-reviewer, spec-reviewer, code-reviewer, reconciler
+- Optional (not default install): blast-analyzer, knowledge-graph — prefer scripts; \`install.sh --with-optional-agents\` for compat
 - Prefixed installs (Claude/Cursor/AG) → nexus-<canonical> (see skills/orchestrating/dispatch.md)
-- Review is **profile-aware** (default balanced): unified-reviewer OR dual (spec then code) OR skip (docs-only fast). High-risk always dual. See profiles.md + dispatch.md.
-- Prefer scripts for graph/blast/cleanup/cost estimate — do not LLM-dispatch for those.
+- Review is **profile-aware** (default balanced): unified-reviewer OR dual (spec then code) OR skip (docs-only / direct). High-risk always dual. See profiles.md + dispatch.md.
+- Prefer scripts for graph/blast/cleanup/call estimate/state machine — do not LLM-dispatch for those.
 - Codex/Gemini (skills-only): isolated reviewer turns still write the same handoff JSON gates
 - \`TodoWrite\` → \`todowrite\`
 
-**Cross-pollinated capabilities (V3):**
-- \`workflow profiles\` – fast | balanced (default) | strict — see config/workflow-profiles.json
-- \`knowledge-graph\` – scripts/nexus-graph.sh with commit cache (generated_at_commit)
-- \`blast-radius\` – scripts/nexus-blast.js per task (strict) or execution unit (fast/balanced)
+**Cross-pollinated capabilities (V3 engine):**
+- \`workflow engine\` – \`node scripts/nexus-run.js\` (init/classify/transition/validate-handoff/status/resume/drift)
+- \`classifier\` – scoring model in config/workflow-profiles.json + \`nexus-classify.js\` (profile + review_level + execution_mode)
+- \`workflow profiles\` – fast | balanced (default) | strict
+- \`knowledge-graph\` – scripts/nexus-graph.sh Lite fallback (commit cache)
+- \`blast-radius\` – scripts/nexus-blast.js JSON default; Mermaid on --mermaid or HIGH
 - \`unified-reviewer\` – combined spec+quality for low/medium risk
-- \`reconcile\` – verifies DONE still holds, investigates BLOCKED, refreshes drift
-- \`outcome-memory\` – LESSONS.md with noteworthy-only (fast/balanced) or every-task (strict)
-- \`writing-plans\` – improve-grade: file:line evidence, effort/confidence, STOP, drift SHA, verification gates
-- \`orchestrating\` – profile-aware batching, script cleanup via nexus-branch-cleanup.sh, cost estimate
-- Multi-platform installer: \`install.sh --only claude,cursor,codex,gemini,opencode,antigravity\`
-- Optional graph refresh: \`scripts/install-git-hook.sh\` (post-commit) in a consumer repo
+- \`reconcile\` – semantic drift via nexus-run.js drift
+- \`outcome-memory\` – LESSONS.md (SQLite FTS deferred)
+- \`adaptive direct\` – only when classifier direct_eligible (narrow gates)
+- \`orchestrating\` – profile-aware batching, script cleanup, estimate-calls
+- Multi-platform installer: \`install.sh --only ...\` (+ optional agents flag)
 
-Use OpenCode's native \`skill\` tool to load Nexus skills automatically based on task phase.`;
+Use OpenCode's native \`skill\` tool to load Nexus skills based on task phase.`;
 
   bootstrapCache = [
     "<EXTREMELY_IMPORTANT>",
     BOOTSTRAP_MARKER,
-    "You have OpenCode Nexus V3 workflow support (profiles + scripts-first).",
+    "You have OpenCode Nexus V3 workflow engine support (executable state machine + profiles + scripts-first).",
     "The using-nexus skill content below is already loaded; do not load it again.",
     "",
     body,
@@ -75,6 +77,38 @@ function readPlanFile(worktree) {
   const planPath = path.join(worktree, ".opencode", "plans", "PLAN.md");
   if (!fs.existsSync(planPath)) return null;
   return fs.readFileSync(planPath, "utf8").trim();
+}
+
+function readRunStateSummary(worktree) {
+  const runsRoot = path.join(worktree, ".opencode", "runs");
+  if (!fs.existsSync(runsRoot)) return null;
+  try {
+    const dirs = fs
+      .readdirSync(runsRoot, { withFileTypes: true })
+      .filter((d) => d.isDirectory())
+      .map((d) => d.name);
+    let best = null;
+    for (const id of dirs) {
+      const p = path.join(runsRoot, id, "state.json");
+      if (!fs.existsSync(p)) continue;
+      const s = JSON.parse(fs.readFileSync(p, "utf8"));
+      if (!best || (s.updated_at || "") > (best.updated_at || "")) best = s;
+    }
+    if (!best) return null;
+    const lines = [
+      "## Nexus Run State",
+      `- run_id: ${best.run_id}`,
+      `- state: ${best.state}`,
+      `- profile: ${best.profile}`,
+      `- review_level: ${best.review_level || "n/a"}`,
+      `- execution_mode: ${best.execution_mode || "n/a"}`,
+      `- current_unit: ${best.current_unit || "n/a"}`,
+      `- transitions: ${(best.transitions || []).length}`,
+    ];
+    return lines.join("\n");
+  } catch {
+    return null;
+  }
 }
 
 function readKnowledgeSummary(worktree) {
@@ -195,6 +229,11 @@ export const NexusPlugin = async ({ worktree }) => {
       const liveContext = readContextFile(worktree);
       if (liveContext) {
         chunks.push("## Nexus Live Context\n" + liveContext);
+      }
+
+      const runState = readRunStateSummary(worktree);
+      if (runState) {
+        chunks.push(runState);
       }
 
       const plan = readPlanFile(worktree);

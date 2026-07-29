@@ -1,0 +1,21 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://opencode-nexus.local/schemas/blast-report.schema.json",
+  "title": "BlastReportLite",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["risk"],
+  "properties": {
+    "schema_version": { "type": "string" },
+    "risk": { "type": "string", "enum": ["LOW", "MEDIUM", "HIGH", "UNKNOWN"] },
+    "level": { "type": "string" },
+    "score": { "type": "number" },
+    "changed_symbols": { "type": "array" },
+    "direct_dependents": { "type": "array" },
+    "tests": { "type": "array" },
+    "uncertainties": { "type": "array", "items": { "type": "string" } },
+    "dimensions": { "type": "object", "additionalProperties": true },
+    "impacts": { "type": "array" },
+    "startFiles": { "type": "array" }
+  }
+}

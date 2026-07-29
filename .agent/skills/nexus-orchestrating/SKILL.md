@@ -1,5 +1,5 @@
 ---
-name: orchestrating
+name: nexus-orchestrating
 description: Use to execute a plan through branch-scoped implementation with graph awareness, blast-radius checks, profile-aware review, outcome memory, and structured handoffs
 compatibility: opencode
 ---

@@ -1,5 +1,5 @@
 ---
-description: Computes dependency graph and blast-radius for Nexus tasks – reads graph.json reverse index, scores risk LOW/MEDIUM/HIGH, outputs Mermaid diagram + JSON, writes .opencode/knowledge/blast/task-N.md
+description: "OPTIONAL COMPAT AGENT — prefer scripts/nexus-blast.js. Computes dependency blast-radius; not installed by default (use install.sh --with-optional-agents)."
 mode: subagent
 permission:
   edit:
@@ -21,7 +21,10 @@ permission:
     "*": deny
 ---
 
-You are the Nexus blast analyzer.
+You are the Nexus blast analyzer (**optional / compatibility**).
+
+**Prefer the deterministic script** instead of this agent:
+`node scripts/nexus-blast.js --files <paths>` (JSON default; `--mermaid` on demand / HIGH risk).
 
 Responsibilities:
 - Ensure .opencode/knowledge/graph.json exists (run scripts/nexus-graph.sh if missing)

@@ -7,13 +7,21 @@ Canonical config: `config/workflow-profiles.json` + `config/default-workflow.jso
 ## Selecting a profile
 
 1. Explicit override wins: user says `--profile fast|balanced|strict` or sets `workflow_profile` in CONTEXT.
-2. Else classify from change metadata (see `classificationRules` in workflow-profiles.json):
-   - docs-only or tiny internal (≤2 files, ≤50 lines, not public API / security) → `fast`
-   - security / migration / public API / HIGH blast → `strict`
-   - otherwise → `balanced`
-3. If blast later reports HIGH while on `fast`/`balanced`, escalate remaining review to dual-review (`strict` review policy for that unit).
+2. Else run the scoring classifier (do **not** treat legacy nested `fastIf.or` as OR):
+
+```bash
+node scripts/nexus-classify.js --files N --lines N --class <change_class> [--docs] [--security] [--public-api] [--focused]
+```
+
+   - Emits `profile`, `review_level` (`none|unified|dual`), `execution_mode` (`direct|delegated`), `risk_score`, `confidence`, `reasons[]`, `direct_eligible`.
+   - Hard triggers (security, migration, public_api, credential_handling, blast_risk_high) → `strict` + dual.
+   - `fast` only when score ≤ `fast_max` **and** tiny-internal/docs evidence (AND of size + not public/security).
+   - Default otherwise: **`balanced`**.
+3. If blast later reports HIGH while on `fast`/`balanced`, escalate remaining review to dual-review (`strict` review policy for that unit). Record via `nexus-run.js` / CONTEXT.
 
 Announce: `Using profile: balanced (risk-based review, per-feature branch).`
+
+Direct path: only when `direct_eligible` (max 1 file, ≤30 lines, allowed classes, focused validation, confidence ≥ 0.85, no hard triggers). Low confidence → delegated.
 
 ## Profile behavior
 

@@ -6,13 +6,16 @@ TMPHOME="$(mktemp -d)"
 cleanup() { rm -rf "$TMPHOME"; }
 trap cleanup EXIT
 
+# Isolate from host tooling (cursor, codex, agy, etc.) so detection is deterministic.
+SANITIZED_PATH="/usr/bin:/bin"
+
 export HOME="$TMPHOME"
 mkdir -p "$HOME/.config/opencode" "$HOME/.gemini/skills" "$HOME/.gemini/config/skills" \
   "$HOME/.gemini/antigravity/skills" "$HOME/.antigravity" "$HOME/bin"
 printf '#!/bin/sh\nexit 0\n' >"$HOME/bin/ag"; chmod +x "$HOME/bin/ag"
 printf '#!/bin/sh\nexit 0\n' >"$HOME/bin/gemini"; chmod +x "$HOME/bin/gemini"
 printf '#!/bin/sh\nexit 0\n' >"$HOME/bin/opencode"; chmod +x "$HOME/bin/opencode"
-export PATH="$HOME/bin:/usr/bin:/bin:${PATH:-}"
+export PATH="$HOME/bin:$SANITIZED_PATH"
 printf '{}\n' >"$HOME/.config/opencode/opencode.json"
 
 echo "== test --only opencode =="
@@ -33,6 +36,8 @@ if find "$HOME/.gemini" "$HOME/.antigravity" "$HOME/.claude" "$HOME/.cursor" \
   exit 1
 fi
 test "$(ls "$HOME/.config/opencode/agents" 2>/dev/null | wc -l)" -gt 0
+test ! -f "$HOME/.config/opencode/agents/blast-analyzer.md"
+test ! -f "$HOME/.config/opencode/agents/knowledge-graph.md"
 echo "PASS: --only opencode isolates OpenCode"
 
 # Fresh home for auto-detect
@@ -42,7 +47,7 @@ export HOME="$TMPHOME"
 mkdir -p "$HOME/.config/opencode" "$HOME/.gemini/skills" "$HOME/bin"
 printf '{}\n' >"$HOME/.config/opencode/opencode.json"
 for b in ag gemini opencode; do printf '#!/bin/sh\nexit 0\n' >"$HOME/bin/$b"; chmod +x "$HOME/bin/$b"; done
-export PATH="$HOME/bin:/usr/bin:/bin:${PATH:-}"
+export PATH="$HOME/bin:$SANITIZED_PATH"
 
 echo "== test default auto-detect (ag + gemini present, no AG) =="
 out="$("$ROOT/install.sh" 2>&1)" || { echo "$out"; exit 1; }

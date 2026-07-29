@@ -1,0 +1,26 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://opencode-nexus.local/schemas/classification-evidence.schema.json",
+  "title": "ClassificationEvidence",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "profile",
+    "risk_score",
+    "confidence",
+    "reasons"
+  ],
+  "properties": {
+    "schema_version": { "type": "string", "enum": ["1.0"] },
+    "profile": { "type": "string", "enum": ["fast", "balanced", "strict"] },
+    "review_level": { "type": "string", "enum": ["none", "unified", "dual"] },
+    "execution_mode": { "type": "string", "enum": ["direct", "delegated"] },
+    "risk_score": { "type": "number" },
+    "confidence": { "type": "number" },
+    "reasons": { "type": "array", "items": { "type": "string" } },
+    "direct_eligible": { "type": "boolean" },
+    "change_class": { "type": "string" },
+    "hard_triggers": { "type": "array", "items": { "type": "string" } }
+  }
+}

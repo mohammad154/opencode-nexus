@@ -1,0 +1,42 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://opencode-nexus.local/schemas/handoff-code-reviewer.schema.json",
+  "title": "CodeReviewerHandoff",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schema_version", "verdict"],
+  "properties": {
+    "schema_version": { "type": "string", "enum": ["1.0"] },
+    "task_id": { "type": "string" },
+    "unit_or_task": { "type": "string" },
+    "verdict": {
+      "type": "string",
+      "enum": ["APPROVED", "REQUEST_CHANGES", "ISOLATION_VIOLATION", "BLOCKED"]
+    },
+    "plan_commit": { "type": ["string", "null"] },
+    "findings": {
+      "type": "array",
+      "items": { "type": "object", "additionalProperties": true }
+    },
+    "blast": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "risk": { "type": "string" },
+        "callers_checked": { "type": "array", "items": { "type": "string" } },
+        "regression_risk": { "type": "string" },
+        "pass": { "type": ["boolean", "null"] }
+      }
+    },
+    "security": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "issues": { "type": "number" },
+        "notes": { "type": "string" }
+      }
+    },
+    "verification_gates_verified": { "type": "boolean" },
+    "lessons_checked": { "type": "boolean" }
+  }
+}
