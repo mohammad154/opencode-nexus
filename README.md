@@ -41,15 +41,122 @@ High-risk work (security, migration, public API, credentials, or HIGH blast) use
 
 ## Install
 
-Prerequisites are Bash, Git, and Node.js for the full script suite. `jq` is required for the OpenCode configuration merge; other adapters can still install when `jq` is unavailable.
+### Prerequisites
 
-Install detected platforms:
+| Requirement | Required for |
+|---|---|
+| Bash, Git | installer and branch workflows |
+| [Node.js](https://nodejs.org/) | precise graph/blast scripts and call estimator (shell fallback exists without it) |
+| [`jq`](https://jqlang.org/) | OpenCode `opencode.json` merge; other adapters still install when `jq` is missing |
+| [OpenCode](https://opencode.ai/docs/installation/) | optional — installer also supports Claude Code, Cursor, Codex, Gemini CLI, and Antigravity |
+| `rg` / `fd` (optional) | faster file discovery and caller grep when Node is unavailable |
+
+Install `jq`:
+
+**Ubuntu / Debian / WSL:**
+
+```bash
+sudo apt update && sudo apt install -y jq
+```
+
+**macOS (Homebrew):**
+
+```bash
+brew install jq
+```
+
+**Fedora / RHEL:**
+
+```bash
+sudo dnf install -y jq
+```
+
+**Windows (winget):**
+
+```powershell
+winget install jqlang.jq
+```
+
+Verify:
+
+```bash
+jq --version
+```
+
+Install `rg` ([ripgrep](https://github.com/BurntSushi/ripgrep)) and `fd` ([fd](https://github.com/sharkdp/fd)) — optional but recommended for faster graph/blast fallbacks:
+
+**Ubuntu / Debian / WSL:**
+
+```bash
+sudo apt update && sudo apt install -y ripgrep fd-find
+# Debian/Ubuntu ship the fd binary as fdfind — scripts expect `fd`
+command -v fd >/dev/null || sudo ln -sf "$(command -v fdfind)" /usr/local/bin/fd
+```
+
+**macOS (Homebrew):**
+
+```bash
+brew install ripgrep fd
+```
+
+**Fedora / RHEL:**
+
+```bash
+sudo dnf install -y ripgrep fd-find
+command -v fd >/dev/null || sudo ln -sf "$(command -v fdfind)" /usr/local/bin/fd
+```
+
+**Windows (winget):**
+
+```powershell
+winget install BurntSushi.ripgrep.MSVC
+winget install sharkdp.fd
+```
+
+Verify:
+
+```bash
+rg --version
+fd --version
+```
+
+### One-command install
+
+Clone and install (auto-detects installed platforms):
+
+```bash
+git clone https://github.com/mohammad154/opencode-nexus.git /tmp/opencode-nexus
+cd /tmp/opencode-nexus && ./install.sh
+```
+
+Or run without cloning:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/mohammad154/opencode-nexus/main/install.sh | bash
+```
+
+If you already have the repository, run from the project root:
 
 ```bash
 ./install.sh
 ```
 
-Install a specific adapter without touching the others:
+The installer is idempotent — re-run `./install.sh` to update after pulling changes.
+
+`--only` is a strict allowlist. With no allowlist, the installer writes only to independently detected platform locations. Project-local outputs (`.cursor/rules/`, `.agents/`, etc.) are written only when the current directory is a Git repository — run the installer from the intended project when those outputs are desired.
+
+The installer auto-detects platforms and writes host-specific artifacts:
+
+- **OpenCode** (`~/.config/opencode/`): agents, `opencode.json` merge, model overrides
+- **Claude Code** (`~/.claude/agents/nexus-*.md`, `~/.claude/skills/nexus-*/`)
+- **Cursor** (`~/.cursor/agents/`, `~/.cursor/rules/`, `~/.cursor/skills/` + project `.cursor/rules/`)
+- **Codex** (`~/.codex/agents/`, `~/.codex/skills/`, `~/.agents/skills/`)
+- **Gemini CLI** (`~/.gemini/agents/`, `~/.gemini/skills/`, `~/.agents/skills/`)
+- **Antigravity** (`~/.antigravity/`, `~/.gemini/config/skills/`, project `.agents/`)
+
+See [`.opencode/INSTALL.md`](.opencode/INSTALL.md) for the full platform table, verification steps, and V3 workflow notes.
+
+### Install specific adapters
 
 ```bash
 ./install.sh --only opencode
@@ -57,16 +164,29 @@ Install a specific adapter without touching the others:
 ./install.sh --only codex
 ./install.sh --only gemini
 ./install.sh --only antigravity
-./install.sh --all
+./install.sh --all   # force all platforms even when binaries are not detected
 ```
 
-`--only` is a strict allowlist. With no allowlist, the installer writes only to independently detected platform locations.
+Optional compatibility agents (`knowledge-graph`, `blast-analyzer`) — prefer scripts instead:
 
-Uninstall with the matching scope:
+```bash
+./install.sh --with-optional-agents
+./install.sh --only opencode --with-optional-agents
+```
+
+### Uninstall
 
 ```bash
 ./uninstall.sh --only cursor
 ./uninstall.sh --all
+./install.sh --uninstall   # delegates to uninstall.sh
+```
+
+Global one-liner:
+
+```bash
+git clone https://github.com/mohammad154/opencode-nexus.git /tmp/opencode-nexus
+cd /tmp/opencode-nexus && ./uninstall.sh && rm -rf /tmp/opencode-nexus
 ```
 
 ## Adapter contract
