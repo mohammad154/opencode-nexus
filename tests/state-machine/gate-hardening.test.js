@@ -70,6 +70,44 @@ test("ctx direct_eligible cannot grant DIRECT_IMPLEMENTING", () => {
   assert.equal(r.ok, false);
 });
 
+test("stored direct flag without authoritative diff cannot enter direct path", () => {
+  const state = {
+    ...createEmptyRunState("gate-direct-evidence"),
+    state: "CLASSIFIED",
+    execution_mode: "direct",
+    classification: sampleClassification({
+      execution_mode: "direct",
+      direct_eligible: true,
+      confidence: 0.95,
+      evidence_source: "explicit-input",
+    }),
+  };
+  const r = canTransition(state, "DIRECT_IMPLEMENTING", {});
+  assert.equal(r.ok, false);
+  assert.match(r.errors.join("\n"), /stored classification\.direct_eligible/i);
+});
+
+test("direct transition rejects stale graph analysis", () => {
+  const state = {
+    ...createEmptyRunState("gate-direct-graph"),
+    state: "CLASSIFIED",
+    execution_mode: "direct",
+    graph: { ok: false, stale: true, quality: "UNKNOWN" },
+    classification: sampleClassification({
+      execution_mode: "direct",
+      direct_eligible: true,
+      confidence: 0.95,
+      evidence_source: "git-diff",
+      diff_verified: true,
+      diff_available: true,
+      diff_clean: false,
+    }),
+  };
+  const r = canTransition(state, "DIRECT_IMPLEMENTING", {});
+  assert.equal(r.ok, false);
+  assert.match(r.errors.join("\n"), /fresh, trusted PRECISE graph/i);
+});
+
 test("HIGH blast escalates review_level to dual and profile to strict", () => {
   let state = createEmptyRunState("gate-3");
   state = transition(state, "CLASSIFIED", {

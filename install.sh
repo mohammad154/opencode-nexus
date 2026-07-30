@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Nexus multi-platform installer — Graphify pattern
+# Nexus multi-platform installer — adapter layer for the canonical V3 workflow
 # Platforms: opencode (CLI), claude (CLI+IDE hooks), cursor (CLI: cursor-agent + IDE rules),
 #            codex (CLI), gemini (CLI), antigravity (CLI+IDE, alias: ag)
 # Usage: ./install.sh [--only p1[,p2]] [--all] [--uninstall] [-h]
@@ -11,8 +11,9 @@ echo "Installing OpenCode Nexus (multi-platform)..."; echo ""
 ONLY=""; FORCE_ALL=0
 WITH_OPTIONAL_AGENTS=0
 PRUNE_OPTIONAL_AGENTS=0
-# Default roster (Phase 1): scripts preferred for graph/blast — optional agents demoted
-DEFAULT_AGENTS=(orchestrator implementer unified-reviewer spec-reviewer code-reviewer reconciler)
+# Canonical roster. Platform adapters below only translate paths, frontmatter,
+# prefixes, permission syntax, and dispatch names for the host platform.
+CANONICAL_AGENTS=(orchestrator implementer unified-reviewer spec-reviewer code-reviewer reconciler)
 OPTIONAL_AGENTS=(blast-analyzer knowledge-graph)
 if [[ "${NEXUS_OPTIONAL_AGENTS:-}" == "1" ]]; then WITH_OPTIONAL_AGENTS=1; fi
 
@@ -46,7 +47,7 @@ Platforms: opencode, claude, cursor, codex, gemini, antigravity, all  (alias: ag
   --prune-optional-agents remove optional agents from target install dirs on upgrade
   --uninstall            delegate to uninstall.sh
 
-Default agents: orchestrator implementer unified-reviewer spec-reviewer code-reviewer reconciler
+Canonical agents: orchestrator implementer unified-reviewer spec-reviewer code-reviewer reconciler
 Optional (not installed by default): knowledge-graph blast-analyzer — keep using scripts/nexus-graph.sh + nexus-blast.js
 
 With no --only: auto-detect each platform independently and install for every detected one.
@@ -62,10 +63,28 @@ done
 
 nexus_agent_basenames() {
   local a
-  for a in "${DEFAULT_AGENTS[@]}"; do echo "$a"; done
+  for a in "${CANONICAL_AGENTS[@]}"; do echo "$a"; done
   if (( WITH_OPTIONAL_AGENTS )); then
     for a in "${OPTIONAL_AGENTS[@]}"; do echo "$a"; done
   fi
+}
+
+# All known names are used only when translating dispatch references in a host
+# adapter. Installation still gates optional files through WITH_OPTIONAL_AGENTS.
+nexus_all_agent_basenames() {
+  local a
+  for a in "${CANONICAL_AGENTS[@]}" "${OPTIONAL_AGENTS[@]}"; do echo "$a"; done
+}
+
+nexus_prefixed_agent_csv() {
+  # The primary orchestrator is not a callable child of itself.
+  local a out=""
+  while IFS= read -r a; do
+    [[ "$a" == orchestrator ]] && continue
+    [[ -n "$out" ]] && out+=", "
+    out+="nexus-$a"
+  done < <(nexus_agent_basenames)
+  printf '%s' "$out"
 }
 
 prune_optional_from_dir() {
@@ -279,23 +298,16 @@ agent_desc() { # agent_desc <src.md>
   grep -m1 '^description:' "$1" 2>/dev/null | sed 's/^description:[[:space:]]*//' || basename "$1" .md
 }
 
-# OpenCode task-permission rewrite for prefixed agent names (orchestrator allow-list)
-rewrite_opencode_task_keys() { # stdin → stdout
-  sed -E \
-    -e 's/^([[:space:]]+)implementer: allow/\1nexus-implementer: allow/' \
-    -e 's/^([[:space:]]+)spec-reviewer: allow/\1nexus-spec-reviewer: allow/' \
-    -e 's/^([[:space:]]+)code-reviewer: allow/\1nexus-code-reviewer: allow/' \
-    -e 's/^([[:space:]]+)unified-reviewer: allow/\1nexus-unified-reviewer: allow/' \
-    -e 's/^([[:space:]]+)blast-analyzer: allow/\1nexus-blast-analyzer: allow/' \
-    -e 's/^([[:space:]]+)knowledge-graph: allow/\1nexus-knowledge-graph: allow/' \
-    -e 's/^([[:space:]]+)reconciler: allow/\1nexus-reconciler: allow/' \
-    -e 's/@implementer\b/@nexus-implementer/g' \
-    -e 's/@spec-reviewer\b/@nexus-spec-reviewer/g' \
-    -e 's/@code-reviewer\b/@nexus-code-reviewer/g' \
-    -e 's/@unified-reviewer\b/@nexus-unified-reviewer/g' \
-    -e 's/@blast-analyzer\b/@nexus-blast-analyzer/g' \
-    -e 's/@knowledge-graph\b/@nexus-knowledge-graph/g' \
-    -e 's/@reconciler\b/@nexus-reconciler/g'
+# Translate canonical dispatch names for prefixed host adapters. Workflow
+# policy remains in the canonical agent/skill definitions, not this mapping.
+rewrite_dispatch_names() { # stdin → stdout
+  local prefix="${1:-nexus-}" ag
+  local -a sed_args=()
+  while IFS= read -r ag; do
+    sed_args+=( -e "s/^([[:space:]]+)${ag}: allow/\\1${prefix}${ag}: allow/" )
+    sed_args+=( -e "s/@${ag}\\b/@${prefix}${ag}/g" )
+  done < <(nexus_all_agent_basenames)
+  sed -E "${sed_args[@]}"
 }
 
 # Claude Code: name+description required; tools allowlist (docs: code.claude.com/docs/en/sub-agents)
@@ -308,8 +320,8 @@ install_claude_agent() { # install_claude_agent <src.md> <dest.md>
   desc="$(agent_desc "$src")"
   case "$base" in
     orchestrator)
-      # Claude Agent tool allowlist — only Nexus subagents (docs: Agent(name1, name2))
-      tools="Agent(nexus-implementer, nexus-spec-reviewer, nexus-code-reviewer, nexus-unified-reviewer, nexus-blast-analyzer, nexus-knowledge-graph, nexus-reconciler), Read, Grep, Glob, Bash, Write, Edit, Skill"
+      # Claude permission syntax translates the canonical dispatch roster.
+      tools="Agent($(nexus_prefixed_agent_csv)), Read, Grep, Glob, Bash, Write, Edit, Skill"
       ;;
     implementer)
       tools="Read, Grep, Glob, Bash, Edit, Write"
@@ -329,7 +341,7 @@ install_claude_agent() { # install_claude_agent <src.md> <dest.md>
     echo "model: inherit"
     echo "---"
     echo ""
-    agent_body "$src" | rewrite_opencode_task_keys
+    agent_body "$src" | rewrite_dispatch_names
   } >"$dest"
 }
 
@@ -350,7 +362,7 @@ install_cursor_agent() { # install_cursor_agent <src.md> <dest.md>
     echo ""
     # Keep OpenCode permission block as documentation for dual-use; Cursor ignores unknown keys
     # but we strip mode/permission to avoid confusion and rely on prompt constraints.
-    agent_body "$src" | rewrite_opencode_task_keys
+    agent_body "$src" | rewrite_dispatch_names
   } >"$dest"
 }
 
@@ -517,31 +529,21 @@ if should_install antigravity; then
     install_skills_flat "$gt/.agent/skills" "nexus-"
     mkdir -p "$gt/.agents/rules" "$gt/.agents/workflows" "$gt/.agent/workflows"
     {
-      echo "# Nexus (always-on)"
+      echo "# Nexus adapter (always-on)"
       echo ""
-      echo "You have OpenCode Nexus multi-agent workflow skills installed as \`nexus-*\`."
-      echo "Prefer the Nexus router: load skill \`nexus-using-nexus\` for phase routing (V3 profiles)."
-      echo "Default profile: **balanced**. Override with \`workflow_profile: fast|balanced|strict\`."
-      echo "Prefer scripts for graph/blast/cleanup/call estimate / \`nexus-run.js\` gates. Keep durable state under \`.opencode/\` (incl. runs/*/state.json)."
-      echo "Skills: \`.agents/skills/nexus-*/\` and \`~/.gemini/config/skills/nexus-*/\`."
+      echo "Nexus is available through host-translated \`nexus-*\` skills and agents."
       echo ""
-      echo "## Review gates (profile-aware)"
-      echo "- \`strict\` or high-risk (security/migration/public-api/HIGH blast): \`nexus-spec-reviewer\` then \`nexus-code-reviewer\`."
-      echo "- \`fast\`/\`balanced\` low–medium: \`nexus-unified-reviewer\` (or skip for docs-only / direct)."
-      echo "See \`nexus-orchestrating/dispatch.md\` and \`profiles.md\`."
+      echo "This adapter translates paths, frontmatter, prefixes, permission syntax, and dispatch names only."
+      echo "Canonical workflow policy remains in the installed Nexus agent and skill definitions."
+      echo "Load \`nexus-using-nexus\` through the host's normal skill dispatch."
     } >"$gt/.agents/rules/nexus.md"
     {
       echo "---"
-      echo "description: Run Nexus orchestrated workflow (profile → plan → graph → blast → implement → review)"
+      echo "description: Expose the canonical Nexus workflow through the Antigravity adapter"
       echo "---"
       echo ""
-      echo "Invoke the Nexus workflow for the current request."
-      echo "1. Load \`nexus-using-nexus\` (set workflow_profile; default balanced)."
-      echo "2. \`node scripts/nexus-run.js init\` + \`nexus-classify.js\`; estimate: \`node scripts/nexus-estimate-calls.js --tasks N --profile <p>\`."
-      echo "3. Graph via \`scripts/nexus-graph.sh\` (commit cache); blast via \`scripts/nexus-blast.js\` (JSON default)."
-      echo "4. Persist plan/context/execution units/handoffs/run state under \`.opencode/\`."
-      echo "5. Review per profile: unified-reviewer OR spec then code (see dispatch.md)."
-      echo "6. Cleanup via \`scripts/nexus-branch-cleanup.sh\` (not an LLM)."
+      echo "Use the host's normal dispatch to load \`nexus-using-nexus\` and the installed \`nexus-*\` agents/skills."
+      echo "This workflow file is an adapter entrypoint; it does not redefine Nexus workflow policy."
     } >"$gt/.agents/workflows/nexus.md"
     cp -f "$gt/.agents/workflows/nexus.md" "$gt/.agent/workflows/nexus.md" 2>/dev/null || true
     echo "  Project AG: $gt/.agents/skills + rules/workflows (+ .agent/skills legacy)"
@@ -551,15 +553,17 @@ fi
 
 # ── scripts check ──
 echo ""; echo "[scripts] Checking:"
-for s in nexus-graph.sh nexus-graph.js nexus-blast.sh nexus-blast.js nexus-branch-cleanup.sh nexus-estimate-calls.js nexus-estimate-cost.js nexus-estimate-cost.sh nexus-run.js nexus-classify.js install-git-hook.sh; do if [[ -f "$SCRIPT_DIR/scripts/$s" ]]; then echo "  ✓ scripts/$s"; else echo "  ✗ missing $s"; fi; done
-chmod +x "$SCRIPT_DIR/scripts/nexus-graph.sh" "$SCRIPT_DIR/scripts/nexus-blast.sh" "$SCRIPT_DIR/scripts/nexus-branch-cleanup.sh" "$SCRIPT_DIR/scripts/nexus-estimate-cost.sh" "$SCRIPT_DIR/scripts/install-git-hook.sh" 2>/dev/null || true
-chmod a+r "$SCRIPT_DIR/scripts/nexus-graph.js" "$SCRIPT_DIR/scripts/nexus-blast.js" "$SCRIPT_DIR/scripts/nexus-estimate-calls.js" "$SCRIPT_DIR/scripts/nexus-estimate-cost.js" "$SCRIPT_DIR/scripts/nexus-run.js" "$SCRIPT_DIR/scripts/nexus-classify.js" 2>/dev/null || true
+for s in nexus-graph.sh nexus-graph.js nexus-blast.sh nexus-blast.js nexus-branch-cleanup.sh nexus-estimate-calls.js nexus-run.js nexus-classify.js install-git-hook.sh; do if [[ -f "$SCRIPT_DIR/scripts/$s" ]]; then echo "  ✓ scripts/$s"; else echo "  ✗ missing $s"; fi; done
+chmod +x "$SCRIPT_DIR/scripts/nexus-graph.sh" "$SCRIPT_DIR/scripts/nexus-blast.sh" "$SCRIPT_DIR/scripts/nexus-branch-cleanup.sh" "$SCRIPT_DIR/scripts/install-git-hook.sh" 2>/dev/null || true
+chmod a+r "$SCRIPT_DIR/scripts/nexus-graph.js" "$SCRIPT_DIR/scripts/nexus-blast.js" "$SCRIPT_DIR/scripts/nexus-estimate-calls.js" "$SCRIPT_DIR/scripts/nexus-run.js" "$SCRIPT_DIR/scripts/nexus-classify.js" 2>/dev/null || true
 
 cat <<END
 
 Installation complete (Nexus V3 engine — profiles: fast|balanced|strict, default balanced).
+Canonical agents: orchestrator, implementer, unified-reviewer, spec-reviewer, code-reviewer, reconciler.
+Compatibility-only agents: knowledge-graph and blast-analyzer (install with --with-optional-agents; scripts are preferred).
 Supported (auto-detect):
-  • opencode    CLI → ~/.config/opencode/ (plugin + default agents; optional graph/blast agents demoted)
+  • opencode    CLI → ~/.config/opencode/ (plugin + canonical agents)
   • claude      CLI+IDE → ~/.claude/skills/nexus-*/ (git hook: scripts/install-git-hook.sh)
   • cursor      CLI+IDE → ~/.cursor/rules/nexus-*.mdc + <repo>/.cursor/rules/
   • codex       CLI → ~/.codex/skills/nexus-*/

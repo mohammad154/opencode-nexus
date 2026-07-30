@@ -47,6 +47,9 @@ const DEFAULT_V2 = {
   escalateToStrictOnHighBlast: true,
 };
 
+const VALID_PROFILES = ["fast", "balanced", "strict"];
+const PROFILE_RANK = { fast: 0, balanced: 1, strict: 2 };
+
 /**
  * Map legacy v1 classificationRules (with ambiguous fastIf.or) to v2 scoring.
  * Interprets the nested "or" block as AND (documented intent).
@@ -122,9 +125,15 @@ export const CLASS_FLAGS = {
   "test-only": ["one_file_internal"],
   "small-internal-refactor": ["one_file_internal"],
   "public-api": ["public_api"],
+  public_api: ["public_api"],
   "authentication-security": ["security"],
+  security: ["security"],
   "database-migration": ["migration"],
+  migration: ["migration"],
+  "credential-handling": ["credential_handling"],
+  credential_handling: ["credential_handling"],
   "high-blast": ["blast_risk_high"],
+  blast_risk_high: ["blast_risk_high"],
 };
 
 function reviewLevelFor(profile, changeClass, reviewMatrix) {
@@ -144,6 +153,52 @@ function reviewLevelFor(profile, changeClass, reviewMatrix) {
   }
   if (profile === "fast") return "unified";
   return "unified";
+}
+
+function profileOverrideFor(input) {
+  const value = input.profileOverride ?? input.profile_override;
+  if (value == null) return null;
+  if (!VALID_PROFILES.includes(value)) {
+    throw new RangeError(
+      `Invalid profile override: ${String(value)}. Expected fast, balanced, or strict`,
+    );
+  }
+  return value;
+}
+
+function nonNegativeNumber(value, fallback = 0) {
+  const number = Number(value);
+  return Number.isFinite(number) && number >= 0 ? number : fallback;
+}
+
+function stringArray(value) {
+  return Array.isArray(value) ? value.map(String).filter(Boolean) : [];
+}
+
+function evidenceForInput(input, files, lines) {
+  const changedFiles = stringArray(input.changed_files ?? input.changedFiles);
+  const changedExportedSymbols = stringArray(
+    input.changed_exported_symbols ?? input.changedExportedSymbols,
+  );
+  const changedTestFiles = stringArray(
+    input.changed_test_files ?? input.changedTestFiles,
+  );
+  const packageBoundaries = stringArray(input.package_boundaries);
+  const workspaceBoundaries = stringArray(input.workspace_boundaries);
+  return {
+    changed_files: changedFiles,
+    files_changed: files,
+    added_lines: nonNegativeNumber(input.added_lines ?? input.addedLines),
+    deleted_lines: nonNegativeNumber(input.deleted_lines ?? input.deletedLines),
+    changed_lines: nonNegativeNumber(
+      input.changed_lines ?? input.changedLines ?? lines,
+    ),
+    estimated_lines: lines,
+    changed_exported_symbols: changedExportedSymbols,
+    changed_test_files: changedTestFiles,
+    package_boundaries: packageBoundaries,
+    workspace_boundaries: workspaceBoundaries,
+  };
 }
 
 /**
@@ -166,10 +221,14 @@ export function classify(input = {}, options = {}) {
   let risk_score = 0;
   let confidence = 0.7;
 
-  const files = Number(input.filesChanged ?? input.files_changed ?? 0);
-  const lines = Number(input.estimatedLines ?? input.estimated_lines ?? 0);
+  const profileOverride = profileOverrideFor(input);
+  const files = nonNegativeNumber(input.filesChanged ?? input.files_changed);
+  const lines = nonNegativeNumber(input.estimatedLines ?? input.estimated_lines);
   const changeClass =
     input.changeClass || input.change_class || "small-feature-with-tests";
+  const evidenceSource =
+    input.evidence_source || input.evidenceSource || "explicit-input";
+  const evidence = evidenceForInput(input, files, lines);
   const flags = new Set(
     [].concat(input.flags || [], input.hard_triggers || []),
   );
@@ -195,9 +254,15 @@ export function classify(input = {}, options = {}) {
   if (input.exportedSymbolChange || input.exported_symbol_change) {
     flags.add("exported_symbol_change");
   }
+  if (evidence.changed_exported_symbols.length > 0) {
+    flags.add("exported_symbol_change");
+  }
   if (input.missingTests || input.missing_tests) flags.add("missing_tests");
   if (input.crossPackageChange || input.cross_package_change)
     flags.add("cross_package_change");
+  if (evidence.package_boundaries.length > 1) {
+    flags.add("cross_package_change");
+  }
   if (input.generatedFileChange || input.generated_file_change)
     flags.add("generated_file_change");
   if (input.highFanIn || input.high_fan_in_symbol)
@@ -210,26 +275,50 @@ export function classify(input = {}, options = {}) {
     flags.add("focused_validation");
   }
 
-  // Explicit override
-  if (rules.allowExplicitOverride && input.profileOverride) {
-    const profile = input.profileOverride;
-    const review_level = reviewLevelFor(profile, changeClass, reviewMatrix);
-    return finalize({
-      profile,
-      review_level,
-      risk_score: 0,
-      confidence: 1,
-      reasons: [`Explicit profile override: ${profile}`],
-      changeClass,
-      flags,
-      rules,
-      input,
-    });
+  if (evidenceSource === "git-diff") {
+    if (input.diff_clean === true) {
+      reasons.push("Git diff evidence: no changed files detected");
+    } else {
+      reasons.push(
+        `Git diff evidence: ${files} changed file(s), +${evidence.added_lines}/-${evidence.deleted_lines} lines`,
+      );
+    }
+    if (evidence.changed_exported_symbols.length > 0) {
+      reasons.push(
+        `Git diff changed exported symbol(s): ${evidence.changed_exported_symbols.join(", ")}`,
+      );
+    }
+    if (evidence.changed_test_files.length > 0) {
+      reasons.push(
+        `Git diff changed test file(s): ${evidence.changed_test_files.length}`,
+      );
+    }
+    if (evidence.package_boundaries.length > 0) {
+      reasons.push(
+        `Git diff package boundary(ies): ${evidence.package_boundaries.join(", ")}`,
+      );
+    }
+  } else if (evidenceSource === "explicit-input-fallback") {
+    reasons.push(
+      "Git diff evidence unavailable; explicit classification values retained only as a compatibility fallback",
+    );
+  } else if (evidenceSource === "explicit-input") {
+    reasons.push("Using explicit classification input; no git diff was requested");
+  }
+  for (const warning of stringArray(input.evidence_warnings)) {
+    reasons.push(`Evidence warning: ${warning}`);
   }
 
+  // Hard triggers are evaluated before any profile override. A requested fast
+  // or balanced profile must never weaken a security-sensitive policy.
   const hardHit = rules.hard_strict_triggers.filter((t) => flags.has(t));
   if (hardHit.length) {
     reasons.push(`Hard strict trigger(s): ${hardHit.join(", ")}`);
+    if (profileOverride) {
+      reasons.push(
+        `Explicit profile override ${profileOverride} cannot downgrade hard strict work; preserving strict`,
+      );
+    }
     return finalize({
       profile: "strict",
       review_level: "dual",
@@ -245,6 +334,7 @@ export function classify(input = {}, options = {}) {
   }
 
   const w = rules.risk_weights;
+  const lineLabel = evidenceSource === "git-diff" ? "Changed" : "Estimated";
   if (files > 5) {
     risk_score += w.files_changed_over_5;
     reasons.push(`Touches ${files} files (>5)`);
@@ -254,10 +344,10 @@ export function classify(input = {}, options = {}) {
   }
   if (lines > 200) {
     risk_score += w.estimated_lines_over_200;
-    reasons.push(`Estimated ${lines} lines (>200)`);
+    reasons.push(`${lineLabel} ${lines} lines (>200)`);
   } else if (lines > 50) {
     risk_score += w.estimated_lines_over_50 || 1;
-    reasons.push(`Estimated ${lines} lines`);
+    reasons.push(`${lineLabel} ${lines} lines`);
   }
   if (flags.has("high_fan_in_symbol")) {
     risk_score += w.high_fan_in_symbol;
@@ -321,6 +411,19 @@ export function classify(input = {}, options = {}) {
     profile = "strict";
   }
 
+  if (profileOverride) {
+    if (!rules.allowExplicitOverride) {
+      reasons.push(`Explicit profile override ignored by workflow policy: ${profileOverride}`);
+    } else if (PROFILE_RANK[profileOverride] < PROFILE_RANK[profile]) {
+      reasons.push(
+        `Explicit profile override ${profileOverride} cannot downgrade computed ${profile}; preserving ${profile}`,
+      );
+    } else {
+      profile = profileOverride;
+      reasons.push(`Explicit profile override: ${profileOverride}`);
+    }
+  }
+
   if (input.directCallers != null) {
     reasons.push(`Direct callers: ${input.directCallers}`);
     confidence = Math.min(1, confidence + 0.05);
@@ -363,8 +466,11 @@ function finalize({
     flags.has("formatting") ||
     flags.has("one_file_internal");
 
-  const files = Number(input.filesChanged ?? input.files_changed ?? 0);
-  const lines = Number(input.estimatedLines ?? input.estimated_lines ?? 0);
+  const files = nonNegativeNumber(input.filesChanged ?? input.files_changed);
+  const lines = nonNegativeNumber(input.estimatedLines ?? input.estimated_lines);
+  const evidenceSource =
+    input.evidence_source || input.evidenceSource || "explicit-input";
+  const evidence = evidenceForInput(input, files, lines);
   const hasFocused =
     !dp.require_focused_validation ||
     flags.has("focused_validation") ||
@@ -380,8 +486,30 @@ function finalize({
     input.execution_mode === "delegated" ||
     input.forbidDirect === true;
 
+  const diffEvidenceIsNotDirectSafe =
+    (input.diff_requested === true ||
+      evidenceSource === "git-diff" ||
+      evidenceSource === "explicit-input-fallback") &&
+    (input.diff_clean === true ||
+      input.diff_available === false ||
+      evidenceSource === "explicit-input-fallback" ||
+      (evidenceSource === "git-diff" && input.diff_available !== true));
+
+  // Direct execution is an authorization decision, so size/class estimates
+  // supplied by a caller (or model) can never authorize it. The CLI marks a
+  // successfully collected diff with diff_verified; older callers remain
+  // compatible for classification, but are always delegated.
+  const authoritativeDiffEvidence =
+    evidenceSource === "git-diff" &&
+    input.diff_verified === true &&
+    input.diff_available === true &&
+    input.diff_clean !== true;
+
   const direct_eligible =
     !userForbidsDirect &&
+    authoritativeDiffEvidence &&
+    profile !== "strict" &&
+    !diffEvidenceIsNotDirectSafe &&
     risk_score <= dp.max_risk_score &&
     files <= dp.max_files &&
     lines <= dp.max_lines &&
@@ -392,12 +520,27 @@ function finalize({
     hard_triggers.length === 0 &&
     !flags.has("security") &&
     !flags.has("public_api") &&
-    !flags.has("migration");
+    !flags.has("migration") &&
+    !flags.has("credential_handling") &&
+    !flags.has("blast_risk_high");
 
   const execution_mode = direct_eligible ? "direct" : "delegated";
   if (!direct_eligible && confidence < dp.min_confidence) {
     reasons.push(
       `Direct path denied: confidence ${confidence.toFixed(2)} < ${dp.min_confidence}`,
+    );
+  }
+  if (!direct_eligible && profile === "strict") {
+    reasons.push("Direct path denied: strict profile requires delegated review");
+  }
+  if (!direct_eligible && diffEvidenceIsNotDirectSafe) {
+    reasons.push(
+      "Direct path denied: requested git diff is clean or unavailable",
+    );
+  }
+  if (!direct_eligible && !authoritativeDiffEvidence) {
+    reasons.push(
+      "Direct path denied: only a successful, non-clean git diff can authorize direct execution",
     );
   }
 
@@ -421,6 +564,18 @@ function finalize({
     direct_eligible,
     change_class: changeClass,
     hard_triggers,
+    evidence_source: evidenceSource,
+    diff_verified: input.diff_verified === true,
+    diff_available: input.diff_available === true,
+    diff_clean: input.diff_clean === true,
+    evidence,
+    changed_files: evidence.changed_files,
+    added_lines: evidence.added_lines,
+    deleted_lines: evidence.deleted_lines,
+    changed_exported_symbols: evidence.changed_exported_symbols,
+    changed_test_files: evidence.changed_test_files,
+    package_boundaries: evidence.package_boundaries,
+    workspace_boundaries: evidence.workspace_boundaries,
   };
 }
 

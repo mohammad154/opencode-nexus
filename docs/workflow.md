@@ -1,137 +1,127 @@
-# OpenCode Nexus Workflow
+# Nexus V3 workflow
 
-OpenCode Nexus provides a structured multi-agent development workflow with a knowledge graph, blast-radius safety, outcome memory, drift-resilient planning, auto-reconciliation, **V3 workflow profiles** (`fast` / `balanced` / `strict`), and an **executable workflow engine** (`scripts/nexus-run.js`) that validates transitions and handoffs.
+Nexus is a durable, profile-aware workflow for agent-assisted development. The orchestrator owns the run state and delegates implementation and review; deterministic scripts own repository analysis, call estimation, gates, and cleanup.
 
-## V3 profiles (default: balanced)
-
-See [`skills/orchestrating/profiles.md`](../skills/orchestrating/profiles.md) and [`config/workflow-profiles.json`](../config/workflow-profiles.json).
-
-Classification uses a **scoring model** (`node scripts/nexus-classify.js`) — not the deprecated ambiguous `fastIf.or` shape.
-
-| Profile | Branch | Implementer | Review | Graph / blast | LESSONS | Cleanup |
-|---------|--------|-------------|--------|---------------|---------|---------|
-| `fast` | per feature/request | 1 per unit | unified or skip | script + cache | noteworthy-only | `nexus-branch-cleanup.sh` |
-| `balanced` | per feature / execution unit | 1 per unit | risk-based | script + cache | noteworthy-only | script |
-| `strict` | per task | 1 per task | dual always | script (rebuild on resume) | every task | script |
+## Lifecycle
 
 ```text
-User request
-    │
-    ▼
- nexus-run init → classify (score) → transitions (GRAPH/BLAST/…)
-    │
-    ├─ direct (narrow) → verify → (none review) → complete
-    ├─ fast      → implementer → (unified|skip) → script cleanup
-    ├─ balanced  → batch unit → implementer → risk review → script cleanup
-    └─ strict    → per-task blast → implementer → spec → code → script cleanup
+request → classify → plan → graph → blast → implement → review → finish
+                                      │
+                                      └─ stale or blocked → reconcile
 ```
 
-Call estimate (agent calls, not USD):
+Durable state lives in `.opencode/runs/<run-id>/state.json`. Human context and handoffs live under `.opencode/`.
 
-```bash
-node scripts/nexus-estimate-calls.js --tasks 5 --profile balanced
-```
+## Profiles
 
-Engine gates:
+The default profile is `balanced`. Set `workflow_profile` in `.opencode/CONTEXT.md` or pass an explicit profile to the classifier.
+
+| Profile | Branch policy | Implementer | Review |
+|---|---|---|---|
+| `fast` | Per feature/request | One per execution unit | Unified or skipped for documentation |
+| `balanced` | Per feature/execution unit | One per execution unit | Risk-based |
+| `strict` | Per task | One per task | Spec, then code |
+
+Security, migration, public API, credential, and HIGH-blast work always escalates to dual review. The direct path is narrow: it requires small, focused, low-risk evidence and high classifier confidence.
+
+## Deterministic gates
+
+Typical initialization and classification:
 
 ```bash
 node scripts/nexus-run.js init --run-id <id>
-node scripts/nexus-run.js transition --to CLASSIFIED --json '...'
-node scripts/nexus-run.js validate-handoff --role implementer --file .opencode/handoffs/<id>-implementer.json
-node scripts/nexus-run.js status
+node scripts/nexus-classify.js \
+  --files <count> --lines <count> --class <change-class> [--focused] [--docs]
+node scripts/nexus-estimate-calls.js --tasks <count> --profile <profile>
 ```
 
-## Overview diagram
+Typical engine gates:
+
+```bash
+node scripts/nexus-run.js transition --to CLASSIFIED --json '{"classification":{}}'
+node scripts/nexus-run.js transition --to PLANNED --plan-skip
+node scripts/nexus-run.js transition --to GRAPH_READY
+node scripts/nexus-run.js transition --to BLAST_READY --blast <path-to-blast.json>
+node scripts/nexus-run.js status
+node scripts/nexus-run.js resume
+```
+
+The orchestrator must validate the implementer and reviewer handoffs before completing a run:
+
+```bash
+node scripts/nexus-run.js validate-handoff \
+  --role implementer \
+  --file .opencode/handoffs/<id>-implementer.json
+jq -e '.verdict == "APPROVED"' .opencode/handoffs/<id>-unified-reviewer.json
+```
+
+Use the spec and code handoff checks instead of the unified check on strict or high-risk runs.
+
+## Graph and blast
+
+Graph and blast are script-first operations. The compatibility agents are optional and should not be dispatched for deterministic work.
+
+```bash
+bash scripts/nexus-graph.sh
+node scripts/nexus-blast.js --files <file1,file2> --json
+node scripts/nexus-blast.js --files <file1,file2> --task <id> --mermaid
+```
+
+Graph generation uses its available cache metadata; refresh it when the repository changes or the extractor changes. Blast output records the detected risk and affected callers. Unknown or stale evidence must be verified before using a direct path.
+
+## Agent roster and dispatch names
+
+Canonical roles are:
 
 ```text
-User request (plain language)
-      │
-      ▼
- brainstorming → writing-plans → knowledge-graph (script, cache-by-commit)
-      │
-      ▼
- [workflow preferences + profile gate]
-   workflow_profile: fast | balanced | strict (default balanced)
-   branch_policy: per-feature | isolated | stacked
-   execution_mode: checkpoint | continuous
-      │
-      ▼
-Execution unit OR per-task loop (see profile):
-  1. blast script (unit or task)
-  2. feature branch
-  3. drift check
-  4. implementer (reference-first prompts)
-  5. review: unified | dual | skip (matrix)
-  6. LESSONS per lessonPolicy
-  7. finishing + scripts/nexus-branch-cleanup.sh
-      │
-      ▼
- reconcile (if needed) → plan-end script cleanup → LESSONS reflect if noteworthy
+orchestrator
+implementer
+unified-reviewer
+spec-reviewer
+code-reviewer
+reconciler
 ```
 
-## Artifacts produced in .opencode/
+`knowledge-graph` and `blast-analyzer` remain compatibility-only. They are installed only with `--with-optional-agents`; scripts are the default.
 
-- `.opencode/plans/PLAN.md` – improve-grade plan with plan_commit SHA
-- `.opencode/CONTEXT.md` – includes `workflow_profile`, policies, plan_commit, task_branches, execution_units, cleanup_status
-- `.opencode/tasks/task-N.md` – enhanced task template
-- `.opencode/tasks/execution-unit-<id>.json` – batched unit payload (fast/balanced)
-- `.opencode/handoffs/<id>-<role>.json` – implementer / unified / spec / code / cleanup
-- `.opencode/knowledge/` :
-  - `graph.json` – includes `generated_at_commit`, `generator_version` for cache
-  - `graph.md`, `index.md`
-  - `blast/<id>.md` + `.json`
-  - `LESSONS.md`, optional `LESSONS-excerpt.md`
-  - `reconcile-*.md`
+OpenCode uses the bare canonical names. Claude Code, Cursor, Codex, Gemini CLI, and Antigravity use the host-translated `nexus-<canonical-name>` names. The installer adapts only paths, frontmatter, prefixes, permission syntax, and dispatch names. Workflow policy and handoff schemas remain canonical.
 
-## Workflow preferences
+## Execution units and review
 
-| Preference | Values | Default recommendation |
-|------------|--------|------------------------|
-| `workflow_profile` | `fast`, `balanced`, `strict` | **`balanced`** |
-| `branch_policy` | `per-feature`, `isolated`, `stacked` | `per-feature` (balanced/fast); `isolated` (strict) |
-| `execution_mode` | `checkpoint`, `continuous` | `continuous` (balanced/fast); `checkpoint` (strict) |
-| `lessonPolicy` | `noteworthy-only`, `every-task` | from profile |
-| `cleanupPolicy` | `script` | always script |
+Fast and balanced runs group related tasks into an execution unit. The unit records its shared files, acceptance criteria, review mode, blast artifact, and verification commands. One implementer handles the unit, then the appropriate reviewer handles the unit once.
 
-## Knowledge graph
+Strict runs keep tasks isolated and use the sequence:
 
-- `./scripts/nexus-graph.sh` — **cache-by-commit**: skips rebuild when `generated_at_commit` == HEAD and `generator_version` matches (unless dirty non-doc files). Use `--force` to rebuild. `--docs-only-skip` keeps existing graph for docs-only work.
-- Prefer script over knowledge-graph agent.
+```text
+implementer → spec-reviewer → code-reviewer → scripted cleanup
+```
 
-## Blast radius
+If a unified reviewer requests changes, rerun the implementer and unified review. If either dual reviewer requests changes, rerun the implementer and both review stages. Do not self-review when a reviewer is required.
 
-- `node scripts/nexus-blast.js --files <csv> --task <id> --mermaid`
-- Per execution unit (fast/balanced) or per task (strict). Prefer script over blast-analyzer agent.
+## Artifacts
 
-## Outcome memory
+- `.opencode/CONTEXT.md` — active profile, branch, and verification context;
+- `.opencode/plans/PLAN.md` — plan and acceptance criteria;
+- `.opencode/tasks/` — tasks and execution units;
+- `.opencode/handoffs/` — role results and review verdicts;
+- `.opencode/knowledge/graph.json` — repository graph;
+- `.opencode/knowledge/blast/` — blast reports; and
+- `.opencode/knowledge/LESSONS.md` — noteworthy outcomes.
 
-- `noteworthy-only` (fast/balanced): write when review findings / BLOCKED / surprises / user asks.
-- `every-task` (strict): write after each approval.
-- Retrieve top matching lessons into `LESSONS-excerpt.md` for subagents.
+Run `node scripts/nexus-run.js status` after resuming a session. If a target, plan, graph, or handoff has drifted, stop and reconcile before implementation.
 
-## Branch cleanup
+## Verification commands
 
-**Script-first:** `bash scripts/nexus-branch-cleanup.sh --base <base> --out <json> <branches...>`
+The repository has no build, lint, or typecheck scripts. Use:
 
-Orchestrator may run this script; raw `git branch -d` remains denied. Do not dispatch implementer solely to delete branches.
+```bash
+npm test
+npm run test:install
+bash scripts/test-install-only.sh
+bash scripts/test-optional-agents.sh
+bash scripts/test-adapter-contract.sh
+bash -n install.sh uninstall.sh scripts/test-install-only.sh \
+  scripts/test-optional-agents.sh scripts/test-adapter-contract.sh
+```
 
-## Review gates
-
-See [`skills/orchestrating/dispatch.md`](../skills/orchestrating/dispatch.md).
-
-- Dual: spec then code (strict / high-risk)
-- Unified: `unified-reviewer` (fast/balanced low–medium)
-- Skip: docs-only under fast when matrix allows
-
-Orchestrator allows: implementer, spec-reviewer, code-reviewer, **unified-reviewer**, blast-analyzer, knowledge-graph, reconciler.
-
-## Multi-platform installer
-
-`install.sh` installs agents including `unified-reviewer` and skills with `profiles.md`.
-
-## Global safety notes
-
-- Prefer scripts for deterministic ops.
-- Graph cache is safe; `--force` when generator bumps.
-- LESSONS append-only; respect lessonPolicy.
-- Reconcile never mutates production code.
+The installer tests run each adapter in an isolated temporary home and Git project, verify prefixed outputs, verify optional-agent behavior, and assert that the source worktree remains unchanged.

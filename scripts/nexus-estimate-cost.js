@@ -11,7 +11,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const target = path.join(__dirname, "nexus-estimate-calls.js");
 
 console.error(
-  "[nexus-estimate-cost] Deprecated name — use nexus-estimate-calls.js (counts agent calls, not USD).",
+  "[nexus-estimate-cost] Deprecated compatibility name — use nexus-estimate-calls.js for agent-call estimates. Monetary cost is unavailable unless the host supplies pricing.",
 );
 
 const r = spawnSync(process.execPath, [target, ...process.argv.slice(2)], {

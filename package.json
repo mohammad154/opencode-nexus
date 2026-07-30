@@ -6,7 +6,7 @@
   "main": ".opencode/plugins/nexus.js",
   "license": "MIT",
   "scripts": {
-    "test": "node --test tests/schema/*.test.js tests/migrate/*.test.js tests/classify/*.test.js tests/state-machine/*.test.js tests/drift/*.test.js tests/blast/*.test.js",
+    "test": "node --test \"tests/**/*.test.js\"",
     "test:install": "bash scripts/test-install-only.sh && bash scripts/test-optional-agents.sh"
   }
 }

@@ -9,13 +9,28 @@
     "schema_version": { "type": "string" },
     "risk": { "type": "string", "enum": ["LOW", "MEDIUM", "HIGH", "UNKNOWN"] },
     "level": { "type": "string" },
+    "computed_risk": { "type": "string", "enum": ["LOW", "MEDIUM", "HIGH", "UNKNOWN"] },
     "score": { "type": "number" },
+    "analysis_quality": { "type": "string", "enum": ["PRECISE", "CONSERVATIVE", "UNSUPPORTED", "UNKNOWN"] },
+    "graph_quality": { "type": "string" },
+    "graph_freshness": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "valid": { "type": "boolean" },
+        "status": { "type": "string" },
+        "reasons": { "type": "array", "items": { "type": "string" } }
+      }
+    },
     "changed_symbols": { "type": "array" },
     "direct_dependents": { "type": "array" },
     "tests": { "type": "array" },
     "uncertainties": { "type": "array", "items": { "type": "string" } },
+    "unsupported_fields": { "type": "object", "additionalProperties": { "type": "string" } },
     "dimensions": { "type": "object", "additionalProperties": true },
     "impacts": { "type": "array" },
+    "edges": { "type": "array" },
+    "files": { "type": "array" },
     "startFiles": { "type": "array" }
   }
 }

@@ -1,132 +1,133 @@
 # Installing OpenCode Nexus V3
 
+Nexus V3 has one workflow core and six thin platform adapters. The core owns
+workflow states, policy, handoffs, graph/blast formats, and review rules;
+adapters translate paths, frontmatter, names, permissions, and dispatch syntax.
+
 ## Prerequisites
 
-- `jq` recommended (for OpenCode path merging) – `sudo apt install jq` on Ubuntu/WSL, `brew install jq` on macOS. If missing, OpenCode path skips with warning; other platforms install via file drop.
-- `node` recommended – precise graph edges + blast Mermaid output + cost estimator. Shell fallback still works without node (rg/fd accelerators optional).
-- No Python/pip/tree-sitter required – by design dependency-light.
+- `node` for the precise graph/blast scripts and call estimator.
+- `jq` for OpenCode configuration merging and uninstall cleanup.
+- `git` for change evidence, graph freshness, and branch workflows.
 
-## Global installation (multi-platform auto-detect)
+The installer remains dependency-light. Without Node, the shell graph fallback
+is conservative and must not be treated as precise blast evidence.
 
-Run:
+## Install
+
+Auto-detect supported platforms:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/mohammad154/opencode-nexus/main/install.sh | bash
 ```
 
-Or clone + run:
+Or clone and run locally:
 
 ```bash
-git clone https://github.com/mohammad154/opencode-nexus.git /tmp/opencode-nexus && cd /tmp/opencode-nexus && ./install.sh && rm -rf /tmp/opencode-nexus
+git clone https://github.com/mohammad154/opencode-nexus.git /tmp/opencode-nexus
+cd /tmp/opencode-nexus && ./install.sh
 ```
 
-The installer auto-detects installed agent platforms and installs the right artifact for each:
-
-- **OpenCode** (`~/.config/opencode/`): plugin entry in `opencode.json` without overwriting your existing config, agent defs in `agents/` (**8 agents**, including `unified-reviewer`), models merge from defaults + `nexus.models.json`, backups `*.bak.timestamp`.
-- **Claude Code** (`~/.claude/skills/nexus-*/` + `~/.claude/agents/nexus-*.md`): one-level skill dirs + subagents. Graph refresh: run `scripts/install-git-hook.sh` inside a consumer repo.
-- **Cursor** (`~/.cursor/rules/nexus-*.mdc` + agents): each Nexus skill as `.mdc` (`using-nexus` alwaysApply).
-- **Codex** (`~/.codex/skills/nexus-*/` + `~/.agents/skills/`): skills for Codex CLI.
-- **Gemini CLI** (`~/.gemini/skills/nexus-*/` + `~/.agents/skills/nexus-*/`): one-level skill dirs.
-- **Antigravity** (`~/.gemini/config/skills/nexus-*/` + `.agents/rules/nexus.md` + `.agents/workflows/nexus.md`).
-- **Scripts** – verified present: `nexus-graph.sh/.js`, `nexus-blast.sh/.js`, `nexus-branch-cleanup.sh`, `nexus-estimate-cost.js/.sh`.
-
-### Install only specific platforms
+Install selected adapters only:
 
 ```bash
 ./install.sh --only opencode
 ./install.sh --only claude,opencode
-./install.sh --only cursor
 ./install.sh --all
 ```
 
-## Workflow profiles (V3)
+## Platform support
 
-Default: **`balanced`**. Config: `config/default-workflow.json`, `config/workflow-profiles.json`. Details: `skills/orchestrating/profiles.md`.
+| Platform | User adapter paths | Translation performed |
+|---|---|---|
+| OpenCode | `~/.config/opencode/` | Native agent names, plugin/config merge, permissions |
+| Claude Code | `~/.claude/skills/nexus-*`, `~/.claude/agents/nexus-*` | Skill frontmatter, agent names, dispatch permissions |
+| Cursor | `~/.cursor/rules/nexus-*`, `~/.cursor/agents/nexus-*` | Rule frontmatter, names, dispatch syntax |
+| Codex | `~/.codex/skills/nexus-*`, `~/.agents/skills/nexus-*` | Skill paths and agent-name prefixes |
+| Gemini CLI | `~/.gemini/skills/nexus-*`, `~/.agents/skills/nexus-*` | Skill paths and frontmatter names |
+| Antigravity | `~/.gemini/config/skills/nexus-*`, project `.agents/` | Skill paths, rule/workflow entry points |
 
-| Profile | Review | Branch |
-|---------|--------|--------|
-| `fast` | unified or skip | per feature/request |
-| `balanced` | risk-based | per feature / execution unit |
-| `strict` | dual always | per task |
+Every adapter installs the same six canonical agents:
+
+`orchestrator`, `implementer`, `unified-reviewer`, `spec-reviewer`,
+`code-reviewer`, and `reconciler`.
+
+`knowledge-graph` and `blast-analyzer` remain optional compatibility agents for
+one release. Deterministic scripts are the default path:
 
 ```bash
-node scripts/nexus-estimate-cost.js --tasks 3 --profile balanced
+./install.sh --only opencode --with-optional-agents
 ```
 
-## Verify post-install
+## V3 workflow and profiles
+
+The default profile is `balanced`. Profiles are defined in
+`config/workflow-profiles.json` and preserve hard review requirements for
+security, migration, public API, credential, and high-blast changes. Direct
+work is allowed only when repository-derived evidence and validation satisfy
+the direct-path rules.
+
+Estimate agent calls, not monetary spend:
+
+```bash
+node scripts/nexus-estimate-calls.js --tasks 3 --profile balanced
+```
+
+The runtime can enforce the same profile-derived call ceiling through the
+provider telemetry budget interface. Hosts may provide a lower ceiling, never
+a higher one. Metrics report actual calls, durations, cache hits, failures, and
+tokens; a `cost_usd` field is retained only when the host supplies it.
+
+## Verify graph and blast evidence
 
 ```bash
 ./scripts/nexus-graph.sh
-node ./scripts/nexus-blast.js --mermaid
-node ./scripts/nexus-estimate-cost.js --tasks 3 --profile balanced
-
-# OpenCode — bare agent ids + permission.task
-ls ~/.config/opencode/agents/{orchestrator,implementer,unified-reviewer,spec-reviewer,code-reviewer}.md
-
-# Claude
-head -5 ~/.claude/agents/nexus-unified-reviewer.md   # must show name: nexus-unified-reviewer
-test -f ~/.claude/skills/nexus-orchestrating/dispatch.md
-test -f ~/.claude/skills/nexus-orchestrating/profiles.md
-
-# Cursor
-head -5 ~/.cursor/agents/nexus-unified-reviewer.md
-test -d ~/.cursor/skills/nexus-orchestrating
+node scripts/nexus-blast.js --mermaid
 ```
 
-### Review gates (profile-aware)
+Graph results are cached by file content hash. Each graph records HEAD,
+working-tree and source fingerprints, generator/extractor versions, and per-file
+hashes. A stale, missing, unsupported, or conservative graph is not trusted as
+precise blast evidence; refresh it and verify uncertainty before implementation.
 
-**Dual** (strict or high-risk):
+Useful outputs live under `.opencode/knowledge/`:
+
+- `graph.json` — machine-readable graph and freshness metadata;
+- `graph.md` and `index.md` — human-readable navigation;
+- `blast/` — per-task blast reports.
+
+## Verify installation
 
 ```bash
-jq -e '.verdict=="APPROVED"' .opencode/handoffs/<id>-spec-reviewer.json
-jq -e '.verdict=="APPROVED"' .opencode/handoffs/<id>-code-reviewer.json
+npm test
+npm run test:install
 ```
 
-**Unified** (fast/balanced low–medium):
+OpenCode agents use native names:
 
 ```bash
-jq -e '.verdict=="APPROVED"' .opencode/handoffs/<id>-unified-reviewer.json
+ls ~/.config/opencode/agents/{orchestrator,implementer,unified-reviewer,spec-reviewer,code-reviewer,reconciler}.md
 ```
 
-Name resolution + paths: `skills/orchestrating/dispatch.md`.
-
-### Branch cleanup
-
-```bash
-bash scripts/nexus-branch-cleanup.sh --base <base> --out .opencode/handoffs/plan-cleanup.json <feature-branch>
-```
+Other adapters prefix installed agent and skill names with `nexus-` where the
+host requires it. The installer tests exercise all six adapters in isolated
+temporary homes, including repeated installation and uninstall cleanup.
 
 ## Customize models
 
 OpenCode reads models from `~/.config/opencode/opencode.json` under `agent`.
+Optional overrides can be placed in
+`~/.config/opencode/nexus.models.json` and merged by rerunning the installer.
 
-Optional: create `~/.config/opencode/nexus.models.json` (see `nexus.models.example.json` after install) and re-run the installer. Include `unified-reviewer`:
-
-```json
-{
-  "orchestrator": { "model": "anthropic/claude-sonnet-4-20250514" },
-  "implementer": { "model": "openai/gpt-4.1", "reasoningEffort": "high" },
-  "unified-reviewer": { "model": "opencode-go/deepseek-v4-pro", "reasoningEffort": "high" },
-  "spec-reviewer": { "model": "opencode-go/deepseek-v4-pro", "reasoningEffort": "max" },
-  "code-reviewer": { "model": "opencode-go/deepseek-v4-pro", "reasoningEffort": "max" },
-  "blast-analyzer": { "model": "opencode/deepseek-v4-flash-free", "reasoningEffort": "medium" },
-  "knowledge-graph": { "model": "opencode/deepseek-v4-flash-free", "reasoningEffort": "low" },
-  "reconciler": { "model": "opencode-go/deepseek-v4-pro", "reasoningEffort": "max" }
-}
-```
-
-## Uninstall (multi-platform)
+## Uninstall
 
 ```bash
 ./uninstall.sh
-./uninstall.sh --only claude
+./uninstall.sh --only opencode
+./uninstall.sh --only claude,cursor
 ./uninstall.sh --all
 ```
 
-Project-local `.opencode/knowledge/` and `.opencode/handoffs/` are not touched by uninstall.
-
-## Windows fallback (legacy)
-
-If git-backed plugin installation has issues on Windows, add local path to `opencode.json` as before (see README Windows fallback section).
-
-For Claude/Cursor on Windows, use WSL/Git Bash to run `install.sh`.
+The uninstaller restores backed-up pre-existing adapter files where supported,
+removes Nexus entries without removing unrelated user configuration, and keeps
+project-local `.opencode/knowledge/` and `.opencode/handoffs/` data.

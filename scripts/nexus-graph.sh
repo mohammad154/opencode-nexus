@@ -10,7 +10,7 @@
 
 set -euo pipefail
 
-# Optional flags (before positionals): --force | -f  → ignore commit cache
+# Optional flags (before positionals): --force | -f  → bypass content cache
 FORCE_REBUILD="${NEXUS_GRAPH_FORCE:-0}"
 POSITIONAL=()
 while [[ $# -gt 0 ]]; do
@@ -36,11 +36,13 @@ HAS_RG=0; command -v rg >/dev/null 2>&1 && HAS_RG=1
 HAS_FD=0; command -v fd >/dev/null 2>&1 && HAS_FD=1
 HAS_JQ=0; command -v jq >/dev/null 2>&1 && HAS_JQ=1
 HAS_NODE=0; command -v node >/dev/null 2>&1 && HAS_NODE=1
-GENERATOR_VERSION="2.1"
+GENERATOR_VERSION="3.0"
 
 echo "[nexus-graph] ROOT=$ROOT OUT=$OUT_DIR rg=$HAS_RG fd=$HAS_FD jq=$HAS_JQ node=$HAS_NODE"
 
-# ── cache-by-commit (graphPolicy: cache-by-commit) ────────
+# The Node extractor owns cache-by-file-content and always refreshes graph
+# freshness metadata. Do not short-circuit on HEAD alone: a dirty working tree
+# can leave a commit-matching graph stale.
 HEAD_COMMIT=""
 if git -C "$ROOT" rev-parse HEAD >/dev/null 2>&1; then
   HEAD_COMMIT="$(git -C "$ROOT" rev-parse HEAD)"
@@ -50,27 +52,6 @@ if [[ "${DOCS_ONLY_SKIP:-0}" -eq 1 && -f "$GRAPH_JSON" ]]; then
   echo "[nexus-graph] docs-only skip: keeping existing graph.json"
   exit 0
 fi
-if [[ "$FORCE_REBUILD" != "1" && -n "$HEAD_COMMIT" && -f "$GRAPH_JSON" ]]; then
-  CACHED_COMMIT=""
-  CACHED_VER=""
-  if [[ "$HAS_JQ" -eq 1 ]]; then
-    CACHED_COMMIT="$(jq -r '.generated_at_commit // empty' "$GRAPH_JSON" 2>/dev/null || true)"
-    CACHED_VER="$(jq -r '.generator_version // empty' "$GRAPH_JSON" 2>/dev/null || true)"
-  else
-    CACHED_COMMIT="$(grep -o '"generated_at_commit"[[:space:]]*:[[:space:]]*"[^"]*"' "$GRAPH_JSON" 2>/dev/null | head -1 | sed 's/.*"\([^"]*\)"$/\1/' || true)"
-    CACHED_VER="$(grep -o '"generator_version"[[:space:]]*:[[:space:]]*"[^"]*"' "$GRAPH_JSON" 2>/dev/null | head -1 | sed 's/.*"\([^"]*\)"$/\1/' || true)"
-  fi
-  if [[ "$CACHED_COMMIT" == "$HEAD_COMMIT" && "$CACHED_VER" == "$GENERATOR_VERSION" ]]; then
-    # Also skip if no tracked source files changed since cache (dirty tree still rebuilds)
-    DIRTY="$(git -C "$ROOT" status --porcelain --untracked-files=no 2>/dev/null | grep -vE '\.(md|mdx|txt|rst)$' || true)"
-    if [[ -z "$DIRTY" ]]; then
-      echo "[nexus-graph] cache hit: generated_at_commit=$HEAD_COMMIT generator_version=$GENERATOR_VERSION — skip rebuild"
-      exit 0
-    fi
-    echo "[nexus-graph] cache commit matches but working tree has non-doc changes — rebuilding"
-  fi
-fi
-
 # ── language detection ────────────────────────────────────
 # Extension→lang mapping
 ext_lang() {
@@ -125,7 +106,11 @@ echo "[nexus-graph] Discovered $TOTAL files"
 
 if [ "$TOTAL" -eq 0 ]; then
   echo "[nexus-graph] No files found, writing empty graph"
-  printf '{"version":1,"root":"%s","generated_at":"%s","stats":{"total_files":0},"nodes":[],"edges":[]}\n' "$ROOT" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$OUT_DIR/graph.json"
+  if [ "$HAS_NODE" -eq 1 ] && [ -f "$ROOT/scripts/nexus-graph.js" ]; then
+    node "$ROOT/scripts/nexus-graph.js" "$FILE_LIST" "$ROOT" "$OUT_DIR" >/dev/null
+  else
+    printf '{"version":2,"root":"%s","generated_at":"%s","generated_at_commit":"%s","generator_version":"%s","source_fingerprint":"unknown","working_tree_fingerprint":"unknown","extractor_quality":"UNSUPPORTED","extractor":{"name":"shell","version":"%s","quality":"UNSUPPORTED"},"uncertainties":["no source files detected; freshness is unverifiable"],"stats":{"total_files":0,"nodes":0,"edges":0},"nodes":[],"edges":[]}\n' "$ROOT" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "${HEAD_COMMIT:-unknown}" "$GENERATOR_VERSION" "$GENERATOR_VERSION" > "$OUT_DIR/graph.json"
+  fi
   printf "# Nexus Knowledge Graph\n\nNo source files detected in %s\n" "$ROOT" > "$OUT_DIR/graph.md"
   printf "# Nexus Knowledge Index\n\nEmpty – no graph yet. Run \`nexus-graph\`.\n" > "$OUT_DIR/index.md"
   exit 0
@@ -133,8 +118,12 @@ fi
 
 # ── JS extractor: build graph.json via node if available ───────
 if [ "$HAS_NODE" -eq 1 ] && [ -f "$ROOT/scripts/nexus-graph.js" ]; then
-  echo "[nexus-graph] Using Node extractor (precise)"
-  node "$ROOT/scripts/nexus-graph.js" "$FILE_LIST" "$ROOT" "$OUT_DIR" 2>&1 || {
+  echo "[nexus-graph] Using Node extractor (quality recorded)"
+  if [ "$FORCE_REBUILD" = "1" ]; then
+    NEXUS_GRAPH_FORCE=1 node "$ROOT/scripts/nexus-graph.js" "$FILE_LIST" "$ROOT" "$OUT_DIR" 2>&1
+  else
+    node "$ROOT/scripts/nexus-graph.js" "$FILE_LIST" "$ROOT" "$OUT_DIR" 2>&1
+  fi || {
     echo "[nexus-graph] Node extractor failed, falling back to shell"
     HAS_NODE=0
   }
@@ -177,7 +166,8 @@ if [ "$HAS_NODE" -eq 0 ] || [ ! -f "$OUT_DIR/graph.json" ]; then
     # JS/TS: import ... from 'x'  , require('x')
     # Python: from x import y, import x
     # Go: import "x"
-    # Works as best-effort; precise extraction lives in .js extractor
+    # Works as best-effort; the Node extractor is the preferred path and
+    # records its quality explicitly.
     if [ "$HAS_RG" -eq 1 ]; then
       rg -o --no-heading -N "(from|import)\s+[\"'\\(]?[./a-zA-Z0-9_@\\-]+" "$f" 2>/dev/null | head -n 30 | while IFS= read -r imp; do
         imp_clean=$(echo "$imp" | sed -E "s/.*['\"]\s*([^'\"]+)\s*['\"].*/\1/; s/.*from\s+//; s/[\"']//g; s/\s+//g" | head -c 120)
@@ -193,13 +183,13 @@ if [ "$HAS_NODE" -eq 0 ] || [ ! -f "$OUT_DIR/graph.json" ]; then
   # Build final JSON (shell-assembled)
   if [ "$HAS_JQ" -eq 1 ]; then
     jq -s --arg root "$ROOT" --arg now "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --argjson total "$TOTAL" \
-      '{version:1,root:$root,generated_at:$now,stats:{total_files:$total},nodes:.,edges:[]}' "$NODE_FILE" > "$OUT_DIR/graph.json" 2>/dev/null || {
+      '{version:2,root:$root,generated_at:$now,stats:{total_files:$total},source_fingerprint:"unknown",working_tree_fingerprint:"unknown",extractor_quality:"UNSUPPORTED",extractor:{name:"shell-regex",version:"3.0",quality:"UNSUPPORTED"},uncertainties:["shell fallback cannot provide parser-backed extraction or content fingerprints"],nodes:.,edges:[]}' "$NODE_FILE" > "$OUT_DIR/graph.json" 2>/dev/null || {
         echo "[nexus-graph] jq assembly failed, emitting minimal JSON"
-        printf '{"version":1,"root":"%s","generated_at":"%s","stats":{"total_files":%d},"nodes":[],"edges":[]}\n' "$ROOT" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$TOTAL" > "$OUT_DIR/graph.json"
+        printf '{"version":2,"root":"%s","generated_at":"%s","stats":{"total_files":%d},"source_fingerprint":"unknown","working_tree_fingerprint":"unknown","extractor_quality":"UNSUPPORTED","extractor":{"name":"shell-regex","version":"3.0","quality":"UNSUPPORTED"},"uncertainties":["shell fallback cannot provide parser-backed extraction or content fingerprints"],"nodes":[],"edges":[]}\n' "$ROOT" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$TOTAL" > "$OUT_DIR/graph.json"
       }
   else
     NODES_JSON=$(paste -sd "," "$NODE_FILE" 2>/dev/null)
-    printf '{"version":1,"root":"%s","generated_at":"%s","stats":{"total_files":%d},"nodes":[%s],"edges":[]}\n' "$ROOT" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$TOTAL" "$NODES_JSON" > "$OUT_DIR/graph.json"
+    printf '{"version":2,"root":"%s","generated_at":"%s","stats":{"total_files":%d},"source_fingerprint":"unknown","working_tree_fingerprint":"unknown","extractor_quality":"UNSUPPORTED","extractor":{"name":"shell-regex","version":"3.0","quality":"UNSUPPORTED"},"uncertainties":["shell fallback cannot provide parser-backed extraction or content fingerprints"],"nodes":[%s],"edges":[]}\n' "$ROOT" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$TOTAL" "$NODES_JSON" > "$OUT_DIR/graph.json"
   fi
   rm -f "$NODE_FILE" "$EDGE_FILE"
 fi
@@ -242,7 +232,7 @@ if [ "$HAS_JQ" -eq 1 ] && [ -f "$OUT_DIR/graph.json" ]; then
     fi
     echo ""
     echo "## How to use"
-    echo "- Agents read \`graph.json\` for exact dependencies."
+    echo "- Agents read \`graph.json\` for dependency edges plus explicit confidence and extractor-quality metadata."
     echo "- Before editing a file, check incoming edges (callers) → that's your blast radius."
     echo "- See \`index.md\` for per-community wiki pages when present."
   } > "$OUT_DIR/graph.md"
@@ -274,7 +264,7 @@ if [ "$HAS_JQ" -eq 1 ] && [ -f "$OUT_DIR/graph.json" ]; then
     echo "## Graph generation"
     echo "- Command: \`./scripts/nexus-graph.sh [root] [out_dir]\`"
     echo "- Safe to run repeatedly; output is deterministic given repo state."
-    echo "- Cache: skips rebuild when \`generated_at_commit\` == HEAD and \`generator_version\` matches (use \`--force\` to rebuild)."
+    echo "- Cache: the Node extractor reuses unchanged files by content hash while refreshing freshness metadata."
   } > "$OUT_DIR/index.md"
 else
   # Minimal markdown when jq unavailable
@@ -282,13 +272,22 @@ else
   printf "# Nexus Knowledge Index\n\n- graph.json – raw graph\n- graph.md – summary\n" > "$OUT_DIR/index.md"
 fi
 
-# Stamp commit + generator version onto graph.json (cache key)
+# Stamp compatibility fields onto graph.json. The Node extractor already
+# writes complete freshness metadata; shell fallback stays explicitly
+# UNSUPPORTED.
 if [[ -f "$OUT_DIR/graph.json" ]]; then
   STAMP_COMMIT="${HEAD_COMMIT:-unknown}"
   if [[ "$HAS_JQ" -eq 1 ]]; then
     tmp="$OUT_DIR/graph.json.tmp"
     jq --arg c "$STAMP_COMMIT" --arg v "$GENERATOR_VERSION" \
-      '.generated_at_commit=$c | .generator_version=$v' \
+      '.version=(.version // 2)
+      | .generated_at_commit=$c
+      | .generator_version=$v
+      | .source_fingerprint=(.source_fingerprint // "unknown")
+      | .working_tree_fingerprint=(.working_tree_fingerprint // "unknown")
+      | .extractor_quality=(.extractor_quality // "UNSUPPORTED")
+      | .extractor=(.extractor // {name:"shell-regex",version:$v,quality:"UNSUPPORTED"})
+      | .uncertainties=((.uncertainties // []) + ["shell fallback cannot provide parser-backed extraction or content fingerprints"] | unique)' \
       "$OUT_DIR/graph.json" >"$tmp" && mv "$tmp" "$OUT_DIR/graph.json"
   elif [[ "$HAS_NODE" -eq 1 ]]; then
     node -e "
@@ -297,6 +296,10 @@ if [[ -f "$OUT_DIR/graph.json" ]]; then
       const g=JSON.parse(fs.readFileSync(p,'utf8'));
       g.generated_at_commit=process.argv[2];
       g.generator_version=process.argv[3];
+      g.extractor_quality=g.extractor_quality || 'UNSUPPORTED';
+      g.extractor=g.extractor || {name:'shell-regex',version:process.argv[3],quality:'UNSUPPORTED'};
+      g.source_fingerprint=g.source_fingerprint || 'unknown';
+      g.working_tree_fingerprint=g.working_tree_fingerprint || 'unknown';
       fs.writeFileSync(p, JSON.stringify(g,null,2));
     " "$OUT_DIR/graph.json" "$STAMP_COMMIT" "$GENERATOR_VERSION"
   fi

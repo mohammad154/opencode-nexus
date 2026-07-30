@@ -7,6 +7,78 @@ export const REVIEW_RANK = { none: 0, unified: 1, dual: 2 };
 export const PROFILE_RANK = { fast: 0, balanced: 1, strict: 2 };
 export const EXEC_RANK = { direct: 0, delegated: 1 };
 
+export function blastRisk(report) {
+  return String(report?.risk || report?.level || "").toUpperCase() || null;
+}
+
+export function isUnknownBlast(report) {
+  if (!report || typeof report !== "object") return true;
+  const risk = blastRisk(report);
+  const analysisQuality = String(report.analysis_quality || "").toUpperCase();
+  const graphQuality = String(report.graph_quality || "").toUpperCase();
+  return (
+    risk === "UNKNOWN" ||
+    report.trusted === false ||
+    report.analysis_complete === false && analysisQuality !== "" ||
+    ["UNKNOWN", "UNSUPPORTED", "CONSERVATIVE"].includes(analysisQuality) ||
+    ["UNKNOWN", "UNSUPPORTED", "CONSERVATIVE"].includes(graphQuality) ||
+    report.analysis_quality === "UNKNOWN" ||
+    report.graph_quality === "UNKNOWN" ||
+    report.graph_freshness?.valid === false ||
+    report.stale === true ||
+    report.fresh === false
+  );
+}
+
+export function isUnknownGraph(graph) {
+  if (!graph || typeof graph !== "object") return true;
+  const snapshot = graph.snapshot && typeof graph.snapshot === "object"
+    ? graph.snapshot
+    : graph;
+  const quality = String(
+    graph.quality || graph.extractor_quality || graph.extractor?.quality ||
+      snapshot.extractor_quality || snapshot.extractor?.quality || "",
+  ).toUpperCase();
+  const fresh =
+    graph.stale === false ||
+    graph.fresh === true ||
+    graph.freshness?.valid === true ||
+    snapshot.fresh === true ||
+    snapshot.freshness?.valid === true;
+  return (
+    graph.ok === false ||
+    graph.trusted !== true ||
+    quality !== "PRECISE" ||
+    !fresh ||
+    graph.stale === true ||
+    graph.fresh === false ||
+    graph.freshness?.valid === false ||
+    snapshot.stale === true ||
+    snapshot.fresh === false ||
+    snapshot.freshness?.valid === false ||
+    quality === "UNKNOWN" ||
+    quality === "UNSUPPORTED" ||
+    String(graph.provider_quality || "").toLowerCase() === "unknown"
+  );
+}
+
+export function isTrustedLowRiskBlast(report) {
+  if (!report || typeof report !== "object" || blastRisk(report) !== "LOW") {
+    return false;
+  }
+  const analysisQuality = String(report.analysis_quality || "").toUpperCase();
+  const graphQuality = String(report.graph_quality || "").toUpperCase();
+  const fresh = report.graph_freshness?.valid === true;
+  const precise = analysisQuality === "PRECISE" && graphQuality === "PRECISE";
+  return (report.trusted === true || precise) && fresh && report.analysis_complete !== false;
+}
+
+export function hasExplicitBlastVerification(value) {
+  if (value === true) return true;
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  return value.verified === true;
+}
+
 export function maxReview(a, b) {
   const ra = REVIEW_RANK[a] ?? 0;
   const rb = REVIEW_RANK[b] ?? 0;
@@ -65,6 +137,10 @@ export function effectivePolicy(state, ctx = {}) {
 
   const direct_eligible =
     c.direct_eligible === true &&
+    c.evidence_source === "git-diff" &&
+    c.diff_verified === true &&
+    c.diff_available === true &&
+    c.diff_clean !== true &&
     (state?.execution_mode === "direct" || c.execution_mode === "direct");
 
   return {
@@ -78,7 +154,7 @@ export function effectivePolicy(state, ctx = {}) {
 }
 
 export function applyBlastEscalation(state, blastReport) {
-  const risk = blastReport?.risk || blastReport?.level;
+  const risk = blastRisk(blastReport);
   if (risk !== "HIGH") {
     return { ...state, blast: blastReport };
   }

@@ -8,7 +8,15 @@ import {
 } from "./schema-validate.js";
 import { isPlanCommitAcceptable } from "./drift.js";
 import { createDefaultProviders } from "./providers.js";
-import { effectivePolicy, applyBlastEscalation, maxReview } from "./policy.js";
+import {
+  effectivePolicy,
+  applyBlastEscalation,
+  hasExplicitBlastVerification,
+  isUnknownBlast,
+  isUnknownGraph,
+  isTrustedLowRiskBlast,
+  maxReview,
+} from "./policy.js";
 
 export const STATES = [
   "CREATED",
@@ -254,6 +262,16 @@ export function canTransition(state, to, ctx = {}) {
     if (!Array.isArray(normalized.uncertainties)) {
       errors.push("blast report must include uncertainties array");
     }
+    if (
+      isUnknownBlast(normalized) &&
+      !hasExplicitBlastVerification(
+        ctx.blast_verification || ctx.verification_evidence || state.blast_verification,
+      )
+    ) {
+      errors.push(
+        "UNKNOWN blast analysis requires explicit blast_verification evidence before BLAST_READY",
+      );
+    }
   }
 
   if (to === "IMPLEMENTING") {
@@ -264,6 +282,14 @@ export function canTransition(state, to, ctx = {}) {
     const report = blast?.report || blast;
     if (!report || !(report.risk || report.level)) {
       errors.push("IMPLEMENTING requires valid blast report");
+    }
+    if (
+      isUnknownBlast(report) &&
+      !hasExplicitBlastVerification(state.blast_verification)
+    ) {
+      errors.push(
+        "IMPLEMENTING cannot proceed with UNKNOWN blast analysis without persisted blast_verification",
+      );
     }
     const criteria = ctx.acceptance_criteria || ctx.acceptanceCriteria;
     if (!criteria || (Array.isArray(criteria) && criteria.length === 0)) {
@@ -307,6 +333,21 @@ export function canTransition(state, to, ctx = {}) {
     // Dispatch-unavailable fallback still needs stored eligibility
     if (ctx.forbid_direct === true) {
       errors.push("direct execution explicitly forbidden");
+    }
+    const blast = ctx.blast?.report || ctx.blast || state.blast;
+    if (isUnknownBlast(blast)) {
+      errors.push(
+        "direct execution requires trusted LOW blast analysis",
+      );
+    } else if (!isTrustedLowRiskBlast(blast)) {
+      errors.push(
+        "direct execution requires a fresh, precise, trusted LOW blast analysis",
+      );
+    }
+    if (isUnknownGraph(ctx.graph || state.graph)) {
+      errors.push(
+        "direct execution requires a fresh, trusted PRECISE graph analysis",
+      );
     }
   }
 
@@ -449,6 +490,11 @@ export function transition(state, to, evidence = {}, providers = null) {
     const blast = ctx.blast?.report || ctx.blast || evidence.blast;
     const report = blast?.report || blast;
     next = applyBlastEscalation(next, report);
+    const verification =
+      ctx.blast_verification || ctx.verification_evidence || next.blast_verification;
+    if (hasExplicitBlastVerification(verification)) {
+      next.blast_verification = verification;
+    }
   }
   if (to === "IMPLEMENTING" || to === "DIRECT_IMPLEMENTING") {
     if (ctx.branch) next.branch = ctx.branch;

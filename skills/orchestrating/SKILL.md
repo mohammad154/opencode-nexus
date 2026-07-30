@@ -10,7 +10,7 @@ compatibility: opencode
 
 - Confirm the workspace is a git repository before starting.
 - Load `using-feature-branches` and record `base_branch` in `.opencode/CONTEXT.md`.
-- Ensure `.opencode/knowledge/graph.json` exists — run `scripts/nexus-graph.sh` (respects commit cache; use `--force` only when needed).
+- Ensure `.opencode/knowledge/graph.json` exists — run `scripts/nexus-graph.sh` (reuses unchanged file-hash results; use `--force` only when needed).
 - If `reconcile` was requested or drift is suspected, run `reconcile` skill before starting tasks.
 - **Read [`profiles.md`](profiles.md)** — workflow profiles control branch/review/batch behavior.
 
@@ -27,18 +27,19 @@ Before the execution loop (or when resuming if preferences are missing):
    - `strict` → recommend `isolated` + `checkpoint` (legacy per-task).
    - `balanced`/`fast` → `branch_policy: per-feature`, `execution_mode: continuous` unless user wants checkpoint.
 3. Set `branch_cleanup_policy: always` by default; `cleanupPolicy: script` (run `scripts/nexus-branch-cleanup.sh` — **never** dispatch an LLM solely to delete branches).
-4. Run cost estimate and show the user:
+4. Run the agent-call estimate and show the user:
    ```bash
-   node scripts/nexus-estimate-cost.js --tasks <N> --profile <profile>
+   node scripts/nexus-estimate-calls.js --tasks <N> --profile <profile>
    ```
+   The old `nexus-estimate-cost` scripts are one-release compatibility shims only.
 5. Record answers in `.opencode/CONTEXT.md`. Do not re-ask on resume unless the user requests a change.
 
 ## Pre-execution preamble (run once before first dispatch)
 
 1. Read `.opencode/knowledge/LESSONS.md` if present — retrieve **top matching** entries by path/subsystem (not necessarily the full file). Write a short `.opencode/knowledge/LESSONS-excerpt.md` for subagents when helpful.
-2. Ensure graph is fresh via **cache-by-commit**:
+2. Ensure graph is fresh via **cache-by-file-hash/content**:
    ```bash
-   bash scripts/nexus-graph.sh          # no-op if HEAD matches generated_at_commit
+   bash scripts/nexus-graph.sh          # reuses results only for unchanged, matching file hashes
    # bash scripts/nexus-graph.sh --force  # only when forced / generator bump / user asks
    # bash scripts/nexus-graph.sh --docs-only-skip  # docs-only changes
    ```
@@ -68,7 +69,7 @@ For each pending task in `.opencode/plans/PLAN.md`:
    ```
 9. Checkpoint or continue per `execution_mode`.
 
-On resume: checkout base; run graph script (cache may no-op); blast next task.
+On resume: checkout base; run graph script (unchanged files may reuse cached results); blast next task.
 
 ### `balanced` / `fast` (batched)
 
@@ -195,7 +196,7 @@ Unchanged: reconcile on HIGH drift / missing file:line; do not silent-proceed on
 
 - Honor `workflow_profile`. Never silently downgrade `strict`.
 - Escalate to dual review on security / migration / public-api / HIGH blast even under fast/balanced.
-- Prefer scripts for graph, blast, cleanup, cost estimate, jq gates — not LLM agents.
+- Prefer scripts for graph, blast, cleanup, agent-call estimate, and jq gates — not LLM agents.
 - Orchestrator may run `scripts/nexus-branch-cleanup.sh` (guarded). Do **not** raw `git branch -d` outside that script.
 - Never mark done without required APPROVED handoff(s) for the active review policy.
 - Never auto-continue past checkpoint when `execution_mode: checkpoint`.

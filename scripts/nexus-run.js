@@ -24,12 +24,20 @@ import {
 } from "./lib/migrate-artifacts.js";
 import { classify, loadWorkflowConfig } from "./lib/classify.js";
 import {
+  collectGitDiffEvidence,
+  mergeGitDiffEvidence,
+} from "./lib/diff-evidence.js";
+import {
   transition as smTransition,
   canTransition,
 } from "./lib/state-machine.js";
 import { createDefaultProviders } from "./lib/providers.js";
 import { assessDrift } from "./lib/drift.js";
 import { assertValidRunId } from "./lib/policy.js";
+import {
+  appendTrajectoryStep,
+  readTrajectory,
+} from "./lib/trajectory.js";
 
 function parseArgs(argv) {
   const out = { _: [], flags: {} };
@@ -52,6 +60,71 @@ function parseArgs(argv) {
 
 function worktree() {
   return process.env.NEXUS_WORKTREE || process.cwd();
+}
+
+function runIdForFlags(flags = {}) {
+  if (flags["run-id"]) return String(flags["run-id"]);
+  try {
+    return latestRunState(worktree())?.run_id || null;
+  } catch {
+    return null;
+  }
+}
+
+function redact(value, key = "") {
+  if (/(?:secret|token|password|passwd|api[_-]?key|authorization|cookie)/i.test(key)) {
+    return "[redacted]";
+  }
+  if (typeof value === "string") {
+    return value.length > 4000 ? `${value.slice(0, 4000)}...[truncated]` : value;
+  }
+  if (Array.isArray(value)) return value.map((item) => redact(item));
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([k, item]) => [k, redact(item, k)]),
+    );
+  }
+  return value;
+}
+
+function trajectoryFile(runId) {
+  return path.join(worktree(), ".opencode", "trajectories", `${runId}.jsonl`);
+}
+
+function recordTrajectory(flags, action, observation, state, request = process.argv.slice(2)) {
+  const runId = state?.run_id || runIdForFlags(flags);
+  if (!runId) return;
+  const file = trajectoryFile(runId);
+  let step = 1;
+  try {
+    step = readTrajectory(file).length + 1;
+  } catch {
+    // A corrupt artifact must not hide the primary CLI result.
+    step = 1;
+  }
+  appendTrajectoryStep(file, {
+    step,
+    run_id: runId,
+    request: redact(request),
+    action: redact(action),
+    observation: redact(observation),
+    state: redact(state || null),
+    configuration: redact({
+      profile: state?.profile || null,
+      execution_mode: state?.execution_mode || null,
+      cwd: worktree(),
+    }),
+  });
+}
+
+function failCli(flags, command, error, code = 2) {
+  const message = String(error?.message || error);
+  const state = (() => {
+    try { return resolveRun(flags); } catch { return null; }
+  })();
+  recordTrajectory(flags, { command, failed: true }, { ok: false, error: message }, state);
+  console.error(JSON.stringify({ ok: false, error: message }));
+  process.exit(code);
 }
 
 function loadEvidence(flags) {
@@ -134,6 +207,7 @@ function cmdInit(flags) {
     profile: flags.profile || "balanced",
   });
   writeRunState(worktree(), state);
+  recordTrajectory(flags, { command: "init", run_id: id }, { ok: true, state }, state);
   console.log(JSON.stringify({ ok: true, state }, null, 2));
 }
 
@@ -148,7 +222,26 @@ function cmdClassify(flags) {
   if (flags.docs) input.documentationOnly = true;
   if (flags.security) input.securitySensitive = true;
   if (flags["public-api"]) input.publicApi = true;
+  if (flags.migration) input.databaseMigration = true;
+  if (flags["credential-handling"]) input.credentialHandling = true;
+  if (flags["high-blast"]) input.blastRiskHigh = true;
   if (flags.profile) input.profileOverride = flags.profile;
+
+  const diffRequested =
+    flags.diff !== undefined || flags["from-diff"] !== undefined;
+  // Git diff is authoritative by default. --no-diff is a compatibility escape
+  // for non-repository callers and can never make a run direct-eligible.
+  if (!flags["no-diff"]) {
+    const rawBase =
+      flags["from-diff"] !== undefined ? flags["from-diff"] : flags.diff;
+    const diffBase = rawBase === true ? undefined : rawBase;
+    const diffEvidence = collectGitDiffEvidence({
+      cwd: worktree(),
+      base: diffBase,
+    });
+    input = mergeGitDiffEvidence(input, diffEvidence);
+    input.diff_verified = diffEvidence.diff_available === true;
+  }
 
   const result = classify(input, { workflowConfig: loadWorkflowConfig() });
   let state = resolveRun(flags);
@@ -165,6 +258,12 @@ function cmdClassify(flags) {
       process.exit(3);
     }
     writeRunState(worktree(), r.state);
+    recordTrajectory(
+      flags,
+      { command: "classify", apply: true },
+      { ok: true, classification: result, state: r.state },
+      r.state,
+    );
     console.log(
       JSON.stringify(
         { ok: true, classification: result, state: r.state },
@@ -174,7 +273,18 @@ function cmdClassify(flags) {
     );
     return;
   }
+  recordTrajectory(flags, { command: "classify", apply: false }, { ok: true, classification: result }, state);
   console.log(JSON.stringify(result, null, 2));
+}
+
+function resolvedRunUnits(state) {
+  const candidate =
+    state?.units ??
+    state?.execution_units ??
+    state?.classification?.units;
+  if (Array.isArray(candidate)) return Math.max(1, candidate.length);
+  const units = Number(candidate);
+  return Number.isFinite(units) && units > 0 ? Math.floor(units) : 1;
 }
 
 function cmdTransition(flags) {
@@ -191,7 +301,13 @@ function cmdTransition(flags) {
     process.exit(2);
   }
   const evidence = loadEvidence(flags);
-  const providers = createDefaultProviders();
+  const providers = createDefaultProviders({
+    worktree: worktree(),
+    profile: state.profile || state.classification?.profile,
+    changeClass: state.change_class || state.classification?.change_class,
+    executionMode: state.execution_mode || state.classification?.execution_mode,
+    units: resolvedRunUnits(state),
+  });
 
   // Auto-fill graph/blast via providers when transitioning to those states
   if (to === "GRAPH_READY" && !evidence.graph) {
@@ -211,10 +327,12 @@ function cmdTransition(flags) {
 
   const r = smTransition(state, to, evidence, providers);
   if (!r.ok) {
+    recordTrajectory(flags, { command: "transition", to, failed: true }, { ok: false, errors: r.errors }, state);
     console.error(JSON.stringify({ ok: false, errors: r.errors }, null, 2));
     process.exit(3);
   }
   writeRunState(worktree(), r.state);
+  recordTrajectory(flags, { command: "transition", to }, { ok: true, state: r.state }, r.state);
   console.log(JSON.stringify({ ok: true, state: r.state }, null, 2));
 }
 
@@ -264,6 +382,7 @@ function cmdResume(flags) {
     // Persist synthesized run so resume is durable
     const { _inferred, ...rest } = state;
     writeRunState(worktree(), rest);
+    recordTrajectory(flags, { command: "resume", inferred: true }, { ok: true, resumed: true, state: rest }, rest);
     console.log(
       JSON.stringify(
         {
@@ -279,6 +398,7 @@ function cmdResume(flags) {
     );
     return;
   }
+  recordTrajectory(flags, { command: "resume", inferred: false }, { ok: true, resumed: true, state }, state);
   console.log(
     JSON.stringify(
       {
@@ -353,8 +473,7 @@ function main() {
         process.exit(2);
     }
   } catch (e) {
-    console.error(JSON.stringify({ ok: false, error: String(e.message || e) }));
-    process.exit(2);
+    failCli(flags, cmd || "unknown", e, 2);
   }
 }
 

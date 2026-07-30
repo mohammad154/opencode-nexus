@@ -18,8 +18,8 @@ Inspired by Graphify (multi-platform knowledge graphs, EXTRACTED/INFERRED taggin
 
 ## When to run automatically
 
-- **Before writing-plans**: ensure graph exists (script uses commit cache — often a no-op).
-- **Before execution** (orchestrating preamble): `bash scripts/nexus-graph.sh` — skips rebuild when `generated_at_commit` matches HEAD and `generator_version` matches.
+- **Before writing-plans**: ensure graph exists (script reuses unchanged file-hash results when safe).
+- **Before execution** (orchestrating preamble): `bash scripts/nexus-graph.sh` — reuses cached results only when source file hashes, repository state, and extractor version are fresh.
 - **Force rebuild**: `bash scripts/nexus-graph.sh --force` or `NEXUS_GRAPH_FORCE=1`.
 - **Docs-only changes**: `bash scripts/nexus-graph.sh --docs-only-skip`.
 - Prefer the **script** over dispatching the knowledge-graph agent.
@@ -29,7 +29,7 @@ Inspired by Graphify (multi-platform knowledge graphs, EXTRACTED/INFERRED taggin
 ## Commands
 
 ```bash
-# Build / refresh full graph (primary — cache-by-commit)
+# Build / refresh full graph (primary — cache-by-file-hash/content)
 ./scripts/nexus-graph.sh [root] [out_dir]
 ./scripts/nexus-graph.sh --force
 ./scripts/nexus-graph.sh --docs-only-skip

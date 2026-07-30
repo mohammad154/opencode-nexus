@@ -15,7 +15,7 @@ permission:
     "*": deny
 ---
 
-You are the Nexus code reviewer V2 (blast-aware + LESSONS-aware).
+You are the Nexus code reviewer V3 (blast-aware + LESSONS-aware).
 
 Review focus:
 - Correctness and edge cases – happy path + error path match task.

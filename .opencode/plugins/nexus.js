@@ -6,64 +6,30 @@ import { fileURLToPath } from "url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const skillsDir = path.resolve(__dirname, "../../skills");
 
-const FRONTMATTER_RE = /^---\n[\s\S]*?\n---\n?/;
-const BOOTSTRAP_MARKER = "NEXUS_BOOTSTRAP_V3";
+const BOOTSTRAP_MARKER = "NEXUS_ROUTER_V3";
+const TERMINAL_RUN_STATES = new Set(["COMPLETED", "FAILED"]);
+const KNOWLEDGE_RELEVANT_STATES = new Set([
+  "PLANNED",
+  "GRAPH_READY",
+  "BLAST_READY",
+  "IMPLEMENTING",
+  "DIRECT_IMPLEMENTING",
+  "VERIFYING",
+  "REVIEWING",
+  "BLOCKED",
+]);
 
-let bootstrapCache;
-
-function stripFrontmatter(content) {
-  return content.replace(FRONTMATTER_RE, "");
-}
+const COMPACT_ROUTER = [
+  "<EXTREMELY_IMPORTANT>",
+  BOOTSTRAP_MARKER,
+  "OpenCode Nexus is installed. Keep this routing pointer compact and load detailed instructions only with the native skill tool when the phase requires them.",
+  "Route: start or orient a Nexus session → nexus-using-nexus; unclear requirements → nexus-brainstorming; write a plan → nexus-writing-plans; map the codebase → nexus-knowledge-graph; before edits → nexus-blast-radius; execute an approved plan → nexus-orchestrating; isolate work → nexus-using-feature-branches; finish/reconcile → nexus-finishing-a-development-branch or nexus-reconcile.",
+  "Use scripts for state, graph, blast, call estimates, and cleanup. Canonical artifacts live under .opencode/. Review policy is profile-aware; never lower a stored safety gate. Automatic skill routing remains available through the configured skills path.",
+  "</EXTREMELY_IMPORTANT>",
+].join("\n");
 
 function getBootstrapText() {
-  if (bootstrapCache !== undefined) return bootstrapCache;
-  const skillPath = path.join(skillsDir, "using-nexus", "SKILL.md");
-  if (!fs.existsSync(skillPath)) {
-    bootstrapCache = null;
-    return null;
-  }
-
-  const raw = fs.readFileSync(skillPath, "utf8");
-  const body = stripFrontmatter(raw).trim();
-
-  const toolMapping = `**Tool Mapping for OpenCode:**
-- \`Skill\` tool → OpenCode \`skill\` tool
-- \`Task\` / Agent subagents (default roster) → implementer, unified-reviewer, spec-reviewer, code-reviewer, reconciler
-- Optional (not default install): blast-analyzer, knowledge-graph — prefer scripts; \`install.sh --with-optional-agents\` for compat
-- Prefixed installs (Claude/Cursor/AG) → nexus-<canonical> (see skills/orchestrating/dispatch.md)
-- Review is **profile-aware** (default balanced): unified-reviewer OR dual (spec then code) OR skip (docs-only / direct). High-risk always dual. See profiles.md + dispatch.md.
-- Prefer scripts for graph/blast/cleanup/call estimate/state machine — do not LLM-dispatch for those.
-- Codex/Gemini (skills-only): isolated reviewer turns still write the same handoff JSON gates
-- \`TodoWrite\` → \`todowrite\`
-
-**Cross-pollinated capabilities (V3 engine):**
-- \`workflow engine\` – \`node scripts/nexus-run.js\` (init/classify/transition/validate-handoff/status/resume/drift)
-- \`classifier\` – scoring model in config/workflow-profiles.json + \`nexus-classify.js\` (profile + review_level + execution_mode)
-- \`workflow profiles\` – fast | balanced (default) | strict
-- \`knowledge-graph\` – scripts/nexus-graph.sh Lite fallback (commit cache)
-- \`blast-radius\` – scripts/nexus-blast.js JSON default; Mermaid on --mermaid or HIGH
-- \`unified-reviewer\` – combined spec+quality for low/medium risk
-- \`reconcile\` – semantic drift via nexus-run.js drift
-- \`outcome-memory\` – LESSONS.md (SQLite FTS deferred)
-- \`adaptive direct\` – only when classifier direct_eligible (narrow gates)
-- \`orchestrating\` – profile-aware batching, script cleanup, estimate-calls
-- Multi-platform installer: \`install.sh --only ...\` (+ optional agents flag)
-
-Use OpenCode's native \`skill\` tool to load Nexus skills based on task phase.`;
-
-  bootstrapCache = [
-    "<EXTREMELY_IMPORTANT>",
-    BOOTSTRAP_MARKER,
-    "You have OpenCode Nexus V3 workflow engine support (executable state machine + profiles + scripts-first).",
-    "The using-nexus skill content below is already loaded; do not load it again.",
-    "",
-    body,
-    "",
-    toolMapping,
-    "</EXTREMELY_IMPORTANT>",
-  ].join("\n");
-
-  return bootstrapCache;
+  return COMPACT_ROUTER;
 }
 
 function readContextFile(worktree) {
@@ -92,6 +58,7 @@ function readRunStateSummary(worktree) {
       const p = path.join(runsRoot, id, "state.json");
       if (!fs.existsSync(p)) continue;
       const s = JSON.parse(fs.readFileSync(p, "utf8"));
+      if (TERMINAL_RUN_STATES.has(s.state)) continue;
       if (!best || (s.updated_at || "") > (best.updated_at || "")) best = s;
     }
     if (!best) return null;
@@ -105,7 +72,7 @@ function readRunStateSummary(worktree) {
       `- current_unit: ${best.current_unit || "n/a"}`,
       `- transitions: ${(best.transitions || []).length}`,
     ];
-    return lines.join("\n");
+    return { text: lines.join("\n"), state: best };
   } catch {
     return null;
   }
@@ -120,7 +87,7 @@ function readKnowledgeSummary(worktree) {
   if (fs.existsSync(gMd)) {
     try {
       const txt = fs.readFileSync(gMd, "utf8").trim();
-      parts.push("## Nexus Knowledge Graph\n" + txt.slice(0, 1500));
+      parts.push("## Nexus Knowledge Graph\n" + txt.slice(0, 800));
     } catch {}
   }
 
@@ -129,7 +96,7 @@ function readKnowledgeSummary(worktree) {
       const txt = fs.readFileSync(lessons, "utf8").trim();
       if (txt.length > 0) {
         // Recent entries last – surface tail
-        const tailLen = 2500;
+        const tailLen = 800;
         const slice = txt.length > tailLen ? txt.slice(-tailLen) : txt;
         parts.push("## Nexus Outcome Memory (LESSONS.md tail)\n" + slice);
       }
@@ -143,7 +110,7 @@ function readKnowledgeSummary(worktree) {
       if (files.length > 0) {
         const latest = path.join(reconcileDir, files[0]);
         const txt = fs.readFileSync(latest, "utf8").trim();
-        parts.push("## Nexus Last Reconcile\n" + txt.slice(0, 1200));
+        parts.push("## Nexus Last Reconcile\n" + txt.slice(0, 600));
       }
     }
   } catch {}
@@ -165,9 +132,9 @@ function summarizePlan(planText) {
     ) {
       bullets.push(line);
     }
-    if (bullets.length >= 25) break;
+    if (bullets.length >= 8) break;
   }
-  return bullets.length > 0 ? bullets.join("\n") : planText.slice(0, 1600);
+  return bullets.length > 0 ? bullets.join("\n") : planText.slice(0, 800);
 }
 
 export const NexusPlugin = async ({ worktree }) => {
@@ -206,7 +173,11 @@ export const NexusPlugin = async ({ worktree }) => {
       if (alreadyInjected) return;
 
       // Guard against prior bootstrap markers (avoid double-inject)
-      const priorMarkers = ["NEXUS_BOOTSTRAP_V1", "NEXUS_BOOTSTRAP_V2"];
+      const priorMarkers = [
+        "NEXUS_BOOTSTRAP_V1",
+        "NEXUS_BOOTSTRAP_V2",
+        "NEXUS_BOOTSTRAP_V3",
+      ];
       const alreadyPrior = firstUser.parts.some(
         (p) =>
           p.type === "text" &&
@@ -225,28 +196,42 @@ export const NexusPlugin = async ({ worktree }) => {
     "experimental.session.compacting": async (_input, output) => {
       if (!worktree) return;
 
+      const activeRun = readRunStateSummary(worktree);
+      // Compaction should not pull project-wide memory into unrelated chats.
+      // Only an active, non-terminal run gets state and artifact context.
+      if (!activeRun) return;
+
       const chunks = [];
       const liveContext = readContextFile(worktree);
       if (liveContext) {
-        chunks.push("## Nexus Live Context\n" + liveContext);
+        chunks.push("## Nexus Live Context\n" + liveContext.slice(0, 1200));
       }
 
-      const runState = readRunStateSummary(worktree);
-      if (runState) {
-        chunks.push(runState);
-      }
+      chunks.push(activeRun.text);
 
-      const plan = readPlanFile(worktree);
-      if (plan) {
-        chunks.push("## Nexus Plan Snapshot\n" + summarizePlan(plan));
-      }
+      chunks.push(
+        [
+          "## Nexus Active Artifact Pointers",
+          "- plan: .opencode/plans/PLAN.md",
+          "- knowledge: .opencode/knowledge/",
+          "- metrics: .opencode/runs/" + activeRun.state.run_id + "/metrics.jsonl",
+        ].join("\n"),
+      );
 
-      const knowledge = readKnowledgeSummary(worktree);
-      if (knowledge) {
-        chunks.push(knowledge);
+      if (KNOWLEDGE_RELEVANT_STATES.has(activeRun.state.state)) {
+        const plan = readPlanFile(worktree);
+        if (plan) {
+          chunks.push("## Nexus Plan Snapshot\n" + summarizePlan(plan));
+        }
+
+        const knowledge = readKnowledgeSummary(worktree);
+        if (knowledge) {
+          chunks.push(knowledge);
+        }
       }
 
       if (chunks.length > 0) {
+        output.context = output.context || [];
         output.context.push(chunks.join("\n\n"));
       }
     },

@@ -84,6 +84,10 @@ test("direct path allowed for narrowly gated docs", () => {
     changeClass: "documentation",
     documentationOnly: true,
     focusedValidation: true,
+    evidence_source: "git-diff",
+    diff_verified: true,
+    diff_available: true,
+    diff_clean: false,
   });
   assert.equal(r.direct_eligible, true);
   assert.equal(r.execution_mode, "direct");
@@ -148,4 +152,55 @@ test("user forbidDirect forces delegated", () => {
     forbidDirect: true,
   });
   assert.equal(r.direct_eligible, false);
+});
+
+test("profile override cannot downgrade any hard strict trigger", () => {
+  const cases = [
+    { changeClass: "authentication-security" },
+    { changeClass: "database-migration" },
+    { changeClass: "public-api" },
+    { changeClass: "high-blast" },
+    { credentialHandling: true },
+  ];
+
+  for (const input of cases) {
+    const r = classify({
+      filesChanged: 1,
+      estimatedLines: 5,
+      profileOverride: "fast",
+      ...input,
+    });
+    assert.equal(r.profile, "strict", JSON.stringify(input));
+    assert.equal(r.review_level, "dual", JSON.stringify(input));
+    assert.equal(r.direct_eligible, false, JSON.stringify(input));
+    assert.match(r.reasons.join("\n"), /cannot downgrade|Hard strict trigger/);
+  }
+});
+
+test("invalid profile override is rejected", () => {
+  assert.throws(
+    () => classify({ profileOverride: "turbo" }),
+    /Invalid profile override.*fast, balanced, or strict/,
+  );
+});
+
+test("profile override can escalate but cannot lower computed risk", () => {
+  const strict = classify({
+    filesChanged: 10,
+    estimatedLines: 400,
+    changeClass: "small-feature-with-tests",
+    profileOverride: "fast",
+  });
+  assert.equal(strict.profile, "balanced");
+  assert.match(strict.reasons.join("\n"), /cannot downgrade computed balanced/);
+
+  const escalated = classify({
+    filesChanged: 1,
+    estimatedLines: 10,
+    changeClass: "small-feature-with-tests",
+    profileOverride: "strict",
+  });
+  assert.equal(escalated.profile, "strict");
+  assert.equal(escalated.review_level, "dual");
+  assert.equal(escalated.direct_eligible, false);
 });

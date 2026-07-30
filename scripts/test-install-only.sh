@@ -9,9 +9,14 @@ trap cleanup EXIT
 # Isolate from host tooling (cursor, codex, agy, etc.) so detection is deterministic.
 SANITIZED_PATH="/usr/bin:/bin"
 
+run_install() {
+  (cd "$HOME/project" && "$ROOT/install.sh" "$@")
+}
+
 export HOME="$TMPHOME"
 mkdir -p "$HOME/.config/opencode" "$HOME/.gemini/skills" "$HOME/.gemini/config/skills" \
-  "$HOME/.gemini/antigravity/skills" "$HOME/.antigravity" "$HOME/bin"
+  "$HOME/.gemini/antigravity/skills" "$HOME/.antigravity" "$HOME/bin" "$HOME/project"
+git init -q "$HOME/project"
 printf '#!/bin/sh\nexit 0\n' >"$HOME/bin/ag"; chmod +x "$HOME/bin/ag"
 printf '#!/bin/sh\nexit 0\n' >"$HOME/bin/gemini"; chmod +x "$HOME/bin/gemini"
 printf '#!/bin/sh\nexit 0\n' >"$HOME/bin/opencode"; chmod +x "$HOME/bin/opencode"
@@ -19,7 +24,7 @@ export PATH="$HOME/bin:$SANITIZED_PATH"
 printf '{}\n' >"$HOME/.config/opencode/opencode.json"
 
 echo "== test --only opencode =="
-out="$("$ROOT/install.sh" --only opencode 2>&1)" || { echo "$out"; exit 1; }
+out="$(run_install --only opencode 2>&1)" || { echo "$out"; exit 1; }
 echo "$out" | grep -q 'Strict --only allowlist: opencode'
 echo "$out" | grep -q 'opencode:.*will install'
 echo "$out" | grep -q 'antigravity:.*skipped (--only)'
@@ -44,13 +49,14 @@ echo "PASS: --only opencode isolates OpenCode"
 rm -rf "$TMPHOME"
 TMPHOME="$(mktemp -d)"
 export HOME="$TMPHOME"
-mkdir -p "$HOME/.config/opencode" "$HOME/.gemini/skills" "$HOME/bin"
+mkdir -p "$HOME/.config/opencode" "$HOME/.gemini/skills" "$HOME/bin" "$HOME/project"
+git init -q "$HOME/project"
 printf '{}\n' >"$HOME/.config/opencode/opencode.json"
 for b in ag gemini opencode; do printf '#!/bin/sh\nexit 0\n' >"$HOME/bin/$b"; chmod +x "$HOME/bin/$b"; done
 export PATH="$HOME/bin:$SANITIZED_PATH"
 
 echo "== test default auto-detect (ag + gemini present, no AG) =="
-out="$("$ROOT/install.sh" 2>&1)" || { echo "$out"; exit 1; }
+out="$(run_install 2>&1)" || { echo "$out"; exit 1; }
 echo "$out" | grep -q 'opencode: detected → will install'
 echo "$out" | grep -q 'gemini: detected → will install'
 echo "$out" | grep -q 'antigravity: not detected → skipped'
@@ -66,3 +72,5 @@ if find "$HOME" \( -path '*/.gemini/config/skills/*' -o -path '*/antigravity/*' 
 fi
 test "$(find "$HOME/.gemini/skills" "$HOME/.config/gemini/skills" -iname '*nexus*' 2>/dev/null | wc -l)" -gt 0
 echo "PASS: default install detects gemini, skips Antigravity (ignores ag binary)"
+
+bash "$ROOT/scripts/test-adapter-contract.sh"

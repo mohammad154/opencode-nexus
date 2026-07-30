@@ -29,7 +29,7 @@ Direct path: only when `direct_eligible` (max 1 file, ≤30 lines, allowed class
 | ----------- | --------------------------------- | -------------------------------- | --------------------------------------- |
 | Branch      | one per request/feature           | one per feature / execution unit | one per task (`feature/task-N-*`)       |
 | Implementer | one per execution unit            | one per execution unit           | one per task                            |
-| Graph       | script + cache-by-commit          | script + cache-by-commit         | script; rebuild when resume / next task |
+| Graph       | script + cache-by-file-hash      | script + cache-by-file-hash     | script; rebuild when resume / next task |
 | Blast       | once per execution unit           | once per execution unit          | every task                              |
 | Review      | unified or skip (docs)            | risk-based matrix                | always spec then code                   |
 | LESSONS     | noteworthy-only                   | noteworthy-only                  | every approved task                     |
@@ -76,17 +76,18 @@ See `reviewMatrix` in `config/workflow-profiles.json`.
 
 Never self-review in the orchestrator turn when a reviewer is required.
 
-## Cost estimator
+## Agent-call estimator
 
 Before starting a multi-task plan, run:
 
 ```bash
-node scripts/nexus-estimate-cost.js --tasks N --profile balanced
+node scripts/nexus-estimate-calls.js --tasks N --profile balanced
 # or
-bash scripts/nexus-estimate-cost.sh --tasks N --profile balanced
+bash scripts/nexus-estimate-calls.sh --tasks N --profile balanced
 ```
 
-Show the estimate to the user and the recommended profile.
+Show the estimated agent calls to the user and the recommended profile. The old
+`nexus-estimate-cost` scripts remain only as one-release compatibility shims.
 
 ## Hard rules that still apply under all profiles
 
