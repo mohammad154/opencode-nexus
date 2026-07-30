@@ -162,3 +162,30 @@ test("CLI collects current git diff by default", () => {
   assert.equal(result.direct_eligible, true);
   assert.equal(result.execution_mode, "direct");
 });
+
+test("untracked .opencode runtime artifacts do not inflate classification evidence", () => {
+  const root = createGitRepo();
+  writeFile(root, "README.md", "docs only\n");
+  writeFile(
+    root,
+    ".opencode/runs/run-x/state.json",
+    JSON.stringify({ run_id: "run-x", state: "CREATED" }, null, 2) + "\n",
+  );
+  writeFile(root, ".opencode/trajectories/run-x.jsonl", "{}\n");
+  writeFile(root, ".opencode/handoffs/unit-implementer.json", "{}\n");
+
+  const evidence = collectGitDiffEvidence({ cwd: root });
+  assert.equal(evidence.files_changed, 1);
+  assert.deepEqual(evidence.changed_files, ["README.md"]);
+  assert.equal(
+    evidence.changed_files.some((f) => f.startsWith(".opencode/")),
+    false,
+  );
+
+  const result = classifyFromArgs(
+    ["--class", "documentation", "--focused"],
+    root,
+  );
+  assert.equal(result.direct_eligible, true);
+  assert.equal(result.execution_mode, "direct");
+});

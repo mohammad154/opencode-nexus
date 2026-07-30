@@ -110,7 +110,8 @@ Full gates: `skills/orchestrating/dispatch.md`.
 
 - Machine state: `.opencode/runs/*/state.json`
 - Human context: `.opencode/CONTEXT.md`, plans, tasks, handoffs, knowledge/
-- Handoffs: prefer `schema_version: "1.0"` (legacy 0.9 migrates on validate)
+- Handoffs: require `schema_version: "1.1"` with envelope (`run_id`, `unit_or_task`, `agent`, `base_commit`, `created_at`). Legacy `1.0`/`0.9` migrate as `legacy_unverified` and cannot satisfy completion gates.
+- Direct path (PR A): **existing-diff-only** — `classify --apply` with authoritative non-clean git diff. Two-stage `DIRECT_PREPARING`/`DIRECT_AUTHORIZED` is PR B.
 
 ## Red Flags
 

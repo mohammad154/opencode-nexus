@@ -89,8 +89,15 @@ VERDICT: BLOCKED (drift / blast surprise)
 
 Prioritize findings by severity: HIGH = must fix before merge, MEDIUM = should fix (callers broken), LOW = nit (optional but logged)
 
-Also write review notes to .opencode/handoffs/task-N-code-reviewer.json:
+Also write review notes to .opencode/handoffs/task-N-code-reviewer.json (schema 1.1):
 {
+  "schema_version": "1.1",
+  "run_id": "[run_id]",
+  "unit_or_task": "task-N",
+  "agent": "code-reviewer",
+  "base_commit": "[pre-implementation commit]",
+  "created_at": "[ISO timestamp]",
+  "reviewed_commit": "[implementer commit]",
   "task_id": "task-N",
   "verdict": "APPROVED|REQUEST_CHANGES|ISOLATION_VIOLATION|BLOCKED",
   "plan_commit": "[sha]",

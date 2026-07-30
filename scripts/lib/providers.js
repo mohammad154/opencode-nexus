@@ -672,19 +672,26 @@ export function createLiteBlastProvider() {
       const outPath =
         ctx.outPath ||
         path.join(worktree, ".opencode", "knowledge", "blast", "latest.json");
+      // Inline reports are authoritative only when already provider-sealed.
       if (ctx.report && typeof ctx.report === "object") {
-        const report = annotateLiteBlastReport({
-          uncertainties: [],
-          dimensions: {},
-          ...ctx.report,
-          risk: ctx.report.risk || ctx.report.level || "UNKNOWN",
-        });
-        return {
-          ok: true,
-          ...providerResultMetadata(BLAST_PROVIDER_METADATA, true),
-          report,
-          path: ctx.outPath || null,
-        };
+        if (
+          ctx.report.provider_validated === true &&
+          ctx.report.artifact_digest
+        ) {
+          const report = annotateLiteBlastReport({
+            uncertainties: [],
+            dimensions: {},
+            ...ctx.report,
+            risk: ctx.report.risk || ctx.report.level || "UNKNOWN",
+          });
+          return {
+            ok: true,
+            ...providerResultMetadata(BLAST_PROVIDER_METADATA, true),
+            report,
+            path: ctx.outPath || null,
+          };
+        }
+        // Ignore fabricated inline trust labels — fall through to artifact/script.
       }
       if (ctx.reportPath && fs.existsSync(ctx.reportPath)) {
         const report = annotateLiteBlastReport(

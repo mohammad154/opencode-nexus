@@ -74,8 +74,15 @@ VERDICT: BLOCKED (drift)
 - <drift reason with sha / file:line evidence>
 - Suggested action: reconcile or re-plan task-N
 
-Also write review notes to .opencode/handoffs/task-N-spec-reviewer.json:
+Also write review notes to .opencode/handoffs/task-N-spec-reviewer.json (schema 1.1):
 {
+  "schema_version": "1.1",
+  "run_id": "[run_id]",
+  "unit_or_task": "task-N",
+  "agent": "spec-reviewer",
+  "base_commit": "[pre-implementation commit]",
+  "created_at": "[ISO timestamp]",
+  "reviewed_commit": "[implementer commit]",
   "task_id": "task-N",
   "verdict": "APPROVED|REQUEST_CHANGES|ISOLATION_VIOLATION|BLOCKED",
   "plan_commit": "[sha]",

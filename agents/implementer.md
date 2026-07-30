@@ -55,7 +55,7 @@ Requirements:
 - Reference-first: read task/unit files, CONTEXT, blast path, LESSONS-excerpt — do not assume pasted blobs.
 - Run verification gates exactly as listed (commands + expected outcomes).
 - Stay on the assigned feature branch; never commit to base.
-- Write handoff JSON to the path given (`.opencode/handoffs/<id>-implementer.json`). Include `schema_version: "1.0"` when possible.
+- Write handoff JSON to the path given (`.opencode/handoffs/<id>-implementer.json`). Use `schema_version: "1.1"` with required envelope (`run_id`, `unit_or_task`, `agent`, `base_commit`, `created_at`), plus `commit`, `verification_gates`, and `drift_check`. Do not set `verification_exempt`.
 - **Never delete branches.** Branch cleanup is only via `scripts/nexus-branch-cleanup.sh` (orchestrator).
 
 Hard rules:

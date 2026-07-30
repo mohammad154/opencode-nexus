@@ -10,6 +10,7 @@ import {
   normalizeHandoff,
   normalizeAndValidateHandoff,
   createEmptyRunState,
+  HANDOFF_VERSION,
 } from "../../scripts/lib/migrate-artifacts.js";
 
 test("run-state schema accepts createEmptyRunState", () => {
@@ -25,30 +26,46 @@ test("run-state rejects unknown state", () => {
   assert.equal(r.ok, false);
 });
 
-test("implementer handoff 1.0 validates", () => {
+test("implementer handoff 1.1 validates", () => {
   const data = {
-    schema_version: "1.0",
+    schema_version: "1.1",
+    run_id: "run-a",
+    unit_or_task: "unit-1",
+    agent: "implementer",
+    base_commit: "abc",
+    created_at: "2026-07-30T00:00:00.000Z",
     status: "DONE",
-    commit: "abc",
+    commit: "def",
     files_changed: ["a.js"],
     tests: [],
-    verification_gates: [],
-    drift_check: { plan_commit: "abc", current_head: "abc", pass: true },
+    verification_gates: [{ id: "unit", cmd: "npm test", pass: true }],
+    drift_check: { plan_commit: "abc", current_head: "def", pass: true },
     blast: { risk: "LOW", verified: true, callers_checked: [] },
   };
   const r = validateHandoff("implementer", data);
   assert.equal(r.ok, true, JSON.stringify(r.errors));
 });
 
+test("implementer schema rejects verification_exempt field as authorization", () => {
+  const schema = loadSchema("handoff-implementer.schema.json");
+  assert.equal(
+    Object.prototype.hasOwnProperty.call(
+      schema.properties || {},
+      "verification_exempt",
+    ),
+    false,
+  );
+});
+
 test("corrupt implementer handoff rejected", () => {
   const r = validateHandoff("implementer", {
-    schema_version: "1.0",
+    schema_version: "1.1",
     status: "DONE_WRONG",
   });
   assert.equal(r.ok, false);
 });
 
-test("legacy 0.9 implementer migrates and validates", () => {
+test("legacy 0.9 implementer migrates to 1.1 as legacy_unverified", () => {
   const raw = {
     status: "DONE",
     commit: "deadbeef",
@@ -60,19 +77,57 @@ test("legacy 0.9 implementer migrates and validates", () => {
     raw,
   );
   assert.equal(migrated_from, "0.9");
-  assert.equal(data.schema_version, "1.0");
+  assert.equal(data.schema_version, HANDOFF_VERSION);
   assert.equal(ok, true, JSON.stringify(errors));
   assert.ok(Array.isArray(data.verification_gates));
   assert.equal(data.blast.risk, "UNKNOWN");
   assert.equal(data.legacy_unverified, true);
+  assert.equal(data.drift_check.pass, null);
+});
+
+test("legacy 1.0 implementer migrates as legacy_unverified without inventing pass", () => {
+  const raw = {
+    schema_version: "1.0",
+    status: "DONE",
+    commit: "abc",
+  };
+  const { data, ok } = normalizeAndValidateHandoff("implementer", raw);
+  assert.equal(ok, true);
+  assert.equal(data.schema_version, "1.1");
+  assert.equal(data.legacy_unverified, true);
+  assert.equal("verification_exempt" in data, false);
+});
+
+test("normalize strips verification_exempt from implementer handoffs", () => {
+  const { data } = normalizeHandoff("implementer", {
+    schema_version: "1.1",
+    run_id: "r",
+    unit_or_task: "u",
+    agent: "implementer",
+    base_commit: "a",
+    created_at: "2026-07-30T00:00:00.000Z",
+    status: "DONE",
+    commit: "b",
+    verification_exempt: true,
+    verification_gates: [],
+    drift_check: { pass: null },
+  });
+  assert.equal("verification_exempt" in data, false);
 });
 
 test("reviewer missing blast gets UNKNOWN defaults", () => {
   const { data } = normalizeHandoff("spec-reviewer", {
+    schema_version: "1.1",
+    run_id: "r",
+    unit_or_task: "task-1",
+    agent: "spec-reviewer",
+    base_commit: "a",
+    created_at: "2026-07-30T00:00:00.000Z",
     verdict: "APPROVED",
+    reviewed_commit: "b",
     task_id: "task-1",
   });
-  assert.equal(data.schema_version, "1.0");
+  assert.equal(data.schema_version, "1.1");
   assert.equal(data.blast.pass, null);
   assert.equal(data.blast.risk, "UNKNOWN");
   const r = validateHandoff("spec-reviewer", data);

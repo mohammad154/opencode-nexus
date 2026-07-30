@@ -27,10 +27,15 @@ You are the unified reviewer for execution unit / task: [ID] [TITLE]
 - Severity: HIGH must-fix / MEDIUM should-fix / LOW nit
 
 ## Handoff JSON
-Write .opencode/handoffs/[id]-unified-reviewer.json:
+Write .opencode/handoffs/[id]-unified-reviewer.json (schema_version 1.1):
 {
-  "agent": "unified-reviewer",
+  "schema_version": "1.1",
+  "run_id": "[run_id]",
   "unit_or_task": "[id]",
+  "agent": "unified-reviewer",
+  "base_commit": "[pre-implementation commit]",
+  "created_at": "[ISO timestamp]",
+  "reviewed_commit": "[implementer commit — must equal implementer_commit]",
   "verdict": "APPROVED|REQUEST_CHANGES|ISOLATION_VIOLATION|BLOCKED",
   "change_class": "[class]",
   "blast_risk": "LOW|MEDIUM|HIGH",

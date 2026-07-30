@@ -59,11 +59,27 @@ test("unsupported graph and blast modes are explicit instead of Lite fallbacks",
 });
 
 test("Lite blast reports label incomplete placeholder fields", () => {
-  const result = getBlastProvider("lite").analyze({ report: { risk: "LOW" } });
+  const result = getBlastProvider("lite").analyze({
+    report: {
+      risk: "LOW",
+      provider_validated: true,
+      artifact_digest: "sha256:test-fixture",
+    },
+  });
   assert.equal(result.ok, true);
   assert.equal(result.report.analysis_complete, false);
   assert.equal(result.report.analysis_quality, "lite-heuristic");
   assert.ok(result.report.placeholder_fields.includes("dimensions"));
+});
+
+test("Lite blast ignores unsealed inline trusted reports", () => {
+  const result = getBlastProvider("lite").analyze({
+    report: { risk: "LOW", trusted: true },
+    worktree: tempDir("nexus-blast-ignore-"),
+  });
+  // Without a sealed report or on-disk artifact, analyze falls through to the script
+  // and should not treat the fabricated trusted label as authoritative.
+  assert.notEqual(result.report?.trusted, true);
 });
 
 test("default providers expose deterministic edit validation and metrics", () => {

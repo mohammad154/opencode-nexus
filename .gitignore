@@ -1,5 +1,11 @@
 # Generated / local install artifacts (not part of the package)
 .opencode/knowledge/
+.opencode/CONTEXT.md
+.opencode/plans/
+.opencode/tasks/
+.opencode/handoffs/
+.opencode/runs/
+.opencode/trajectories/
 .cursor/
 .claude/
 .gemini/

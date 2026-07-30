@@ -1,7 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createEmptyRunState } from "../../scripts/lib/migrate-artifacts.js";
-import { canTransition, transition } from "../../scripts/lib/state-machine.js";
+import {
+  canTransition,
+  transition,
+  CLASSIFY_APPLY_SOURCE,
+} from "../../scripts/lib/state-machine.js";
 import { classify, loadWorkflowConfig } from "../../scripts/lib/classify.js";
 import {
   assessDrift,
@@ -9,6 +13,13 @@ import {
 } from "../../scripts/lib/drift.js";
 import { assertValidRunId } from "../../scripts/lib/policy.js";
 import { normalizeHandoff } from "../../scripts/lib/migrate-artifacts.js";
+import {
+  goodImplementerHandoff,
+  goodUnifiedHandoff,
+  mockTrustProviders,
+  sealedLowBlast,
+  sealedPreciseGraph,
+} from "../helpers/gate-fixtures.js";
 
 function sampleClassification(overrides = {}) {
   return {
@@ -23,19 +34,6 @@ function sampleClassification(overrides = {}) {
     change_class: "small-feature-with-tests",
     hard_triggers: [],
     ...overrides,
-  };
-}
-
-function goodDrift() {
-  return {
-    schema_version: "1.0",
-    drift: "NONE",
-    reasons: [],
-    commit_distance: 0,
-    plan_commit: "abc",
-    current_head: "def",
-    anchors_broken: [],
-    merge_base_changed: false,
   };
 }
 
@@ -75,12 +73,16 @@ test("stored direct flag without authoritative diff cannot enter direct path", (
     ...createEmptyRunState("gate-direct-evidence"),
     state: "CLASSIFIED",
     execution_mode: "direct",
+    classification_source: CLASSIFY_APPLY_SOURCE,
     classification: sampleClassification({
       execution_mode: "direct",
       direct_eligible: true,
       confidence: 0.95,
       evidence_source: "explicit-input",
+      classification_source: CLASSIFY_APPLY_SOURCE,
     }),
+    graph: sealedPreciseGraph(),
+    blast: sealedLowBlast(),
   };
   const r = canTransition(state, "DIRECT_IMPLEMENTING", {});
   assert.equal(r.ok, false);
@@ -92,7 +94,14 @@ test("direct transition rejects stale graph analysis", () => {
     ...createEmptyRunState("gate-direct-graph"),
     state: "CLASSIFIED",
     execution_mode: "direct",
-    graph: { ok: false, stale: true, quality: "UNKNOWN" },
+    classification_source: CLASSIFY_APPLY_SOURCE,
+    graph: sealedPreciseGraph({
+      ok: false,
+      stale: true,
+      quality: "UNKNOWN",
+      trusted: false,
+    }),
+    blast: sealedLowBlast(),
     classification: sampleClassification({
       execution_mode: "direct",
       direct_eligible: true,
@@ -101,14 +110,26 @@ test("direct transition rejects stale graph analysis", () => {
       diff_verified: true,
       diff_available: true,
       diff_clean: false,
+      classification_source: CLASSIFY_APPLY_SOURCE,
     }),
   };
   const r = canTransition(state, "DIRECT_IMPLEMENTING", {});
   assert.equal(r.ok, false);
-  assert.match(r.errors.join("\n"), /fresh, trusted PRECISE graph/i);
+  assert.match(r.errors.join("\n"), /PRECISE graph/i);
 });
 
 test("HIGH blast escalates review_level to dual and profile to strict", () => {
+  const providers = mockTrustProviders();
+  providers.blastProvider.analyze = () => ({
+    ok: true,
+    report: {
+      risk: "HIGH",
+      level: "HIGH",
+      score: 20,
+      uncertainties: [],
+      dimensions: {},
+    },
+  });
   let state = createEmptyRunState("gate-3");
   state = transition(state, "CLASSIFIED", {
     classification: sampleClassification({
@@ -117,18 +138,8 @@ test("HIGH blast escalates review_level to dual and profile to strict", () => {
     }),
   }).state;
   state = transition(state, "PLANNED", { plan_skip: true }).state;
-  state = transition(state, "GRAPH_READY", {
-    graph: { ok: true, confidence: 0.9, path: "g.json" },
-  }).state;
-  const r = transition(state, "BLAST_READY", {
-    blast: {
-      risk: "HIGH",
-      level: "HIGH",
-      score: 20,
-      uncertainties: [],
-      dimensions: {},
-    },
-  });
+  state = transition(state, "GRAPH_READY", {}, providers).state;
+  const r = transition(state, "BLAST_READY", {}, providers);
   assert.equal(r.ok, true, JSON.stringify(r.errors));
   assert.equal(r.state.review_level, "dual");
   assert.equal(r.state.profile, "strict");
@@ -142,16 +153,16 @@ test("escalate_to_dual APPROVED cannot COMPLETE unified", () => {
     review_level: "unified",
     current_unit: "unit-1",
     implementer_commit: "abc123",
+    head_commit: "base000",
   };
   const r = canTransition(state, "COMPLETED", {
-    unified_handoff: {
-      schema_version: "1.0",
-      verdict: "APPROVED",
-      escalate_to_dual: true,
+    unified_handoff: goodUnifiedHandoff({
       run_id: "gate-4",
       unit_or_task: "unit-1",
       reviewed_commit: "abc123",
-    },
+      base_commit: "base000",
+      escalate_to_dual: true,
+    }),
   });
   assert.equal(r.ok, false);
   assert.ok(r.errors.some((e) => /escalate_to_dual/i.test(e)));
@@ -197,18 +208,18 @@ test("VERIFYING rejects empty verification_gates", () => {
     execution_mode: "delegated",
     run_id: "gate-6",
     current_unit: "u1",
+    head_commit: "base111",
   };
   const r = canTransition(state, "VERIFYING", {
-    implementer_handoff: {
-      schema_version: "1.0",
-      status: "DONE",
+    implementer_handoff: goodImplementerHandoff({
       run_id: "gate-6",
       unit_or_task: "u1",
+      base_commit: "base111",
       commit: "c1",
       verification_gates: [],
       drift_check: { pass: true },
       blast: { verified: true, risk: "LOW" },
-    },
+    }),
   });
   assert.equal(r.ok, false);
   assert.ok(r.errors.some((e) => /verification gate/i.test(e)));
@@ -221,16 +232,28 @@ test("stale approval without run binding rejected", () => {
     review_level: "unified",
     current_unit: "auth",
     implementer_commit: "deadbeef",
+    head_commit: "base",
   };
   const r = canTransition(state, "COMPLETED", {
     unified_handoff: {
-      schema_version: "1.0",
+      schema_version: "1.1",
       verdict: "APPROVED",
       agent: "unified-reviewer",
+      unit_or_task: "auth",
+      base_commit: "base",
+      created_at: "2026-07-30T00:00:00.000Z",
+      reviewed_commit: "deadbeef",
     },
   });
   assert.equal(r.ok, false);
-  assert.ok(r.errors.some((e) => /run_id|binding/i.test(e)));
+  assert.ok(
+    r.errors.some((e) =>
+      /run_id|binding|required property missing|expected type "string"/i.test(
+        e,
+      ),
+    ),
+    JSON.stringify(r.errors),
+  );
 });
 
 test("COMPLETED is terminal", () => {
@@ -270,16 +293,16 @@ test("bound unified approval completes", () => {
     review_level: "unified",
     current_unit: "auth",
     implementer_commit: "abc123",
+    head_commit: "base000",
   };
   const r = canTransition(state, "COMPLETED", {
-    unified_handoff: {
-      schema_version: "1.0",
-      verdict: "APPROVED",
+    unified_handoff: goodUnifiedHandoff({
       run_id: "gate-9",
       unit_or_task: "auth",
       reviewed_commit: "abc123",
+      base_commit: "base000",
       escalate_to_dual: false,
-    },
+    }),
   });
   assert.equal(r.ok, true, JSON.stringify(r.errors));
 });

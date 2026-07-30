@@ -32,6 +32,14 @@ test("plugin injects a compact router and keeps automatic skill routing", async 
   assert.match(injected, /native skill tool/);
   assert.ok(injected.length < 1600, `router too large: ${injected.length}`);
   assert.equal(injected.includes("The using-nexus skill content below"), false);
+  assert.match(injected, /→ using-nexus/);
+  assert.match(injected, /→ brainstorming/);
+  assert.match(injected, /→ writing-plans/);
+  assert.match(injected, /→ knowledge-graph/);
+  assert.match(injected, /→ blast-radius/);
+  assert.match(injected, /→ orchestrating/);
+  assert.equal(injected.includes("nexus-using-nexus"), false);
+  assert.equal(injected.includes("nexus-brainstorming"), false);
 
   const partCount = output.messages[0].parts.length;
   await plugin["experimental.chat.messages.transform"]({}, output);

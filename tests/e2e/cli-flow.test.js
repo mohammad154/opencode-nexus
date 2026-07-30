@@ -18,10 +18,20 @@ function makeTempRepo() {
     encoding: "utf8",
   });
   assert.equal(git.status, 0, git.stderr);
+  spawnSync("git", ["config", "user.email", "nexus@example.com"], {
+    cwd: root,
+  });
+  spawnSync("git", ["config", "user.name", "Nexus E2E"], { cwd: root });
   return { root, home };
 }
 
-function invoke(worktree, home, args) {
+function git(root, args) {
+  const result = spawnSync("git", args, { cwd: root, encoding: "utf8" });
+  assert.equal(result.status, 0, `${args.join(" ")}\n${result.stderr}`);
+  return result.stdout.trim();
+}
+
+function invoke(worktree, home, args, { expectStatus = 0 } = {}) {
   const result = spawnSync(process.execPath, [runCli, ...args], {
     cwd: worktree,
     encoding: "utf8",
@@ -33,10 +43,18 @@ function invoke(worktree, home, args) {
   });
   assert.equal(
     result.status,
-    0,
+    expectStatus,
     `${args.join(" ")}\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`,
   );
-  return JSON.parse(result.stdout);
+  const out = (result.stdout || result.stderr || "").trim();
+  if (!out) return null;
+  try {
+    return JSON.parse(
+      result.status === 0 ? result.stdout : result.stderr || result.stdout,
+    );
+  } catch {
+    return { raw: out };
+  }
 }
 
 function json(value) {
@@ -50,7 +68,26 @@ after(() => {
 test("nexus-run completes a full CLI workflow in a temporary repository", () => {
   const { root, home } = makeTempRepo();
   const runId = "e2e-complete";
-  const head = "e2e-head";
+
+  // Seed a small source tree so graph/blast providers have something to analyze
+  fs.mkdirSync(path.join(root, "src"), { recursive: true });
+  fs.writeFileSync(
+    path.join(root, "src", "app.js"),
+    "export function hello() { return 1; }\n",
+  );
+  fs.writeFileSync(
+    path.join(root, "package.json"),
+    json({ name: "e2e-fixture", type: "module" }) + "\n",
+  );
+  git(root, ["add", "."]);
+  git(root, ["commit", "-m", "initial"]);
+  const baseHead = git(root, ["rev-parse", "HEAD"]);
+
+  // Existing diff for classification (and eventual implementation)
+  fs.writeFileSync(
+    path.join(root, "src", "app.js"),
+    "export function hello() { return 2; }\n",
+  );
 
   const initialized = invoke(root, home, ["init", "--run-id", runId]);
   assert.equal(initialized.state.state, "CREATED");
@@ -62,37 +99,87 @@ test("nexus-run completes a full CLI workflow in a temporary repository", () => 
     "--apply",
     "--json",
     json({
-      filesChanged: 1,
-      estimatedLines: 10,
       changeClass: "small-feature-with-tests",
       focusedValidation: true,
     }),
   ]);
   assert.equal(classified.state.state, "CLASSIFIED");
+  assert.equal(classified.state.classification_source, "classify-apply");
   assert.equal(classified.state.review_level, "unified");
 
-  invoke(root, home, ["transition", "--run-id", runId, "--to", "PLANNED", "--plan-skip"]);
   invoke(root, home, [
+    "transition",
+    "--run-id",
+    runId,
+    "--to",
+    "PLANNED",
+    "--plan-skip",
+  ]);
+  const graphReady = invoke(root, home, [
     "transition",
     "--run-id",
     runId,
     "--to",
     "GRAPH_READY",
-    "--json",
-    json({ graph: { ok: true, confidence: 0.95, nodes: 1, edges: 0 } }),
   ]);
-  invoke(root, home, [
-    "transition",
-    "--run-id",
-    runId,
-    "--to",
-    "BLAST_READY",
-    "--json",
-    json({
-      blast: { risk: "LOW", score: 0, uncertainties: [] },
-    }),
-  ]);
-  invoke(root, home, [
+  assert.equal(graphReady.state.state, "GRAPH_READY");
+  assert.equal(graphReady.state.graph?.provider_validated, true);
+
+  // Fabricated trusted graph must be rejected
+  const fabricated = invoke(
+    root,
+    home,
+    [
+      "transition",
+      "--run-id",
+      runId,
+      "--to",
+      "BLAST_READY",
+      "--json",
+      json({
+        blast: {
+          risk: "LOW",
+          trusted: true,
+          analysis_quality: "PRECISE",
+          graph_quality: "PRECISE",
+          graph_freshness: { valid: true },
+          analysis_complete: true,
+          uncertainties: [],
+        },
+      }),
+    ],
+    { expectStatus: 3 },
+  );
+  // May succeed via provider rebuild (ignoring fabricated) or fail — either way
+  // fabricated trust must not be stored as authoritative without sealing.
+  if (fabricated?.ok) {
+    assert.equal(fabricated.state.blast?.provider_validated, true);
+  }
+
+  // Re-init path from GRAPH_READY with provider-backed blast
+  let state = invoke(root, home, ["status", "--run-id", runId]).state;
+  if (state.state === "GRAPH_READY") {
+    const blastReady = invoke(root, home, [
+      "transition",
+      "--run-id",
+      runId,
+      "--to",
+      "BLAST_READY",
+      "--json",
+      json({
+        blast_verification: {
+          verified: true,
+          method: "e2e-fixture",
+          reason: "provider blast may be UNKNOWN on tiny fixture",
+        },
+      }),
+    ]);
+    assert.equal(blastReady.state.state, "BLAST_READY");
+    state = blastReady.state;
+  }
+
+  git(root, ["checkout", "-b", "e2e/complete"]);
+  const implementing = invoke(root, home, [
     "transition",
     "--run-id",
     runId,
@@ -106,25 +193,49 @@ test("nexus-run completes a full CLI workflow in a temporary repository", () => 
         schema_version: "1.0",
         drift: "NONE",
         reasons: [],
-        plan_commit: "e2e-plan",
-        current_head: head,
+        plan_commit: baseHead,
+        current_head: baseHead,
         commit_distance: 0,
         anchors_broken: [],
         merge_base_changed: false,
       },
     }),
   ]);
+  assert.equal(implementing.state.state, "IMPLEMENTING");
+  assert.equal(implementing.state.head_commit, baseHead);
+
+  git(root, ["add", "src/app.js"]);
+  git(root, ["commit", "-m", "implement hello bump"]);
+  const implCommit = git(root, ["rev-parse", "HEAD"]);
+  assert.notEqual(implCommit, baseHead);
 
   const implementer = {
-    schema_version: "1.0",
+    schema_version: "1.1",
     run_id: runId,
+    unit_or_task: "e2e-unit",
+    agent: "implementer",
+    base_commit: baseHead,
+    created_at: new Date().toISOString(),
     status: "DONE",
-    commit: head,
-    reviewed_commit: head,
-    verification_gates: [{ cmd: "npm test", pass: true }],
-    drift_check: { plan_commit: "e2e-plan", current_head: head, pass: true },
+    commit: implCommit,
+    files_changed: ["src/app.js"],
+    tests: [],
+    verification_gates: [{ id: "unit", cmd: "npm test", pass: true }],
+    drift_check: {
+      plan_commit: baseHead,
+      current_head: implCommit,
+      pass: true,
+    },
     blast: { risk: "LOW", verified: true, callers_checked: [] },
+    notes_for_reviewer: "e2e",
   };
+
+  // Set current_unit for binding
+  const statePath = path.join(root, ".opencode", "runs", runId, "state.json");
+  const st = JSON.parse(fs.readFileSync(statePath, "utf8"));
+  st.current_unit = "e2e-unit";
+  fs.writeFileSync(statePath, JSON.stringify(st, null, 2) + "\n");
+
   invoke(root, home, [
     "transition",
     "--run-id",
@@ -134,7 +245,15 @@ test("nexus-run completes a full CLI workflow in a temporary repository", () => 
     "--json",
     json({ implementer_handoff: implementer }),
   ]);
-  invoke(root, home, ["transition", "--run-id", runId, "--to", "REVIEWING"]);
+  invoke(root, home, [
+    "transition",
+    "--run-id",
+    runId,
+    "--to",
+    "REVIEWING",
+    "--json",
+    json({ skip_review_prep: true }),
+  ]);
 
   const completed = invoke(root, home, [
     "transition",
@@ -145,17 +264,92 @@ test("nexus-run completes a full CLI workflow in a temporary repository", () => 
     "--json",
     json({
       unified_handoff: {
-        schema_version: "1.0",
+        schema_version: "1.1",
         run_id: runId,
+        unit_or_task: "e2e-unit",
+        agent: "unified-reviewer",
+        base_commit: baseHead,
+        created_at: new Date().toISOString(),
         verdict: "APPROVED",
-        reviewed_commit: head,
+        reviewed_commit: implCommit,
         blast: { pass: true, risk: "LOW" },
       },
     }),
   ]);
   assert.equal(completed.state.state, "COMPLETED");
+  assert.equal(completed.state.implementer_commit, implCommit);
 
   const status = invoke(root, home, ["status", "--run-id", runId]);
   assert.equal(status.state.state, "COMPLETED");
   assert.equal(status.state.transitions.at(-1).to, "COMPLETED");
+});
+
+test("fabricated classification via transition cannot authorize direct", () => {
+  const { root, home } = makeTempRepo();
+  fs.writeFileSync(path.join(root, "README.md"), "# fixture\n");
+  git(root, ["add", "."]);
+  git(root, ["commit", "-m", "initial"]);
+  fs.writeFileSync(path.join(root, "README.md"), "# fixture changed\n");
+
+  invoke(root, home, ["init", "--run-id", "e2e-direct-deny"]);
+  const classified = invoke(root, home, [
+    "transition",
+    "--run-id",
+    "e2e-direct-deny",
+    "--to",
+    "CLASSIFIED",
+    "--json",
+    json({
+      classification: {
+        schema_version: "1.0",
+        profile: "fast",
+        review_level: "none",
+        execution_mode: "direct",
+        direct_eligible: true,
+        confidence: 0.99,
+        risk_score: 0,
+        reasons: ["fabricated"],
+        change_class: "documentation",
+        hard_triggers: [],
+        evidence_source: "git-diff",
+        diff_verified: true,
+        diff_available: true,
+        diff_clean: false,
+      },
+    }),
+  ]);
+  assert.equal(classified.state.classification.direct_eligible, false);
+  assert.equal(classified.state.classification_source, "transition-untrusted");
+
+  const denied = invoke(
+    root,
+    home,
+    [
+      "transition",
+      "--run-id",
+      "e2e-direct-deny",
+      "--to",
+      "DIRECT_IMPLEMENTING",
+      "--json",
+      json({
+        graph: {
+          ok: true,
+          trusted: true,
+          quality: "PRECISE",
+          freshness: { valid: true },
+        },
+        blast: {
+          risk: "LOW",
+          trusted: true,
+          analysis_quality: "PRECISE",
+          graph_quality: "PRECISE",
+          graph_freshness: { valid: true },
+          analysis_complete: true,
+        },
+      }),
+    ],
+    { expectStatus: 3 },
+  );
+  assert.equal(denied.ok, false);
+  assert.match(JSON.stringify(denied.errors), /classify --apply/i);
 });

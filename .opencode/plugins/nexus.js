@@ -23,7 +23,7 @@ const COMPACT_ROUTER = [
   "<EXTREMELY_IMPORTANT>",
   BOOTSTRAP_MARKER,
   "OpenCode Nexus is installed. Keep this routing pointer compact and load detailed instructions only with the native skill tool when the phase requires them.",
-  "Route: start or orient a Nexus session → nexus-using-nexus; unclear requirements → nexus-brainstorming; write a plan → nexus-writing-plans; map the codebase → nexus-knowledge-graph; before edits → nexus-blast-radius; execute an approved plan → nexus-orchestrating; isolate work → nexus-using-feature-branches; finish/reconcile → nexus-finishing-a-development-branch or nexus-reconcile.",
+  "Route: start or orient a Nexus session → using-nexus; unclear requirements → brainstorming; write a plan → writing-plans; map the codebase → knowledge-graph; before edits → blast-radius; execute an approved plan → orchestrating; isolate work → using-feature-branches; finish/reconcile → finishing-a-development-branch or reconcile.",
   "Use scripts for state, graph, blast, call estimates, and cleanup. Canonical artifacts live under .opencode/. Review policy is profile-aware; never lower a stored safety gate. Automatic skill routing remains available through the configured skills path.",
   "</EXTREMELY_IMPORTANT>",
 ].join("\n");

@@ -121,6 +121,8 @@ node scripts/nexus-run.js validate-handoff \
 
 The exact transition sequence depends on the selected profile and whether the run is direct, delegated, or blocked. A stale or uncertain analysis must be verified before a direct path is allowed.
 
+Handoffs use **schema_version `1.1`** (shared envelope: `run_id`, `unit_or_task`, `agent`, `base_commit`, `created_at`). Legacy `1.0`/`0.9` handoffs migrate as `legacy_unverified` and cannot satisfy completion gates. Only `classify --apply` may authorize `direct_eligible`; PR A direct mode is **existing-diff-only** (two-stage isolated worktree direct is planned for PR B). Graph/blast trust requires provider revalidation — caller-supplied `trusted: true` labels are not authoritative.
+
 ## Durable artifacts
 
 Nexus stores workflow context in `.opencode/`:

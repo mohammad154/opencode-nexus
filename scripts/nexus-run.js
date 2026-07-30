@@ -14,6 +14,8 @@
  */
 import fs from "fs";
 import path from "path";
+import { createHash } from "node:crypto";
+import { spawnSync } from "node:child_process";
 import {
   createEmptyRunState,
   writeRunState,
@@ -30,6 +32,7 @@ import {
 import {
   transition as smTransition,
   canTransition,
+  CLASSIFY_APPLY_SOURCE,
 } from "./lib/state-machine.js";
 import { createDefaultProviders } from "./lib/providers.js";
 import { assessDrift } from "./lib/drift.js";
@@ -246,7 +249,44 @@ function cmdClassify(flags) {
   const result = classify(input, { workflowConfig: loadWorkflowConfig() });
   let state = resolveRun(flags);
   if (state && flags.apply) {
-    const r = smTransition(state, "CLASSIFIED", { classification: result });
+    const headResult = spawnSync("git", ["rev-parse", "HEAD"], {
+      cwd: worktree(),
+      encoding: "utf8",
+    });
+    const worktreeHead =
+      headResult.status === 0
+        ? String(headResult.stdout || "").trim() || null
+        : null;
+    const classification = {
+      ...result,
+      classification_source: CLASSIFY_APPLY_SOURCE,
+      worktree_head: worktreeHead,
+    };
+    const { artifact_digest: _omit, ...forDigest } = classification;
+    classification.artifact_digest = `sha256:${createHash("sha256")
+      .update(JSON.stringify(forDigest))
+      .digest("hex")}`;
+
+    // Persist classification artifact for audit
+    const classPath = path.join(
+      worktree(),
+      ".opencode",
+      "runs",
+      state.run_id,
+      "classification.json",
+    );
+    fs.mkdirSync(path.dirname(classPath), { recursive: true });
+    fs.writeFileSync(classPath, JSON.stringify(classification, null, 2) + "\n");
+
+    const r = smTransition(
+      state,
+      "CLASSIFIED",
+      {
+        classification,
+        classification_source: CLASSIFY_APPLY_SOURCE,
+      },
+      createDefaultProviders({ worktree: worktree() }),
+    );
     if (!r.ok) {
       console.error(
         JSON.stringify(
@@ -309,30 +349,38 @@ function cmdTransition(flags) {
     units: resolvedRunUnits(state),
   });
 
-  // Auto-fill graph/blast via providers when transitioning to those states
-  if (to === "GRAPH_READY" && !evidence.graph) {
-    evidence.graph = providers.graphProvider.build({
-      worktree: worktree(),
-      force: !!flags.force,
-    });
+  // Provider revalidation happens inside transition(); do not pre-inject
+  // untrusted graph/blast objects as authoritative when providers will rebuild.
+  if (to === "GRAPH_READY" && evidence.graph && !evidence.graph.path) {
+    // Keep path hints only; strip fabricated trust labels before transition
+    if (evidence.graph.trusted === true && !evidence.graph.provider_validated) {
+      delete evidence.graph.trusted;
+    }
   }
-  if (to === "BLAST_READY" && !evidence.blast) {
-    const analyzed = providers.blastProvider.analyze({
-      worktree: worktree(),
-      reportPath: flags["blast-path"],
-      mermaid: !!flags.mermaid,
-    });
-    evidence.blast = analyzed.ok ? analyzed.report : analyzed;
+  if (to === "BLAST_READY" && evidence.blast && !flags.blast) {
+    if (evidence.blast.trusted === true && !evidence.blast.provider_validated) {
+      delete evidence.blast.trusted;
+    }
   }
 
   const r = smTransition(state, to, evidence, providers);
   if (!r.ok) {
-    recordTrajectory(flags, { command: "transition", to, failed: true }, { ok: false, errors: r.errors }, state);
+    recordTrajectory(
+      flags,
+      { command: "transition", to, failed: true },
+      { ok: false, errors: r.errors },
+      state,
+    );
     console.error(JSON.stringify({ ok: false, errors: r.errors }, null, 2));
     process.exit(3);
   }
   writeRunState(worktree(), r.state);
-  recordTrajectory(flags, { command: "transition", to }, { ok: true, state: r.state }, r.state);
+  recordTrajectory(
+    flags,
+    { command: "transition", to },
+    { ok: true, state: r.state },
+    r.state,
+  );
   console.log(JSON.stringify({ ok: true, state: r.state }, null, 2));
 }
 

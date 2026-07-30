@@ -153,7 +153,8 @@ Every task file written during orchestration MUST follow:
 
 ## Handoff contract
 - Output path: `.opencode/handoffs/task-N-implementer.json` OR `.opencode/handoffs/<unit-id>-implementer.json`
-- Required fields: status, commit, files_changed[], tests[], blast_verified, notes_for_reviewer
+- Required fields (schema 1.1): schema_version, run_id, unit_or_task, agent, base_commit, created_at, status, commit, verification_gates[], drift_check, files_changed[], tests[], blast, notes_for_reviewer
+- Never set verification_exempt (run verification_policy only)
 ```
 
 ## Review dispatch

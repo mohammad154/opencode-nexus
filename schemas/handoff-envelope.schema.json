@@ -1,0 +1,26 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://opencode-nexus.local/schemas/handoff-envelope.schema.json",
+  "title": "HandoffEnvelope",
+  "description": "Shared identity binding for schema_version 1.1 handoffs. Commit/approval values must never be invented by migration.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "run_id",
+    "unit_or_task",
+    "agent",
+    "base_commit",
+    "created_at"
+  ],
+  "properties": {
+    "schema_version": { "type": "string", "enum": ["1.1"] },
+    "run_id": { "type": "string", "minLength": 1 },
+    "unit_or_task": { "type": "string", "minLength": 1 },
+    "task_id": { "type": "string" },
+    "agent": { "type": "string", "minLength": 1 },
+    "base_commit": { "type": ["string", "null"] },
+    "created_at": { "type": "string", "minLength": 1 },
+    "legacy_unverified": { "type": "boolean" }
+  }
+}

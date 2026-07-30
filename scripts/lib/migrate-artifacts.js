@@ -4,8 +4,9 @@ import { validateHandoff, validateRunState } from "./schema-validate.js";
 import { assertValidRunId } from "./policy.js";
 
 const RUN_STATE_VERSION = "1.0";
-const HANDOFF_VERSION = "1.0";
+const HANDOFF_VERSION = "1.1";
 const LEGACY_HANDOFF = "0.9";
+const LEGACY_HANDOFF_VERSIONS = new Set(["0.9", "1.0", LEGACY_HANDOFF]);
 
 function nowIso() {
   return new Date().toISOString();
@@ -15,23 +16,41 @@ function deepClone(v) {
   return JSON.parse(JSON.stringify(v));
 }
 
+function isLegacyHandoffVersion(version) {
+  return !version || LEGACY_HANDOFF_VERSIONS.has(version);
+}
+
 /**
- * Normalize legacy (0.9 / missing schema_version) handoffs to 1.0 in memory.
+ * Normalize legacy (0.9 / 1.0 / missing schema_version) handoffs to 1.1 in memory.
  * Does not write disk unless caller uses write flag elsewhere.
  * Legacy migrations are marked legacy_unverified and cannot satisfy COMPLETED
- * without an explicit override.
+ * without an explicit administrative override.
+ * Never invents commit bindings, verification pass results, or approvals.
  */
 export function normalizeHandoff(role, raw) {
   const data = deepClone(raw && typeof raw === "object" ? raw : {});
-  const wasLegacy =
-    !raw?.schema_version ||
-    raw.schema_version === LEGACY_HANDOFF ||
-    raw.schema_version === "0.9";
   const migrated_from = raw?.schema_version || LEGACY_HANDOFF;
+  const wasLegacy = isLegacyHandoffVersion(raw?.schema_version);
 
-  if (!data.schema_version || data.schema_version === LEGACY_HANDOFF) {
+  if (wasLegacy || data.schema_version !== HANDOFF_VERSION) {
     data.schema_version = HANDOFF_VERSION;
   }
+
+  // Envelope defaults for schema readability only — never invent commit hashes
+  // or approval/verification outcomes.
+  if (data.run_id == null || data.run_id === "") {
+    data.run_id = wasLegacy ? "legacy-unbound" : data.run_id;
+  }
+  if (!data.unit_or_task) {
+    data.unit_or_task =
+      data.task_id || (wasLegacy ? "legacy-unbound" : data.unit_or_task);
+  }
+  if (!data.agent) data.agent = role;
+  if (!("base_commit" in data)) data.base_commit = null;
+  if (!data.created_at) data.created_at = nowIso();
+
+  // Implementers must never self-exempt verification.
+  if ("verification_exempt" in data) delete data.verification_exempt;
 
   if (role === "implementer") {
     if (!Array.isArray(data.files_changed))
@@ -47,9 +66,11 @@ export function normalizeHandoff(role, raw) {
       data.drift_check = {
         plan_commit: data.plan_commit ?? null,
         current_head: data.commit ?? null,
+        // pass stays null — migration must not invent a passing drift check
         pass: null,
       };
     }
+    if (!("commit" in data)) data.commit = null;
     if (!data.blast || typeof data.blast !== "object") {
       data.blast = {
         risk: "UNKNOWN",
@@ -65,6 +86,7 @@ export function normalizeHandoff(role, raw) {
     role === "spec-reviewer" ||
     role === "code-reviewer"
   ) {
+    if (!("reviewed_commit" in data)) data.reviewed_commit = null;
     if (!data.blast || typeof data.blast !== "object") {
       data.blast = { pass: null, risk: "UNKNOWN" };
     } else if (!("pass" in data.blast) && data.blast.pass !== false) {
@@ -129,10 +151,14 @@ export function createEmptyRunState(runId, overrides = {}) {
     execution_mode: "delegated",
     current_unit: null,
     classification: null,
+    classification_source: null,
     plan_commit: null,
+    head_commit: null,
+    implementer_commit: null,
     branch: null,
     graph: null,
     blast: null,
+    verification_policy: { exempt: false, reason: null },
     block_reason: null,
     block_code: null,
     escalation_reasons: [],
@@ -281,4 +307,10 @@ export function latestRunState(worktree) {
   return best;
 }
 
-export { RUN_STATE_VERSION, HANDOFF_VERSION, LEGACY_HANDOFF };
+export {
+  RUN_STATE_VERSION,
+  HANDOFF_VERSION,
+  LEGACY_HANDOFF,
+  LEGACY_HANDOFF_VERSIONS,
+  isLegacyHandoffVersion,
+};

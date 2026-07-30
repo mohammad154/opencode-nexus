@@ -19,8 +19,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
-      - name: Unit tests
-        run: node --test tests/schema/*.test.js tests/migrate/*.test.js tests/classify/*.test.js tests/state-machine/*.test.js tests/drift/*.test.js tests/blast/*.test.js
+      - name: Tests
+        run: npm test
         shell: bash
 
   install:

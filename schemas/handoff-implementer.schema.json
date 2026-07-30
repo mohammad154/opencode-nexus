@@ -4,16 +4,29 @@
   "title": "ImplementerHandoff",
   "type": "object",
   "additionalProperties": true,
-  "required": ["schema_version", "status"],
+  "allOf": [{ "$ref": "handoff-envelope.schema.json" }],
+  "required": [
+    "schema_version",
+    "run_id",
+    "unit_or_task",
+    "agent",
+    "base_commit",
+    "created_at",
+    "status",
+    "commit",
+    "verification_gates",
+    "drift_check"
+  ],
   "properties": {
-    "schema_version": { "type": "string", "enum": ["1.0"] },
-    "agent": { "type": "string" },
-    "run_id": { "type": "string" },
+    "schema_version": { "type": "string", "enum": ["1.1"] },
+    "agent": { "type": "string", "minLength": 1 },
+    "run_id": { "type": "string", "minLength": 1 },
     "task_id": { "type": "string" },
-    "unit_or_task": { "type": "string" },
+    "unit_or_task": { "type": "string", "minLength": 1 },
     "reviewed_commit": { "type": ["string", "null"] },
+    "base_commit": { "type": ["string", "null"] },
+    "created_at": { "type": "string", "minLength": 1 },
     "legacy_unverified": { "type": "boolean" },
-    "verification_exempt": { "type": "boolean" },
     "status": {
       "type": "string",
       "enum": ["DONE", "DONE_WITH_CONCERNS", "BLOCKED", "NEEDS_CONTEXT"]
@@ -31,6 +44,7 @@
         "type": "object",
         "additionalProperties": true,
         "properties": {
+          "id": { "type": "string" },
           "cmd": { "type": "string" },
           "expected": {},
           "actual": {},
@@ -41,6 +55,7 @@
     "drift_check": {
       "type": "object",
       "additionalProperties": true,
+      "required": ["pass"],
       "properties": {
         "plan_commit": { "type": ["string", "null"] },
         "current_head": { "type": ["string", "null"] },
@@ -53,6 +68,7 @@
       "properties": {
         "risk": { "type": "string" },
         "verified": { "type": ["boolean", "null"] },
+        "artifact_digest": { "type": "string" },
         "callers_checked": { "type": "array", "items": { "type": "string" } }
       }
     }

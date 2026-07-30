@@ -38,8 +38,17 @@ Optional compact payload (if present): .opencode/tasks/execution-unit-<id>.json
 4. If you edit files outside declared scope: note it and recommend blast recompute.
 5. Write handoff JSON to: .opencode/handoffs/[id]-implementer.json
 
-## Handoff fields
-status, commit, files_changed[], tests[], blast_verified, tasks_completed[] (batch), notes_for_reviewer, scope_extras[]
+## Handoff fields (schema_version 1.1 — required envelope)
+Write JSON including ALL of:
+- schema_version: "1.1"
+- run_id, unit_or_task, agent: "implementer", base_commit (pre-implementation HEAD), created_at (ISO)
+- status, commit (new implementation commit — must differ from base_commit when commits were made)
+- files_changed[], tests[], tasks_completed[] (batch), notes_for_reviewer, scope_extras[]
+- verification_gates: [{ id, cmd, pass: true }] — non-empty unless run verification_policy.exempt
+- drift_check: { plan_commit, current_head, pass: true }
+- blast: { risk, verified: true, artifact_digest? }
+
+Do NOT set verification_exempt — exemptions come only from run state verification_policy.
 
 ## Report
 Status: DONE | DONE_WITH_CONCERNS | BLOCKED | NEEDS_CONTEXT
