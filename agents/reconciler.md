@@ -29,7 +29,7 @@ Responsibilities:
 - Investigate BLOCKED/NEEDS_CONTEXT: classify DRIFT_BLOCK|ENV_BLOCK|SCOPE_BLOCK|AUTH_BLOCK, attempt auto-recovery (rg file:line), or escalate.
 - Refresh remaining TODO: re-run blast via nexus-blast.js, update effort/confidence if needed.
 - Retire findings fixed elsewhere (PLAN.md findings triage table).
-- Write .opencode/knowledge/reconcile-<timestamp>.md + update CONTEXT.md reconcile block.
+- Write `.opencode/reconcile/reconcile-<timestamp>.md` + update CONTEXT.md reconcile block.
 
 See skills/reconcile/SKILL.md for full procedure.
 

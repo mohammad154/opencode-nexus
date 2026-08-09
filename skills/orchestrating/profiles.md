@@ -56,7 +56,7 @@ Write `.opencode/tasks/execution-unit-<id>.json`:
   "risk": "medium",
   "change_class": "small-feature-with-tests",
   "review": { "required": ["unified"], "status": "pending" },
-  "blast": ".opencode/knowledge/blast/auth-refresh.json",
+  "blast": ".opencode/blast/auth-refresh.json",
   "acceptance_criteria": [],
   "verification": []
 }

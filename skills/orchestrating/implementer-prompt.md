@@ -12,7 +12,7 @@ You are implementing: [TASK_ID or EXECUTION_UNIT_ID] [TITLE]
 1. Read: [path to task-N.md AND/OR execution-unit-<id>.json]
 2. Read: .opencode/CONTEXT.md
 3. Read blast: [path] (do not expect full paste)
-4. Read LESSONS excerpt if present: .opencode/knowledge/LESSONS-excerpt.md (else top matching entries in LESSONS.md for Scope paths)
+4. Read the top matching entries in graphify-out/reflections/LESSONS.md (or a transient `.opencode/LESSONS-excerpt.md`) for Scope paths
 5. Confirm branch: `git branch --show-current` == [feature/...]
 
 Optional compact payload (if present): .opencode/tasks/execution-unit-<id>.json

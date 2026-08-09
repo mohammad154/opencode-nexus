@@ -10,7 +10,7 @@ compatibility: opencode
 
 - Confirm the workspace is a git repository before starting.
 - Load `using-feature-branches` and record `base_branch` in `.opencode/CONTEXT.md`.
-- Ensure `.opencode/knowledge/graph.json` exists — run `scripts/nexus-graph.sh` (reuses unchanged file-hash results; use `--force` only when needed).
+- Ensure `graphify-out/graph.json` exists and is directed — run `graphify extract . --code-only --directed --no-viz` when missing, or `graphify update .` when present.
 - If `reconcile` was requested or drift is suspected, run `reconcile` skill before starting tasks.
 - **Read [`profiles.md`](profiles.md)** — workflow profiles control branch/review/batch behavior.
 
@@ -36,14 +36,12 @@ Before the execution loop (or when resuming if preferences are missing):
 
 ## Pre-execution preamble (run once before first dispatch)
 
-1. Read `.opencode/knowledge/LESSONS.md` if present — retrieve **top matching** entries by path/subsystem (not necessarily the full file). Write a short `.opencode/knowledge/LESSONS-excerpt.md` for subagents when helpful.
-2. Ensure graph is fresh via **cache-by-file-hash/content**:
+1. Read `graphify-out/reflections/LESSONS.md` if present — retrieve **top matching** entries by path/subsystem (not necessarily the full file). Use Graphify memory rather than creating a Nexus lesson file.
+2. Ensure the Graphify graph is fresh via its native update:
    ```bash
-   bash scripts/nexus-graph.sh          # reuses results only for unchanged, matching file hashes
-   # bash scripts/nexus-graph.sh --force  # only when forced / generator bump / user asks
-   # bash scripts/nexus-graph.sh --docs-only-skip  # docs-only changes
+   graphify update .
    ```
-   Do **not** dispatch the knowledge-graph agent just to run the script.
+   Do **not** dispatch an agent just to run Graphify.
 3. Record `verification_baseline` on `base_branch`. Parallelize independent checks (build/test/lint) when safe.
 4. For `fast`/`balanced`: group pending tasks into **execution units** (see `profiles.md`). Write `.opencode/tasks/execution-unit-<id>.json` (+ optional `.md`).
 
@@ -78,7 +76,7 @@ For each pending **execution unit**:
 1. Collect Scope: In files across unit tasks → blast **once**:
    ```bash
    node scripts/nexus-blast.js --files <csv> --task <unit-id> --mermaid
-   # writes .opencode/knowledge/blast/<unit-id>.md + .json
+   # writes .opencode/blast/<unit-id>.md + .json
    ```
    Recompute only if implementer edits outside declared scope, or risk is MEDIUM/HIGH after implementation.
 2. Create **one feature branch**: `feature/<feature-slug>` (not per tiny task).
@@ -114,8 +112,8 @@ Every task file written during orchestration MUST follow:
 > slug: <slug> | effort: XS|S|M|L | confidence: LOW|MEDIUM|HIGH | depends: none | task-2
 > plan_commit: <short-sha> (<full-sha>) | base: <base_branch> | branch: feature/task-N-<slug> OR feature/<feature-slug>
 > generated: <ISO timestamp>
-> graph: .opencode/knowledge/graph.json @ <graph timestamp or "missing – run nexus-graph.sh">
-> blast: .opencode/knowledge/blast/<task-or-unit>.md (risk: LOW|MEDIUM|HIGH, score, if available)
+> graph: graphify-out/graph.json @ <Graphify timestamp or "missing – run graphify update">
+> blast: .opencode/blast/<task-or-unit>.md (risk: LOW|MEDIUM|HIGH|UNKNOWN, score, if available)
 > execution_unit: <id|none> | profile: fast|balanced|strict
 
 ## Goal

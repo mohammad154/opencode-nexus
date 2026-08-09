@@ -22,10 +22,6 @@
     "model": "opencode/deepseek-v4-flash-free",
     "reasoningEffort": "medium"
   },
-  "knowledge-graph": {
-    "model": "opencode/deepseek-v4-flash-free",
-    "reasoningEffort": "low"
-  },
   "reconciler": {
     "model": "opencode-go/deepseek-v4-pro",
     "reasoningEffort": "max"

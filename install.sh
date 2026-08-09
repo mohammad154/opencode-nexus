@@ -14,7 +14,7 @@ PRUNE_OPTIONAL_AGENTS=0
 # Canonical roster. Platform adapters below only translate paths, frontmatter,
 # prefixes, permission syntax, and dispatch names for the host platform.
 CANONICAL_AGENTS=(orchestrator implementer unified-reviewer spec-reviewer code-reviewer reconciler)
-OPTIONAL_AGENTS=(blast-analyzer knowledge-graph)
+OPTIONAL_AGENTS=(blast-analyzer)
 if [[ "${NEXUS_OPTIONAL_AGENTS:-}" == "1" ]]; then WITH_OPTIONAL_AGENTS=1; fi
 
 while [[ $# -gt 0 ]]; do
@@ -43,12 +43,12 @@ Platforms: opencode, claude, cursor, codex, gemini, antigravity, all  (alias: ag
   --only gemini          Gemini CLI (~/.gemini/skills/<skill>/ one-level deep)
   --only claude,cursor   two platforms
   --all                  force all even if binaries missing
-  --with-optional-agents also install knowledge-graph + blast-analyzer (compat; prefer scripts)
+  --with-optional-agents also install blast-analyzer (optional compatibility agent)
   --prune-optional-agents remove optional agents from target install dirs on upgrade
   --uninstall            delegate to uninstall.sh
 
 Canonical agents: orchestrator implementer unified-reviewer spec-reviewer code-reviewer reconciler
-Optional (not installed by default): knowledge-graph blast-analyzer — keep using scripts/nexus-graph.sh + nexus-blast.js
+Optional (not installed by default): blast-analyzer — Graphify is the sole graph provider
 
 With no --only: auto-detect each platform independently and install for every detected one.
 USAGE
@@ -208,8 +208,14 @@ echo ""
 # ── OpenCode ──
 if should_install opencode; then
   echo "[opencode] Installing..."
+  if ! command -v graphify >/dev/null 2>&1; then
+    echo "  Error: Graphify is required for OpenCode installation but the 'graphify' executable was not found." >&2
+    echo "  Install Graphify with OpenCode, then rerun this installer. Nexus does not install Python packages or access the network." >&2
+    exit 1
+  fi
   if ! command -v jq >/dev/null 2>&1; then
-    echo "  Error: jq required for opencode path (sudo apt install jq). Other platforms still work."
+    echo "  Error: jq required for OpenCode configuration merging (install jq, then rerun this installer)." >&2
+    exit 1
   else
     mkdir -p "$CONFIG_DIR" "$AGENTS_DIR"
     if [[ -f "$CONFIG_FILE" ]]; then bak "$CONFIG_FILE"; else printf '{\n  "$schema": "https://opencode.ai/config.json"\n}\n' >"$CONFIG_FILE"; fi
@@ -248,9 +254,19 @@ if should_install opencode; then
       done < <(nexus_agent_basenames)
       prune_optional_from_dir "$AGENTS_DIR"
       if (( WITH_OPTIONAL_AGENTS )); then
-        echo "  [opencode] Optional agents included (knowledge-graph, blast-analyzer)"
+        echo "  [opencode] Optional agent included (blast-analyzer)"
       else
-        echo "  [opencode] Optional agents skipped (use --with-optional-agents; prefer scripts)"
+        echo "  [opencode] Optional agent skipped (use --with-optional-agents)"
+      fi
+      echo "  [opencode] Installing Graphify global skill..."
+      if ! graphify install --platform opencode; then
+        echo "  Error: Graphify global OpenCode skill installation failed; install Graphify separately and retry." >&2
+        exit 1
+      fi
+      echo "  [opencode] Installing Graphify project instructions and plugin..."
+      if ! graphify opencode install; then
+        echo "  Error: Graphify project OpenCode installation failed; install Graphify separately and retry." >&2
+        exit 1
       fi
       echo "  [opencode] Done → $CONFIG_FILE agents: $AGENTS_DIR/"
     fi
@@ -326,7 +342,7 @@ install_claude_agent() { # install_claude_agent <src.md> <dest.md>
     implementer)
       tools="Read, Grep, Glob, Bash, Edit, Write"
       ;;
-    spec-reviewer|code-reviewer|unified-reviewer|blast-analyzer|knowledge-graph|reconciler)
+    spec-reviewer|code-reviewer|unified-reviewer|blast-analyzer|reconciler)
       tools="Read, Grep, Glob, Bash, Write"
       ;;
     *)
@@ -419,9 +435,8 @@ if should_install claude; then
     install_skills_flat "$gt/.claude/skills" "nexus-"
     install_claude_agents_dir "$gt/.claude/agents"
   fi
-  rm -f "$CD/hooks/nexus-graph.json" 2>/dev/null || true
   echo "  [claude] Done → $CD/skills/nexus-*/ + $CAD/nexus-*.md (name: frontmatter set)"
-  echo "  Tip: in a project repo, run scripts/install-git-hook.sh to refresh the graph on commit"
+  echo "  Tip: in a project repo, run scripts/install-git-hook.sh to install Graphify's refresh hook"
 fi
 
 # ── Cursor (CLI + IDE) ──
@@ -553,15 +568,15 @@ fi
 
 # ── scripts check ──
 echo ""; echo "[scripts] Checking:"
-for s in nexus-graph.sh nexus-graph.js nexus-blast.sh nexus-blast.js nexus-branch-cleanup.sh nexus-estimate-calls.js nexus-run.js nexus-classify.js install-git-hook.sh; do if [[ -f "$SCRIPT_DIR/scripts/$s" ]]; then echo "  ✓ scripts/$s"; else echo "  ✗ missing $s"; fi; done
-chmod +x "$SCRIPT_DIR/scripts/nexus-graph.sh" "$SCRIPT_DIR/scripts/nexus-blast.sh" "$SCRIPT_DIR/scripts/nexus-branch-cleanup.sh" "$SCRIPT_DIR/scripts/install-git-hook.sh" 2>/dev/null || true
-chmod a+r "$SCRIPT_DIR/scripts/nexus-graph.js" "$SCRIPT_DIR/scripts/nexus-blast.js" "$SCRIPT_DIR/scripts/nexus-estimate-calls.js" "$SCRIPT_DIR/scripts/nexus-run.js" "$SCRIPT_DIR/scripts/nexus-classify.js" 2>/dev/null || true
+for s in nexus-blast.sh nexus-blast.js nexus-branch-cleanup.sh nexus-estimate-calls.js nexus-run.js nexus-classify.js install-git-hook.sh; do if [[ -f "$SCRIPT_DIR/scripts/$s" ]]; then echo "  ✓ scripts/$s"; else echo "  ✗ missing $s"; fi; done
+chmod +x "$SCRIPT_DIR/scripts/nexus-blast.sh" "$SCRIPT_DIR/scripts/nexus-branch-cleanup.sh" "$SCRIPT_DIR/scripts/install-git-hook.sh" 2>/dev/null || true
+chmod a+r "$SCRIPT_DIR/scripts/nexus-blast.js" "$SCRIPT_DIR/scripts/nexus-estimate-calls.js" "$SCRIPT_DIR/scripts/nexus-run.js" "$SCRIPT_DIR/scripts/nexus-classify.js" 2>/dev/null || true
 
 cat <<END
 
 Installation complete (Nexus V3 engine — profiles: fast|balanced|strict, default balanced).
 Canonical agents: orchestrator, implementer, unified-reviewer, spec-reviewer, code-reviewer, reconciler.
-Compatibility-only agents: knowledge-graph and blast-analyzer (install with --with-optional-agents; scripts are preferred).
+Optional agent: blast-analyzer (install with --with-optional-agents). Graphify is the sole graph provider.
 Supported (auto-detect):
   • opencode    CLI → ~/.config/opencode/ (plugin + canonical agents)
   • claude      CLI+IDE → ~/.claude/skills/nexus-*/ (git hook: scripts/install-git-hook.sh)
@@ -570,7 +585,8 @@ Supported (auto-detect):
   • gemini      CLI → ~/.gemini/skills/nexus-*/ (+ ~/.agents/skills/)
   • antigravity IDE → ~/.gemini/config/skills/nexus-*/ + <repo>/.agents/rules|workflows/
 Next:
-  - ./scripts/nexus-graph.sh && ls .opencode/knowledge/
+  - graphify query "<architecture question>"
+  - graphify affected "<node-or-file>" --depth 2
   - node ./scripts/nexus-estimate-calls.js --tasks 3 --profile balanced
   - node ./scripts/nexus-blast.js --files <path>   # JSON default; --mermaid on demand
   - node ./scripts/nexus-run.js init --run-id demo

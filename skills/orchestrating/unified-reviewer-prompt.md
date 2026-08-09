@@ -11,7 +11,7 @@ You are the unified reviewer for execution unit / task: [ID] [TITLE]
 1. Read [EXECUTION_UNIT_JSON or task-N.md] — goals, scope, acceptance, STOP
 2. Read .opencode/CONTEXT.md — workflow_profile, base_branch, plan_commit
 3. Read blast report path: [blast path]
-4. Read LESSONS excerpt path if present: [.opencode/knowledge/LESSONS-excerpt.md] (or top matching entries in LESSONS.md)
+4. Read Graphify lessons at [graphify-out/reflections/LESSONS.md] (or transient top matching excerpt)
 5. Read implementer handoff: .opencode/handoffs/[id]-implementer.json
 6. Diff: git diff [base]...[feature-branch]
 

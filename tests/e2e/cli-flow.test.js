@@ -14,6 +14,9 @@ function makeTempRepo() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "nexus-e2e-"));
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "nexus-home-"));
   temporaryRoots.push(root, home);
+  fs.mkdirSync(path.join(home, "bin"), { recursive: true });
+  fs.writeFileSync(path.join(home, "bin", "graphify"), "#!/bin/sh\nexit 0\n");
+  fs.chmodSync(path.join(home, "bin", "graphify"), 0o755);
   const git = spawnSync("git", ["init", "--quiet", root], {
     encoding: "utf8",
   });
@@ -39,6 +42,7 @@ function invoke(worktree, home, args, { expectStatus = 0 } = {}) {
       ...process.env,
       HOME: home,
       NEXUS_WORKTREE: worktree,
+      PATH: `${path.join(home, "bin")}:${process.env.PATH || ""}`,
     },
   });
   assert.equal(
@@ -124,6 +128,8 @@ test("nexus-run completes a full CLI workflow in a temporary repository", () => 
   ]);
   assert.equal(graphReady.state.state, "GRAPH_READY");
   assert.equal(graphReady.state.graph?.provider_validated, true);
+  assert.equal(graphReady.state.graph?.graph_provider, "graphify");
+  assert.match(graphReady.state.graph?.graph_path || "", /graphify-out\/graph\.json$/);
 
   // Fabricated trusted graph must be rejected
   const fabricated = invoke(
@@ -175,6 +181,7 @@ test("nexus-run completes a full CLI workflow in a temporary repository", () => 
       }),
     ]);
     assert.equal(blastReady.state.state, "BLAST_READY");
+    assert.equal(blastReady.state.blast?.graph_provider, "graphify");
     state = blastReady.state;
   }
 

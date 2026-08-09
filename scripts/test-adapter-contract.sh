@@ -84,9 +84,12 @@ smoke_platform() (
     git init -q "$project"
   fi
   printf '{}\n' >"$home/.config/opencode/opencode.json"
+  printf '#!/bin/sh\nprintf "%%s\\n" "$*" >>"$GRAPHIFY_LOG"\n' >"$home/bin/graphify"
+  chmod +x "$home/bin/graphify"
 
   export HOME="$home"
   export PATH="$home/bin:$SANITIZED_PATH"
+  export GRAPHIFY_LOG="$home/graphify.log"
   unset OPENCODE_CONFIG_DIR CLAUDE_CONFIG_DIR CURSOR_RULES_DIR CURSOR_AGENTS_DIR \
     CURSOR_SKILLS_DIR CODEX_CONFIG_DIR GEMINI_CONFIG_DIR ANTIGRAVITY_CONFIG_DIR \
     NEXUS_PLUGIN_SPEC NEXUS_OPTIONAL_AGENTS
@@ -170,6 +173,17 @@ smoke_platform() (
     fail "$platform installed an optional graph/blast agent without an explicit flag"
   fi
 
+  if [[ "$platform" == opencode ]]; then
+    grep -q '^install --platform opencode$' "$GRAPHIFY_LOG" \
+      || fail "OpenCode installer did not invoke Graphify global skill installation"
+    grep -q '^opencode install$' "$GRAPHIFY_LOG" \
+      || fail "OpenCode installer did not invoke Graphify project installation"
+    [[ -x "$home/bin/graphify" ]] \
+      || fail "Nexus uninstall removed the external Graphify executable"
+    ! grep -q 'uninstall' "$GRAPHIFY_LOG" \
+      || fail "Nexus uninstall invoked a Graphify uninstall command"
+  fi
+
   case "$platform" in
     claude)
       grep -q '^tools: Agent(nexus-' "$home/.claude/agents/nexus-orchestrator.md" \
@@ -226,11 +240,14 @@ restore_home="$TMPROOT/opencode-restore"
 restore_project="$restore_home/project"
 mkdir -p "$restore_home/bin" "$restore_home/.config/opencode/agents" "$restore_project"
 git init -q "$restore_project"
+printf '#!/bin/sh\nprintf "%%s\\n" "$*" >>"$GRAPHIFY_LOG"\n' >"$restore_home/bin/graphify"
+chmod +x "$restore_home/bin/graphify"
 printf '{"plugin":["user/plugin"],"agent":{"custom":{"model":"user-model"}}}\n' \
   >"$restore_home/.config/opencode/opencode.json"
 printf 'user orchestrator configuration\n' >"$restore_home/.config/opencode/agents/orchestrator.md"
 export HOME="$restore_home"
 export PATH="$restore_home/bin:$SANITIZED_PATH"
+export GRAPHIFY_LOG="$restore_home/graphify.log"
 if ! (cd "$restore_project" && "$ROOT/install.sh" --only opencode >"$restore_home/install.log" 2>&1); then
   fail "OpenCode restoration fixture install exited non-zero"
 fi

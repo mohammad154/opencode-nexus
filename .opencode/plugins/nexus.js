@@ -23,7 +23,7 @@ const COMPACT_ROUTER = [
   "<EXTREMELY_IMPORTANT>",
   BOOTSTRAP_MARKER,
   "OpenCode Nexus is installed. Keep this routing pointer compact and load detailed instructions only with the native skill tool when the phase requires them.",
-  "Route: start or orient a Nexus session → using-nexus; unclear requirements → brainstorming; write a plan → writing-plans; map the codebase → knowledge-graph; before edits → blast-radius; execute an approved plan → orchestrating; isolate work → using-feature-branches; finish/reconcile → finishing-a-development-branch or reconcile.",
+  "Route: start or orient a Nexus session → using-nexus; unclear requirements → brainstorming; write a plan → writing-plans; map the codebase → Graphify query/affected/update; before edits → blast-radius; execute an approved plan → orchestrating; isolate work → using-feature-branches; finish/reconcile → finishing-a-development-branch or reconcile.",
   "Use scripts for state, graph, blast, call estimates, and cleanup. Canonical artifacts live under .opencode/. Review policy is profile-aware; never lower a stored safety gate. Automatic skill routing remains available through the configured skills path.",
   "</EXTREMELY_IMPORTANT>",
 ].join("\n");
@@ -78,16 +78,20 @@ function readRunStateSummary(worktree) {
   }
 }
 
-function readKnowledgeSummary(worktree) {
-  const gMd = path.join(worktree, ".opencode", "knowledge", "graph.md");
-  const lessons = path.join(worktree, ".opencode", "knowledge", "LESSONS.md");
-  const reconcileDir = path.join(worktree, ".opencode", "knowledge");
+function readGraphifySummary(worktree) {
+  const configuredOut = process.env.GRAPHIFY_OUT || "graphify-out";
+  const graphifyOut = path.isAbsolute(configuredOut)
+    ? path.resolve(configuredOut)
+    : path.resolve(worktree, configuredOut);
+  const graphReport = path.join(graphifyOut, "GRAPH_REPORT.md");
+  const lessons = path.join(graphifyOut, "reflections", "LESSONS.md");
+  const reconcileDir = path.join(worktree, ".opencode", "reconcile");
   const parts = [];
 
-  if (fs.existsSync(gMd)) {
+  if (fs.existsSync(graphReport)) {
     try {
-      const txt = fs.readFileSync(gMd, "utf8").trim();
-      parts.push("## Nexus Knowledge Graph\n" + txt.slice(0, 800));
+      const txt = fs.readFileSync(graphReport, "utf8").trim();
+      parts.push("## Graphify Knowledge Graph\n" + txt.slice(0, 800));
     } catch {}
   }
 
@@ -98,7 +102,7 @@ function readKnowledgeSummary(worktree) {
         // Recent entries last – surface tail
         const tailLen = 800;
         const slice = txt.length > tailLen ? txt.slice(-tailLen) : txt;
-        parts.push("## Nexus Outcome Memory (LESSONS.md tail)\n" + slice);
+        parts.push("## Graphify Outcome Memory (LESSONS.md tail)\n" + slice);
       }
     } catch {}
   }
@@ -213,7 +217,7 @@ export const NexusPlugin = async ({ worktree }) => {
         [
           "## Nexus Active Artifact Pointers",
           "- plan: .opencode/plans/PLAN.md",
-          "- knowledge: .opencode/knowledge/",
+          "- graphify: graphify-out/",
           "- metrics: .opencode/runs/" + activeRun.state.run_id + "/metrics.jsonl",
         ].join("\n"),
       );
@@ -224,9 +228,9 @@ export const NexusPlugin = async ({ worktree }) => {
           chunks.push("## Nexus Plan Snapshot\n" + summarizePlan(plan));
         }
 
-        const knowledge = readKnowledgeSummary(worktree);
-        if (knowledge) {
-          chunks.push(knowledge);
+        const graphify = readGraphifySummary(worktree);
+        if (graphify) {
+          chunks.push(graphify);
         }
       }
 

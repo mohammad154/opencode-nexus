@@ -9,7 +9,7 @@ Canonical roles:
 | Code reviewer   | `code-reviewer`     | After spec verdict APPROVED               |
 | Unified reviewer| `unified-reviewer`  | Fast/balanced risk-based unified review   |
 | Blast analyzer  | `blast-analyzer`    | Optional; **prefer scripts**              |
-| Knowledge graph | `knowledge-graph`   | Optional; **prefer scripts**              |
+| Graphify graph | `graphify query` / `graphify affected` | External prerequisite; sole graph provider |
 | Reconciler      | `reconciler`        | On BLOCKED / drift                        |
 
 Deterministic ops (do **not** dispatch an agent):
@@ -18,13 +18,13 @@ Deterministic ops (do **not** dispatch an agent):
 |-----------|---------|
 | Run / gates | `node scripts/nexus-run.js <init\|classify\|transition\|validate-handoff\|status\|resume\|drift>` |
 | Classify  | `node scripts/nexus-classify.js --files N --lines N --class <c>` |
-| Graph     | `bash scripts/nexus-graph.sh` (`--force` to bypass cache) |
+| Graph     | `graphify extract . --code-only --directed --no-viz` when missing; `graphify update .` otherwise |
 | Blast     | `node scripts/nexus-blast.js --files ...` (JSON default; `--mermaid` or HIGH risk for diagrams; `--task <id>` persists) |
 | Cleanup   | `bash scripts/nexus-branch-cleanup.sh --base <base> --out <json> <branches...>` |
 | Call est. | `node scripts/nexus-estimate-calls.js --tasks N --profile <p>` (shim: `nexus-estimate-cost.js`) |
 | Gates     | `node scripts/nexus-run.js validate-handoff --role <role> --file ...` then `jq -e '...'` |
 
-Optional agents `blast-analyzer` / `knowledge-graph` are **not** in the default install. Prefer scripts. Use `install.sh --with-optional-agents` only for compatibility.
+The optional `blast-analyzer` agent is **not** in the default install. Prefer Graphify and Nexus scripts. Use `install.sh --with-optional-agents` only for compatibility.
 
 ## Resolve the local agent name
 

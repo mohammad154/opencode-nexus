@@ -12,8 +12,9 @@ Prevent past mistakes from recurring. Inspired by Graphify save-result / reflect
 
 ## Where
 
-- File: `.opencode/knowledge/LESSONS.md`
-- Optional excerpt for agents: `.opencode/knowledge/LESSONS-excerpt.md` (top matching entries only)
+- Native Graphify memory: `graphify-out/memory/`
+- Reflected lessons: `graphify-out/reflections/LESSONS.md`
+- Optional excerpt for agents may be kept transiently under `.opencode/` (top matching entries only)
 - Schema per entry enforced — see template below
 
 ## lessonPolicy
@@ -61,7 +62,7 @@ Lesson:
 
 References:
 - handoff: .opencode/handoffs/...
-- blast: .opencode/knowledge/blast/...
+- blast: .opencode/blast/...
 
 ---
 ```
@@ -78,13 +79,13 @@ Prefer **top 3 matching** lessons by:
 - Subsystem tags
 - Risk category (security, migration, etc.)
 
-Write matches to `.opencode/knowledge/LESSONS-excerpt.md` for reference-first prompts.
+Write matches to a transient `.opencode/LESSONS-excerpt.md` for reference-first prompts, or use Graphify's memory query directly.
 
 Still allow full-file read for planning recon or explicit "what have we learned?"
 
 ## Reflect / compact
 
-When LESSONS.md > ~200 lines: promote patterns under `# Patterns`; append `## Summary (as of date)`; never delete raw entries blindly.
+When `graphify-out/reflections/LESSONS.md` > ~200 lines: use `graphify reflect` to regenerate deterministic summaries; never delete raw memory blindly.
 
 ## Hard rules
 

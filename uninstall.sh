@@ -95,7 +95,7 @@ if want opencode; then
   else
     CD="${OPENCODE_CONFIG_DIR:-$HOME/.config/opencode}"; AD="$CD/agents"; CF="$CD/opencode.json"
     SPEC="${NEXUS_PLUGIN_SPEC:-nexus@git+https://github.com/mohammad154/opencode-nexus.git}"
-    NAG='["orchestrator","implementer","spec-reviewer","code-reviewer","unified-reviewer","blast-analyzer","knowledge-graph","reconciler"]'
+    NAG='["orchestrator","implementer","spec-reviewer","code-reviewer","unified-reviewer","blast-analyzer","reconciler"]'
     if [[ -f "$CF" ]]; then
       TJ="$(mktemp)"
       if jq --arg pl "$SPEC" --argjson ns "$NAG" '
@@ -111,7 +111,7 @@ if want opencode; then
         echo "  Failed to clean $CF"; rm -f "$TJ"
       fi
     fi
-    for ag in orchestrator implementer spec-reviewer code-reviewer unified-reviewer blast-analyzer knowledge-graph reconciler; do
+    for ag in orchestrator implementer spec-reviewer code-reviewer unified-reviewer blast-analyzer reconciler; do
       t="$AD/$ag.md"; [[ -f "$t" ]] && bak_restore "$t" || rm -f "$t"; rm -f "$AD/nexus-$ag.md"
     done
     rm -f "$CD/nexus.models.example.json"
@@ -124,7 +124,6 @@ if want claude; then
   CD="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
   rm_nexus_skills "$CD/skills"
   rm -rf "$CD/hooks/nexus" 2>/dev/null || true
-  rm -f "$CD/hooks/nexus-graph.json" 2>/dev/null || true
   rm -f "$CD"/agents/nexus-*.md 2>/dev/null || true
   GT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
   [[ -n "$GT" ]] && rm_nexus_skills "$GT/.claude/skills"
@@ -208,5 +207,5 @@ if want antigravity; then
 fi
 
 echo ""; echo "Uninstall complete. Cleaned: ${ONLY:-all (auto)}"
-echo "Notes: .opencode/knowledge/ + .opencode/handoffs/ not touched; nexus.models.json kept"
+echo "Notes: graphify-out/ and Graphify installation are not touched; nexus.models.json kept"
 echo "       Project git post-commit hooks are not auto-removed (edit .git/hooks/post-commit if needed)"

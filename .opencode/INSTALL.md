@@ -1,17 +1,18 @@
 # Installing OpenCode Nexus V3
 
 Nexus V3 has one workflow core and six thin platform adapters. The core owns
-workflow states, policy, handoffs, graph/blast formats, and review rules;
+workflow states, policy, handoffs, blast-report compatibility, and review rules;
 adapters translate paths, frontmatter, names, permissions, and dispatch syntax.
 
 ## Prerequisites
 
-- `node` for the precise graph/blast scripts and call estimator.
+- `node` for the Nexus blast script and call estimator.
+- `graphify` for the directed repository graph and OpenCode integration. Nexus
+  does not install Graphify or access the network.
 - `jq` for OpenCode configuration merging and uninstall cleanup.
 - `git` for change evidence, graph freshness, and branch workflows.
 
-The installer remains dependency-light. Without Node, the shell graph fallback
-is conservative and must not be treated as precise blast evidence.
+The installer remains dependency-light. Graphify is an external prerequisite.
 
 ## Install
 
@@ -36,6 +37,18 @@ Install selected adapters only:
 ./install.sh --all
 ```
 
+For an OpenCode install, Nexus requires the Graphify CLI and invokes both
+native integration commands:
+
+```bash
+graphify install --platform opencode
+graphify opencode install
+```
+
+If `graphify` is unavailable, Nexus stops with a prerequisite message. Nexus
+does not install Python packages, access the network, or remove Graphify during
+uninstall.
+
 ## Platform support
 
 | Platform | User adapter paths | Translation performed |
@@ -52,8 +65,8 @@ Every adapter installs the same six canonical agents:
 `orchestrator`, `implementer`, `unified-reviewer`, `spec-reviewer`,
 `code-reviewer`, and `reconciler`.
 
-`knowledge-graph` and `blast-analyzer` remain optional compatibility agents for
-one release. Deterministic scripts are the default path:
+`blast-analyzer` remains an optional compatibility agent. Graphify is the sole
+graph provider and the deterministic Nexus blast script is the default path:
 
 ```bash
 ./install.sh --only opencode --with-optional-agents
@@ -81,20 +94,22 @@ tokens; a `cost_usd` field is retained only when the host supplies it.
 ## Verify graph and blast evidence
 
 ```bash
-./scripts/nexus-graph.sh
+graphify query "<architecture question>"
+graphify affected "<node-or-file>" --depth 2
 node scripts/nexus-blast.js --mermaid
 ```
 
-Graph results are cached by file content hash. Each graph records HEAD,
-working-tree and source fingerprints, generator/extractor versions, and per-file
-hashes. A stale, missing, unsupported, or conservative graph is not trusted as
-precise blast evidence; refresh it and verify uncertainty before implementation.
+Graphify owns graph refresh and native metadata. Nexus requires a fresh directed
+Graphify graph for trusted blast evidence. Missing, malformed, stale,
+failed-refresh, or undirected graphs remain UNKNOWN.
 
-Useful outputs live under `.opencode/knowledge/`:
+Useful outputs live in Graphify's native `graphify-out/` and Nexus's `.opencode/`:
 
-- `graph.json` — machine-readable graph and freshness metadata;
-- `graph.md` and `index.md` — human-readable navigation;
-- `blast/` — per-task blast reports.
+- `graph.json` — machine-readable directed Graphify graph;
+- `GRAPH_REPORT.md` — Graphify's human-readable report;
+- `memory/` and `reflections/LESSONS.md` — Graphify outcome memory;
+- `.opencode/blast/` — per-task blast reports;
+- `.opencode/reconcile/` — Nexus reconcile reports.
 
 ## Verify installation
 
@@ -129,5 +144,6 @@ Optional overrides can be placed in
 ```
 
 The uninstaller restores backed-up pre-existing adapter files where supported,
-removes Nexus entries without removing unrelated user configuration, and keeps
-project-local `.opencode/knowledge/` and `.opencode/handoffs/` data.
+removes Nexus entries without removing unrelated user configuration, leaves
+Graphify installed, and keeps project-local `graphify-out/`, `.opencode/blast/`,
+`.opencode/reconcile/`, and `.opencode/handoffs/` data.

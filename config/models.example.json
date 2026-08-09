@@ -1,5 +1,5 @@
 {
-  "_comment": "Copy to ~/.config/opencode/nexus.models.json and edit. Re-run install.sh to apply. V3 adds unified-reviewer; prefer scripts for blast/graph. Risk tiers: see config/workflow-profiles.json modelTiers.",
+  "_comment": "Copy to ~/.config/opencode/nexus.models.json and edit. Re-run install.sh to apply. Graphify provides graph and blast context. Risk tiers: see config/workflow-profiles.json modelTiers.",
   "orchestrator": {
     "model": "anthropic/claude-sonnet-4-20250514"
   },
@@ -22,10 +22,6 @@
   "blast-analyzer": {
     "model": "opencode/deepseek-v4-flash-free",
     "reasoningEffort": "medium"
-  },
-  "knowledge-graph": {
-    "model": "opencode/deepseek-v4-flash-free",
-    "reasoningEffort": "low"
   },
   "reconciler": {
     "model": "opencode-go/deepseek-v4-pro",

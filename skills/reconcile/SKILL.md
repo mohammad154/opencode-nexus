@@ -21,7 +21,7 @@ Ensures the PLAN is still a true picture of the repo after time and commits have
 
 - .opencode/plans/PLAN.md must exist with plan_commit stamped.
 - CONTEXT.md must have base_branch + plan_commit.
-- graph.json may help for deeper checks (optional).
+- `graphify-out/graph.json` may help for deeper checks (optional).
 
 ## Procedure
 
@@ -29,7 +29,7 @@ Ensures the PLAN is still a true picture of the repo after time and commits have
 
 1. Read `.opencode/plans/PLAN.md` – note plan_commit (short and full SHA from header), task list with [x]/[ ] marks, findings triage, verification_baseline.
 2. Read `.opencode/CONTEXT.md` – plan_commit, base_branch, task_branches.
-3. Read `.opencode/knowledge/graph.json` if present – freshness check.
+3. Read `graphify-out/graph.json` if present – validate Graphify freshness and direction.
 4. Run:
    ```bash
    git rev-parse --short HEAD
@@ -92,7 +92,7 @@ For each task marked [x] in PLAN.md:
    - REGRESSED – evidence gone or gate fails; mark TODO again or escalate to new task.
    - FIXED_ELSEWHERE – acceptance criteria met on base via different commit (e.g. user manually applied similar fix); retire as FIXED_ELSEWHERE.
 
-Write outcome to `.opencode/knowledge/reconcile-<timestamp>.md` + update plan status if needed.
+Write outcome to `.opencode/reconcile/reconcile-<timestamp>.md` + update plan status if needed.
 
 ### Step 3 — Investigate BLOCKED / NEEDS_CONTEXT tasks
 
@@ -117,7 +117,7 @@ Write findings to reconcile report.
 For each remaining [ ] task:
 
 1. Verify Evidence file:line – if broken and blast analysis now shows new callers, expand Scope In related callers section.
-2. Re-run `node scripts/nexus-blast.js --files <scope in csv> --task N` to refresh blast report with current graph state.
+2. Re-run `node scripts/nexus-blast.js --files <scope in csv> --task N` to refresh blast report with current Graphify state.
 3. If effort/confidence changed due to drift (e.g. file now larger, coupled), update task-N.md header (effort, risk).
 4. If blast risk now HIGH and was LOW when planned, flag to user for explicit approval.
 
@@ -134,7 +134,7 @@ For each remaining [ ] task:
   - If tasks re-labeled, update checkboxes accordingly (do not remove tasks, only add notes).
 - Update CONTEXT.md:
   - Set `reconcile` block as above + `last_reconcile: <timestamp>`
-- Write `.opencode/knowledge/reconcile-<timestamp>.md` with full details:
+- Write `.opencode/reconcile/reconcile-<timestamp>.md` with full details:
   - Drift level + commit distance
   - Per-task verify/blocked findings
   - Retried evidence checks

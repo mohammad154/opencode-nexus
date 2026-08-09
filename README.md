@@ -1,6 +1,6 @@
 # OpenCode Nexus
 
-OpenCode Nexus is a dependency-light, multi-platform workflow for reliable agent-assisted development. It keeps planning, run state, handoffs, graph/blast reports, and verification artifacts under `.opencode/` while using deterministic scripts for repository analysis and cleanup.
+OpenCode Nexus is a dependency-light, multi-platform workflow for reliable agent-assisted development. It keeps planning, run state, handoffs, blast reports, and verification artifacts under `.opencode/`, while Graphify owns the repository graph in its native `graphify-out/` directory.
 
 Nexus uses one canonical V3 workflow. The installer provides host-specific adapters for OpenCode, Claude Code, Cursor, Codex, Gemini CLI, and Antigravity.
 
@@ -17,7 +17,7 @@ The canonical roster is:
 | `code-reviewer` | Checks quality, security, and regressions after spec approval |
 | `reconciler` | Recovers stale plans and blocked runs |
 
-`knowledge-graph` and `blast-analyzer` are compatibility-only agents. They are not installed by default; use `scripts/nexus-graph.sh` and `scripts/nexus-blast.js` instead. Install them only when a host requires the legacy entry points:
+`blast-analyzer` is an optional compatibility agent. It is not installed by default; use Graphify and `scripts/nexus-blast.js` instead. Install it only when a host requires the legacy entry point:
 
 ```bash
 ./install.sh --with-optional-agents
@@ -46,10 +46,11 @@ High-risk work (security, migration, public API, credentials, or HIGH blast) use
 | Requirement | Required for |
 |---|---|
 | Bash, Git | installer and branch workflows |
-| [Node.js](https://nodejs.org/) | precise graph/blast scripts and call estimator (shell fallback exists without it) |
+| [Node.js](https://nodejs.org/) | Nexus blast script and call estimator |
+| [Graphify](https://github.com/Graphify-Labs/graphify) | directed repository graph, query/affected commands, refresh, and OpenCode integration |
 | [`jq`](https://jqlang.org/) | OpenCode `opencode.json` merge; other adapters still install when `jq` is missing |
 | [OpenCode](https://opencode.ai/docs/installation/) | optional — installer also supports Claude Code, Cursor, Codex, Gemini CLI, and Antigravity |
-| `rg` / `fd` (optional) | faster file discovery and caller grep when Node is unavailable |
+| `rg` / `fd` (optional) | faster general repository discovery |
 
 Install `jq`:
 
@@ -83,7 +84,7 @@ Verify:
 jq --version
 ```
 
-Install `rg` ([ripgrep](https://github.com/BurntSushi/ripgrep)) and `fd` ([fd](https://github.com/sharkdp/fd)) — optional but recommended for faster graph/blast fallbacks:
+Install `rg` ([ripgrep](https://github.com/BurntSushi/ripgrep)) and `fd` ([fd](https://github.com/sharkdp/fd)) — optional but recommended for repository discovery:
 
 **Ubuntu / Debian / WSL:**
 
@@ -167,7 +168,7 @@ See [`.opencode/INSTALL.md`](.opencode/INSTALL.md) for the full platform table, 
 ./install.sh --all   # force all platforms even when binaries are not detected
 ```
 
-Optional compatibility agents (`knowledge-graph`, `blast-analyzer`) — prefer scripts instead:
+Optional compatibility agent (`blast-analyzer`) — Graphify is the sole graph provider:
 
 ```bash
 ./install.sh --with-optional-agents
@@ -199,7 +200,7 @@ The workflow, canonical agent names, review policy, handoff schemas, and graph/b
 - host permission syntax; and
 - host dispatch names.
 
-Adapters do not define a second workflow or review policy. The canonical `nexus-using-nexus` skill and agent definitions remain the source of workflow behavior.
+Adapters do not define a second workflow or review policy. The canonical `nexus-using-nexus` skill and agent definitions remain the source of workflow behavior. OpenCode installation also invokes `graphify install --platform opencode` and `graphify opencode install`; Nexus never installs Graphify dependencies or accesses the network.
 
 | Platform | Main outputs | Host translation |
 |---|---|---|
@@ -222,10 +223,12 @@ node scripts/nexus-classify.js --files 2 --lines 40 --class small-feature-with-t
 node scripts/nexus-estimate-calls.js --tasks 3 --profile balanced
 ```
 
-Build deterministic repository context before implementation:
+Prepare repository context before implementation:
 
 ```bash
-bash scripts/nexus-graph.sh
+graphify query "<architecture question>"
+graphify affected "<node-or-file>" --depth 2
+graphify update .
 node scripts/nexus-blast.js --files path/to/changed-file.js --json
 ```
 
@@ -251,11 +254,13 @@ Nexus stores workflow context in `.opencode/`:
 - `CONTEXT.md` — active profile, branch, and verification context;
 - `plans/PLAN.md` and `tasks/` — plan and execution-unit details;
 - `handoffs/` — implementer and reviewer results;
-- `knowledge/graph.json` — script-generated repository graph;
-- `knowledge/blast/` — blast-radius reports; and
-- `knowledge/LESSONS.md` — noteworthy, reusable outcomes.
+- `graphify-out/graph.json` — Graphify's native directed repository graph;
+- `graphify-out/GRAPH_REPORT.md` — Graphify's human-readable report;
+- `.opencode/blast/` — Nexus blast-radius reports;
+- `.opencode/reconcile/` — Nexus reconcile reports; and
+- `graphify-out/memory/` + `graphify-out/reflections/LESSONS.md` — Graphify outcome memory.
 
-Use scripts for graph, blast, call estimation, run gates, and branch cleanup. Do not dispatch an agent merely to perform deterministic repository operations.
+Use Graphify for graph/query/refresh operations and Nexus scripts for blast, call estimation, run gates, and branch cleanup. Do not dispatch an agent merely to perform deterministic repository operations.
 
 ## Customize OpenCode models
 

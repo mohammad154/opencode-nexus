@@ -35,7 +35,7 @@ test("plugin injects a compact router and keeps automatic skill routing", async 
   assert.match(injected, /→ using-nexus/);
   assert.match(injected, /→ brainstorming/);
   assert.match(injected, /→ writing-plans/);
-  assert.match(injected, /→ knowledge-graph/);
+  assert.match(injected, /Graphify query\/affected/);
   assert.match(injected, /→ blast-radius/);
   assert.match(injected, /→ orchestrating/);
   assert.equal(injected.includes("nexus-using-nexus"), false);
@@ -46,10 +46,10 @@ test("plugin injects a compact router and keeps automatic skill routing", async 
   assert.equal(output.messages[0].parts.length, partCount);
 });
 
-test("compaction omits run and knowledge summaries without an active run", async () => {
+test("compaction omits run and Graphify summaries without an active run", async () => {
   const worktree = tempDir("nexus-plugin-idle-");
-  fs.mkdirSync(path.join(worktree, ".opencode", "knowledge"), { recursive: true });
-  fs.writeFileSync(path.join(worktree, ".opencode", "knowledge", "graph.md"), "large graph");
+  fs.mkdirSync(path.join(worktree, "graphify-out"), { recursive: true });
+  fs.writeFileSync(path.join(worktree, "graphify-out", "GRAPH_REPORT.md"), "large graph");
   writeJson(path.join(worktree, ".opencode", "runs", "done", "state.json"), {
     run_id: "done",
     state: "COMPLETED",
@@ -64,13 +64,13 @@ test("compaction omits run and knowledge summaries without an active run", async
 
 test("compaction adds only compact active-run context and artifact pointers", async () => {
   const worktree = tempDir("nexus-plugin-active-");
-  fs.mkdirSync(path.join(worktree, ".opencode", "knowledge"), { recursive: true });
+  fs.mkdirSync(path.join(worktree, "graphify-out", "reflections"), { recursive: true });
   fs.writeFileSync(
-    path.join(worktree, ".opencode", "knowledge", "graph.md"),
+    path.join(worktree, "graphify-out", "GRAPH_REPORT.md"),
     "graph summary",
   );
   fs.writeFileSync(
-    path.join(worktree, ".opencode", "knowledge", "LESSONS.md"),
+    path.join(worktree, "graphify-out", "reflections", "LESSONS.md"),
     "recent lesson",
   );
   fs.mkdirSync(path.join(worktree, ".opencode", "plans"), { recursive: true });

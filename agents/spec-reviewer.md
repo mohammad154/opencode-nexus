@@ -21,7 +21,7 @@ Review focus:
 - Requirement fidelity against delegated task text – cite file:line for each acceptance criterion (present or missing).
 - Missing acceptance criteria.
 - Out-of-scope additions (files in Out edited? Blast exceeded without justification?).
-- Blast scope fidelity – if task changed signature, were all direct callers from .opencode/knowledge/blast/task-N.md updated? Cite caller file:line.
+- Blast scope fidelity – if task changed signature, were all direct callers from `.opencode/blast/task-N.md` updated? Cite caller file:line.
 - Drift – does target file:line evidence still hold? Is plan_commit drift reflected in diff?
 
 Output:

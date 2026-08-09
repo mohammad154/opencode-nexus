@@ -57,7 +57,10 @@ export function sealedPreciseGraph(overrides = {}) {
     fresh: true,
     freshness: { valid: true },
     confidence: 0.75,
-    path: "/tmp/graph.json",
+    graph_provider: "graphify",
+    graph_path: "/tmp/graphify-out/graph.json",
+    graphify_out: "/tmp/graphify-out",
+    path: "/tmp/graphify-out/graph.json",
     ...overrides,
   });
 }
@@ -68,6 +71,8 @@ export function sealedLowBlast(overrides = {}) {
     trusted: true,
     analysis_quality: "PRECISE",
     graph_quality: "PRECISE",
+    graph_provider: "graphify",
+    graph_path: "/tmp/graphify-out/graph.json",
     graph_freshness: { valid: true },
     analysis_complete: true,
     uncertainties: [],

@@ -59,15 +59,18 @@ Use the spec and code handoff checks instead of the unified check on strict or h
 
 ## Graph and blast
 
-Graph and blast are script-first operations. The compatibility agents are optional and should not be dispatched for deterministic work.
+Graphify owns graph extraction/query/refresh. Nexus keeps the blast script and workflow gates; the optional compatibility agent should not be dispatched for deterministic work.
 
 ```bash
-bash scripts/nexus-graph.sh
+graphify extract . --code-only --directed --no-viz  # when graphify-out/graph.json is missing
+graphify update .                                  # when it already exists
+graphify query "<architecture question>"
+graphify affected "<node-or-file>" --depth 2
 node scripts/nexus-blast.js --files <file1,file2> --json
 node scripts/nexus-blast.js --files <file1,file2> --task <id> --mermaid
 ```
 
-Graph generation uses its available cache metadata; refresh it when the repository changes or the extractor changes. Blast output records the detected risk and affected callers. Unknown or stale evidence must be verified before using a direct path.
+Graphify records native freshness metadata and preserves directed node-link relations. Blast output records the detected risk and affected callers. Missing, malformed, stale, failed-refresh, or undirected evidence is UNKNOWN and must be fixed or verified before using a direct path.
 
 ## Agent roster and dispatch names
 
@@ -82,7 +85,7 @@ code-reviewer
 reconciler
 ```
 
-`knowledge-graph` and `blast-analyzer` remain compatibility-only. They are installed only with `--with-optional-agents`; scripts are the default.
+`blast-analyzer` remains an optional compatibility agent. Graphify is installed separately as an OpenCode prerequisite and is the sole graph provider.
 
 OpenCode uses the bare canonical names. Claude Code, Cursor, Codex, Gemini CLI, and Antigravity use the host-translated `nexus-<canonical-name>` names. The installer adapts only paths, frontmatter, prefixes, permission syntax, and dispatch names. Workflow policy and handoff schemas remain canonical.
 
@@ -104,9 +107,11 @@ If a unified reviewer requests changes, rerun the implementer and unified review
 - `.opencode/plans/PLAN.md` — plan and acceptance criteria;
 - `.opencode/tasks/` — tasks and execution units;
 - `.opencode/handoffs/` — role results and review verdicts;
-- `.opencode/knowledge/graph.json` — repository graph;
-- `.opencode/knowledge/blast/` — blast reports; and
-- `.opencode/knowledge/LESSONS.md` — noteworthy outcomes.
+- `graphify-out/graph.json` — Graphify repository graph;
+- `graphify-out/GRAPH_REPORT.md` — Graphify report;
+- `.opencode/blast/` — Nexus blast reports;
+- `.opencode/reconcile/` — Nexus reconcile reports; and
+- `graphify-out/memory/` + `graphify-out/reflections/LESSONS.md` — Graphify outcome memory.
 
 Run `node scripts/nexus-run.js status` after resuming a session. If a target, plan, graph, or handoff has drifted, stop and reconcile before implementation.
 

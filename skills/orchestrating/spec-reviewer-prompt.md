@@ -13,8 +13,8 @@ You are reviewing task: [TASK_ID] [TASK_TITLE]
 1. Read .opencode/tasks/task-N.md – source of truth: acceptance criteria, STOP conditions, evidence, blast radius
 2. Read .opencode/handoffs/task-N-implementer.json – what was claimed done, commit hash, blast verification, verification gates
 3. Read .opencode/CONTEXT.md – base_branch, plan_commit
-4. Read .opencode/knowledge/blast/task-N.md – blast analysis, Mermaid diagram, downstream callers
-5. Read .opencode/knowledge/LESSONS.md recent entries if present
+4. Read .opencode/blast/task-N.md – blast analysis, Mermaid diagram, downstream callers
+5. Read graphify-out/reflections/LESSONS.md recent entries if present
 6. Run: git diff [base-branch]...[feature/task-N-slug] – your sole scope (do not review unrelated history)
 
 ## Drift check (must verify before spec check)
@@ -57,7 +57,7 @@ VERDICT: ISOLATION_VIOLATION
 VERDICT: APPROVED
 - [file:line] – acceptance criterion 1 verified at <location> via <method>
 - [file:line] – criterion 2 verified
-- Blast: [risk] – [N] callers reviewed, Mermaid in .opencode/knowledge/blast/task-N.md
+- Blast: [risk] – [N] callers reviewed, Mermaid in .opencode/blast/task-N.md
 - Verification gates: align with claims, [N] pass
 
 or

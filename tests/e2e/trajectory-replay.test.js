@@ -15,6 +15,9 @@ function makeTempRepo() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "nexus-replay-"));
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "nexus-replay-home-"));
   temporaryRoots.push(root, home);
+  fs.mkdirSync(path.join(home, "bin"), { recursive: true });
+  fs.writeFileSync(path.join(home, "bin", "graphify"), "#!/bin/sh\nexit 0\n");
+  fs.chmodSync(path.join(home, "bin", "graphify"), 0o755);
   const git = spawnSync("git", ["init", "--quiet", root], { encoding: "utf8" });
   assert.equal(git.status, 0, git.stderr);
   return { root, home };
@@ -24,7 +27,12 @@ function invoke(worktree, home, args) {
   const result = spawnSync(process.execPath, [runCli, ...args], {
     cwd: worktree,
     encoding: "utf8",
-    env: { ...process.env, HOME: home, NEXUS_WORKTREE: worktree },
+    env: {
+      ...process.env,
+      HOME: home,
+      NEXUS_WORKTREE: worktree,
+      PATH: `${path.join(home, "bin")}:${process.env.PATH || ""}`,
+    },
   });
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
   return JSON.parse(result.stdout);
@@ -34,7 +42,12 @@ function invokeFailure(worktree, home, args) {
   const result = spawnSync(process.execPath, [runCli, ...args], {
     cwd: worktree,
     encoding: "utf8",
-    env: { ...process.env, HOME: home, NEXUS_WORKTREE: worktree },
+    env: {
+      ...process.env,
+      HOME: home,
+      NEXUS_WORKTREE: worktree,
+      PATH: `${path.join(home, "bin")}:${process.env.PATH || ""}`,
+    },
   });
   assert.notEqual(result.status, 0, `${result.stdout}\n${result.stderr}`);
   return result;

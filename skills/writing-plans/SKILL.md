@@ -18,7 +18,7 @@ This skill borrows the three guarantees from shadcn/improve:
 1. Read README, CLAUDE.md / AGENTS.md, CONTRIBUTING, root config (package.json, pyproject.toml, go.mod, Cargo.toml, etc.), CI config.
 2. Detect **exact verification commands** — how to build / test / lint / typecheck — these become gates in every task. If none exist, note that; "establish a verification baseline" may become task 1.
 3. Record `git rev-parse --short HEAD` → every plan stamps the commit it was written against. Executors must run a drift check before touching code.
-4. If present, read `.opencode/knowledge/graph.json` and `.opencode/knowledge/LESSONS.md` — carry forward prior architectural knowledge and past failure modes.
+4. If present, read `graphify-out/graph.json` and `graphify-out/reflections/LESSONS.md` — carry forward prior architectural knowledge and past failure modes.
 5. Glob for intent docs (docs/adr/, PRODUCT.md, CONTEXT.md, DESIGN.md) so you do not re-flag decided trade-offs as findings.
 
 ## Step 1 — Create PLAN.md
@@ -49,7 +49,7 @@ Write `.opencode/plans/PLAN.md` using the template below. Every section is manda
 - Key files touched (with file:line evidence):
   - `path/to/file.ts:42` – current implementation of X, shows Y
   - `path/to/other.ts:101-120` – pattern to follow / convention exemplar
-- Graph insight (from .opencode/knowledge/graph.json when present):
+- Graphify insight (from graphify-out/graph.json when present):
   - Hub nodes / god nodes relevant to this change
   - Blast radius summary for proposed files (who imports them)
 - Existing patterns to match:
@@ -114,7 +114,7 @@ flowchart LR
 - No migration / data loss / forced push to base without explicit user confirmation
 
 ## Outcome memory
-- After each task completes, orchestrator writes entry to `.opencode/knowledge/LESSONS.md` + handoff JSON
+- After each task completes, orchestrator records noteworthy outcomes with `graphify save-result` and `graphify reflect` + handoff JSON
 - On future plans, check LESSONS for patterns and avoid repeating mistakes
 ```
 
@@ -147,7 +147,7 @@ Label confidence honestly:
   - Effort and confidence
   - STOP conditions (including drift)
   - Verification gates with exact commands (not "run tests")
-  - Blast radius awareness (even if just "no graph.json yet, run nexus-graph.sh")
+- Blast radius awareness (even if just "no directed Graphify graph yet, run graphify update")
 - If verification baseline is missing (no tests / broken build), make task 1 "establish verification baseline".
 - Stamp commit SHA: `git rev-parse --short HEAD` (and full SHA in PLAN.md metadata). Include warning: if executor finds drift > threshold, STOP.
 
@@ -162,7 +162,7 @@ Also create or refresh `.opencode/CONTEXT.md` with:
 - verification_baseline: detected build/test/lint/typecheck commands + outcome of baseline run (pass/fail)
 - plan_commit: short + full SHA
 - generated_at: ISO timestamp
-- knowledge: whether graph.json + LESSONS.md present
+- graphify: whether graphify-out/graph.json + reflections/LESSONS.md are present
 - Pending blockers
 - Next action
 
@@ -172,4 +172,4 @@ You have written:
 - .opencode/plans/PLAN.md (full, with metadata, effort/confidence, STOP, drift)
 - .opencode/CONTEXT.md (with verification_baseline + plan_commit)
 - .opencode/tasks/task-N.md (N per task, self-contained, with STOP + blast)
-- Optionally triggered `scripts/nexus-graph.sh` if graph.json missing (no node deps required; shell fallback ok) to seed graph for later blast checks
+- Optionally triggered `graphify extract . --code-only --directed --no-viz` if the Graphify graph is missing to seed later blast checks

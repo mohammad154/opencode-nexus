@@ -14,8 +14,8 @@ You are quality-reviewing task: [TASK_ID] [TASK_TITLE]
 2. Read .opencode/handoffs/task-N-implementer.json – implementation details, commit, blast_verified, verification_gates
 3. Read .opencode/handoffs/task-N-spec-reviewer.json – spec verdict (must be APPROVED), acceptance evidence, blast_review
 4. Read .opencode/CONTEXT.md – base_branch, plan_commit
-5. Read .opencode/knowledge/blast/task-N.md – blast diagram + callers, to assess regression risk
-6. Read .opencode/knowledge/LESSONS.md recent entries – avoid repeating past anti-patterns, flag if code repeats one
+5. Read .opencode/blast/task-N.md – blast diagram + callers, to assess regression risk
+6. Read graphify-out/reflections/LESSONS.md recent entries – avoid repeating past anti-patterns, flag if code repeats one
 7. Diff: git diff [base-branch]...[feature/task-N-slug] – your exact review scope
 
 ## Inputs
@@ -23,7 +23,7 @@ You are quality-reviewing task: [TASK_ID] [TASK_TITLE]
 - Feature branch: [feature/task-N-slug]
 - Diff command: git diff [base-branch]...[feature/task-N-slug]
 - Spec review result: APPROVED (from handoff) – with file:line evidence for each criterion
-- Blast report: .opencode/knowledge/blast/task-N.md – risk [LOW|MEDIUM|HIGH], [N] affected files, Mermaid diagram
+- Blast report: .opencode/blast/task-N.md – risk [LOW|MEDIUM|HIGH|UNKNOWN], [N] affected files, Mermaid diagram
 - Verification gates claimed by implementer: [paste list]
 
 ## Review Goal — correctness, security, maintainability with blast awareness
@@ -60,7 +60,7 @@ VERDICT: ISOLATION_VIOLATION
 
 ## LESSONS awareness (from Graphify outcome memory)
 
-- Check if this task's implementation repeats a pattern flagged in LESSONS.md
+- Check if this task's implementation repeats a pattern flagged in Graphify's LESSONS.md
 - If yes, note in verdict and request change to prefer the recommended pattern from LESSONS entry
 
 ## Output Format – file:line for each finding

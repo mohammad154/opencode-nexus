@@ -1,6 +1,5 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import fs from "fs";
 import os from "os";
@@ -8,6 +7,7 @@ import path from "path";
 import {
   createDefaultProviders,
   createEditValidator,
+  createLessonsMemory,
   createMetricsTelemetry,
   getAgentCallBudget,
   getBlastProvider,
@@ -16,10 +16,6 @@ import {
 
 function tempDir(prefix) {
   return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
-}
-
-function digest(value) {
-  return `sha256:${createHash("sha256").update(value).digest("hex")}`;
 }
 
 function diffFor(files, added = "const value = 1;") {
@@ -58,7 +54,7 @@ test("unsupported graph and blast modes are explicit instead of Lite fallbacks",
   assert.equal(getBlastProvider("lite").supported, true);
 });
 
-test("Lite blast reports label incomplete placeholder fields", () => {
+test("Graphify blast reports label incomplete placeholder fields", () => {
   const result = getBlastProvider("lite").analyze({
     report: {
       risk: "LOW",
@@ -68,11 +64,11 @@ test("Lite blast reports label incomplete placeholder fields", () => {
   });
   assert.equal(result.ok, true);
   assert.equal(result.report.analysis_complete, false);
-  assert.equal(result.report.analysis_quality, "lite-heuristic");
+  assert.equal(result.report.analysis_quality, "UNKNOWN");
   assert.ok(result.report.placeholder_fields.includes("dimensions"));
 });
 
-test("Lite blast ignores unsealed inline trusted reports", () => {
+test("Graphify blast ignores unsealed inline trusted reports", () => {
   const result = getBlastProvider("lite").analyze({
     report: { risk: "LOW", trusted: true },
     worktree: tempDir("nexus-blast-ignore-"),
@@ -82,11 +78,55 @@ test("Lite blast ignores unsealed inline trusted reports", () => {
   assert.notEqual(result.report?.trusted, true);
 });
 
+test("Graphify blast downgrades legacy or stale report files to UNKNOWN", (t) => {
+  const worktree = tempDir("nexus-blast-report-");
+  t.after(() => fs.rmSync(worktree, { recursive: true, force: true }));
+  const reportPath = path.join(worktree, "reports", "legacy.json");
+  fs.mkdirSync(path.dirname(reportPath), { recursive: true });
+  fs.writeFileSync(reportPath, JSON.stringify({
+    risk: "LOW",
+    analysis_quality: "PRECISE",
+    graph_quality: "PRECISE",
+    graph_freshness: { valid: true },
+    analysis_complete: true,
+  }));
+
+  const result = getBlastProvider("graphify").analyze({
+    worktree,
+    reportPath: "reports/legacy.json",
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.report.risk, "UNKNOWN");
+  assert.equal(result.report.analysis_quality, "UNKNOWN");
+  assert.match(result.report.uncertainties.join("\n"), /Graphify evidence/i);
+});
+
 test("default providers expose deterministic edit validation and metrics", () => {
   const providers = createDefaultProviders();
   assert.equal(providers.editValidator.mode, "deterministic");
   assert.equal(providers.editValidator.capability, "scope-and-obvious-safety");
   assert.equal(providers.telemetry.mode, "jsonl");
+});
+
+test("lessons memory reads Graphify memory and reflected lessons paths", (t) => {
+  const worktree = tempDir("nexus-graphify-memory-");
+  t.after(() => fs.rmSync(worktree, { recursive: true, force: true }));
+  fs.mkdirSync(path.join(worktree, "graphify-out", "memory"), { recursive: true });
+  fs.mkdirSync(path.join(worktree, "graphify-out", "reflections"), { recursive: true });
+  fs.writeFileSync(
+    path.join(worktree, "graphify-out", "memory", "query_20260809.md"),
+    "native memory entry",
+  );
+  fs.writeFileSync(
+    path.join(worktree, "graphify-out", "reflections", "LESSONS.md"),
+    "reflected lesson",
+  );
+
+  const result = createLessonsMemory().retrieve(worktree);
+  assert.equal(result.source, "graphify-memory-and-reflections");
+  assert.equal(result.entries.length, 2);
+  assert.ok(result.entries.some((entry) => entry.includes("native memory entry")));
+  assert.ok(result.entries.some((entry) => entry.includes("reflected lesson")));
 });
 
 test("default providers preserve the resolved run context in call budgets", () => {
@@ -273,84 +313,68 @@ test("metrics enforce the hard agent-call budget and record rejected calls", () 
   assert.equal(telemetry.getTotals().failures, 1);
 });
 
-test("Lite graph provider rejects stale cache metadata", () => {
+function makeGraphifyProviderFixture({ stale = false } = {}) {
   const worktree = tempDir("nexus-graph-trust-");
-  const knowledge = path.join(worktree, ".opencode", "knowledge");
-  fs.mkdirSync(knowledge, { recursive: true });
   fs.writeFileSync(path.join(worktree, "index.js"), "export const value = 1;\n");
-  fs.writeFileSync(
-    path.join(knowledge, "graph.json"),
-    JSON.stringify({
-      generator_version: "1.0",
-      extractor_quality: "CONSERVATIVE",
-      nodes: [],
-      edges: [],
-    }),
-  );
-
-  const result = getGraphProvider("lite").build({ worktree });
-  assert.equal(result.ok, false);
-  assert.equal(result.cache_hit, false);
-  assert.equal(result.quality, "UNKNOWN");
-  assert.equal(result.provider_quality, "unknown");
-  assert.equal(result.stale, true);
-  assert.ok(result.trust_issues.length > 0);
-});
-
-test("Lite graph provider accepts fresh conservative snapshots as untrusted", () => {
-  const worktree = tempDir("nexus-graph-conservative-");
-  const knowledge = path.join(worktree, ".opencode", "knowledge");
-  fs.mkdirSync(knowledge, { recursive: true });
-  const source = "export const value = 1;\n";
-  fs.writeFileSync(path.join(worktree, "index.js"), source);
   execFileSync("git", ["init", "-q"], { cwd: worktree });
   execFileSync("git", ["config", "user.email", "nexus@example.test"], { cwd: worktree });
   execFileSync("git", ["config", "user.name", "Nexus Test"], { cwd: worktree });
   execFileSync("git", ["add", "index.js"], { cwd: worktree });
-  execFileSync(
-    "git",
-    ["-c", "user.email=nexus@example.test", "-c", "user.name=Nexus Test", "commit", "-qm", "fixture"],
-    { cwd: worktree },
+  execFileSync("git", ["commit", "-qm", "fixture"], { cwd: worktree });
+  const head = execFileSync("git", ["rev-parse", "HEAD"], {
+    cwd: worktree,
+    encoding: "utf8",
+  }).trim();
+  const out = path.join(worktree, "graphify-out");
+  fs.mkdirSync(out, { recursive: true });
+  fs.writeFileSync(path.join(out, ".graphify_root"), `${worktree}\n`);
+  fs.writeFileSync(
+    path.join(out, "graph.json"),
+    JSON.stringify({
+      directed: true,
+      multigraph: false,
+      graph: {},
+      built_at_commit: stale ? "old-commit" : head,
+      nodes: [{ id: "index", source_file: "index.js" }],
+      links: [],
+    }),
   );
-
-  const head = execFileSync("git", ["rev-parse", "HEAD"], { cwd: worktree, encoding: "utf8" }).trim();
-  const fileHash = digest(Buffer.from(source));
-  const sourceFingerprint = digest(`index.js\t${fileHash}`);
-  const workingTreeFingerprint = digest(JSON.stringify({
-    head_commit: head,
-    source_fingerprint: sourceFingerprint,
-    status: [],
-  }));
-  const graph = {
-    version: 2,
-    root: worktree,
-    output_dir: ".opencode/knowledge",
-    generator_version: "3.0",
-    source_fingerprint: sourceFingerprint,
-    extractor_quality: "CONSERVATIVE",
-    extractor: {
-      name: "comment-aware-lexical",
-      version: "3.0",
-      quality: "CONSERVATIVE",
-    },
-    freshness: {
-      head_commit: head,
-      generator_version: "3.0",
-      source_fingerprint: sourceFingerprint,
-      working_tree_fingerprint: workingTreeFingerprint,
-    },
-    nodes: [{ id: "index.js", path: "index.js", file_hash: fileHash }],
-    edges: [],
+  const command = path.join(worktree, "fake-graphify");
+  fs.writeFileSync(command, "#!/bin/sh\nexit 0\n");
+  fs.chmodSync(command, 0o755);
+  return {
+    worktree,
+    graphifyCommand: command,
+    graphifyEnv: process.env,
   };
-  fs.writeFileSync(path.join(knowledge, "graph.json"), JSON.stringify(graph));
+}
 
-  const result = getGraphProvider("lite").build({ worktree });
+test("Graphify provider rejects stale graph metadata", (t) => {
+  const fixture = makeGraphifyProviderFixture({ stale: true });
+  t.after(() => fs.rmSync(fixture.worktree, { recursive: true, force: true }));
+
+  const result = getGraphProvider("graphify").build(fixture);
+  assert.equal(result.ok, false);
+  assert.equal(result.cache_hit, false);
+  assert.equal(result.quality, "UNKNOWN");
+  assert.equal(result.provider_quality, "graphify");
+  assert.equal(result.stale, true);
+  assert.ok(result.trust_issues.length > 0);
+});
+
+test("Graphify provider trusts a fresh directed native snapshot", (t) => {
+  const fixture = makeGraphifyProviderFixture();
+  t.after(() => fs.rmSync(fixture.worktree, { recursive: true, force: true }));
+  const result = getGraphProvider("graphify").build(fixture);
   assert.equal(result.ok, true);
-  assert.equal(result.cache_hit, true);
-  assert.equal(result.quality, "CONSERVATIVE");
-  assert.equal(result.trusted, false);
+  assert.equal(result.cache_hit, false);
+  assert.equal(result.quality, "PRECISE");
+  assert.equal(result.provider, "graphify");
+  assert.equal(result.graph_provider, "graphify");
+  assert.equal(result.trusted, true);
   assert.equal(result.stale, false);
-  assert.equal(result.confidence, 0.5);
+  assert.equal(result.confidence, 1);
+  assert.match(result.path, /graphify-out\/graph\.json$/);
 });
 
 test("default telemetry writes metrics for an initialized run", () => {

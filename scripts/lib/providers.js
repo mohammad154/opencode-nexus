@@ -1,26 +1,31 @@
 /**
- * Provider registry — deterministic Lite providers and host measurement hooks.
+ * Provider registry — Graphify-backed providers and host measurement hooks.
  * Provider implementations can evolve without changing the state machine.
  */
 import fs from "fs";
 import path from "path";
-import { createHash } from "crypto";
 import { fileURLToPath } from "url";
 import { spawnSync } from "child_process";
+import {
+  prepareGraphifyGraph,
+  resolveGraphifyGraphPath,
+  resolveGraphifyOut,
+} from "./graphify.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, "../..");
-const SUPPORTED_PROVIDER_MODE = "lite";
+const SUPPORTED_PROVIDER_MODE = "graphify";
+const COMPAT_PROVIDER_MODE = "lite";
 const SAFE_RUN_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 
 const GRAPH_PROVIDER_METADATA = {
   capability: "dependency-graph",
-  quality: "lite-heuristic",
+  quality: "graphify",
 };
 
 const BLAST_PROVIDER_METADATA = {
   capability: "blast-radius",
-  quality: "lite-heuristic",
+  quality: "graphify",
 };
 
 const EDIT_VALIDATOR_METADATA = {
@@ -43,10 +48,6 @@ const PROFILE_CALLS_PER_UNIT = Object.freeze({
   balanced: { normal: 2, documentation: 1, direct: 1, dual: 3 },
   strict: { normal: 3, documentation: 1, direct: 1, dual: 3 },
 });
-
-const GRAPH_GENERATOR_VERSION = "3.0";
-const GRAPH_EXTRACTOR_VERSION = "3.0";
-const GRAPH_QUALITY_RANK = Object.freeze({ PRECISE: 2, CONSERVATIVE: 1, UNSUPPORTED: 0 });
 
 function normalizeMode(mode) {
   const normalized = String(mode ?? SUPPORTED_PROVIDER_MODE)
@@ -132,7 +133,7 @@ function providerResultMetadata(metadata, cacheHit = undefined) {
   return result;
 }
 
-function annotateLiteBlastReport(report) {
+function annotateGraphifyBlastReport(report) {
   const normalized = {
     uncertainties: [],
     dimensions: {},
@@ -154,7 +155,7 @@ function annotateLiteBlastReport(report) {
   }
   return {
     ...normalized,
-    analysis_quality: normalized.analysis_quality || "lite-heuristic",
+    analysis_quality: normalized.analysis_quality || "UNKNOWN",
     analysis_complete: normalized.analysis_complete ?? false,
     placeholder_fields: [...placeholders],
   };
@@ -416,295 +417,201 @@ export function createMetricsTelemetry(options = {}) {
 export function createLessonsMemory() {
   return {
     retrieve(worktree, _query = {}) {
-      const lessons = path.join(
-        worktree,
-        ".opencode",
-        "knowledge",
-        "LESSONS.md",
-      );
-      if (!fs.existsSync(lessons)) return { entries: [], source: "none" };
-      const txt = fs.readFileSync(lessons, "utf8");
+      const graphifyOut = resolveGraphifyOut(worktree);
       const tailLen = 2500;
-      const slice = txt.length > tailLen ? txt.slice(-tailLen) : txt;
-      return { entries: [slice], source: "lessons-tail" };
-    },
-  };
-}
+      const entries = [];
+      const lessons = path.join(graphifyOut, "reflections", "LESSONS.md");
+      if (fs.existsSync(lessons)) {
+        const txt = fs.readFileSync(lessons, "utf8");
+        entries.push(txt.length > tailLen ? txt.slice(-tailLen) : txt);
+      }
 
-function graphDigest(value) {
-  return `sha256:${createHash("sha256").update(value).digest("hex")}`;
-}
-
-function graphSourceFingerprint(graph) {
-  const records = (graph.nodes || [])
-    .map((node) => ({
-      path: String(node.path || node.id || "").replace(/\\/g, "/"),
-      file_hash: node.file_hash || "UNREADABLE",
-    }))
-    .sort((a, b) => a.path.localeCompare(b.path));
-  return graphDigest(records.map((record) => `${record.path}\t${record.file_hash}`).join("\n"));
-}
-
-function graphStatusLines(worktree, outputDirectory) {
-  const result = spawnSync("git", ["status", "--porcelain", "--untracked-files=all"], {
-    cwd: worktree,
-    encoding: "utf8",
-  });
-  if (result.status !== 0) return null;
-  const outputRel = path.relative(worktree, outputDirectory).replace(/\\/g, "/");
-  return String(result.stdout || "")
-    .split("\n")
-    .map((line) => line.trimEnd())
-    .filter(Boolean)
-    .filter((line) => {
-      if (!outputRel || outputRel === ".") return true;
-      const statusPath = line.slice(3).trim().replace(/^"|"$/g, "");
-      const candidates = statusPath.includes(" -> ")
-        ? statusPath.split(" -> ").map((value) => value.trim())
-        : [statusPath];
-      return !candidates.some(
-        (candidate) => candidate === outputRel || candidate.startsWith(`${outputRel}/`),
-      );
-    })
-    .sort();
-}
-
-function graphWorkingTreeFingerprint(worktree, graph, sourceFingerprint) {
-  const head = spawnSync("git", ["rev-parse", "HEAD"], {
-    cwd: worktree,
-    encoding: "utf8",
-  });
-  const commit = head.status === 0 ? String(head.stdout || "").trim() || "unknown" : "unknown";
-  const outputDirectory = path.resolve(worktree, graph.output_dir || ".opencode/knowledge");
-  const status = graphStatusLines(worktree, outputDirectory);
-  if (status === null) return null;
-  return graphDigest(JSON.stringify({
-    head_commit: commit,
-    source_fingerprint: sourceFingerprint,
-    status,
-  }));
-}
-
-function graphConfidence(graph, quality) {
-  const requested = Number(graph?.confidence ?? graph?.meta?.confidence);
-  const base = Number.isFinite(requested) && requested >= 0 ? requested : 0.75;
-  const ceiling = { PRECISE: 0.75, CONSERVATIVE: 0.5, UNSUPPORTED: 0.2 }[quality] ?? 0;
-  return Math.min(base, ceiling);
-}
-
-function validateGraphCache(worktree, graph) {
-  const issues = [];
-  if (!graph || typeof graph !== "object") issues.push("graph is not an object");
-  const freshness = graph?.freshness;
-  const extractor = graph?.extractor;
-  if (!freshness || !extractor) issues.push("freshness metadata is missing");
-  if (graph?.generator_version !== GRAPH_GENERATOR_VERSION || freshness?.generator_version !== GRAPH_GENERATOR_VERSION) {
-    issues.push("generator version is stale");
-  }
-  if (extractor?.version !== GRAPH_EXTRACTOR_VERSION) issues.push("extractor version is stale");
-  const quality = graph?.extractor_quality || extractor?.quality;
-  if (!(quality in GRAPH_QUALITY_RANK)) issues.push(`graph quality is ${quality || "unknown"}`);
-
-  const head = spawnSync("git", ["rev-parse", "HEAD"], { cwd: worktree, encoding: "utf8" });
-  const currentHead = head.status === 0 ? String(head.stdout || "").trim() || "unknown" : "unknown";
-  if (freshness?.head_commit !== currentHead) issues.push("HEAD commit changed");
-
-  const nodes = Array.isArray(graph?.nodes) ? graph.nodes : [];
-  const sourceFingerprint = graphSourceFingerprint(graph || {});
-  if (freshness?.source_fingerprint !== sourceFingerprint || graph?.source_fingerprint !== sourceFingerprint) {
-    issues.push("source fingerprint is inconsistent");
-  }
-  for (const node of nodes) {
-    const relative = String(node.path || node.id || "").replace(/\\/g, "/");
-    if (!relative || !node.file_hash) {
-      issues.push(`file hash missing for ${relative || "unknown node"}`);
-      continue;
-    }
-    const absolute = path.resolve(worktree, relative);
-    if (!absolute.startsWith(`${path.resolve(worktree)}${path.sep}`) || !fs.existsSync(absolute)) {
-      issues.push(`indexed file missing: ${relative}`);
-      continue;
-    }
-    const currentHash = graphDigest(fs.readFileSync(absolute));
-    if (currentHash !== node.file_hash) issues.push(`file changed: ${relative}`);
-  }
-  const workingTreeFingerprint = graphWorkingTreeFingerprint(worktree, graph || {}, sourceFingerprint);
-  if (workingTreeFingerprint === null || freshness?.working_tree_fingerprint !== workingTreeFingerprint) {
-    issues.push("working-tree fingerprint changed");
-  }
-  return {
-    ok: issues.length === 0,
-    issues,
-    quality: quality || "UNKNOWN",
-    trusted: quality === "PRECISE",
-  };
-}
-
-function untrustedGraphResult(graphJson, graph, trust, extra = {}) {
-  return {
-    ok: false,
-    ...providerResultMetadata(GRAPH_PROVIDER_METADATA, false),
-    provider_quality: "unknown",
-    quality: "UNKNOWN",
-    path: graphJson,
-    snapshot: graph,
-    stale: true,
-    trust_issues: trust.issues,
-    error: `Graph cache is not trusted: ${trust.issues.join("; ")}`,
-    ...extra,
-  };
-}
-
-export function createLiteGraphProvider() {
-  return {
-    mode: "lite",
-    supported: true,
-    ...GRAPH_PROVIDER_METADATA,
-    build(ctx = {}) {
-      const worktree = ctx.worktree || process.cwd();
-      const graphJson = path.join(
-        worktree,
-        ".opencode",
-        "knowledge",
-        "graph.json",
-      );
-      if (fs.existsSync(graphJson) && !ctx.force) {
-        try {
-          const g = JSON.parse(fs.readFileSync(graphJson, "utf8"));
-          const trust = validateGraphCache(worktree, g);
-          if (!trust.ok) return untrustedGraphResult(graphJson, g, trust);
-          return {
-            ok: true,
-            ...providerResultMetadata(GRAPH_PROVIDER_METADATA, true),
-            path: graphJson,
-            quality: trust.quality,
-            trusted: trust.trusted,
-            stale: false,
-            confidence: graphConfidence(g, trust.quality),
-            snapshot: g,
-          };
-        } catch (e) {
-          return untrustedGraphResult(
-            graphJson,
-            null,
-            { issues: [`graph JSON is invalid: ${e.message || String(e)}`] },
-          );
+      const memoryDir = path.join(graphifyOut, "memory");
+      if (fs.existsSync(memoryDir)) {
+        const files = fs.readdirSync(memoryDir)
+          .filter((file) => file.endsWith(".md"))
+          .sort()
+          .reverse()
+          .slice(0, 3);
+        for (const file of files) {
+          const memory = path.join(memoryDir, file);
+          try {
+            const txt = fs.readFileSync(memory, "utf8");
+            entries.push(txt.length > tailLen ? txt.slice(-tailLen) : txt);
+          } catch {
+            // A concurrently-written Graphify memory file is optional context.
+          }
         }
       }
-      const script = path.join(REPO_ROOT, "scripts", "nexus-graph.sh");
-      if (!fs.existsSync(script)) {
-        return {
-          ok: false,
-          ...providerResultMetadata(GRAPH_PROVIDER_METADATA, false),
-          provider_quality: "unknown",
-          quality: "UNKNOWN",
-          stale: true,
-          path: graphJson,
-          skipped: true,
-          error: "graph builder is unavailable; cache trust cannot be verified",
-        };
-      }
-      const r = spawnSync("bash", [script], {
-        cwd: worktree,
-        encoding: "utf8",
-      });
-      if (r.status !== 0 && !fs.existsSync(graphJson)) {
-        return {
-          ok: false,
-          ...providerResultMetadata(GRAPH_PROVIDER_METADATA, false),
-          error: r.stderr || r.stdout || "graph failed",
-        };
-      }
-      let confidence = 0.75;
-      if (fs.existsSync(graphJson)) {
-        try {
-          const g = JSON.parse(fs.readFileSync(graphJson, "utf8"));
-          const trust = validateGraphCache(worktree, g);
-          if (!trust.ok) {
-            return untrustedGraphResult(graphJson, g, trust, {
-              rebuild_attempted: true,
-              stdout: r.stdout,
-            });
-          }
-          confidence = graphConfidence(g, trust.quality);
-          return {
-            ok: true,
-            ...providerResultMetadata(GRAPH_PROVIDER_METADATA, false),
-            path: graphJson,
-            quality: trust.quality,
-            trusted: trust.trusted,
-            stale: false,
-            confidence,
-            snapshot: g,
-            stdout: r.stdout,
-          };
-        } catch {
-          /* fall through to the untrusted failure below */
-          return untrustedGraphResult(
-            graphJson,
-            null,
-            { issues: ["rebuilt graph JSON is invalid"] },
-            { rebuild_attempted: true, stdout: r.stdout },
-          );
-      }
-      }
       return {
-        ok: false,
-        ...providerResultMetadata(GRAPH_PROVIDER_METADATA, false),
-        provider_quality: "unknown",
-        quality: "UNKNOWN",
-        stale: true,
-        path: graphJson,
-        error: "graph builder produced no graph snapshot",
-        stdout: r.stdout,
+        entries,
+        source: entries.length > 0 ? "graphify-memory-and-reflections" : "none",
       };
     },
   };
 }
 
-export function createLiteBlastProvider() {
+function graphifyGraphResult(snapshot) {
+  const trusted = snapshot?.ok === true && snapshot?.status === "FRESH";
   return {
-    mode: "lite",
+    ok: trusted,
+    ...providerResultMetadata(GRAPH_PROVIDER_METADATA, false),
+    provider: "graphify",
+    graph_provider: "graphify",
+    path: snapshot?.path || null,
+    graph_path: snapshot?.path || null,
+    graphify_out: snapshot?.out_directory || null,
+    snapshot: snapshot?.graph || null,
+    freshness: snapshot?.freshness || {
+      valid: false,
+      status: snapshot?.status || "UNKNOWN",
+      reasons: snapshot?.issues || ["Graphify graph was not validated"],
+    },
+    stale: !trusted,
+    fresh: trusted,
+    trusted,
+    quality: trusted ? "PRECISE" : "UNKNOWN",
+    confidence: trusted ? 1 : 0,
+    trust_issues: snapshot?.issues || [],
+    error: trusted ? undefined : (snapshot?.issues || ["Graphify graph is not trusted"]).join("; "),
+    refresh: snapshot?.refresh || null,
+  };
+}
+
+export function createGraphifyGraphProvider() {
+  return {
+    mode: "graphify",
+    supported: true,
+    ...GRAPH_PROVIDER_METADATA,
+    build(ctx = {}) {
+      const worktree = ctx.worktree || process.cwd();
+      const requestedPath = ctx.path && String(ctx.path).endsWith("graph.json")
+        ? String(ctx.path)
+        : resolveGraphifyGraphPath(worktree);
+      const graphPath = requestedPath && path.isAbsolute(requestedPath)
+        ? requestedPath
+        : path.resolve(worktree, requestedPath);
+      const snapshot = prepareGraphifyGraph({
+        worktree,
+        graphPath,
+        force: !!ctx.force,
+        command: ctx.graphifyCommand || "graphify",
+        env: ctx.graphifyEnv || process.env,
+      });
+      return graphifyGraphResult(snapshot);
+    },
+  };
+}
+
+// Existing callers may still request the old provider mode name. It is only a
+// compatibility alias; both implementations now use Graphify.
+export function createLiteGraphProvider() {
+  return createGraphifyGraphProvider();
+}
+
+function readBlastReport(reportPath) {
+  try {
+    return JSON.parse(fs.readFileSync(reportPath, "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+function trustedGraphifyBlastReport(report) {
+  return Boolean(
+    report &&
+    report.graph_provider === "graphify" &&
+    report.analysis_quality === "PRECISE" &&
+    report.graph_quality === "PRECISE" &&
+    report.graph_freshness?.valid === true &&
+    report.analysis_complete !== false,
+  );
+}
+
+function normalizeUntrustedBlastReport(report, reason) {
+  const normalized = annotateGraphifyBlastReport({
+    uncertainties: [],
+    dimensions: {},
+    ...(report && typeof report === "object" ? report : {}),
+    risk: "UNKNOWN",
+    level: "UNKNOWN",
+    computed_risk: "UNKNOWN",
+    analysis_quality: "UNKNOWN",
+    graph_quality: "UNKNOWN",
+    analysis_complete: false,
+    graph_provider: "graphify",
+  });
+  normalized.uncertainties = [
+    ...new Set([
+      ...(Array.isArray(normalized.uncertainties) ? normalized.uncertainties : []),
+      reason,
+    ]),
+  ];
+  return normalized;
+}
+
+export function createGraphifyBlastProvider() {
+  return {
+    mode: "graphify",
     supported: true,
     ...BLAST_PROVIDER_METADATA,
     analyze(ctx = {}) {
       const worktree = ctx.worktree || process.cwd();
       const outPath =
         ctx.outPath ||
-        path.join(worktree, ".opencode", "knowledge", "blast", "latest.json");
+        path.join(worktree, ".opencode", "blast", "latest.json");
+      const reportPath = ctx.reportPath
+        ? path.isAbsolute(ctx.reportPath)
+          ? ctx.reportPath
+          : path.resolve(worktree, ctx.reportPath)
+        : null;
       // Inline reports are authoritative only when already provider-sealed.
       if (ctx.report && typeof ctx.report === "object") {
         if (
           ctx.report.provider_validated === true &&
           ctx.report.artifact_digest
         ) {
-          const report = annotateLiteBlastReport({
+          const report = annotateGraphifyBlastReport({
             uncertainties: [],
             dimensions: {},
             ...ctx.report,
             risk: ctx.report.risk || ctx.report.level || "UNKNOWN",
           });
+          const trusted = trustedGraphifyBlastReport(report);
           return {
             ok: true,
             ...providerResultMetadata(BLAST_PROVIDER_METADATA, true),
-            report,
+            report: trusted
+              ? report
+              : normalizeUntrustedBlastReport(
+                report,
+                "blast report lacks fresh, directed Graphify evidence",
+              ),
             path: ctx.outPath || null,
           };
         }
         // Ignore fabricated inline trust labels — fall through to artifact/script.
       }
-      if (ctx.reportPath && fs.existsSync(ctx.reportPath)) {
-        const report = annotateLiteBlastReport(
-          JSON.parse(fs.readFileSync(ctx.reportPath, "utf8")),
-        );
-        if (!report.uncertainties) report.uncertainties = [];
-        if (!report.dimensions) report.dimensions = {};
-        if (!report.risk) report.risk = report.level || "UNKNOWN";
+      if (reportPath && fs.existsSync(reportPath)) {
+        const report = readBlastReport(reportPath);
+        if (!report) {
+          return {
+            ok: false,
+            ...providerResultMetadata(BLAST_PROVIDER_METADATA, true),
+            error: `blast report is invalid: ${reportPath}`,
+          };
+        }
+        const normalized = annotateGraphifyBlastReport(report);
         return {
           ok: true,
           ...providerResultMetadata(BLAST_PROVIDER_METADATA, true),
-          report,
-          path: ctx.reportPath,
+          report: trustedGraphifyBlastReport(normalized)
+            ? normalized
+            : normalizeUntrustedBlastReport(
+              normalized,
+              "blast report lacks fresh, directed Graphify evidence",
+            ),
+          path: reportPath,
         };
       }
       const script = path.join(REPO_ROOT, "scripts", "nexus-blast.js");
@@ -724,25 +631,31 @@ export function createLiteBlastProvider() {
         encoding: "utf8",
       });
       if (fs.existsSync(outPath)) {
-        const report = annotateLiteBlastReport(
-          JSON.parse(fs.readFileSync(outPath, "utf8")),
-        );
-        if (!report.uncertainties) report.uncertainties = [];
-        if (!report.dimensions) report.dimensions = {};
+        const report = readBlastReport(outPath);
+        if (!report) {
+          return {
+            ok: false,
+            ...providerResultMetadata(BLAST_PROVIDER_METADATA, false),
+            error: `blast report is invalid: ${outPath}`,
+          };
+        }
         return {
-          ok: true,
+          ok: r.status === 0,
           ...providerResultMetadata(BLAST_PROVIDER_METADATA, false),
-          report,
+          report: annotateGraphifyBlastReport(report),
           path: outPath,
           stdout: r.stdout,
         };
       }
       // Try parse stdout JSON
       try {
-        const report = annotateLiteBlastReport(JSON.parse(r.stdout || "{}"));
-        if (!report.uncertainties) report.uncertainties = [];
-        if (!report.dimensions) report.dimensions = {};
-        if (!report.risk) report.risk = report.level || "UNKNOWN";
+        const parsed = JSON.parse(r.stdout || "{}");
+        const report = parsed?.risk || parsed?.level
+          ? annotateGraphifyBlastReport(parsed)
+          : normalizeUntrustedBlastReport(
+            parsed,
+            r.stderr || r.stdout || "Graphify blast refresh did not produce a report",
+          );
         return {
           ok: r.status === 0,
           ...providerResultMetadata(BLAST_PROVIDER_METADATA, false),
@@ -758,6 +671,10 @@ export function createLiteBlastProvider() {
       }
     },
   };
+}
+
+export function createLiteBlastProvider() {
+  return createGraphifyBlastProvider();
 }
 
 function normalizePathValue(value) {
@@ -1000,18 +917,22 @@ export function createEditValidator() {
 }
 
 export function getGraphProvider(
-  mode = process.env.NEXUS_GRAPH_MODE || "lite",
+  mode = process.env.NEXUS_GRAPH_MODE || SUPPORTED_PROVIDER_MODE,
 ) {
   const normalizedMode = normalizeMode(mode);
-  if (normalizedMode === SUPPORTED_PROVIDER_MODE) return createLiteGraphProvider();
+  if ([SUPPORTED_PROVIDER_MODE, COMPAT_PROVIDER_MODE].includes(normalizedMode)) {
+    return createGraphifyGraphProvider();
+  }
   return createUnsupportedProvider("graph", normalizedMode);
 }
 
 export function getBlastProvider(
-  mode = process.env.NEXUS_BLAST_MODE || "lite",
+  mode = process.env.NEXUS_BLAST_MODE || SUPPORTED_PROVIDER_MODE,
 ) {
   const normalizedMode = normalizeMode(mode);
-  if (normalizedMode === SUPPORTED_PROVIDER_MODE) return createLiteBlastProvider();
+  if ([SUPPORTED_PROVIDER_MODE, COMPAT_PROVIDER_MODE].includes(normalizedMode)) {
+    return createGraphifyBlastProvider();
+  }
   return createUnsupportedProvider("blast", normalizedMode);
 }
 

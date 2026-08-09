@@ -7,7 +7,7 @@ compatibility: opencode
 # Using Nexus (V3 — executable workflow engine)
 
 <SUBAGENT-STOP>
-If you were dispatched as a subagent (implementer, spec-reviewer, code-reviewer, unified-reviewer, blast-analyzer, knowledge-graph, reconciler, or any nexus-* variant of those), skip this skill.
+If you were dispatched as a subagent (implementer, spec-reviewer, code-reviewer, unified-reviewer, blast-analyzer, reconciler, or any nexus-* variant of those), skip this skill.
 </SUBAGENT-STOP>
 
 ## The Rule
@@ -26,7 +26,7 @@ Announce: "Using brainstorming to clarify requirements. (V3 engine: profiles + s
 |-----------|---------------|
 | New feature, unclear scope, design questions | `brainstorming` |
 | Requirements are clear, need a plan file | `writing-plans` |
-| Need map of codebase / hubs | `knowledge-graph` skill docs; **run** `scripts/nexus-graph.sh` (do not dispatch optional agent) |
+| Need map of codebase / hubs | Graphify: **run** `graphify query` / `graphify affected`; refresh with `graphify update .` |
 | Need safety check before editing | `blast-radius` skill docs; **run** `scripts/nexus-blast.js` |
 | Plan exists, start or continue implementation | `orchestrating` (reads `profiles.md` + `dispatch.md`) |
 | About to implement on a feature/task branch | `using-feature-branches` + blast script (skip blast only if `execution_mode: direct` and classifier `direct_eligible`) |
@@ -85,7 +85,7 @@ Exact CONTEXT line `execution_mode: direct` still authorizes orchestrator self-c
 1. `brainstorming` (if unclear)
 2. `writing-plans` (unless direct-safe docs)
 3. `nexus-run.js init` + classify
-4. Graph script (skip only for direct-eligible docs/formatting)
+4. Graphify refresh (skip only for direct-eligible docs/formatting)
 5. Blast script per unit/task (skip only when direct path)
 6. Dispatch implementer (or direct path) → validate handoff → review per profile → script cleanup
 
@@ -97,19 +97,20 @@ Exact CONTEXT line `execution_mode: direct` still authorizes orchestrator self-c
 
 Default roster: orchestrator, implementer, unified-reviewer, spec-reviewer, code-reviewer, reconciler.
 
-Graph/blast **agents** are optional (`install.sh --with-optional-agents`); prefer scripts.
+Blast **agent** is optional (`install.sh --with-optional-agents`); Graphify is the sole graph provider.
 
 Full gates: `skills/orchestrating/dispatch.md`.
 
 ## Agent Selection
 
 - Primary: **orchestrator** / `nexus-orchestrator`
-- Scripts: `nexus-graph.sh`, `nexus-blast.js`, `nexus-branch-cleanup.sh`, `nexus-estimate-calls.js`, `nexus-run.js`, `nexus-classify.js`
+- Graphify: `graphify query`, `graphify affected`, `graphify update`, `graphify hook install`
+- Scripts: `nexus-blast.js`, `nexus-branch-cleanup.sh`, `nexus-estimate-calls.js`, `nexus-run.js`, `nexus-classify.js`
 
 ## Context Preservation
 
 - Machine state: `.opencode/runs/*/state.json`
-- Human context: `.opencode/CONTEXT.md`, plans, tasks, handoffs, knowledge/
+- Human context: `.opencode/CONTEXT.md`, plans, tasks, handoffs, `.opencode/reconcile/`
 - Handoffs: require `schema_version: "1.1"` with envelope (`run_id`, `unit_or_task`, `agent`, `base_commit`, `created_at`). Legacy `1.0`/`0.9` migrate as `legacy_unverified` and cannot satisfy completion gates.
 - Direct path (PR A): **existing-diff-only** — `classify --apply` with authoritative non-clean git diff. Two-stage `DIRECT_PREPARING`/`DIRECT_AUTHORIZED` is PR B.
 

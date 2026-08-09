@@ -231,7 +231,7 @@ function withUntracked(root, files, patchFiles, warnings) {
   }
   for (const file of result.stdout.split("\0").filter(Boolean).map(normalizePath)) {
     // Nexus runtime artifacts under .opencode/ (runs, handoffs, trajectories,
-    // knowledge cache) must not inflate classification size or block direct
+    // Graphify cache) must not inflate classification size or block direct
     // eligibility after `nexus-run init`. Tracked edits (e.g. plugins) still
     // appear via git diff against HEAD.
     if (file === ".opencode" || file.startsWith(".opencode/")) continue;
@@ -416,4 +416,3 @@ export function mergeGitDiffEvidence(input = {}, evidence = {}) {
     ...(Object.keys(explicit).length ? { compatibility_input: explicit } : {}),
   };
 }
-
