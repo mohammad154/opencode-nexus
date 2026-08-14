@@ -1,7 +1,7 @@
 # Spec Reviewer Dispatch Template (enhanced — file:line fidelity + blast + drift)
 
-Use this template when dispatching the **spec-reviewer** role on any platform.
-Resolve the local agent name via `dispatch.md` (`spec-reviewer` on OpenCode; `nexus-spec-reviewer` on Claude/Cursor/AG; isolated reviewer turn on Codex/Gemini).
+Use this template when dispatching the **spec-reviewer** role.
+Dispatch the installed OpenCode agent `spec-reviewer`.
 Always launch as a **fresh** subagent/turn after implementer handoff; do not self-review in the orchestrator.
 
 ```text

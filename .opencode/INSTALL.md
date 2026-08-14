@@ -1,8 +1,8 @@
 # Installing OpenCode Nexus V3
 
-Nexus V3 has one workflow core and six thin platform adapters. The core owns
-workflow states, policy, handoffs, blast-report compatibility, and review rules;
-adapters translate paths, frontmatter, names, permissions, and dispatch syntax.
+Nexus V3 has one workflow core and an OpenCode installer. The core owns
+workflow states, policy, handoffs, blast-report compatibility, and review rules.
+The installer writes native OpenCode agents and merges plugin/model config.
 
 ## Prerequisites
 
@@ -16,8 +16,6 @@ The installer remains dependency-light. Graphify is an external prerequisite.
 
 ## Install
 
-Auto-detect supported platforms:
-
 ```bash
 curl -fsSL https://raw.githubusercontent.com/mohammad154/opencode-nexus/main/install.sh | bash
 ```
@@ -29,16 +27,7 @@ git clone https://github.com/mohammad154/opencode-nexus.git /tmp/opencode-nexus
 cd /tmp/opencode-nexus && ./install.sh
 ```
 
-Install selected adapters only:
-
-```bash
-./install.sh --only opencode
-./install.sh --only claude,opencode
-./install.sh --all
-```
-
-For an OpenCode install, Nexus requires the Graphify CLI and invokes both
-native integration commands:
+Nexus requires the Graphify CLI and invokes both native integration commands:
 
 ```bash
 graphify install --platform opencode
@@ -49,18 +38,15 @@ If `graphify` is unavailable, Nexus stops with a prerequisite message. Nexus
 does not install Python packages, access the network, or remove Graphify during
 uninstall.
 
-## Platform support
+## OpenCode outputs
 
-| Platform | User adapter paths | Translation performed |
-|---|---|---|
-| OpenCode | `~/.config/opencode/` | Native agent names, plugin/config merge, permissions |
-| Claude Code | `~/.claude/skills/nexus-*`, `~/.claude/agents/nexus-*` | Skill frontmatter, agent names, dispatch permissions |
-| Cursor | `~/.cursor/rules/nexus-*`, `~/.cursor/agents/nexus-*` | Rule frontmatter, names, dispatch syntax |
-| Codex | `~/.codex/skills/nexus-*`, `~/.agents/skills/nexus-*` | Skill paths and agent-name prefixes |
-| Gemini CLI | `~/.gemini/skills/nexus-*`, `~/.agents/skills/nexus-*` | Skill paths and frontmatter names |
-| Antigravity | `~/.gemini/config/skills/nexus-*`, project `.agents/` | Skill paths, rule/workflow entry points |
+| Output | Path |
+|---|---|
+| Agents | `~/.config/opencode/agents/*.md` |
+| Plugin and models | `~/.config/opencode/opencode.json` |
+| Optional model overrides | `~/.config/opencode/nexus.models.json` |
 
-Every adapter installs the same six canonical agents:
+The installer writes the same six canonical agents:
 
 `orchestrator`, `implementer`, `unified-reviewer`, `spec-reviewer`,
 `code-reviewer`, and `reconciler`.
@@ -69,7 +55,7 @@ Every adapter installs the same six canonical agents:
 graph provider and the deterministic Nexus blast script is the default path:
 
 ```bash
-./install.sh --only opencode --with-optional-agents
+./install.sh --with-optional-agents
 ```
 
 ## V3 workflow and profiles
@@ -124,9 +110,8 @@ OpenCode agents use native names:
 ls ~/.config/opencode/agents/{orchestrator,implementer,unified-reviewer,spec-reviewer,code-reviewer,reconciler}.md
 ```
 
-Other adapters prefix installed agent and skill names with `nexus-` where the
-host requires it. The installer tests exercise all six adapters in isolated
-temporary homes, including repeated installation and uninstall cleanup.
+The installer tests exercise OpenCode in an isolated temporary home, including
+repeated installation and uninstall cleanup.
 
 ## Customize models
 
@@ -138,12 +123,9 @@ Optional overrides can be placed in
 
 ```bash
 ./uninstall.sh
-./uninstall.sh --only opencode
-./uninstall.sh --only claude,cursor
-./uninstall.sh --all
 ```
 
-The uninstaller restores backed-up pre-existing adapter files where supported,
-removes Nexus entries without removing unrelated user configuration, leaves
-Graphify installed, and keeps project-local `graphify-out/`, `.opencode/blast/`,
-`.opencode/reconcile/`, and `.opencode/handoffs/` data.
+The uninstaller restores backed-up pre-existing OpenCode agent files where
+supported, removes Nexus entries without removing unrelated user configuration,
+leaves Graphify installed, and keeps project-local `graphify-out/`,
+`.opencode/blast/`, `.opencode/reconcile/`, and `.opencode/handoffs/` data.

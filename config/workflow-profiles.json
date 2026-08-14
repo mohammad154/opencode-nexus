@@ -88,24 +88,46 @@
       "security",
       "migration",
       "public_api",
+      "credential_handling"
+    ],
+    "dual_review_triggers": [
+      "security",
+      "migration",
+      "public_api",
       "credential_handling",
       "blast_risk_high"
     ],
     "risk_weights": {
-      "files_changed_over_5": 2,
-      "estimated_lines_over_200": 2,
-      "high_fan_in_symbol": 3,
-      "missing_tests": 2,
-      "cross_package_change": 2,
+      "files_changed_over_5": 1,
+      "estimated_lines_over_200": 1,
+      "files_changed_over_2": 0,
+      "estimated_lines_over_50": 0,
       "generated_file_change": 1,
-      "files_changed_over_2": 1,
-      "estimated_lines_over_50": 1,
-      "exported_symbol_change": 2
+      "high_fan_in_symbol": 4,
+      "missing_tests": 2,
+      "cross_package_change": 3,
+      "exported_symbol_change": 3,
+      "config_schema_protocol": 3,
+      "concurrency_async": 2,
+      "dependency_update": 2,
+      "database_storage": 3,
+      "blast_risk_medium": 2,
+      "blast_risk_high": 3,
+      "many_direct_callers": 2
     },
     "thresholds": {
       "fast_max": 1,
       "balanced_max": 5,
       "strict_min": 6
+    },
+    "confidence_gates": {
+      "fast_min": 0.85,
+      "balanced_min": 0.65
+    },
+    "caller_thresholds": {
+      "high_fan_in": 8,
+      "many_direct": 15,
+      "low_direct": 1
     },
     "direct_path": {
       "max_risk_score": 0,
@@ -116,7 +138,8 @@
       "min_confidence": 0.85,
       "allowed_classes": ["documentation", "formatting", "one_file_internal"]
     },
-    "escalateToStrictOnHighBlast": true,
+    "escalateToStrictOnHighBlast": false,
+    "escalateReviewOnHighBlast": true,
     "allowExplicitOverride": true,
     "_deprecated_fastIf": {
       "_comment": "Legacy v1 shape. Nested 'or' was documented as AND (tiny internal). Migrated by scripts/lib/classify.js loadClassificationRules.",

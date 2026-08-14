@@ -85,7 +85,7 @@ For each pending **execution unit**:
    - documentation → skip review (still run verification gates)
    - low/medium unified classes → `unified-reviewer` once
    - public-api / security / migration / HIGH blast → dual spec then code (same as strict)
-5. If HIGH blast discovered mid-flight → escalate to dual review.
+5. If HIGH blast discovered mid-flight → escalate to dual review (execution profile may stay `balanced` when batching is still safe).
 6. LESSONS: write only when `lessonPolicy` says noteworthy (review findings, BLOCKED, surprise deps, lesson prevented error). `fast`/`balanced` default: noteworthy-only.
 7. Merge feature branch into base when unit done (`merge_policy: always_to_base`).
 8. Script cleanup of the feature branch (not an agent).

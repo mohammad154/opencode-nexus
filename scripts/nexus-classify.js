@@ -5,7 +5,7 @@
 import fs from "fs";
 import path from "path";
 import { pathToFileURL } from "url";
-import { classify, loadWorkflowConfig } from "./lib/classify.js";
+import { classify, loadWorkflowConfig, reclassifyAfterBlast } from "./lib/classify.js";
 import {
   collectGitDiffEvidence,
   mergeGitDiffEvidence,
@@ -26,6 +26,8 @@ function parseArgs(argv) {
     else if (a === "--migration") out.databaseMigration = true;
     else if (a === "--credential-handling") out.credentialHandling = true;
     else if (a === "--high-blast") out.blastRiskHigh = true;
+    else if (a === "--blast") out.blastPath = argv[++i];
+    else if (a === "--callers") out.directCallers = Number(argv[++i]);
     else if (a === "--diff" || a === "--from-diff") {
       out.diff = true;
       const next = argv[i + 1];
@@ -46,9 +48,12 @@ const USAGE = `Usage: node scripts/nexus-classify.js [options]
   --diff [BASE] | --from-diff [BASE]
   --no-diff (compatibility input; never authorizes direct execution)
   --profile fast|balanced|strict
+  --blast path.json (post-blast reclassification)
+  --callers N
   --input path.json | --json '{...}'
-Note: --class public-api|authentication-security|database-migration|high-blast
-      alone triggers the matching hard policy via reviewMatrix + CLASS_FLAGS.`;
+Note: --class public-api|authentication-security|database-migration
+      alone triggers hard strict + dual review. HIGH blast escalates review;
+      execution profile is re-scored from semantic + Graphify impact.`;
 
 export function classifyFromArgs(argv = process.argv.slice(2), cwd = process.cwd()) {
   const args = parseArgs(argv);
@@ -85,6 +90,14 @@ export function classifyFromArgs(argv = process.argv.slice(2), cwd = process.cwd
   }
 
   const workflowConfig = loadWorkflowConfig();
+  if (args.directCallers != null && Number.isFinite(args.directCallers)) {
+    input.directCallers = args.directCallers;
+  }
+  if (args.blastPath) {
+    const blast = JSON.parse(fs.readFileSync(args.blastPath, "utf8"));
+    const previous = classify(input, { workflowConfig });
+    return reclassifyAfterBlast(previous, blast.report || blast, { workflowConfig });
+  }
   return classify(input, { workflowConfig });
 }
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Smoke-test every platform adapter in its own temporary HOME and Git project.
+# Smoke-test the OpenCode installer in an isolated temporary HOME and Git project.
 # The installer must never use the source checkout as a project-local target.
 set -euo pipefail
 
@@ -19,45 +19,30 @@ fail() {
   exit 1
 }
 
-command -v jq >/dev/null 2>&1 || fail "jq is required for the OpenCode adapter smoke test"
-command -v sha256sum >/dev/null 2>&1 || fail "sha256sum is required for adapter idempotence snapshots"
+command -v jq >/dev/null 2>&1 || fail "jq is required for the OpenCode installer smoke test"
+command -v sha256sum >/dev/null 2>&1 || fail "sha256sum is required for installer idempotence snapshots"
 
-SOURCE_STATUS="$(git -C "$ROOT" status --porcelain=v1)"
-
-adapter_roots() {
-  local platform="$1" home="$2" project="$3"
-  case "$platform" in
-    opencode) printf '%s\n' "$home/.config/opencode" ;;
-    claude) printf '%s\n' "$home/.claude" "$project/.claude" ;;
-    cursor) printf '%s\n' "$home/.cursor" "$project/.cursor" ;;
-    codex) printf '%s\n' "$home/.codex" "$home/.agents" "$project/.codex" "$project/.agents" ;;
-    gemini) printf '%s\n' "$home/.gemini" "$home/.agents" "$project/.gemini" "$project/.agents" ;;
-    antigravity) printf '%s\n' "$home/.antigravity" "$home/.gemini" "$home/.agents" "$project/.antigravity" "$project/.gemini" "$project/.agents" ;;
-  esac
-}
+SOURCE_STATUS=""
+if git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  SOURCE_STATUS="$(git -C "$ROOT" status --porcelain=v1)"
+fi
 
 snapshot_artifacts() {
-  local platform="$1" home="$2" project="$3" output="$4" file rel
+  local home="$1" output="$2" file rel
   : >"$output"
-  while IFS= read -r root; do
-    [[ -d "$root" ]] || continue
-    find "$root" -type f ! -name '*.bak.*' \( -name 'nexus*' -o -name 'opencode.json' \) -print
-  done < <(adapter_roots "$platform" "$home" "$project") | sort -u | while IFS= read -r file; do
+  find "$home/.config/opencode" -type f ! -name '*.bak.*' \( -name 'nexus*' -o -name 'opencode.json' \) -print \
+    2>/dev/null | sort -u | while IFS= read -r file; do
     rel="${file#"$home"/}"
-    [[ "$rel" == "$file" ]] && rel="project/${file#"$project"/}"
     printf '%s\t%s\n' "$rel" "$(sha256sum "$file" | awk '{print $1}')"
   done >"$output"
 }
 
-assert_adapter_clean() {
-  local platform="$1" home="$2" project="$3" file
-  while IFS= read -r root; do
-    [[ -d "$root" ]] || continue
-    if find "$root" ! -name '*.bak.*' \( -name 'nexus*' -o -name 'nexus.md' \) -print -quit | grep -q .; then
-      fail "$platform uninstall left Nexus adapter artifacts under $root"
-    fi
-  done < <(adapter_roots "$platform" "$home" "$project")
-  if [[ "$platform" == opencode && -f "$home/.config/opencode/opencode.json" ]]; then
+assert_opencode_clean() {
+  local home="$1"
+  if find "$home/.config/opencode" ! -name '*.bak.*' \( -name 'nexus*' -o -name 'nexus.md' \) -print -quit 2>/dev/null | grep -q .; then
+    fail "OpenCode uninstall left Nexus artifacts under $home/.config/opencode"
+  fi
+  if [[ -f "$home/.config/opencode/opencode.json" ]]; then
     jq -e --arg spec 'nexus@git+https://github.com/mohammad154/opencode-nexus.git' \
       '((.plugin // []) | map(select(. == $spec)) | length) == 0' \
       "$home/.config/opencode/opencode.json" >/dev/null \
@@ -65,173 +50,69 @@ assert_adapter_clean() {
   fi
 }
 
-smoke_platform() (
-  set -euo pipefail
-  local platform="$1"
-  local home="$TMPROOT/$platform"
-  local project="$home/project"
-  local agent_root=""
-  local skill_root=""
-  local agent_file=""
+echo "== OpenCode installer smoke =="
+home="$TMPROOT/opencode"
+project="$home/project"
+mkdir -p "$home/bin" "$project" "$home/.config/opencode"
+printf '{}\n' >"$home/.config/opencode/opencode.json"
+printf '#!/bin/sh\nprintf "%%s\\n" "$*" >>"$GRAPHIFY_LOG"\n' >"$home/bin/graphify"
+chmod +x "$home/bin/graphify"
 
-  mkdir -p "$home/bin" "$project" "$home/.config/opencode"
-  # Keep project-local adapter writes in scope only for Antigravity, whose
-  # contract explicitly includes .agents/rules and .agents/workflows. The
-  # other adapters are validated at their user roots; this also ensures the
-  # current uninstaller's user-path cleanup is tested without hiding a
-  # project-agent compatibility gap.
-  if [[ "$platform" == antigravity ]]; then
-    git init -q "$project"
-  fi
-  printf '{}\n' >"$home/.config/opencode/opencode.json"
-  printf '#!/bin/sh\nprintf "%%s\\n" "$*" >>"$GRAPHIFY_LOG"\n' >"$home/bin/graphify"
-  chmod +x "$home/bin/graphify"
+export HOME="$home"
+export PATH="$home/bin:$SANITIZED_PATH"
+export GRAPHIFY_LOG="$home/graphify.log"
+unset OPENCODE_CONFIG_DIR NEXUS_PLUGIN_SPEC NEXUS_OPTIONAL_AGENTS
 
-  export HOME="$home"
-  export PATH="$home/bin:$SANITIZED_PATH"
-  export GRAPHIFY_LOG="$home/graphify.log"
-  unset OPENCODE_CONFIG_DIR CLAUDE_CONFIG_DIR CURSOR_RULES_DIR CURSOR_AGENTS_DIR \
-    CURSOR_SKILLS_DIR CODEX_CONFIG_DIR GEMINI_CONFIG_DIR ANTIGRAVITY_CONFIG_DIR \
-    NEXUS_PLUGIN_SPEC NEXUS_OPTIONAL_AGENTS
+if ! (cd "$project" && "$ROOT/install.sh" >"$home/install.log" 2>&1); then
+  fail "OpenCode installer exited non-zero"
+fi
 
-  echo "== adapter smoke: $platform =="
-  if ! (cd "$project" && "$ROOT/install.sh" --only "$platform" >"$home/install.log" 2>&1); then
-    fail "$platform installer exited non-zero"
-  fi
+snapshot_artifacts "$home" "$home/adapter-before-second-install.txt"
+if ! (cd "$project" && "$ROOT/install.sh" >"$home/install-second.log" 2>&1); then
+  fail "OpenCode second installer invocation exited non-zero"
+fi
+snapshot_artifacts "$home" "$home/adapter-after-second-install.txt"
+cmp -s "$home/adapter-before-second-install.txt" "$home/adapter-after-second-install.txt" \
+  || fail "OpenCode second install changed the artifact set"
 
-  case "$platform" in
-    opencode)
-      agent_root="$home/.config/opencode/agents"
-      ;;
-    claude)
-      agent_root="$home/.claude/agents"
-      skill_root="$home/.claude/skills"
-      ;;
-    cursor)
-      agent_root="$home/.cursor/agents"
-      skill_root="$home/.cursor/skills"
-      ;;
-    codex)
-      agent_root="$home/.codex/agents"
-      skill_root="$home/.codex/skills"
-      ;;
-    gemini)
-      agent_root="$home/.gemini/agents"
-      skill_root="$home/.gemini/skills"
-      ;;
-    antigravity)
-      agent_root="$home/.antigravity/agents"
-      skill_root="$home/.antigravity/skills"
-      ;;
-    *) fail "unknown adapter test target: $platform" ;;
-  esac
-
-  snapshot_artifacts "$platform" "$home" "$project" "$home/adapter-before-second-install.txt"
-  if ! (cd "$project" && "$ROOT/install.sh" --only "$platform" >"$home/install-second.log" 2>&1); then
-    fail "$platform second installer invocation exited non-zero"
-  fi
-  snapshot_artifacts "$platform" "$home" "$project" "$home/adapter-after-second-install.txt"
-  cmp -s "$home/adapter-before-second-install.txt" "$home/adapter-after-second-install.txt" \
-    || fail "$platform second install changed the adapter artifact set"
-
-  for agent in "${CANONICAL_AGENTS[@]}"; do
-    if [[ "$platform" == opencode ]]; then
-      agent_file="$agent_root/$agent.md"
-    else
-      agent_file="$agent_root/nexus-$agent.md"
-    fi
-    [[ -f "$agent_file" ]] || fail "$platform missing expected agent: $agent_file"
-    if [[ "$platform" != opencode ]]; then
-      grep -q "^name: nexus-$agent$" "$agent_file" \
-        || fail "$platform agent has no translated name: $agent_file"
-    fi
-  done
-
-  if [[ "$platform" == opencode ]]; then
-    [[ ! -e "$agent_root/nexus-orchestrator.md" ]] \
-      || fail "OpenCode unexpectedly prefixed its native agent names"
-    [[ ! -e "$agent_root/blast-analyzer.md" && ! -e "$agent_root/knowledge-graph.md" ]] \
-      || fail "optional compatibility agents installed by default"
-    jq -e --arg spec 'nexus@git+https://github.com/mohammad154/opencode-nexus.git' \
-      '((.plugin // []) | map(select(. == $spec)) | length) == 1' \
-      "$home/.config/opencode/opencode.json" >/dev/null \
-      || fail "OpenCode repeated install duplicated the plugin config entry"
-    if find "$home" "$project" -type f -path '*/nexus-using-nexus/SKILL.md' -print -quit | grep -q .; then
-      fail "OpenCode unexpectedly received a host skill adapter"
-    fi
-  else
-    [[ -f "$skill_root/nexus-using-nexus/SKILL.md" ]] \
-      || fail "$platform missing prefixed skill: $skill_root/nexus-using-nexus/SKILL.md"
-    grep -q '^name: nexus-using-nexus$' "$skill_root/nexus-using-nexus/SKILL.md" \
-      || fail "$platform skill frontmatter was not translated"
-  fi
-
-  if find "$home" "$project" -type f \( \
-      -name 'blast-analyzer.md' -o -name 'knowledge-graph.md' \
-      -o -name 'nexus-blast-analyzer.md' -o -name 'nexus-knowledge-graph.md' \
-    \) -print -quit | grep -q .; then
-    fail "$platform installed an optional graph/blast agent without an explicit flag"
-  fi
-
-  if [[ "$platform" == opencode ]]; then
-    grep -q '^install --platform opencode$' "$GRAPHIFY_LOG" \
-      || fail "OpenCode installer did not invoke Graphify global skill installation"
-    grep -q '^opencode install$' "$GRAPHIFY_LOG" \
-      || fail "OpenCode installer did not invoke Graphify project installation"
-    [[ -x "$home/bin/graphify" ]] \
-      || fail "Nexus uninstall removed the external Graphify executable"
-    ! grep -q 'uninstall' "$GRAPHIFY_LOG" \
-      || fail "Nexus uninstall invoked a Graphify uninstall command"
-  fi
-
-  case "$platform" in
-    claude)
-      grep -q '^tools: Agent(nexus-' "$home/.claude/agents/nexus-orchestrator.md" \
-        || fail "Claude permission/dispatch names were not prefixed"
-      ;;
-    cursor)
-      [[ -f "$home/.cursor/rules/nexus-using-nexus.mdc" ]] \
-        || fail "Cursor rules adapter missing"
-      grep -q '^alwaysApply: true$' "$home/.cursor/rules/nexus-using-nexus.mdc" \
-        || fail "Cursor using-nexus rule is not always-on"
-      ;;
-    codex)
-      [[ -f "$home/.agents/skills/nexus-using-nexus/SKILL.md" ]] \
-        || fail "Codex primary skill path missing"
-      ;;
-    gemini)
-      [[ -f "$home/.agents/skills/nexus-using-nexus/SKILL.md" ]] \
-        || fail "Gemini shared skill path missing"
-      ;;
-    antigravity)
-      [[ -f "$home/.gemini/config/skills/nexus-using-nexus/SKILL.md" ]] \
-        || fail "Antigravity universal skill path missing"
-      [[ -f "$project/.agents/rules/nexus.md" ]] \
-        || fail "Antigravity project rule adapter missing"
-      [[ -f "$project/.agents/workflows/nexus.md" ]] \
-        || fail "Antigravity project workflow adapter missing"
-      grep -q 'This adapter translates paths' "$project/.agents/rules/nexus.md" \
-        || fail "Antigravity rule does not state the adapter contract"
-      grep -q 'nexus-using-nexus' "$project/.agents/workflows/nexus.md" \
-        || fail "Antigravity workflow does not expose the canonical entrypoint"
-      if grep -q 'Review gates\|workflow_profile' "$project/.agents/rules/nexus.md" "$project/.agents/workflows/nexus.md"; then
-        fail "Antigravity adapter duplicated workflow policy"
-      fi
-      ;;
-  esac
-
-  if ! (cd "$project" && "$ROOT/uninstall.sh" --only "$platform" >"$home/uninstall.log" 2>&1); then
-    fail "$platform uninstall exited non-zero"
-  fi
-  assert_adapter_clean "$platform" "$home" "$project"
-  echo "PASS: $platform idempotence and uninstall cleanup"
-
-  echo "PASS: $platform adapter paths, prefixes, and host outputs"
-)
-
-for platform in opencode claude cursor codex gemini antigravity; do
-  smoke_platform "$platform"
+agent_root="$home/.config/opencode/agents"
+for agent in "${CANONICAL_AGENTS[@]}"; do
+  [[ -f "$agent_root/$agent.md" ]] || fail "OpenCode missing expected agent: $agent_root/$agent.md"
 done
+
+[[ ! -e "$agent_root/nexus-orchestrator.md" ]] \
+  || fail "OpenCode unexpectedly prefixed its native agent names"
+[[ ! -e "$agent_root/blast-analyzer.md" && ! -e "$agent_root/knowledge-graph.md" ]] \
+  || fail "optional compatibility agents installed by default"
+jq -e --arg spec 'nexus@git+https://github.com/mohammad154/opencode-nexus.git' \
+  '((.plugin // []) | map(select(. == $spec)) | length) == 1' \
+  "$home/.config/opencode/opencode.json" >/dev/null \
+  || fail "OpenCode repeated install duplicated the plugin config entry"
+if find "$home" "$project" -type f -path '*/nexus-using-nexus/SKILL.md' -print -quit | grep -q .; then
+  fail "OpenCode unexpectedly received a host skill adapter"
+fi
+
+if find "$home" "$project" -type f \( \
+    -name 'blast-analyzer.md' -o -name 'knowledge-graph.md' \
+    -o -name 'nexus-blast-analyzer.md' -o -name 'nexus-knowledge-graph.md' \
+  \) -print -quit | grep -q .; then
+  fail "OpenCode installed an optional graph/blast agent without an explicit flag"
+fi
+
+grep -q '^install --platform opencode$' "$GRAPHIFY_LOG" \
+  || fail "OpenCode installer did not invoke Graphify global skill installation"
+grep -q '^opencode install$' "$GRAPHIFY_LOG" \
+  || fail "OpenCode installer did not invoke Graphify project installation"
+[[ -x "$home/bin/graphify" ]] \
+  || fail "Nexus uninstall removed the external Graphify executable"
+! grep -q 'uninstall' "$GRAPHIFY_LOG" \
+  || fail "Nexus uninstall invoked a Graphify uninstall command"
+
+if ! (cd "$project" && "$ROOT/uninstall.sh" >"$home/uninstall.log" 2>&1); then
+  fail "OpenCode uninstall exited non-zero"
+fi
+assert_opencode_clean "$home"
+echo "PASS: OpenCode idempotence and uninstall cleanup"
 
 # Verify that OpenCode restores a pre-existing user agent/config while removing
 # only Nexus entries. This uses a separate temporary HOME from the idempotence
@@ -248,10 +129,10 @@ printf 'user orchestrator configuration\n' >"$restore_home/.config/opencode/agen
 export HOME="$restore_home"
 export PATH="$restore_home/bin:$SANITIZED_PATH"
 export GRAPHIFY_LOG="$restore_home/graphify.log"
-if ! (cd "$restore_project" && "$ROOT/install.sh" --only opencode >"$restore_home/install.log" 2>&1); then
+if ! (cd "$restore_project" && "$ROOT/install.sh" >"$restore_home/install.log" 2>&1); then
   fail "OpenCode restoration fixture install exited non-zero"
 fi
-if ! (cd "$restore_project" && "$ROOT/uninstall.sh" --only opencode >"$restore_home/uninstall.log" 2>&1); then
+if ! (cd "$restore_project" && "$ROOT/uninstall.sh" >"$restore_home/uninstall.log" 2>&1); then
   fail "OpenCode restoration fixture uninstall exited non-zero"
 fi
 grep -q '^user orchestrator configuration$' "$restore_home/.config/opencode/agents/orchestrator.md" \
@@ -261,7 +142,9 @@ jq -e '.plugin == ["user/plugin"] and .agent.custom.model == "user-model"' \
   || fail "OpenCode uninstall did not preserve pre-existing config entries"
 echo "PASS: OpenCode restores pre-existing user config and agent files"
 
-[[ "$(git -C "$ROOT" status --porcelain=v1)" == "$SOURCE_STATUS" ]] \
-  || fail "adapter smoke changed the source worktree"
+if git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  [[ "$(git -C "$ROOT" status --porcelain=v1)" == "$SOURCE_STATUS" ]] \
+    || fail "installer smoke changed the source worktree"
+fi
 
-echo "PASS: all six adapters are isolated from the source worktree"
+echo "PASS: OpenCode installer is isolated from the source worktree"

@@ -159,7 +159,6 @@ test("profile override cannot downgrade any hard strict trigger", () => {
     { changeClass: "authentication-security" },
     { changeClass: "database-migration" },
     { changeClass: "public-api" },
-    { changeClass: "high-blast" },
     { credentialHandling: true },
   ];
 
@@ -175,6 +174,18 @@ test("profile override cannot downgrade any hard strict trigger", () => {
     assert.equal(r.direct_eligible, false, JSON.stringify(input));
     assert.match(r.reasons.join("\n"), /cannot downgrade|Hard strict trigger/);
   }
+});
+
+test("HIGH blast class forces dual review without requiring strict execution", () => {
+  const r = classify({
+    filesChanged: 1,
+    estimatedLines: 5,
+    changeClass: "high-blast",
+    profileOverride: "fast",
+  });
+  assert.equal(r.review_level, "dual");
+  assert.notEqual(r.profile, "fast");
+  assert.equal(r.direct_eligible, false);
 });
 
 test("invalid profile override is rejected", () => {

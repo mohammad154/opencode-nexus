@@ -7,7 +7,7 @@ compatibility: opencode
 # Using Nexus (V3 — executable workflow engine)
 
 <SUBAGENT-STOP>
-If you were dispatched as a subagent (implementer, spec-reviewer, code-reviewer, unified-reviewer, blast-analyzer, reconciler, or any nexus-* variant of those), skip this skill.
+If you were dispatched as a subagent (implementer, spec-reviewer, code-reviewer, unified-reviewer, blast-analyzer, or reconciler), skip this skill.
 </SUBAGENT-STOP>
 
 ## The Rule
@@ -64,7 +64,7 @@ Use the **scoring classifier** (`scripts/lib/classify.js` / `nexus-classify.js`)
 |---------|------|-------|
 | `fast` | Low risk_score + tiny-internal/docs evidence | 1 implementer; unified or skip; 1 branch; scripts |
 | `balanced` | Default / normal features | Batched units; risk-based review |
-| `strict` | Hard triggers (security, migration, public API, HIGH blast) | Per-task + dual review |
+| `strict` | Hard triggers (security, migration, public API, credentials) or high semantic/dependency impact | Per-task + dual review |
 
 Override: `--profile` or `workflow_profile` in CONTEXT.
 
@@ -103,7 +103,7 @@ Full gates: `skills/orchestrating/dispatch.md`.
 
 ## Agent Selection
 
-- Primary: **orchestrator** / `nexus-orchestrator`
+- Primary: **orchestrator**
 - Graphify: `graphify query`, `graphify affected`, `graphify update`, `graphify hook install`
 - Scripts: `nexus-blast.js`, `nexus-branch-cleanup.sh`, `nexus-estimate-calls.js`, `nexus-run.js`, `nexus-classify.js`
 
@@ -119,5 +119,6 @@ Full gates: `skills/orchestrating/dispatch.md`.
 - "I'll just start coding" → classify + engine transitions + **dispatch implementer** (unless direct-eligible)
 - Dispatch failed → STOP unless `direct_eligible`; never unrestricted self-coding
 - Treating size-only change as `fast` without tiny-internal/docs evidence → use classifier
+- Treating UNKNOWN/stale Graphify or incomplete blast as low risk → never `fast`
 - Finishing without `nexus-run` / jq APPROVED gates when review required
 - Dispatching LLM for graph/blast/cleanup/jq

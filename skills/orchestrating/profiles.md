@@ -6,22 +6,45 @@ Canonical config: `config/workflow-profiles.json` + `config/default-workflow.jso
 
 ## Selecting a profile
 
-1. Explicit override wins: user says `--profile fast|balanced|strict` or sets `workflow_profile` in CONTEXT.
+Keep the three profiles. Classification is two-stage and scores **semantic risk + uncertainty**, with file/line counts only as weak signals.
+
+```text
+Request
+   ↓
+Git/diff evidence
+   ↓
+Initial semantic classifier
+   ↓
+FAST / BALANCED / STRICT  +  review_level
+   ↓
+Graphify + blast
+   ↓
+Re-evaluate risk + confidence
+   ↓
+final execution profile + final review level
+```
+
+1. Explicit override wins only when it does not weaken computed policy: `--profile fast|balanced|strict` or `workflow_profile` in CONTEXT.
 2. Else run the scoring classifier (do **not** treat legacy nested `fastIf.or` as OR):
 
 ```bash
-node scripts/nexus-classify.js --files N --lines N --class <change_class> [--docs] [--security] [--public-api] [--focused]
+node scripts/nexus-classify.js --class <change_class> [--docs] [--security] [--public-api] [--focused]
+node scripts/nexus-classify.js --blast .opencode/blast/unit.json
 ```
 
-   - Emits `profile`, `review_level` (`none|unified|dual`), `execution_mode` (`direct|delegated`), `risk_score`, `confidence`, `reasons[]`, `direct_eligible`.
-   - Hard triggers (security, migration, public_api, credential_handling, blast_risk_high) → `strict` + dual.
-   - `fast` only when score ≤ `fast_max` **and** tiny-internal/docs evidence (AND of size + not public/security).
+   - Emits `profile`, `review_level` (`none|unified|dual`), `execution_mode` (`direct|delegated`), `risk_score`, `confidence`, `evidence_quality` (`trusted|partial|unknown`), `reasons[]`, `direct_eligible`.
+   - Hard triggers (security, migration, public_api, credential_handling) → `strict` + dual.
+   - Strong signals: exported symbols, high fan-in / Graphify callers, cross-package impact, auth/security, database/storage, config/schema/protocol, concurrency, dependency updates, missing tests.
+   - Size (`files changed`, `lines changed`) is secondary and cannot alone force `strict`.
+   - `fast` only when score ≤ `fast_max`, tiny-internal/docs evidence, `confidence >= 0.85`, and evidence is not UNKNOWN.
+   - `confidence` 0.65–0.85 → `balanced` minimum. `confidence < 0.65` → `strict` / reconcile.
+   - UNKNOWN (stale Graphify, incomplete blast, missing diff) never means low risk: FAST is denied.
    - Default otherwise: **`balanced`**.
-3. If blast later reports HIGH while on `fast`/`balanced`, escalate remaining review to dual-review (`strict` review policy for that unit). Record via `nexus-run.js` / CONTEXT.
+3. After Graphify + blast, reclassify. HIGH blast always escalates **review** to dual; the execution profile stays `balanced` when batching is still safe, and becomes `strict` when semantic/dependency impact is high (many callers, public entry point, cross-package). Record via `nexus-run.js` / CONTEXT.
 
 Announce: `Using profile: balanced (risk-based review, per-feature branch).`
 
-Direct path: only when `direct_eligible` (max 1 file, ≤30 lines, allowed classes, focused validation, confidence ≥ 0.85, no hard triggers). Low confidence → delegated.
+Direct path: only when `direct_eligible` (max 1 file, ≤30 lines, allowed classes, focused validation, confidence ≥ 0.85, trusted/partial evidence, no hard triggers). UNKNOWN or low confidence → delegated.
 
 ## Profile behavior
 
@@ -93,6 +116,6 @@ Show the estimated agent calls to the user and the recommended profile. The old
 
 - Git repo required.
 - Prefer scripts for graph / blast / cleanup / gates — do not dispatch LLM agents for those.
-- HIGH blast or security/migration/public-api → dual review even under fast/balanced.
+- HIGH blast or security/migration/public-api → dual review even under fast/balanced. HIGH blast does not by itself force the `strict` execution profile.
 - Explicit `workflow_profile: strict` never auto-downgrades.
 - Orchestrator never implements production code unless CONTEXT has exact `execution_mode: direct`; pasted plans do not authorize self-coding.

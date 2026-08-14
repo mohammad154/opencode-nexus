@@ -16,9 +16,28 @@
     "profile": { "type": "string", "enum": ["fast", "balanced", "strict"] },
     "review_level": { "type": "string", "enum": ["none", "unified", "dual"] },
     "execution_mode": { "type": "string", "enum": ["direct", "delegated"] },
+    "stage": {
+      "type": "string",
+      "enum": ["pre-implementation", "post-blast"]
+    },
     "risk_score": { "type": "number" },
     "confidence": { "type": "number" },
+    "evidence_quality": {
+      "type": "string",
+      "enum": ["trusted", "partial", "unknown"]
+    },
+    "uncertainty_factors": { "type": "array", "items": { "type": "string" } },
     "reasons": { "type": "array", "items": { "type": "string" } },
+    "semantic_signals": { "type": "array", "items": { "type": "string" } },
+    "graphify": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "direct_callers": { "type": ["number", "null"] },
+        "transitive_impact": { "type": ["number", "null"] },
+        "affected_packages": { "type": "array", "items": { "type": "string" } }
+      }
+    },
     "direct_eligible": { "type": "boolean" },
     "change_class": { "type": "string" },
     "hard_triggers": { "type": "array", "items": { "type": "string" } }

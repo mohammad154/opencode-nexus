@@ -118,7 +118,7 @@ test("direct transition rejects stale graph analysis", () => {
   assert.match(r.errors.join("\n"), /PRECISE graph/i);
 });
 
-test("HIGH blast escalates review_level to dual and profile to strict", () => {
+test("HIGH blast escalates review_level to dual without forcing strict execution", () => {
   const providers = mockTrustProviders();
   providers.blastProvider.analyze = () => ({
     ok: true,
@@ -135,6 +135,44 @@ test("HIGH blast escalates review_level to dual and profile to strict", () => {
     classification: sampleClassification({
       profile: "balanced",
       review_level: "unified",
+    }),
+  }).state;
+  state = transition(state, "PLANNED", { plan_skip: true }).state;
+  state = transition(state, "GRAPH_READY", {}, providers).state;
+  const r = transition(state, "BLAST_READY", {}, providers);
+  assert.equal(r.ok, true, JSON.stringify(r.errors));
+  assert.equal(r.state.review_level, "dual");
+  assert.equal(r.state.profile, "balanced");
+  assert.equal(r.state.execution_mode, "delegated");
+  assert.ok(r.state.escalation_reasons.includes("blast_risk_high"));
+});
+
+test("HIGH blast with many Graphify callers escalates execution profile to strict", () => {
+  const providers = mockTrustProviders();
+  providers.blastProvider.analyze = () => ({
+    ok: true,
+    report: {
+      risk: "HIGH",
+      level: "HIGH",
+      score: 40,
+      direct_dependents: Array.from({ length: 17 }, (_, i) => `src/c${i}.js`),
+      affected_packages: ["packages/a", "packages/b"],
+      uncertainties: [],
+      dimensions: {},
+    },
+  });
+  let state = createEmptyRunState("gate-3-callers");
+  state = transition(state, "CLASSIFIED", {
+    classification: sampleClassification({
+      profile: "balanced",
+      review_level: "unified",
+      change_class: "small-feature-with-tests",
+      semantic_signals: ["exported_symbol_change"],
+      evidence: {
+        files_changed: 1,
+        estimated_lines: 12,
+        changed_exported_symbols: ["login"],
+      },
     }),
   }).state;
   state = transition(state, "PLANNED", { plan_skip: true }).state;

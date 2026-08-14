@@ -22,7 +22,7 @@ The default profile is `balanced`. Set `workflow_profile` in `.opencode/CONTEXT.
 | `balanced` | Per feature/execution unit | One per execution unit | Risk-based |
 | `strict` | Per task | One per task | Spec, then code |
 
-Security, migration, public API, credential, and HIGH-blast work always escalates to dual review. The direct path is narrow: it requires small, focused, low-risk evidence and high classifier confidence.
+Security, migration, public API, and credential work always uses `strict` plus dual review. HIGH blast always escalates **review** to dual; the execution profile is re-scored from Graphify callers and semantic impact, so batching may remain `balanced`. File/line counts are weak signals. UNKNOWN graph or blast evidence never classifies as `fast`. The direct path is narrow: it requires small, focused, low-risk evidence and high classifier confidence.
 
 ## Deterministic gates
 
@@ -87,7 +87,8 @@ reconciler
 
 `blast-analyzer` remains an optional compatibility agent. Graphify is installed separately as an OpenCode prerequisite and is the sole graph provider.
 
-OpenCode uses the bare canonical names. Claude Code, Cursor, Codex, Gemini CLI, and Antigravity use the host-translated `nexus-<canonical-name>` names. The installer adapts only paths, frontmatter, prefixes, permission syntax, and dispatch names. Workflow policy and handoff schemas remain canonical.
+OpenCode uses the bare canonical names (`orchestrator`, `implementer`, and the
+other roster roles). Workflow policy and handoff schemas remain canonical.
 
 ## Execution units and review
 
@@ -129,4 +130,4 @@ bash -n install.sh uninstall.sh scripts/test-install-only.sh \
   scripts/test-optional-agents.sh scripts/test-adapter-contract.sh
 ```
 
-The installer tests run each adapter in an isolated temporary home and Git project, verify prefixed outputs, verify optional-agent behavior, and assert that the source worktree remains unchanged.
+The installer tests run OpenCode in an isolated temporary home and Git project, verify native agent names, verify optional-agent behavior, and assert that the source worktree remains unchanged.

@@ -18,7 +18,7 @@ export GRAPHIFY_LOG="$HOME/graphify.log"
 printf '{}\n' >"$HOME/.config/opencode/opencode.json"
 
 echo "== default install: no optional agents =="
-"$ROOT/install.sh" --only opencode >/tmp/nexus-install-default.log 2>&1 || {
+"$ROOT/install.sh" >/tmp/nexus-install-default.log 2>&1 || {
   cat /tmp/nexus-install-default.log
   exit 1
 }
@@ -30,7 +30,7 @@ grep -q 'Optional agent skipped' /tmp/nexus-install-default.log
 echo "PASS: default install omits the optional blast agent"
 
 echo "== --with-optional-agents =="
-"$ROOT/install.sh" --only opencode --with-optional-agents >/tmp/nexus-install-opt.log 2>&1 || {
+"$ROOT/install.sh" --with-optional-agents >/tmp/nexus-install-opt.log 2>&1 || {
   cat /tmp/nexus-install-opt.log
   exit 1
 }
@@ -39,7 +39,7 @@ test ! -f "$HOME/.config/opencode/agents/knowledge-graph.md"
 echo "PASS: --with-optional-agents installs the optional blast agent"
 
 echo "== --prune-optional-agents =="
-"$ROOT/install.sh" --only opencode --prune-optional-agents >/tmp/nexus-install-prune.log 2>&1 || {
+"$ROOT/install.sh" --prune-optional-agents >/tmp/nexus-install-prune.log 2>&1 || {
   cat /tmp/nexus-install-prune.log
   exit 1
 }

@@ -1,3 +1,5 @@
+import { reclassifyAfterBlast } from "./classify.js";
+
 /**
  * Monotonic policy helpers — persisted state is authoritative.
  * Transition context may escalate, never weaken.
@@ -154,18 +156,43 @@ export function effectivePolicy(state, ctx = {}) {
 }
 
 export function applyBlastEscalation(state, blastReport) {
+  const previous = state?.classification || {
+    profile: state?.profile,
+    review_level: state?.review_level,
+    execution_mode: state?.execution_mode,
+    change_class: state?.change_class,
+  };
+  const reclassified = reclassifyAfterBlast(previous, blastReport, {
+    graph: state?.graph,
+  });
   const risk = blastRisk(blastReport);
-  if (risk !== "HIGH") {
-    return { ...state, blast: blastReport };
-  }
   const reasons = [...(state.escalation_reasons || [])];
-  if (!reasons.includes("blast_risk_high")) reasons.push("blast_risk_high");
+  if (risk === "HIGH" && !reasons.includes("blast_risk_high")) {
+    reasons.push("blast_risk_high");
+  }
+  if (isUnknownBlast(blastReport) && !reasons.includes("unknown_blast")) {
+    reasons.push("unknown_blast");
+  }
+  const profile = maxProfile(state?.profile, reclassified.profile);
+  const review_level = maxReview(state?.review_level, reclassified.review_level);
+  const execution_mode = maxExecution(
+    state?.execution_mode,
+    reclassified.execution_mode,
+  );
   return {
     ...state,
     blast: blastReport,
-    review_level: maxReview(state.review_level, "dual"),
-    profile: maxProfile(state.profile, "strict"),
-    execution_mode: maxExecution(state.execution_mode, "delegated"),
+    classification: {
+      ...previous,
+      ...reclassified,
+      profile,
+      review_level,
+      execution_mode,
+      direct_eligible: false,
+    },
+    review_level,
+    profile,
+    execution_mode,
     escalation_reasons: reasons,
   };
 }

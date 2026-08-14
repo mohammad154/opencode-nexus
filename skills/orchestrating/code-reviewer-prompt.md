@@ -1,7 +1,7 @@
 # Code Reviewer Dispatch Template (enhanced — blast-aware + lessons + file:line)
 
-Use this template when dispatching the **code-reviewer** role on any platform **after** spec review is APPROVED.
-Resolve the local agent name via `dispatch.md` (`code-reviewer` on OpenCode; `nexus-code-reviewer` on Claude/Cursor/AG; isolated reviewer turn on Codex/Gemini).
+Use this template when dispatching the **code-reviewer** role **after** spec review is APPROVED.
+Dispatch the installed OpenCode agent `code-reviewer`.
 Always launch as a **fresh** subagent/turn; never run in parallel with spec-reviewer.
 
 ```text

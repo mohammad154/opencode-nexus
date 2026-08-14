@@ -1,8 +1,8 @@
 # OpenCode Nexus
 
-OpenCode Nexus is a dependency-light, multi-platform workflow for reliable agent-assisted development. It keeps planning, run state, handoffs, blast reports, and verification artifacts under `.opencode/`, while Graphify owns the repository graph in its native `graphify-out/` directory.
+OpenCode Nexus is a dependency-light OpenCode workflow for reliable agent-assisted development. It keeps planning, run state, handoffs, blast reports, and verification artifacts under `.opencode/`, while Graphify owns the repository graph in its native `graphify-out/` directory.
 
-Nexus uses one canonical V3 workflow. The installer provides host-specific adapters for OpenCode, Claude Code, Cursor, Codex, Gemini CLI, and Antigravity.
+Nexus uses one canonical V3 workflow and installs native OpenCode agents and plugin config.
 
 ## Canonical workflow
 
@@ -37,7 +37,7 @@ Only the implementer writes production code. Review policy is selected by the V3
 | `balanced` (default) | One feature/execution-unit branch | Risk-based review |
 | `strict` | One task branch | Spec review, then code review |
 
-High-risk work (security, migration, public API, credentials, or HIGH blast) uses dual review even when the selected profile is otherwise faster.
+High-risk work (security, migration, public API, or credentials) uses the `strict` execution profile and dual review. HIGH blast always escalates review to dual; the execution profile is re-scored from Graphify impact so batching can remain `balanced` when that is still safe.
 
 ## Install
 
@@ -48,8 +48,8 @@ High-risk work (security, migration, public API, credentials, or HIGH blast) use
 | Bash, Git | installer and branch workflows |
 | [Node.js](https://nodejs.org/) | Nexus blast script and call estimator |
 | [Graphify](https://github.com/Graphify-Labs/graphify) | directed repository graph, query/affected commands, refresh, and OpenCode integration |
-| [`jq`](https://jqlang.org/) | OpenCode `opencode.json` merge; other adapters still install when `jq` is missing |
-| [OpenCode](https://opencode.ai/docs/installation/) | optional — installer also supports Claude Code, Cursor, Codex, Gemini CLI, and Antigravity |
+| [`jq`](https://jqlang.org/) | OpenCode `opencode.json` merge |
+| [OpenCode](https://opencode.ai/docs/installation/) | host for Nexus agents, plugin, and model config |
 | `rg` / `fd` (optional) | faster general repository discovery |
 
 Install `jq`:
@@ -123,7 +123,7 @@ fd --version
 
 ### One-command install
 
-Clone and install (auto-detects installed platforms):
+Clone and install:
 
 ```bash
 git clone https://github.com/mohammad154/opencode-nexus.git /tmp/opencode-nexus
@@ -144,42 +144,18 @@ If you already have the repository, run from the project root:
 
 The installer is idempotent — re-run `./install.sh` to update after pulling changes.
 
-`--only` is a strict allowlist. With no allowlist, the installer writes only to independently detected platform locations. Project-local outputs (`.cursor/rules/`, `.agents/`, etc.) are written only when the current directory is a Git repository — run the installer from the intended project when those outputs are desired.
-
-The installer auto-detects platforms and writes host-specific artifacts:
-
-- **OpenCode** (`~/.config/opencode/`): agents, `opencode.json` merge, model overrides
-- **Claude Code** (`~/.claude/agents/nexus-*.md`, `~/.claude/skills/nexus-*/`)
-- **Cursor** (`~/.cursor/agents/`, `~/.cursor/rules/`, `~/.cursor/skills/` + project `.cursor/rules/`)
-- **Codex** (`~/.codex/agents/`, `~/.codex/skills/`, `~/.agents/skills/`)
-- **Gemini CLI** (`~/.gemini/agents/`, `~/.gemini/skills/`, `~/.agents/skills/`)
-- **Antigravity** (`~/.antigravity/`, `~/.gemini/config/skills/`, project `.agents/`)
-
-See [`.opencode/INSTALL.md`](.opencode/INSTALL.md) for the full platform table, verification steps, and V3 workflow notes.
-
-### Install specific adapters
-
-```bash
-./install.sh --only opencode
-./install.sh --only claude,cursor
-./install.sh --only codex
-./install.sh --only gemini
-./install.sh --only antigravity
-./install.sh --all   # force all platforms even when binaries are not detected
-```
+The installer writes OpenCode artifacts to `~/.config/opencode/`: agents, `opencode.json` merge, and model overrides. See [`.opencode/INSTALL.md`](.opencode/INSTALL.md) for verification steps and V3 workflow notes.
 
 Optional compatibility agent (`blast-analyzer`) — Graphify is the sole graph provider:
 
 ```bash
 ./install.sh --with-optional-agents
-./install.sh --only opencode --with-optional-agents
 ```
 
 ### Uninstall
 
 ```bash
-./uninstall.sh --only cursor
-./uninstall.sh --all
+./uninstall.sh
 ./install.sh --uninstall   # delegates to uninstall.sh
 ```
 
@@ -190,28 +166,15 @@ git clone https://github.com/mohammad154/opencode-nexus.git /tmp/opencode-nexus
 cd /tmp/opencode-nexus && ./uninstall.sh && rm -rf /tmp/opencode-nexus
 ```
 
-## Adapter contract
+## OpenCode install
 
-The workflow, canonical agent names, review policy, handoff schemas, and graph/blast formats are shared. Platform adapters translate only:
+The installer writes native OpenCode agent files and merges plugin/model config. Canonical agent names, review policy, handoff schemas, and graph/blast formats stay in the repository definitions. Installation also invokes `graphify install --platform opencode` and `graphify opencode install`; Nexus never installs Graphify dependencies or accesses the network.
 
-- host installation paths;
-- frontmatter required by the host;
-- the `nexus-` agent and skill prefix where required;
-- host permission syntax; and
-- host dispatch names.
-
-Adapters do not define a second workflow or review policy. The canonical `nexus-using-nexus` skill and agent definitions remain the source of workflow behavior. OpenCode installation also invokes `graphify install --platform opencode` and `graphify opencode install`; Nexus never installs Graphify dependencies or accesses the network.
-
-| Platform | Main outputs | Host translation |
-|---|---|---|
-| OpenCode | `~/.config/opencode/agents/*.md` and `opencode.json` | Native agent names; OpenCode permissions/config |
-| Claude Code | `~/.claude/agents/nexus-*.md`, `~/.claude/skills/nexus-*/` | `name`, `description`, `tools`, and `nexus-` dispatch names |
-| Cursor | `~/.cursor/agents/`, `~/.cursor/rules/`, `~/.cursor/skills/` | `.mdc` rules, frontmatter, and `nexus-` names |
-| Codex | `~/.codex/agents/`, `~/.codex/skills/`, `~/.agents/skills/` | Skill/agent paths and `nexus-` names |
-| Gemini CLI | `~/.gemini/agents/`, `~/.gemini/skills/`, `~/.agents/skills/` | Skill/agent paths and `nexus-` names |
-| Antigravity | `~/.antigravity/`, `~/.gemini/config/skills/`, project `.agents/` | IDE paths, translated skills, and a thin dispatch entrypoint |
-
-Project-local outputs are written only when the current directory is a Git repository. Run the installer from the intended project when those outputs are desired.
+| Output | Location |
+|---|---|
+| Agents | `~/.config/opencode/agents/*.md` (native names: `orchestrator`, `implementer`, …) |
+| Plugin and models | `~/.config/opencode/opencode.json` |
+| Optional model overrides | `~/.config/opencode/nexus.models.json` |
 
 ## Run the workflow
 
@@ -274,7 +237,7 @@ Copy it, edit the canonical agent entries, and rerun the installer:
 
 ```bash
 cp ~/.config/opencode/nexus.models.example.json ~/.config/opencode/nexus.models.json
-./install.sh --only opencode
+./install.sh
 ```
 
 One-off model overrides are available through `NEXUS_*_MODEL` and the corresponding reasoning-effort variables.
@@ -293,7 +256,7 @@ bash -n install.sh uninstall.sh scripts/test-install-only.sh \
   scripts/test-optional-agents.sh scripts/test-adapter-contract.sh
 ```
 
-`npm test` runs the Node test suites. `npm run test:install` runs the installer isolation and optional-agent checks, including all six adapter smoke tests. There are no separate build, lint, or typecheck scripts in `package.json`.
+`npm test` runs the Node test suites. `npm run test:install` runs the OpenCode installer isolation and optional-agent checks. There are no separate build, lint, or typecheck scripts in `package.json`.
 
 ## Repository layout
 
@@ -303,6 +266,6 @@ skills/                 canonical workflow skills
 config/                 profiles and model defaults
 scripts/                graph, blast, state, estimate, and verification tools
 docs/workflow.md        V3 workflow reference
-install.sh              six-platform adapter installer
-uninstall.sh            matching adapter cleanup
+install.sh              OpenCode installer
+uninstall.sh            matching OpenCode cleanup
 ```

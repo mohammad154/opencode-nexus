@@ -1,4 +1,4 @@
-# Subagent Dispatch (all platforms) — V3 profiles
+# Subagent Dispatch (OpenCode) — V3 profiles
 
 Canonical roles:
 
@@ -28,20 +28,9 @@ The optional `blast-analyzer` agent is **not** in the default install. Prefer Gr
 
 ## Resolve the local agent name
 
-```text
-local_name = <prefix> + <canonical key>
-```
-
-| Platform        | Prefix    | How you dispatch                        |
-| --------------- | --------- | --------------------------------------- |
-| **OpenCode**    | _(empty)_ | Task tool / `@spec-reviewer`            |
-| **Claude Code** | `nexus-`  | Agent tool with `name:` frontmatter     |
-| **Cursor**      | `nexus-`  | Task `subagent_type`                    |
-| **Antigravity** | `nexus-`  | Skill-driven / Agent if available       |
-| **Codex**       | `nexus-`  | `$nexus-orchestrating` / isolated turns |
-| **Gemini CLI**  | `nexus-`  | Skill activation / isolated turns       |
-
-**Rule:** Prefer the installed agent whose `name` / filename matches. OpenCode = bare key. Everyone else = `nexus-<key>`. Never invent a third name.
+Dispatch with the canonical key as installed under `~/.config/opencode/agents/`.
+OpenCode uses the bare name (`@spec-reviewer`, Task tool, or the matching agent
+file). Never invent a prefixed `nexus-*` alias.
 
 ## Review gates by profile
 
@@ -83,7 +72,7 @@ jq -e '.verdict=="APPROVED"' .opencode/handoffs/<id>-unified-reviewer.json
 - Code `REQUEST_CHANGES` → implementer → re-run **both** dual stages. Max 3 loops.
 - Unified `REQUEST_CHANGES` → implementer → re-run unified (or dual if escalated). Max 3 loops.
 
-## Anti-patterns (all platforms)
+## Anti-patterns
 
 - Using dual review when profile+matrix say skip/unified **without** high-risk trigger
 - Skipping required dual review for security / migration / public-api / HIGH blast
@@ -97,4 +86,4 @@ jq -e '.verdict=="APPROVED"' .opencode/handoffs/<id>-unified-reviewer.json
 - Skipping `nexus-run.js transition` gates before IMPLEMENTING / COMPLETED
 - Dispatching LLM agents for graph rebuild, blast script, branch delete, or jq gates
 - Finishing without required APPROVED handoff JSON(s) (`validate-handoff` + jq)
-- Calling the wrong agent name for the platform
+- Calling a prefixed `nexus-*` agent name instead of the canonical OpenCode name

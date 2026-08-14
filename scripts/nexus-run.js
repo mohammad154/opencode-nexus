@@ -24,7 +24,7 @@ import {
   inferRunFromContext,
   normalizeAndValidateHandoff,
 } from "./lib/migrate-artifacts.js";
-import { classify, loadWorkflowConfig } from "./lib/classify.js";
+import { classify, loadWorkflowConfig, reclassifyAfterBlast } from "./lib/classify.js";
 import {
   collectGitDiffEvidence,
   mergeGitDiffEvidence,
@@ -229,6 +229,7 @@ function cmdClassify(flags) {
   if (flags["credential-handling"]) input.credentialHandling = true;
   if (flags["high-blast"]) input.blastRiskHigh = true;
   if (flags.profile) input.profileOverride = flags.profile;
+  if (flags.callers != null) input.directCallers = Number(flags.callers);
 
   const diffRequested =
     flags.diff !== undefined || flags["from-diff"] !== undefined;
@@ -246,7 +247,12 @@ function cmdClassify(flags) {
     input.diff_verified = diffEvidence.diff_available === true;
   }
 
-  const result = classify(input, { workflowConfig: loadWorkflowConfig() });
+  const workflowConfig = loadWorkflowConfig();
+  let result = classify(input, { workflowConfig });
+  if (flags.blast && flags.blast !== true) {
+    const blast = JSON.parse(fs.readFileSync(flags.blast, "utf8"));
+    result = reclassifyAfterBlast(result, blast.report || blast, { workflowConfig });
+  }
   let state = resolveRun(flags);
   if (state && flags.apply) {
     const headResult = spawnSync("git", ["rev-parse", "HEAD"], {

@@ -11,4 +11,4 @@
 
 - Direct execution now requires authoritative non-clean Git diff evidence, a fresh trusted PRECISE graph, and a fresh trusted LOW blast report. Conservative, stale, missing, or heuristic analysis requires delegation or explicit verification.
 - Graph extraction records content hashes and freshness metadata; comment-aware fallback extraction avoids treating examples and comments as dependencies while remaining conservative when parser precision is unavailable.
-- Provider modes, call budgets, telemetry, trajectories, and six platform adapters now expose their actual capabilities instead of implying unsupported precision or pricing.
+- Provider modes, call budgets, telemetry, trajectories, and the OpenCode installer now expose their actual capabilities instead of implying unsupported precision or pricing.
