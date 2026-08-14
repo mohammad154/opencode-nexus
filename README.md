@@ -65,16 +65,19 @@ Do this once on your machine, then open any project in OpenCode.
 - [OpenCode](https://opencode.ai/docs/installation/)
 - [Graphify](https://github.com/Graphify-Labs/graphify) (`graphify` on your `PATH`)
 
-**2. Install Nexus into OpenCode:**
+**2. Install the Nexus CLI globally, then set up OpenCode:**
 
 ```bash
-npx @mohammad154/opencode-nexus@latest install
+npm install -g @mohammad154/opencode-nexus@latest
+nexus install
 ```
+
+`npm install -g` only puts the `nexus` command on your machine. Run `nexus install` afterward so OpenCode gets the agents and plugin.
 
 **3. Check that everything is in place:**
 
 ```bash
-npx @mohammad154/opencode-nexus@latest doctor
+nexus doctor
 ```
 
 **4. Restart OpenCode**, pick the **orchestrator** agent, and describe the change you want.
@@ -166,21 +169,19 @@ fd --version
 
 `npm install` never touches OpenCode config. Setup is always explicit: **`nexus install`**.
 
-### From npm (recommended)
+### Global CLI (recommended)
 
-```bash
-npx @mohammad154/opencode-nexus@latest install
-```
-
-The same command **updates** an existing install.
-
-Or install the CLI globally:
+Install the `nexus` command once, then set up OpenCode:
 
 ```bash
 npm install -g @mohammad154/opencode-nexus@latest
 nexus install
 nexus doctor
 ```
+
+`npm install -g` never touches OpenCode config by itself. Always follow it with `nexus install`.
+
+The same `nexus install` command **updates** an existing OpenCode setup.
 
 Later:
 
@@ -225,7 +226,7 @@ On Windows, set `OPENCODE_CONFIG_DIR` if your OpenCode config is not under `~/.c
 `blast-analyzer` is **not** installed by default. Graphify plus `scripts/nexus-blast.js` cover graph and blast work. Install the legacy agent only if a host still needs that entry point:
 
 ```bash
-npx @mohammad154/opencode-nexus@latest install --with-optional-agents
+nexus install --with-optional-agents
 # from a clone:
 ./install.sh --with-optional-agents
 ```
@@ -379,8 +380,6 @@ NEXUS_IMPLEMENTER_MODEL=anthropic/claude-sonnet-4-20250514 nexus install
 Removes Nexus agents and plugin entries. Graphify stays installed. Project-local `.opencode/` and `graphify-out/` data is left alone. Pre-existing OpenCode agent files are restored from installer backups when those backups exist.
 
 ```bash
-npx @mohammad154/opencode-nexus uninstall
-# or, with a global CLI:
 nexus uninstall
 npm uninstall -g @mohammad154/opencode-nexus
 ```
@@ -398,7 +397,7 @@ From a clone:
 ## Verify / tests
 
 ```bash
-npx @mohammad154/opencode-nexus@latest doctor
+nexus doctor
 ```
 
 From a clone of this repo:
