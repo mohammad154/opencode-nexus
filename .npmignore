@@ -1,0 +1,5 @@
+# `package.json` "files" is the allowlist. These patterns are extra exclusions.
+tests/
+.github/
+graphify-out/
+scripts/test-*.sh

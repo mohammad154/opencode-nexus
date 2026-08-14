@@ -1,12 +1,53 @@
 {
-  "name": "opencode-nexus",
+  "name": "@mohammad154/opencode-nexus",
   "version": "1.1.0",
-  "description": "OpenCode Nexus multi-agent workflow plugin – V3 profiles + executable workflow engine (state machine, classifier, schemas)",
+  "description": "Multi-agent development workflow for OpenCode, with V3 profiles and an executable workflow engine",
   "type": "module",
   "main": ".opencode/plugins/nexus.js",
-  "license": "MIT",
+  "exports": "./.opencode/plugins/nexus.js",
+  "bin": {
+    "nexus": "bin/nexus.js",
+    "opencode-nexus": "bin/nexus.js"
+  },
+  "files": [
+    "bin/",
+    ".opencode/plugins/",
+    ".opencode/INSTALL.md",
+    "agents/",
+    "skills/",
+    "config/",
+    "scripts/",
+    "schemas/",
+    "docs/",
+    "install.sh",
+    "uninstall.sh"
+  ],
   "scripts": {
     "test": "node --test \"tests/**/*.test.js\"",
-    "test:install": "bash scripts/test-install-only.sh && bash scripts/test-optional-agents.sh"
+    "test:install": "bash scripts/test-install-only.sh && bash scripts/test-optional-agents.sh",
+    "prepublishOnly": "npm test && npm run test:install"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mohammad154/opencode-nexus.git"
+  },
+  "bugs": {
+    "url": "https://github.com/mohammad154/opencode-nexus/issues"
+  },
+  "homepage": "https://github.com/mohammad154/opencode-nexus#readme",
+  "keywords": [
+    "opencode",
+    "nexus",
+    "multi-agent",
+    "workflow",
+    "plugin",
+    "orchestrator"
+  ],
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
   }
 }

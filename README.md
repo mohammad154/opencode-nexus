@@ -20,7 +20,7 @@ The canonical roster is:
 `blast-analyzer` is an optional compatibility agent. It is not installed by default; use Graphify and `scripts/nexus-blast.js` instead. Install it only when a host requires the legacy entry point:
 
 ```bash
-./install.sh --with-optional-agents
+npx @mohammad154/opencode-nexus@latest install --with-optional-agents
 ```
 
 The normal flow is:
@@ -40,6 +40,9 @@ Only the implementer writes production code. Review policy is selected by the V3
 High-risk work (security, migration, public API, or credentials) uses the `strict` execution profile and dual review. HIGH blast always escalates review to dual; the execution profile is re-scored from Graphify impact so batching can remain `balanced` when that is still safe.
 
 ## Install
+
+The unscoped npm name `opencode-nexus` belongs to a different project. This
+package is `@mohammad154/opencode-nexus`.
 
 ### Prerequisites
 
@@ -123,47 +126,77 @@ fd --version
 
 ### One-command install
 
-Clone and install:
+Install or update from npm (recommended):
 
 ```bash
-git clone https://github.com/mohammad154/opencode-nexus.git /tmp/opencode-nexus
-cd /tmp/opencode-nexus && ./install.sh
+npx @mohammad154/opencode-nexus@latest install
 ```
 
-Or run without cloning:
+The same command updates an existing install. Optional compatibility agent:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/mohammad154/opencode-nexus/main/install.sh | bash
+npx @mohammad154/opencode-nexus@latest install --with-optional-agents
 ```
 
-If you already have the repository, run from the project root:
+Or install the CLI globally:
+
+```bash
+npm install -g @mohammad154/opencode-nexus@latest
+nexus install
+```
+
+Later:
+
+```bash
+npm update -g @mohammad154/opencode-nexus
+nexus install
+```
+
+`nexus` never changes OpenCode config during `npm install`. Setup is always explicit: `nexus install`.
+
+From a local clone:
 
 ```bash
 ./install.sh
 ```
 
-The installer is idempotent — re-run `./install.sh` to update after pulling changes.
+The installer is idempotent — re-run `nexus install` or `./install.sh` to update.
+
+Git clone fallback (if you are not using npm):
+
+```bash
+rm -rf /tmp/opencode-nexus &&
+git clone --depth 1 https://github.com/mohammad154/opencode-nexus.git /tmp/opencode-nexus &&
+cd /tmp/opencode-nexus &&
+./install.sh &&
+cd - >/dev/null &&
+rm -rf /tmp/opencode-nexus
+```
 
 The installer writes OpenCode artifacts to `~/.config/opencode/`: agents, `opencode.json` merge, and model overrides. See [`.opencode/INSTALL.md`](.opencode/INSTALL.md) for verification steps and V3 workflow notes.
 
 Optional compatibility agent (`blast-analyzer`) — Graphify is the sole graph provider:
 
 ```bash
+npx @mohammad154/opencode-nexus@latest install --with-optional-agents
+# or, from a clone:
 ./install.sh --with-optional-agents
 ```
 
 ### Uninstall
 
 ```bash
-./uninstall.sh
-./install.sh --uninstall   # delegates to uninstall.sh
+npx @mohammad154/opencode-nexus uninstall
+# or, if the CLI is installed globally:
+nexus uninstall
+npm uninstall -g @mohammad154/opencode-nexus
 ```
 
-Global one-liner:
+From a clone:
 
 ```bash
-git clone https://github.com/mohammad154/opencode-nexus.git /tmp/opencode-nexus
-cd /tmp/opencode-nexus && ./uninstall.sh && rm -rf /tmp/opencode-nexus
+./uninstall.sh
+./install.sh --uninstall   # delegates to uninstall.sh
 ```
 
 ## OpenCode install
@@ -237,7 +270,7 @@ Copy it, edit the canonical agent entries, and rerun the installer:
 
 ```bash
 cp ~/.config/opencode/nexus.models.example.json ~/.config/opencode/nexus.models.json
-./install.sh
+nexus install
 ```
 
 One-off model overrides are available through `NEXUS_*_MODEL` and the corresponding reasoning-effort variables.
@@ -265,6 +298,7 @@ agents/                 canonical agent definitions
 skills/                 canonical workflow skills
 config/                 profiles and model defaults
 scripts/                graph, blast, state, estimate, and verification tools
+bin/nexus.js            npm CLI (`nexus install|update|uninstall|doctor`)
 docs/workflow.md        V3 workflow reference
 install.sh              OpenCode installer
 uninstall.sh            matching OpenCode cleanup

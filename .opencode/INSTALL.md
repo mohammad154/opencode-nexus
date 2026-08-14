@@ -16,15 +16,30 @@ The installer remains dependency-light. Graphify is an external prerequisite.
 
 ## Install
 
+From npm (recommended):
+
 ```bash
-curl -fsSL https://raw.githubusercontent.com/mohammad154/opencode-nexus/main/install.sh | bash
+npx @mohammad154/opencode-nexus@latest install
+```
+
+The same command updates an existing install. Setup is explicit; `npm install`
+does not modify OpenCode config by itself.
+
+```bash
+npm install -g @mohammad154/opencode-nexus@latest
+nexus install
+nexus doctor
 ```
 
 Or clone and run locally:
 
 ```bash
-git clone https://github.com/mohammad154/opencode-nexus.git /tmp/opencode-nexus
-cd /tmp/opencode-nexus && ./install.sh
+rm -rf /tmp/opencode-nexus &&
+git clone --depth 1 https://github.com/mohammad154/opencode-nexus.git /tmp/opencode-nexus &&
+cd /tmp/opencode-nexus &&
+./install.sh &&
+cd - >/dev/null &&
+rm -rf /tmp/opencode-nexus
 ```
 
 Nexus requires the Graphify CLI and invokes both native integration commands:
@@ -55,6 +70,8 @@ The installer writes the same six canonical agents:
 graph provider and the deterministic Nexus blast script is the default path:
 
 ```bash
+npx @mohammad154/opencode-nexus@latest install --with-optional-agents
+# or, from a clone:
 ./install.sh --with-optional-agents
 ```
 
@@ -122,6 +139,8 @@ Optional overrides can be placed in
 ## Uninstall
 
 ```bash
+npx @mohammad154/opencode-nexus uninstall
+nexus uninstall
 ./uninstall.sh
 ```
 

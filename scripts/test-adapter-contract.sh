@@ -22,6 +22,10 @@ fail() {
 command -v jq >/dev/null 2>&1 || fail "jq is required for the OpenCode installer smoke test"
 command -v sha256sum >/dev/null 2>&1 || fail "sha256sum is required for installer idempotence snapshots"
 
+PLUGIN_SPEC="$(jq -r '"\(.name)@\(.version)"' "$ROOT/package.json")"
+PKG_NAME="$(jq -r '.name' "$ROOT/package.json")"
+LEGACY_GIT_SPEC="nexus@git+https://github.com/mohammad154/opencode-nexus.git"
+
 SOURCE_STATUS=""
 if git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   SOURCE_STATUS="$(git -C "$ROOT" status --porcelain=v1)"
@@ -43,10 +47,12 @@ assert_opencode_clean() {
     fail "OpenCode uninstall left Nexus artifacts under $home/.config/opencode"
   fi
   if [[ -f "$home/.config/opencode/opencode.json" ]]; then
-    jq -e --arg spec 'nexus@git+https://github.com/mohammad154/opencode-nexus.git' \
-      '((.plugin // []) | map(select(. == $spec)) | length) == 0' \
-      "$home/.config/opencode/opencode.json" >/dev/null \
-      || fail "OpenCode uninstall left a duplicate Nexus plugin entry"
+    jq -e --arg spec "$PLUGIN_SPEC" --arg name "$PKG_NAME" --arg legacy "$LEGACY_GIT_SPEC" '
+      (.plugin // [])
+      | map(select(. == $spec or . == $legacy or . == $name or startswith($name + "@")))
+      | length == 0
+    ' "$home/.config/opencode/opencode.json" >/dev/null \
+      || fail "OpenCode uninstall left a Nexus plugin entry"
   fi
 }
 
@@ -84,7 +90,7 @@ done
   || fail "OpenCode unexpectedly prefixed its native agent names"
 [[ ! -e "$agent_root/blast-analyzer.md" ]] \
   || fail "optional compatibility agents installed by default"
-jq -e --arg spec 'nexus@git+https://github.com/mohammad154/opencode-nexus.git' \
+jq -e --arg spec "$PLUGIN_SPEC" \
   '((.plugin // []) | map(select(. == $spec)) | length) == 1' \
   "$home/.config/opencode/opencode.json" >/dev/null \
   || fail "OpenCode repeated install duplicated the plugin config entry"
@@ -140,6 +146,29 @@ jq -e '.plugin == ["user/plugin"] and .agent.custom.model == "user-model"' \
   "$restore_home/.config/opencode/opencode.json" >/dev/null \
   || fail "OpenCode uninstall did not preserve pre-existing config entries"
 echo "PASS: OpenCode restores pre-existing user config and agent files"
+
+echo "== migrate legacy git plugin spec =="
+migrate_home="$TMPROOT/opencode-migrate"
+migrate_project="$migrate_home/project"
+mkdir -p "$migrate_home/bin" "$migrate_project" "$migrate_home/.config/opencode"
+printf '#!/bin/sh\nprintf "%%s\\n" "$*" >>"$GRAPHIFY_LOG"\n' >"$migrate_home/bin/graphify"
+chmod +x "$migrate_home/bin/graphify"
+jq -n --arg legacy "$LEGACY_GIT_SPEC" '{plugin:[$legacy]}' \
+  >"$migrate_home/.config/opencode/opencode.json"
+export HOME="$migrate_home"
+export PATH="$migrate_home/bin:$SANITIZED_PATH"
+export GRAPHIFY_LOG="$migrate_home/graphify.log"
+unset OPENCODE_CONFIG_DIR NEXUS_PLUGIN_SPEC NEXUS_OPTIONAL_AGENTS
+if ! (cd "$migrate_project" && "$ROOT/install.sh" >"$migrate_home/install.log" 2>&1); then
+  fail "legacy plugin migration install exited non-zero"
+fi
+jq -e --arg spec "$PLUGIN_SPEC" --arg legacy "$LEGACY_GIT_SPEC" '
+  (.plugin // []) | index($spec) != null
+  and index($legacy) == null
+  and (map(select(. == $spec)) | length) == 1
+' "$migrate_home/.config/opencode/opencode.json" >/dev/null \
+  || fail "installer did not replace the legacy git plugin spec with the npm package spec"
+echo "PASS: installer migrates the legacy git plugin spec"
 
 if git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   [[ "$(git -C "$ROOT" status --porcelain=v1)" == "$SOURCE_STATUS" ]] \

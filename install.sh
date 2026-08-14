@@ -62,7 +62,8 @@ CONFIG_FILE="$CONFIG_DIR/opencode.json"
 MODELS_FILE="$CONFIG_DIR/nexus.models.json"
 DEFAULT_MODELS="$SCRIPT_DIR/config/default-models.json"
 MODELS_EXAMPLE="$SCRIPT_DIR/config/models.example.json"
-PLUGIN_SPEC="${NEXUS_PLUGIN_SPEC:-nexus@git+https://github.com/mohammad154/opencode-nexus.git}"
+PKG_JSON="$SCRIPT_DIR/package.json"
+LEGACY_GIT_SPEC="nexus@git+https://github.com/mohammad154/opencode-nexus.git"
 
 if command -v opencode >/dev/null 2>&1; then
   echo "OpenCode: detected"
@@ -81,6 +82,9 @@ if ! command -v jq >/dev/null 2>&1; then
   echo "  Error: jq required for OpenCode configuration merging (install jq, then rerun this installer)." >&2
   exit 1
 fi
+PKG_NAME="$(jq -r '.name' "$PKG_JSON")"
+PKG_VERSION="$(jq -r '.version' "$PKG_JSON")"
+PLUGIN_SPEC="${NEXUS_PLUGIN_SPEC:-${PKG_NAME}@${PKG_VERSION}}"
 
 mkdir -p "$CONFIG_DIR" "$AGENTS_DIR"
 if [[ -f "$CONFIG_FILE" ]]; then bak "$CONFIG_FILE"; else printf '{\n  "$schema": "https://opencode.ai/config.json"\n}\n' >"$CONFIG_FILE"; fi
@@ -103,8 +107,14 @@ done
 TMP="$(mktemp)"
 # Keep object context: `.plugin=(...)` would pipe the array and break later merges
 # Only merge object-valued agent entries (skip any leftover non-objects)
-if ! jq --arg p "$PLUGIN_SPEC" --argjson m "$MJ" '
-  .plugin = ((.plugin // []) | if index($p) then . else . + [$p] end)
+if ! jq --arg p "$PLUGIN_SPEC" --arg name "$PKG_NAME" --arg legacy "$LEGACY_GIT_SPEC" --argjson m "$MJ" '
+  .plugin = (
+    ((.plugin // []) | map(select(
+      . != $legacy
+      and . != $name
+      and (startswith($name + "@") | not)
+    ))) + [$p]
+  )
   | .agent = (.agent // {})
   | reduce (($m | to_entries[] | select(.value|type=="object")) ) as $e (.;
       .agent[$e.key] = ((.agent[$e.key] // {}) + $e.value))
@@ -155,8 +165,9 @@ Next:
   - node ./scripts/nexus-run.js init --run-id demo
   - bash ./scripts/nexus-branch-cleanup.sh --base <base> <feature-branch>
   - restart OpenCode and select orchestrator
-  - Customize: edit $CONFIG_DIR/nexus.models.json && re-run install.sh
-  ./install.sh --with-optional-agents
+  - Customize: edit $CONFIG_DIR/nexus.models.json && re-run install
+  nexus install --with-optional-agents
 Uninstall:
+  nexus uninstall
   ./uninstall.sh
 END

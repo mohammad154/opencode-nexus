@@ -30,12 +30,21 @@ if ! command -v jq >/dev/null 2>&1; then
   echo "  Warn: jq missing — skip JSON cleanup"
 else
   CD="${OPENCODE_CONFIG_DIR:-$HOME/.config/opencode}"; AD="$CD/agents"; CF="$CD/opencode.json"
-  SPEC="${NEXUS_PLUGIN_SPEC:-nexus@git+https://github.com/mohammad154/opencode-nexus.git}"
+  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  PKG_NAME="$(jq -r '.name' "$SCRIPT_DIR/package.json")"
+  PKG_VERSION="$(jq -r '.version' "$SCRIPT_DIR/package.json")"
+  SPEC="${NEXUS_PLUGIN_SPEC:-${PKG_NAME}@${PKG_VERSION}}"
+  LEGACY_GIT_SPEC="nexus@git+https://github.com/mohammad154/opencode-nexus.git"
   NAG='["orchestrator","implementer","spec-reviewer","code-reviewer","unified-reviewer","blast-analyzer","reconciler"]'
   if [[ -f "$CF" ]]; then
     TJ="$(mktemp)"
-    if jq --arg pl "$SPEC" --argjson ns "$NAG" '
-      .plugin = ((.plugin // []) | map(select(. != $pl)))
+    if jq --arg pl "$SPEC" --arg name "$PKG_NAME" --arg legacy "$LEGACY_GIT_SPEC" --argjson ns "$NAG" '
+      .plugin = ((.plugin // []) | map(select(
+        . != $pl
+        and . != $legacy
+        and . != $name
+        and (startswith($name + "@") | not)
+      )))
       | reduce $ns[] as $n (.;
           if .agent[$n] then
             .agent[$n] |= del(.model, .reasoningEffort)
