@@ -15,31 +15,6 @@ if [[ "${NEXUS_OPTIONAL_AGENTS:-}" == "1" ]]; then WITH_OPTIONAL_AGENTS=1; fi
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --only=*)
-      only="${1#--only=}"
-      shift
-      if [[ "$(echo "$only" | tr 'A-Z' 'a-z')" != "opencode" ]]; then
-        echo "Error: OpenCode Nexus installs only OpenCode (got --only $only)" >&2
-        exit 1
-      fi
-      ;;
-    --only)
-      shift
-      if [[ $# -eq 0 || "$1" == -* ]]; then
-        echo "Error: --only requires a platform name (only 'opencode' is supported)" >&2
-        exit 1
-      fi
-      only="$(echo "$1" | tr 'A-Z' 'a-z')"
-      shift
-      if [[ "$only" != "opencode" ]]; then
-        echo "Error: OpenCode Nexus installs only OpenCode (got --only $only)" >&2
-        exit 1
-      fi
-      ;;
-    --all)
-      echo "Error: OpenCode Nexus installs only OpenCode; --all is no longer supported" >&2
-      exit 1
-      ;;
     --with-optional-agents) WITH_OPTIONAL_AGENTS=1; shift ;;
     --prune-optional-agents) PRUNE_OPTIONAL_AGENTS=1; shift ;;
     --uninstall) exec "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/uninstall.sh" "${@:2}" ;;
@@ -52,13 +27,10 @@ Usage: ./install.sh [--with-optional-agents] [--prune-optional-agents]
 
 Canonical agents: orchestrator implementer unified-reviewer spec-reviewer code-reviewer reconciler
 Optional (not installed by default): blast-analyzer — Graphify is the sole graph provider
-
-OpenCode is the only supported platform.
 USAGE
       exit 0 ;;
-    opencode) shift ;;  # compat: ./install.sh opencode
     *)
-      echo "Error: unknown argument: $1 (OpenCode is the only supported platform; use --help)" >&2
+      echo "Error: unknown argument: $1 (use --help)" >&2
       exit 1
       ;;
   esac
@@ -73,12 +45,11 @@ nexus_agent_basenames() {
 }
 
 prune_optional_from_dir() {
-  local dest=$1 prefix=${2:-}
-  local a
+  local dest=$1 a
   (( PRUNE_OPTIONAL_AGENTS )) || return 0
   [[ -d "$dest" ]] || return 0
   for a in "${OPTIONAL_AGENTS[@]}"; do
-    rm -f "$dest/${prefix}${a}.md" 2>/dev/null || true
+    rm -f "$dest/${a}.md" 2>/dev/null || true
   done
 }
 

@@ -21,7 +21,7 @@ Deterministic ops (do **not** dispatch an agent):
 | Graph     | `graphify extract . --code-only --directed --no-viz` when missing; `graphify update .` otherwise |
 | Blast     | `node scripts/nexus-blast.js --files ...` (JSON default; `--mermaid` or HIGH risk for diagrams; `--task <id>` persists) |
 | Cleanup   | `bash scripts/nexus-branch-cleanup.sh --base <base> --out <json> <branches...>` |
-| Call est. | `node scripts/nexus-estimate-calls.js --tasks N --profile <p>` (shim: `nexus-estimate-cost.js`) |
+| Call est. | `node scripts/nexus-estimate-calls.js --tasks N --profile <p>` |
 | Gates     | `node scripts/nexus-run.js validate-handoff --role <role> --file ...` then `jq -e '...'` |
 
 The optional `blast-analyzer` agent is **not** in the default install. Prefer Graphify and Nexus scripts. Use `install.sh --with-optional-agents` only for compatibility.

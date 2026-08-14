@@ -82,7 +82,7 @@ done
 
 [[ ! -e "$agent_root/nexus-orchestrator.md" ]] \
   || fail "OpenCode unexpectedly prefixed its native agent names"
-[[ ! -e "$agent_root/blast-analyzer.md" && ! -e "$agent_root/knowledge-graph.md" ]] \
+[[ ! -e "$agent_root/blast-analyzer.md" ]] \
   || fail "optional compatibility agents installed by default"
 jq -e --arg spec 'nexus@git+https://github.com/mohammad154/opencode-nexus.git' \
   '((.plugin // []) | map(select(. == $spec)) | length) == 1' \
@@ -93,8 +93,7 @@ if find "$home" "$project" -type f -path '*/nexus-using-nexus/SKILL.md' -print -
 fi
 
 if find "$home" "$project" -type f \( \
-    -name 'blast-analyzer.md' -o -name 'knowledge-graph.md' \
-    -o -name 'nexus-blast-analyzer.md' -o -name 'nexus-knowledge-graph.md' \
+    -name 'blast-analyzer.md' -o -name 'nexus-blast-analyzer.md' \
   \) -print -quit | grep -q .; then
   fail "OpenCode installed an optional graph/blast agent without an explicit flag"
 fi

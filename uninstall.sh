@@ -7,37 +7,14 @@ echo "Uninstalling OpenCode Nexus..."
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --only=*)
-      only="${1#--only=}"
-      shift
-      if [[ "$(echo "$only" | tr 'A-Z' 'a-z')" != "opencode" ]]; then
-        echo "Error: OpenCode Nexus uninstalls only OpenCode (got --only $only)" >&2
-        exit 1
-      fi
-      ;;
-    --only)
-      shift
-      if [[ $# -eq 0 || "$1" == -* ]]; then
-        echo "Error: --only requires a platform name (only 'opencode' is supported)" >&2
-        exit 1
-      fi
-      only="$(echo "$1" | tr 'A-Z' 'a-z')"
-      shift
-      if [[ "$only" != "opencode" ]]; then
-        echo "Error: OpenCode Nexus uninstalls only OpenCode (got --only $only)" >&2
-        exit 1
-      fi
-      ;;
-    --all) shift ;;  # compat: only OpenCode remains
     -h|--help)
       cat <<'USAGE'
 Usage: ./uninstall.sh
 Removes the OpenCode Nexus plugin, agent files, and model example from ~/.config/opencode/.
 USAGE
       exit 0 ;;
-    opencode) shift ;;  # compat: ./uninstall.sh opencode
     *)
-      echo "Error: unknown argument: $1 (OpenCode is the only supported platform; use --help)" >&2
+      echo "Error: unknown argument: $1 (use --help)" >&2
       exit 1
       ;;
   esac
@@ -71,7 +48,7 @@ else
     fi
   fi
   for ag in orchestrator implementer spec-reviewer code-reviewer unified-reviewer blast-analyzer reconciler; do
-    t="$AD/$ag.md"; [[ -f "$t" ]] && bak_restore "$t" || rm -f "$t"; rm -f "$AD/nexus-$ag.md"
+    t="$AD/$ag.md"; [[ -f "$t" ]] && bak_restore "$t" || rm -f "$t"
   done
   rm -f "$CD/nexus.models.example.json"
   echo "  [opencode] Done. Kept $CD/nexus.models.json"

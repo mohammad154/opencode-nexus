@@ -25,7 +25,6 @@ echo "== default install: no optional agents =="
 test -f "$HOME/.config/opencode/agents/orchestrator.md"
 test -f "$HOME/.config/opencode/agents/implementer.md"
 test ! -f "$HOME/.config/opencode/agents/blast-analyzer.md"
-test ! -f "$HOME/.config/opencode/agents/knowledge-graph.md"
 grep -q 'Optional agent skipped' /tmp/nexus-install-default.log
 echo "PASS: default install omits the optional blast agent"
 
@@ -35,7 +34,6 @@ echo "== --with-optional-agents =="
   exit 1
 }
 test -f "$HOME/.config/opencode/agents/blast-analyzer.md"
-test ! -f "$HOME/.config/opencode/agents/knowledge-graph.md"
 echo "PASS: --with-optional-agents installs the optional blast agent"
 
 echo "== --prune-optional-agents =="
@@ -44,7 +42,6 @@ echo "== --prune-optional-agents =="
   exit 1
 }
 test ! -f "$HOME/.config/opencode/agents/blast-analyzer.md"
-test ! -f "$HOME/.config/opencode/agents/knowledge-graph.md"
 test -f "$HOME/.config/opencode/agents/orchestrator.md"
 echo "PASS: prune removes optional agents, keeps defaults"
 

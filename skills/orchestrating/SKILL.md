@@ -31,7 +31,6 @@ Before the execution loop (or when resuming if preferences are missing):
    ```bash
    node scripts/nexus-estimate-calls.js --tasks <N> --profile <profile>
    ```
-   The old `nexus-estimate-cost` scripts are one-release compatibility shims only.
 5. Record answers in `.opencode/CONTEXT.md`. Do not re-ask on resume unless the user requests a change.
 
 ## Pre-execution preamble (run once before first dispatch)

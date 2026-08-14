@@ -12,12 +12,6 @@ graphify-out/cost.json
 .opencode/handoffs/
 .opencode/runs/
 .opencode/trajectories/
-.cursor/
-.claude/
-.gemini/
-.antigravity/
-.agents/
-.codex/
 
 # Editor / OS
 *.bak.*

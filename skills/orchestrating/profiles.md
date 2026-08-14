@@ -105,12 +105,9 @@ Before starting a multi-task plan, run:
 
 ```bash
 node scripts/nexus-estimate-calls.js --tasks N --profile balanced
-# or
-bash scripts/nexus-estimate-calls.sh --tasks N --profile balanced
 ```
 
-Show the estimated agent calls to the user and the recommended profile. The old
-`nexus-estimate-cost` scripts remain only as one-release compatibility shims.
+Show the estimated agent calls to the user and the recommended profile.
 
 ## Hard rules that still apply under all profiles
 
