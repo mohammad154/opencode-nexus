@@ -1,6 +1,6 @@
 {
   "name": "@mohammad154/opencode-nexus",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Multi-agent development workflow for OpenCode, with V3 profiles and an executable workflow engine",
   "type": "module",
   "main": ".opencode/plugins/nexus.js",
@@ -25,6 +25,8 @@
   "scripts": {
     "test": "node --test \"tests/**/*.test.js\"",
     "test:install": "bash scripts/test-install-only.sh && bash scripts/test-optional-agents.sh",
+    "postinstall": "node ./scripts/ensure-cli-on-path.js",
+    "preuninstall": "node ./scripts/ensure-cli-on-path.js --remove",
     "prepublishOnly": "npm test && npm run test:install"
   },
   "engines": {

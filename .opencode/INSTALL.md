@@ -31,6 +31,10 @@ nexus install
 nexus doctor
 ```
 
+A global install also links `nexus` into `~/.local/bin` when npm's prefix is
+not on `PATH`. `npx @mohammad154/opencode-nexus@latest install` is the
+PATH-independent equivalent.
+
 Or clone and run locally:
 
 ```bash

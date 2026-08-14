@@ -72,7 +72,13 @@ npm install -g @mohammad154/opencode-nexus@latest
 nexus install
 ```
 
-`npm install -g` only puts the `nexus` command on your machine. Run `nexus install` afterward so OpenCode gets the agents and plugin.
+`npm install -g` only puts the `nexus` command on your machine (including `~/.local/bin` when npm's global prefix is not on `PATH`). Run `nexus install` afterward so OpenCode gets the agents and plugin.
+
+If `nexus` is still not found, you do not need to edit `PATH` — this is equivalent:
+
+```bash
+npx @mohammad154/opencode-nexus@latest install
+```
 
 **3. Check that everything is in place:**
 
@@ -180,6 +186,8 @@ nexus doctor
 ```
 
 `npm install -g` never touches OpenCode config by itself. Always follow it with `nexus install`.
+
+npm may install the binary under a custom prefix such as `~/.npm-global/bin`. After a global install, Nexus also links `nexus` and `opencode-nexus` into `~/.local/bin` so the command is available without extra PATH setup.
 
 The same `nexus install` command **updates** an existing OpenCode setup.
 
