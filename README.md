@@ -1,7 +1,7 @@
 # OpenCode Nexus
 
 <p align="center">
-  <img src="docs/assets/opencode-nexus-logo.svg" alt="OpenCode Nexus — plan, map, build, review" width="960">
+  <img src="./docs/assets/opencode-nexus-wordmark.svg" alt="OpenCode Nexus wordmark — plan, map, build, review" width="960">
 </p>
 
 <p align="center">
