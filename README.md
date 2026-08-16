@@ -1,8 +1,18 @@
 # OpenCode Nexus
 
-**A multi-agent development workflow for [OpenCode](https://opencode.ai).**
+<p align="center">
+  <img src="docs/assets/opencode-nexus-logo.svg" alt="OpenCode Nexus — plan, map, build, review" width="960">
+</p>
 
-Nexus installs a small team of agents into OpenCode. The **orchestrator** plans the work, an **implementer** writes the code, and reviewers check it — with risk-based review, a repository graph, and durable run state under `.opencode/`.
+<p align="center">
+  <a href="https://www.npmjs.com/package/@mohammad154/opencode-nexus"><img src="https://img.shields.io/npm/v/%40mohammad154%2Fopencode-nexus?style=flat-square&label=npm" alt="npm package"></a>
+  <a href="https://github.com/mohammad154/opencode-nexus/blob/main/LICENSE"><img src="https://img.shields.io/npm/l/%40mohammad154%2Fopencode-nexus?style=flat-square" alt="MIT license"></a>
+  <a href="https://nodejs.org/"><img src="https://img.shields.io/badge/node-%E2%89%A520-3c873a?style=flat-square&logo=node.js&logoColor=white" alt="Node.js 20 or newer"></a>
+</p>
+
+<p align="center"><strong>Risk-aware, graph-backed multi-agent development for <a href="https://opencode.ai">OpenCode</a>.</strong></p>
+
+Nexus installs a small, inspectable team of agents into OpenCode. The **orchestrator** plans the work, the **implementer** writes production code, and reviewers check the result — with risk-based review, Graphify impact mapping, and durable run state under `.opencode/`.
 
 ```text
 you describe the work
@@ -22,7 +32,7 @@ Package: [`@mohammad154/opencode-nexus`](https://www.npmjs.com/package/@mohammad
 
 ## Contents
 
-- [What you get](#what-you-get)
+- [At a glance](#at-a-glance)
 - [Quick start](#quick-start)
 - [Prerequisites](#prerequisites)
 - [Install](#install)
@@ -36,7 +46,19 @@ Package: [`@mohammad154/opencode-nexus`](https://www.npmjs.com/package/@mohammad
 
 ---
 
-## What you get
+## At a glance
+
+Nexus gives OpenCode a repeatable delivery loop with explicit ownership and evidence at each handoff:
+
+| Capability | What it adds |
+|---|---|
+| **Orchestration** | Classifies the request, selects a profile, creates the plan, and dispatches bounded work |
+| **Impact mapping** | Uses Graphify’s directed repository graph to map changed files and downstream risk |
+| **Safe implementation** | Gives production-file edits to the implementer, with branch and handoff context |
+| **Risk-based review** | Uses unified review for normal work and dual spec/code review for high-risk changes |
+| **Durable state** | Stores plans, tasks, handoffs, blast reports, and run state so interrupted work can recover |
+
+### Installed agents
 
 After install, OpenCode has six agents:
 
