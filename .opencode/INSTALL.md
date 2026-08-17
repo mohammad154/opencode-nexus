@@ -79,6 +79,10 @@ npx @mohammad154/opencode-nexus@latest install --with-optional-agents
 ./install.sh --with-optional-agents
 ```
 
+Default `nexus install` does not write `blast-analyzer` into `opencode.json`.
+It also removes leftover optional-agent config and files from older releases
+unless `--with-optional-agents` is passed again.
+
 ## V3 workflow and profiles
 
 The default profile is `balanced`. Profiles are defined in

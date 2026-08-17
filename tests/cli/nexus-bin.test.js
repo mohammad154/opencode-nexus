@@ -48,6 +48,8 @@ test("nexus doctor reports missing graphify without installing", () => {
     assert.equal(result.status, 1);
     assert.match(result.stdout, /graphify/);
     assert.match(result.stdout, /plugin not configured|no /);
+    assert.match(result.stdout, /CLI path:/);
+    assert.match(result.stdout, new RegExp(`Nexus ${pkg.version}`));
   } finally {
     fs.rmSync(home, { recursive: true, force: true });
   }

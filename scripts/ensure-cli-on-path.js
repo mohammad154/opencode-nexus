@@ -8,6 +8,7 @@
  * PATH on Linux/WSL) and, if needed, append a PATH snippet to existing shell rc
  * files. Never fail the npm install if this helper cannot update PATH.
  */
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -40,6 +41,35 @@ export function userBinDir(home = os.homedir()) {
 
 export function isTruthy(value) {
   return value === "true" || value === "1" || value === "TRUE";
+}
+
+export function homeForSudoUser(username) {
+  try {
+    const out = execFileSync("getent", ["passwd", username], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    });
+    const home = out.trim().split(":")[5];
+    if (home) return home;
+  } catch {
+    // fall through to platform defaults
+  }
+  if (process.platform === "darwin") return path.join("/Users", username);
+  return path.join("/home", username);
+}
+
+export function resolveInstallHome({
+  env = process.env,
+  homedir = os.homedir(),
+  getuid = typeof process.getuid === "function" ? process.getuid.bind(process) : null,
+  sudoHome = homeForSudoUser,
+} = {}) {
+  const uid = typeof getuid === "function" ? getuid() : null;
+  const sudoUser = env.SUDO_USER;
+  if (uid === 0 && sudoUser && sudoUser !== "root") {
+    return sudoHome(sudoUser);
+  }
+  return homedir;
 }
 
 export function isGlobalInstall(env = process.env, root = pkgRoot) {
@@ -180,7 +210,14 @@ export function ensureUserBinOnPath({
 
 export function run(argv = process.argv.slice(2), options = {}) {
   const env = options.env ?? process.env;
-  const home = options.home ?? os.homedir();
+  const home =
+    options.home ??
+    resolveInstallHome({
+      env,
+      homedir: os.homedir(),
+      getuid: options.getuid,
+      sudoHome: options.sudoHome,
+    });
   const root = options.pkgRoot ?? pkgRoot;
   const targetBin = path.join(root, "bin", "nexus.js");
   const log = options.log ?? console;

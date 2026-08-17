@@ -18,10 +18,6 @@
     "model": "opencode-go/deepseek-v4-pro",
     "reasoningEffort": "max"
   },
-  "blast-analyzer": {
-    "model": "opencode/deepseek-v4-flash-free",
-    "reasoningEffort": "medium"
-  },
   "reconciler": {
     "model": "opencode-go/deepseek-v4-pro",
     "reasoningEffort": "max"

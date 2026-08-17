@@ -13,6 +13,7 @@ import {
   isOurShim,
   pathHasDir,
   removeShims,
+  resolveInstallHome,
   run,
   userBinDir,
   writeShims,
@@ -196,4 +197,48 @@ test("removeShims ignores missing home bin dir", () => {
   } finally {
     fs.rmSync(home, { recursive: true, force: true });
   }
+});
+
+test("sudo global install writes shims to the invoking user's home", () => {
+  const userHome = tempHome();
+  try {
+    const result = run([], {
+      env: {
+        PATH: "/usr/bin:/bin",
+        npm_config_global: "true",
+        SUDO_USER: "danaee",
+      },
+      getuid: () => 0,
+      sudoHome: () => userHome,
+      pkgRoot: repoRoot,
+      log: silentLog(),
+    });
+    assert.equal(result.action, "ensure");
+    assert.equal(fs.existsSync(path.join(userBinDir(userHome), "nexus")), true);
+  } finally {
+    fs.rmSync(userHome, { recursive: true, force: true });
+  }
+});
+
+test("resolveInstallHome ignores SUDO_USER when not root", () => {
+  assert.equal(
+    resolveInstallHome({
+      env: { SUDO_USER: "danaee" },
+      homedir: "/home/current",
+      getuid: () => 1000,
+    }),
+    "/home/current",
+  );
+});
+
+test("resolveInstallHome maps root+SUDO_USER to that user's home", () => {
+  assert.equal(
+    resolveInstallHome({
+      env: { SUDO_USER: "danaee" },
+      homedir: "/root",
+      getuid: () => 0,
+      sudoHome: (user) => `/home/${user}`,
+    }),
+    "/home/danaee",
+  );
 });

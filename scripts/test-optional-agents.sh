@@ -37,7 +37,7 @@ echo "== --with-optional-agents =="
   exit 1
 }
 test -f "$HOME/.config/opencode/agents/blast-analyzer.md"
-jq -e '.agent["blast-analyzer"] | type == "object"' "$CONFIG" >/dev/null
+jq -e '.agent["blast-analyzer"].model == "opencode/deepseek-v4-flash-free"' "$CONFIG" >/dev/null
 echo "PASS: --with-optional-agents installs the optional blast agent"
 
 echo "== --prune-optional-agents =="
@@ -64,6 +64,35 @@ test ! -f "$HOME/.config/opencode/agents/blast-analyzer.md"
 jq -e '(.agent | has("blast-analyzer")) | not' "$CONFIG" >/dev/null
 jq -e '.agent | has("orchestrator")' "$CONFIG" >/dev/null
 echo "PASS: default install removes leaked blast-analyzer config"
+
+echo "== leftover optional agent from older install is removed =="
+mkdir -p "$HOME/.config/opencode/agents"
+printf 'legacy blast agent\n' >"$HOME/.config/opencode/agents/blast-analyzer.md"
+jq -n --argjson existing "$(cat "$CONFIG")" '
+  $existing * {agent: (($existing.agent // {}) + {"blast-analyzer": {"model": "leaked/model", "reasoningEffort": "medium"}})}
+' >"$CONFIG"
+"$ROOT/install.sh" >/tmp/nexus-install-legacy.log 2>&1 || {
+  cat /tmp/nexus-install-legacy.log
+  exit 1
+}
+test ! -f "$HOME/.config/opencode/agents/blast-analyzer.md"
+jq -e '(.agent | has("blast-analyzer")) | not' "$CONFIG" >/dev/null
+jq -e '.agent | has("orchestrator")' "$CONFIG" >/dev/null
+echo "PASS: default install removes leftover blast-analyzer file and config"
+
+echo "== default install after --with-optional-agents drops it again =="
+"$ROOT/install.sh" --with-optional-agents >/tmp/nexus-install-opt-again.log 2>&1 || {
+  cat /tmp/nexus-install-opt-again.log
+  exit 1
+}
+test -f "$HOME/.config/opencode/agents/blast-analyzer.md"
+"$ROOT/install.sh" >/tmp/nexus-install-unstick.log 2>&1 || {
+  cat /tmp/nexus-install-unstick.log
+  exit 1
+}
+test ! -f "$HOME/.config/opencode/agents/blast-analyzer.md"
+jq -e '(.agent | has("blast-analyzer")) | not' "$CONFIG" >/dev/null
+echo "PASS: optional agent is not sticky across a default install"
 
 # Agent source files still in repo
 test -f "$ROOT/agents/blast-analyzer.md"

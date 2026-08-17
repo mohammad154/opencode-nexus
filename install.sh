@@ -4,7 +4,7 @@
 # Deps: bash, jq, graphify; git optional
 set -euo pipefail
 
-echo "Installing OpenCode Nexus..."; echo ""
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 WITH_OPTIONAL_AGENTS=0
 PRUNE_OPTIONAL_AGENTS=0
@@ -46,7 +46,10 @@ nexus_agent_basenames() {
 
 prune_optional_from_dir() {
   local dest=$1 a
-  (( PRUNE_OPTIONAL_AGENTS )) || return 0
+  # Default install is not sticky: leftover optional agents from older
+  # releases (or a previous --with-optional-agents) are removed unless the
+  # flag is passed again.
+  (( WITH_OPTIONAL_AGENTS )) && return 0
   [[ -d "$dest" ]] || return 0
   for a in "${OPTIONAL_AGENTS[@]}"; do
     rm -f "$dest/${a}.md" 2>/dev/null || true
@@ -55,15 +58,21 @@ prune_optional_from_dir() {
 
 bak() { [[ -f "$1" ]] && cp "$1" "$1.bak.$(date +%Y%m%d%H%M%S)" || true; }
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG_DIR="${OPENCODE_CONFIG_DIR:-$HOME/.config/opencode}"
 AGENTS_DIR="$CONFIG_DIR/agents"
 CONFIG_FILE="$CONFIG_DIR/opencode.json"
 MODELS_FILE="$CONFIG_DIR/nexus.models.json"
 DEFAULT_MODELS="$SCRIPT_DIR/config/default-models.json"
+OPTIONAL_MODELS="$SCRIPT_DIR/config/optional-models.json"
 MODELS_EXAMPLE="$SCRIPT_DIR/config/models.example.json"
 PKG_JSON="$SCRIPT_DIR/package.json"
 LEGACY_GIT_SPEC="nexus@git+https://github.com/mohammad154/opencode-nexus.git"
+
+if command -v jq >/dev/null 2>&1 && [[ -f "$PKG_JSON" ]]; then
+  echo "Installing OpenCode Nexus $(jq -r '.version' "$PKG_JSON")..."; echo ""
+else
+  echo "Installing OpenCode Nexus..."; echo ""
+fi
 
 if command -v opencode >/dev/null 2>&1; then
   echo "OpenCode: detected"
@@ -89,8 +98,11 @@ PLUGIN_SPEC="${NEXUS_PLUGIN_SPEC:-${PKG_NAME}@${PKG_VERSION}}"
 mkdir -p "$CONFIG_DIR" "$AGENTS_DIR"
 if [[ -f "$CONFIG_FILE" ]]; then bak "$CONFIG_FILE"; else printf '{\n  "$schema": "https://opencode.ai/config.json"\n}\n' >"$CONFIG_FILE"; fi
 MJ="$(cat "$DEFAULT_MODELS")"
+if (( WITH_OPTIONAL_AGENTS )) && [[ -f "$OPTIONAL_MODELS" ]]; then
+  MJ="$(jq -s '.[0] * .[1]' "$DEFAULT_MODELS" "$OPTIONAL_MODELS")"
+fi
 if [[ -f "$MODELS_FILE" ]]; then
-  MJ="$(jq -s 'def strip: with_entries(select(.key|startswith("_")|not)); .[0]*(.[1]|strip)' "$DEFAULT_MODELS" "$MODELS_FILE")"
+  MJ="$(jq -s 'def strip: with_entries(select(.key|startswith("_")|not)); .[0]*(.[1]|strip)' <(printf '%s\n' "$MJ") "$MODELS_FILE")"
 else
   cp "$MODELS_EXAMPLE" "$CONFIG_DIR/nexus.models.example.json"
   echo "  Created $CONFIG_DIR/nexus.models.example.json"
@@ -109,20 +121,10 @@ OPTIONAL_JSON="$(printf '%s\n' "${OPTIONAL_AGENTS[@]}" | jq -R . | jq -s .)"
 if ! (( WITH_OPTIONAL_AGENTS )); then
   MJ="$(jq --argjson skip "$OPTIONAL_JSON" 'reduce $skip[] as $k (.; del(.[$k]))' <<<"$MJ")"
 fi
+# Always drop leftover optional-agent config unless this run opted in.
 PRUNE_JSON='[]'
-if (( PRUNE_OPTIONAL_AGENTS )); then
+if (( PRUNE_OPTIONAL_AGENTS )) || ! (( WITH_OPTIONAL_AGENTS )); then
   PRUNE_JSON="$OPTIONAL_JSON"
-elif ! (( WITH_OPTIONAL_AGENTS )); then
-  # Drop leaked optional-agent model config when the agent file was never opted in.
-  leaked=()
-  for a in "${OPTIONAL_AGENTS[@]}"; do
-    if [[ ! -f "$AGENTS_DIR/${a}.md" ]]; then
-      leaked+=("$a")
-    fi
-  done
-  if (( ${#leaked[@]} )); then
-    PRUNE_JSON="$(printf '%s\n' "${leaked[@]}" | jq -R . | jq -s .)"
-  fi
 fi
 TMP="$(mktemp)"
 # Keep object context: `.plugin=(...)` would pipe the array and break later merges

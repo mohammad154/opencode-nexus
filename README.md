@@ -261,7 +261,9 @@ nexus install --with-optional-agents
 ./install.sh --with-optional-agents
 ```
 
-To drop it again on upgrade:
+A later `nexus install` (without the flag) removes leftover `blast-analyzer` config and agent files, including copies written by older Nexus releases. To keep it, pass `--with-optional-agents` again on that update.
+
+To drop it explicitly:
 
 ```bash
 nexus install --prune-optional-agents

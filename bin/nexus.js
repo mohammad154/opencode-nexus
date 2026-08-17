@@ -152,6 +152,7 @@ function doctor() {
   let failed = 0;
   console.log(`Nexus ${pkg.version} (${pkg.name})`);
   console.log(`Package root: ${pkgRoot}`);
+  console.log(`CLI path: ${process.argv[1] || "unknown"}`);
   console.log("");
   for (const [name, ok, detail] of rows) {
     const mark = ok ? "ok" : "!!";
@@ -172,6 +173,7 @@ const [command, ...args] = process.argv.slice(2);
 switch (command) {
   case "install":
   case "update":
+    console.log(`OpenCode Nexus ${pkg.version} from ${pkgRoot}`);
     runBash("install.sh", args);
     break;
   case "uninstall":
