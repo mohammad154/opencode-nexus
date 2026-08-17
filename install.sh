@@ -187,9 +187,10 @@ OpenCode → ~/.config/opencode/ (plugin + canonical agents)
 Next:
   - graphify query "<architecture question>"
   - graphify affected "<node-or-file>" --depth 2
-  - node ./scripts/nexus-estimate-calls.js --tasks 3 --profile balanced
-  - node ./scripts/nexus-blast.js --files <path>   # JSON default; --mermaid on demand
-  - node ./scripts/nexus-run.js init --run-id demo
+  - nexus project-init
+  - nexus run init --run-id demo
+  - nexus estimate --tasks 3 --profile balanced
+  - nexus blast --files <path>   # JSON default; --mermaid on demand
   - bash ./scripts/nexus-branch-cleanup.sh --base <base> <feature-branch>
   - restart OpenCode and select orchestrator
   - Customize: edit $CONFIG_DIR/nexus.models.json && re-run install

@@ -1,5 +1,17 @@
 # Subagent Dispatch (OpenCode) — V3 profiles
 
+Portable CLI (works from any repo):
+
+```bash
+nexus project-init
+nexus run init --run-id <id>
+nexus classify --files N --lines N --class <c>
+nexus blast --files ... --task <id>
+nexus estimate --tasks N --profile <p>
+```
+
+Clone-dev fallback (inside Nexus package repo only): `node scripts/nexus-run.js ...`
+
 Canonical roles:
 
 | Role            | Canonical key       | When                                      |
@@ -16,13 +28,13 @@ Deterministic ops (do **not** dispatch an agent):
 
 | Op        | Command |
 |-----------|---------|
-| Run / gates | `node scripts/nexus-run.js <init\|classify\|transition\|validate-handoff\|status\|resume\|drift>` |
-| Classify  | `node scripts/nexus-classify.js --files N --lines N --class <c>` |
+| Run / gates | `nexus run <init\|classify\|transition\|validate-handoff\|status\|resume\|drift>` |
+| Classify  | `nexus classify --files N --lines N --class <c>` |
 | Graph     | `graphify extract . --code-only --directed --no-viz` when missing; `graphify update .` otherwise |
-| Blast     | `node scripts/nexus-blast.js --files ...` (JSON default; `--mermaid` or HIGH risk for diagrams; `--task <id>` persists) |
+| Blast     | `nexus blast --files ...` (JSON default; `--mermaid` or HIGH risk for diagrams; `--task <id>` persists) |
 | Cleanup   | `bash scripts/nexus-branch-cleanup.sh --base <base> --out <json> <branches...>` |
-| Call est. | `node scripts/nexus-estimate-calls.js --tasks N --profile <p>` |
-| Gates     | `node scripts/nexus-run.js validate-handoff --role <role> --file ...` then `jq -e '...'` |
+| Call est. | `nexus estimate --tasks N --profile <p>` |
+| Gates     | `nexus run validate-handoff --role <role> --file ...` then `jq -e '...'` |
 
 The optional `blast-analyzer` agent is **not** in the default install. Prefer Graphify and Nexus scripts. Use `install.sh --with-optional-agents` only for compatibility.
 
@@ -83,7 +95,8 @@ jq -e '.verdict=="APPROVED"' .opencode/handoffs/<id>-unified-reviewer.json
   - classifier `direct_eligible: true` **and** dispatch unavailable **and** user did not set `execution_mode: delegated`
 - Treating a pasted plan / “please implement” / “start coding” as permission to self-implement
 - Falling back to self-coding when Task/Agent dispatch fails **unless** the narrow direct-eligible exception above applies (then mandatory verification + handoff JSON)
-- Skipping `nexus-run.js transition` gates before IMPLEMENTING / COMPLETED
+- Skipping `nexus run transition` gates before IMPLEMENTING / COMPLETED
 - Dispatching LLM agents for graph rebuild, blast script, branch delete, or jq gates
 - Finishing without required APPROVED handoff JSON(s) (`validate-handoff` + jq)
 - Calling a prefixed `nexus-*` agent name instead of the canonical OpenCode name
+- Assuming repo-local `scripts/nexus-*.js` exists in external projects — use `nexus run` / `nexus blast` / `nexus classify` instead

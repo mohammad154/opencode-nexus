@@ -1,9 +1,10 @@
 #!/usr/bin/env node
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { projectInit } from "../scripts/lib/project-init.js";
 
 const pkgRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const pkg = JSON.parse(fs.readFileSync(path.join(pkgRoot, "package.json"), "utf8"));
@@ -14,28 +15,93 @@ Usage:
   nexus <command> [flags]
 
 Commands:
-  install     Install or update OpenCode agents and plugin config
-  update      Same as install (idempotent)
-  uninstall   Remove Nexus OpenCode agents and plugin config
-  version     Print the package version
-  doctor      Check local prerequisites and install status
-  help        Show this message
+  install        Install or update OpenCode agents and plugin config
+  update         Same as install (idempotent)
+  uninstall      Remove Nexus OpenCode agents and plugin config
+  project-init   Bootstrap .opencode/ in the current project (external repos)
+  run            Workflow state machine (init, classify, transition, status, ...)
+  blast          Graphify-backed blast-radius analysis
+  classify       Risk classifier CLI
+  estimate       Estimate minimum agent calls for a plan
+  version        Print the package version
+  doctor         Check local prerequisites and project readiness
+  help           Show this message
 
 Examples:
   npx ${pkg.name}@latest install
-  npx ${pkg.name}@latest install --with-optional-agents
-  nexus update
-  nexus uninstall
+  nexus project-init
+  nexus run init --run-id demo
+  nexus run status
+  nexus classify --files 2 --lines 40 --class small-feature-with-tests --focused
+  nexus blast --files src/app.js --json
+  nexus estimate --tasks 3 --profile balanced
   nexus doctor
 
 Install flags are forwarded to install.sh:
   --with-optional-agents
   --prune-optional-agents
+
+Clone-dev fallback (inside this repo only):
+  node scripts/nexus-run.js ...
+`;
+
+const RUN_HELP = `Usage: nexus run <subcommand> [flags]
+
+Subcommands:
+  init              Create a run (--run-id <id>)
+  classify          Classify and optionally apply (--apply)
+  transition        Transition state (--to STATE)
+  validate-handoff  Validate a handoff JSON (--role ROLE --file path)
+  status            Show run state
+  resume            Resume from durable state
+  drift             Assess plan drift
+  can-transition    Check if a transition is legal
+
+Exit codes: 0 ok, 2 validation failure, 3 illegal transition
 `;
 
 function fail(message, code = 1) {
   console.error(message);
   process.exit(code);
+}
+
+function scriptPath(name) {
+  const p = path.join(pkgRoot, "scripts", name);
+  if (!fs.existsSync(p)) {
+    fail(`Missing scripts/${name} in ${pkgRoot}`);
+  }
+  return p;
+}
+
+function runNodeScript(scriptName, args, { cwd = process.cwd() } = {}) {
+  const script = scriptPath(scriptName);
+  const child = spawn(process.execPath, [script, ...args], {
+    stdio: "inherit",
+    cwd,
+    env: {
+      ...process.env,
+      NEXUS_PKG_ROOT: pkgRoot,
+    },
+  });
+  child.on("error", (err) => {
+    fail(err.message);
+  });
+  child.on("exit", (code, signal) => {
+    if (signal) fail(`Terminated by ${signal}`, 1);
+    process.exit(code ?? 1);
+  });
+}
+
+function runNodeScriptSync(scriptName, args, { cwd = process.cwd() } = {}) {
+  const script = scriptPath(scriptName);
+  return spawnSync(process.execPath, [script, ...args], {
+    encoding: "utf8",
+    cwd,
+    env: {
+      ...process.env,
+      NEXUS_PKG_ROOT: pkgRoot,
+    },
+  });
 }
 
 function runBash(scriptName, args) {
@@ -88,11 +154,82 @@ function isNexusPluginSpec(spec) {
   );
 }
 
+function isGitRepo(cwd = process.cwd()) {
+  const r = spawnSync("git", ["rev-parse", "--is-inside-work-tree"], {
+    cwd,
+    encoding: "utf8",
+  });
+  return r.status === 0 && String(r.stdout || "").trim() === "true";
+}
+
+function readActiveRunSummary(worktree) {
+  const runsRoot = path.join(worktree, ".opencode", "runs");
+  if (!fs.existsSync(runsRoot)) return null;
+  try {
+    const dirs = fs
+      .readdirSync(runsRoot, { withFileTypes: true })
+      .filter((d) => d.isDirectory())
+      .map((d) => d.name);
+    let best = null;
+    for (const id of dirs) {
+      const p = path.join(runsRoot, id, "state.json");
+      if (!fs.existsSync(p)) continue;
+      const s = JSON.parse(fs.readFileSync(p, "utf8"));
+      if (s.state === "COMPLETED" || s.state === "FAILED") continue;
+      if (!best || (s.updated_at || "") > (best.updated_at || "")) best = s;
+    }
+    return best;
+  } catch {
+    return null;
+  }
+}
+
+function cmdProjectInit() {
+  const worktree = process.cwd();
+  const result = projectInit(worktree, {
+    pkgVersion: pkg.version,
+    pkgName: pkg.name,
+    pkgRoot,
+  });
+  console.log(
+    JSON.stringify(
+      {
+        ok: true,
+        message: "Nexus project bootstrap complete",
+        ...result,
+      },
+      null,
+      2,
+    ),
+  );
+}
+
+function cmdRun(args) {
+  if (args.length === 0 || args[0] === "help" || args[0] === "--help" || args[0] === "-h") {
+    console.log(RUN_HELP.trimEnd());
+    return;
+  }
+  runNodeScript("nexus-run.js", args);
+}
+
+function cmdBlast(args) {
+  runNodeScript("nexus-blast.js", args);
+}
+
+function cmdClassify(args) {
+  runNodeScript("nexus-classify.js", args);
+}
+
+function cmdEstimate(args) {
+  runNodeScript("nexus-estimate-calls.js", args);
+}
+
 function doctor() {
   const configDir =
     process.env.OPENCODE_CONFIG_DIR || path.join(os.homedir(), ".config", "opencode");
   const configFile = path.join(configDir, "opencode.json");
   const agentsDir = path.join(configDir, "agents");
+  const worktree = process.cwd();
   const canonical = [
     "orchestrator",
     "implementer",
@@ -116,6 +253,11 @@ function doctor() {
       "opencode",
       hasCommand("opencode"),
       hasCommand("opencode") ? "found" : "not detected (config can still be installed)",
+    ],
+    [
+      "cli-run",
+      fs.existsSync(scriptPath("nexus-run.js")),
+      "nexus run forwards to package scripts/nexus-run.js",
     ],
   ];
 
@@ -148,11 +290,55 @@ function doctor() {
       : `missing: ${missingAgents.join(", ")}`,
   ]);
 
+  if (isGitRepo(worktree)) {
+    const opencodeDir = path.join(worktree, ".opencode");
+    const opencodeOk = fs.existsSync(opencodeDir);
+    rows.push([
+      "project-opencode",
+      opencodeOk,
+      opencodeOk
+        ? `.opencode/ present in ${worktree}`
+        : "missing — run: nexus project-init",
+    ]);
+
+    const graphPath = path.join(worktree, "graphify-out", "graph.json");
+    const graphOk = fs.existsSync(graphPath);
+    rows.push([
+      "project-graph",
+      graphOk,
+      graphOk
+        ? "graphify-out/graph.json present"
+        : "missing — run: graphify extract . --code-only --directed --no-viz",
+    ]);
+
+    const activeRun = readActiveRunSummary(worktree);
+    if (activeRun) {
+      rows.push([
+        "project-run",
+        activeRun.state !== "BLOCKED",
+        `active run ${activeRun.run_id}: ${activeRun.state}${
+          activeRun.state === "BLOCKED" ? " — reconcile before continuing" : ""
+        }`,
+      ]);
+    } else {
+      const status = runNodeScriptSync("nexus-run.js", ["status"], { cwd: worktree });
+      const statusOk = status.status === 0;
+      rows.push([
+        "project-run",
+        statusOk,
+        statusOk
+          ? "nexus run status ok (no active non-terminal run)"
+          : `nexus run status failed (exit ${status.status ?? "unknown"})`,
+      ]);
+    }
+  }
+
   const width = Math.max(...rows.map(([name]) => name.length));
   let failed = 0;
   console.log(`Nexus ${pkg.version} (${pkg.name})`);
   console.log(`Package root: ${pkgRoot}`);
   console.log(`CLI path: ${process.argv[1] || "unknown"}`);
+  console.log(`Worktree: ${worktree}`);
   console.log("");
   for (const [name, ok, detail] of rows) {
     const mark = ok ? "ok" : "!!";
@@ -161,7 +347,7 @@ function doctor() {
   }
   if (failed > 0) {
     console.log("");
-    console.log(`${failed} check(s) failed. Run: nexus install`);
+    console.log(`${failed} check(s) failed. Run: nexus install && nexus project-init`);
     process.exit(1);
   }
   console.log("");
@@ -178,6 +364,21 @@ switch (command) {
     break;
   case "uninstall":
     runBash("uninstall.sh", args);
+    break;
+  case "project-init":
+    cmdProjectInit();
+    break;
+  case "run":
+    cmdRun(args);
+    break;
+  case "blast":
+    cmdBlast(args);
+    break;
+  case "classify":
+    cmdClassify(args);
+    break;
+  case "estimate":
+    cmdEstimate(args);
     break;
   case "version":
   case "--version":

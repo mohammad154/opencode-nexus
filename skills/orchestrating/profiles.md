@@ -28,8 +28,8 @@ final execution profile + final review level
 2. Else run the scoring classifier (do **not** treat legacy nested `fastIf.or` as OR):
 
 ```bash
-node scripts/nexus-classify.js --class <change_class> [--docs] [--security] [--public-api] [--focused]
-node scripts/nexus-classify.js --blast .opencode/blast/unit.json
+nexus classify --class <change_class> [--docs] [--security] [--public-api] [--focused]
+nexus classify --blast .opencode/blast/unit.json
 ```
 
    - Emits `profile`, `review_level` (`none|unified|dual`), `execution_mode` (`direct|delegated`), `risk_score`, `confidence`, `evidence_quality` (`trusted|partial|unknown`), `reasons[]`, `direct_eligible`.
@@ -104,7 +104,7 @@ Never self-review in the orchestrator turn when a reviewer is required.
 Before starting a multi-task plan, run:
 
 ```bash
-node scripts/nexus-estimate-calls.js --tasks N --profile balanced
+nexus estimate --tasks N --profile balanced
 ```
 
 Show the estimated agent calls to the user and the recommended profile.

@@ -22,7 +22,7 @@ From CodeLookup's pattern:
 - Automatically before each implementer dispatch:
   - `strict`: once per task
   - `fast`/`balanced`: once per **execution unit** (recompute if scope expands)
-- Prefer `node scripts/nexus-blast.js` over the blast-analyzer agent.
+- Prefer `nexus blast` over the blast-analyzer agent.
 - Manually when user asks "what will break if I change X?"
 - In reviewers when verifying caller handling.
 
@@ -139,7 +139,7 @@ Risk drives reviewer behavior:
 
 - writing-plans: task-N.md must include "Related callers (blast)" section – populated either from a fresh directed Graphify run or placeholder "no directed Graphify graph yet, run graphify update / nexus-blast.js --task N".
 - orchestrating:
-  - Step 2 of per-task loop runs `node scripts/nexus-blast.js --files <csv> --task N --mermaid` before dispatch
+  - Step 2 of per-task loop runs `nexus blast --files <csv> --task N --mermaid` before dispatch
   - Pastes blast markdown into task file or attaches as context
   - If blast HIGH, flags to spec-reviewer to watch scope creep
   - If new callers discovered after graph re-run, updates task-N.md Knowledge section
@@ -157,7 +157,7 @@ Risk drives reviewer behavior:
 - Empty blast (no dependents)? Likely:
   - Target file is leaf module (no one imports it) – LOW risk, safe
   - Graph missing bare import edge due to barrel import or alias – re-run with shell fallback: `./scripts/nexus-blast.sh --files X`
-  - Use explain mode to double-check: `node scripts/nexus-blast.js --explain src/foo.ts`
+  - Use explain mode to double-check: `nexus blast --explain src/foo.ts`
 - Blast too noisy (100+ dependents)? File is god node (utils, constants, logger). For god nodes, orchestrator must recommend task split or note that all callers need lint-only check, not full test.
 - graphify-out/graph.json stale? Run `graphify update .` to refresh before blast.
 

@@ -29,7 +29,7 @@ Before the execution loop (or when resuming if preferences are missing):
 3. Set `branch_cleanup_policy: always` by default; `cleanupPolicy: script` (run `scripts/nexus-branch-cleanup.sh` — **never** dispatch an LLM solely to delete branches).
 4. Run the agent-call estimate and show the user:
    ```bash
-   node scripts/nexus-estimate-calls.js --tasks <N> --profile <profile>
+   nexus estimate --tasks <N> --profile <profile>
    ```
 5. Record answers in `.opencode/CONTEXT.md`. Do not re-ask on resume unless the user requests a change.
 
@@ -44,6 +44,14 @@ Before the execution loop (or when resuming if preferences are missing):
 3. Record `verification_baseline` on `base_branch`. Parallelize independent checks (build/test/lint) when safe.
 4. For `fast`/`balanced`: group pending tasks into **execution units** (see `profiles.md`). Write `.opencode/tasks/execution-unit-<id>.json` (+ optional `.md`).
 
+## Delegation Gate (mandatory before production edits)
+
+1. If `.opencode/` or `.opencode/runs/*/state.json` is missing → run `nexus project-init` then `nexus run init --run-id <id>`.
+2. If run state is before `IMPLEMENTING` → complete classify → plan → graph → blast transitions. **Do not create or edit production files.**
+3. If run state is `IMPLEMENTING` → **only dispatch implementer** via Task tool. Orchestrator edits are limited to `.opencode/**`.
+4. If Task dispatch fails → STOP and report (unless narrow `direct_eligible` exception with mandatory verification + handoff JSON).
+5. A pasted plan or "please implement" is **not** permission to self-code.
+
 ## Execution loop — by profile
 
 ### `strict` (legacy per-task — unchanged safety model)
@@ -53,7 +61,7 @@ For each pending task in `.opencode/plans/PLAN.md`:
 1. Ensure task-N.md template completeness (drift SHA, STOP, gates, blast section).
 2. Blast **this task**:
    ```bash
-   node scripts/nexus-blast.js --files <csv> --task N --mermaid
+   nexus blast --files <csv> --task N --mermaid
    ```
 3. Branch `feature/task-N-<slug>` per `branch_policy` isolated|stacked.
 4. Update CONTEXT; pre-dispatch branch validation; drift check.
@@ -74,7 +82,7 @@ For each pending **execution unit**:
 
 1. Collect Scope: In files across unit tasks → blast **once**:
    ```bash
-   node scripts/nexus-blast.js --files <csv> --task <unit-id> --mermaid
+   nexus blast --files <csv> --task <unit-id> --mermaid
    # writes .opencode/blast/<unit-id>.md + .json
    ```
    Recompute only if implementer edits outside declared scope, or risk is MEDIUM/HIGH after implementation.

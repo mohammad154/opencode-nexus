@@ -14,7 +14,7 @@ If you were dispatched as a subagent (implementer, spec-reviewer, code-reviewer,
 
 **Invoke the relevant Nexus skill BEFORE responding or acting** when the task is non-trivial.
 
-For **narrowly gated direct-safe** work (docs/formatting/one-file internal with `direct_eligible` from the classifier), you may skip loading every skill — still run `node scripts/nexus-run.js classify` / `status` and verification.
+For **narrowly gated direct-safe** work (docs/formatting/one-file internal with `direct_eligible` from the classifier), you may skip loading every skill — still run `nexus run classify` / `nexus run status` and verification.
 
 For everything else: if a Nexus skill clearly applies, load it with OpenCode's `skill` tool and announce it.
 
@@ -40,16 +40,17 @@ Announce: "Using brainstorming to clarify requirements. (V3 engine: profiles + s
 Durable machine state: `.opencode/runs/<run_id>/state.json`
 
 ```bash
-node scripts/nexus-run.js init --run-id <id>
-node scripts/nexus-classify.js --files N --lines N --class <class> [--focused] [--docs]
-node scripts/nexus-run.js transition --to CLASSIFIED --json '{"classification":{...}}'
-node scripts/nexus-run.js transition --to PLANNED --plan-skip   # or ensure PLAN.md exists
-node scripts/nexus-run.js transition --to GRAPH_READY
-node scripts/nexus-run.js transition --to BLAST_READY --blast <path.json>
-node scripts/nexus-run.js transition --to IMPLEMENTING --branch <b> --acceptance 'c1|c2' ...
-node scripts/nexus-run.js validate-handoff --role implementer --file .opencode/handoffs/<id>-implementer.json
-node scripts/nexus-run.js status
-node scripts/nexus-run.js resume
+nexus project-init
+nexus run init --run-id <id>
+nexus classify --files N --lines N --class <class> [--focused] [--docs]
+nexus run transition --to CLASSIFIED --json '{"classification":{...}}'
+nexus run transition --to PLANNED --plan-skip   # or ensure PLAN.md exists
+nexus run transition --to GRAPH_READY
+nexus run transition --to BLAST_READY --blast <path.json>
+nexus run transition --to IMPLEMENTING --branch <b> --acceptance 'c1|c2' ...
+nexus run validate-handoff --role implementer --file .opencode/handoffs/<id>-implementer.json
+nexus run status
+nexus run resume
 ```
 
 Exit code `3` = illegal transition → STOP / reconcile. Exit `2` = validation failure.
@@ -68,7 +69,7 @@ Use the **scoring classifier** (`scripts/lib/classify.js` / `nexus-classify.js`)
 
 Override: `--profile` or `workflow_profile` in CONTEXT.
 
-Before multi-task runs: `node scripts/nexus-estimate-calls.js --tasks N --profile <p>`.
+Before multi-task runs: `nexus estimate --tasks N --profile <p>`.
 
 ## Adaptive direct path (narrow)
 
@@ -84,7 +85,7 @@ Exact CONTEXT line `execution_mode: direct` still authorizes orchestrator self-c
 
 1. `brainstorming` (if unclear)
 2. `writing-plans` (unless direct-safe docs)
-3. `nexus-run.js init` + classify
+3. `nexus run init` + classify
 4. Graphify refresh (skip only for direct-eligible docs/formatting)
 5. Blast script per unit/task (skip only when direct path)
 6. Dispatch implementer (or direct path) → validate handoff → review per profile → script cleanup
@@ -120,5 +121,5 @@ Full gates: `skills/orchestrating/dispatch.md`.
 - Dispatch failed → STOP unless `direct_eligible`; never unrestricted self-coding
 - Treating size-only change as `fast` without tiny-internal/docs evidence → use classifier
 - Treating UNKNOWN/stale Graphify or incomplete blast as low risk → never `fast`
-- Finishing without `nexus-run` / jq APPROVED gates when review required
+- Finishing without `nexus run` / jq APPROVED gates when review required
 - Dispatching LLM for graph/blast/cleanup/jq

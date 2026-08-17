@@ -27,10 +27,12 @@ test("plugin injects a compact router and keeps automatic skill routing", async 
     ],
   };
   await plugin["experimental.chat.messages.transform"]({}, output);
-  const injected = output.messages[0].parts[0].text;
+  const injected = output.messages[0].parts.map((p) => p.text || "").join("\n");
   assert.match(injected, /NEXUS_ROUTER_V3/);
   assert.match(injected, /native skill tool/);
-  assert.ok(injected.length < 1600, `router too large: ${injected.length}`);
+  assert.match(injected, /nexus project-init/);
+  assert.match(injected, /nexus run/);
+  assert.ok(injected.length < 2200, `router too large: ${injected.length}`);
   assert.equal(injected.includes("The using-nexus skill content below"), false);
   assert.match(injected, /→ using-nexus/);
   assert.match(injected, /→ brainstorming/);
@@ -98,4 +100,57 @@ test("compaction adds only compact active-run context and artifact pointers", as
   assert.match(output.context[0], /\.opencode\/plans\/PLAN\.md/);
   assert.match(output.context[0], /Keep the run small/);
   assert.match(output.context[0], /recent lesson/);
+});
+
+test("chat transform injects delegation gate when no active run", async () => {
+  const worktree = tempDir("nexus-plugin-gate-");
+  const plugin = await NexusPlugin({ worktree });
+  const output = {
+    messages: [
+      {
+        info: { role: "user" },
+        parts: [{ type: "text", text: "implement feature" }],
+      },
+    ],
+  };
+  await plugin["experimental.chat.messages.transform"]({}, output);
+  const injected = output.messages[0].parts.map((p) => p.text || "").join("\n");
+  assert.match(injected, /NEXUS_DELEGATION_GATE/);
+  assert.match(injected, /No active Nexus run/);
+  assert.match(injected, /nexus project-init/);
+});
+
+test("chat transform injects IMPLEMENTING dispatch gate", async () => {
+  const worktree = tempDir("nexus-plugin-impl-gate-");
+  writeJson(path.join(worktree, ".opencode", "runs", "active", "state.json"), {
+    run_id: "active",
+    state: "IMPLEMENTING",
+    profile: "balanced",
+    updated_at: "2026-07-30T12:00:00.000Z",
+  });
+  const plugin = await NexusPlugin({ worktree });
+  const output = {
+    messages: [
+      { info: { role: "user" }, parts: [{ type: "text", text: "continue" }] },
+    ],
+  };
+  await plugin["experimental.chat.messages.transform"]({}, output);
+  const injected = output.messages[0].parts.map((p) => p.text || "").join("\n");
+  assert.match(injected, /IMPLEMENTING/);
+  assert.match(injected, /Dispatch implementer/);
+});
+
+test("compaction includes delegation gate for active run", async () => {
+  const worktree = tempDir("nexus-plugin-compact-gate-");
+  writeJson(path.join(worktree, ".opencode", "runs", "active", "state.json"), {
+    run_id: "active",
+    state: "BLAST_READY",
+    profile: "balanced",
+    updated_at: "2026-07-30T12:00:00.000Z",
+  });
+  const plugin = await NexusPlugin({ worktree });
+  const output = {};
+  await plugin["experimental.session.compacting"]({}, output);
+  assert.equal(output.context.length, 1);
+  assert.match(output.context[0], /Complete workflow gates/);
 });

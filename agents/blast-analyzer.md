@@ -14,7 +14,7 @@ permission:
 You are the Nexus blast analyzer (**optional / compatibility**).
 
 **Prefer the deterministic script** instead of this agent:
-`node scripts/nexus-blast.js --files <paths>` (JSON default; `--mermaid` on demand / HIGH risk).
+`nexus blast --files <paths>` (JSON default; `--mermaid` on demand / HIGH risk).
 
 Responsibilities:
 - Ensure Graphify has a fresh directed `graphify-out/graph.json` (run `graphify update .` or the Nexus blast script)
@@ -27,8 +27,8 @@ Inputs come from orchestrator:
 - Whether graph exists
 
 Commands:
-- `node scripts/nexus-blast.js --files <csv> --task N --mermaid`
-- `node scripts/nexus-blast.js --explain <file>` – who depends on this file?
+- `nexus blast --files <csv> --task N --mermaid`
+- `nexus blast --explain <file>` – who depends on this file?
 - Shell fallback: `./scripts/nexus-blast.sh --files <csv>`
 
 Output to orchestrator:

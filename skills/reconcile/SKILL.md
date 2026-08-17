@@ -48,7 +48,7 @@ Ensures the PLAN is still a true picture of the repo after time and commits have
 Prefer the engine helper (does not invent approvals):
 
 ```bash
-node scripts/nexus-run.js drift --json '{
+nexus run drift --json '{
   "plan_commit":"<sha>",
   "current_head":"<sha>",
   "commit_distance": <N>,
@@ -117,7 +117,7 @@ Write findings to reconcile report.
 For each remaining [ ] task:
 
 1. Verify Evidence file:line – if broken and blast analysis now shows new callers, expand Scope In related callers section.
-2. Re-run `node scripts/nexus-blast.js --files <scope in csv> --task N` to refresh blast report with current Graphify state.
+2. Re-run `nexus blast --files <scope in csv> --task N` to refresh blast report with current Graphify state.
 3. If effort/confidence changed due to drift (e.g. file now larger, coupled), update task-N.md header (effort, risk).
 4. If blast risk now HIGH and was LOW when planned, flag to user for explicit approval.
 

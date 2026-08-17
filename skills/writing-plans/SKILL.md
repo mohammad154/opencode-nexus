@@ -126,7 +126,7 @@ Each task-N.md MUST include:
 - Frontmatter-like header: id, title, commit drift sha, base_branch, effort, confidence, dependencies
 - Evidence with file:line
 - Scope in/out
-- Related callers / blast radius (run `node scripts/nexus-blast.js --files <target> --task N` when graph exists, or leave placeholder for orchestrator to fill)
+- Related callers / blast radius (run `nexus blast --files <target> --task N` when graph exists, or leave placeholder for orchestrator to fill)
 - Acceptance criteria as checklists
 - STOP conditions (at least 2)
 - Verification gates (exact commands)

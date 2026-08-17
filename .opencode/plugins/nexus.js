@@ -2,11 +2,13 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import { fileURLToPath } from "url";
+import { buildRunGateReminder } from "../../scripts/lib/run-gate.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const skillsDir = path.resolve(__dirname, "../../skills");
 
 const BOOTSTRAP_MARKER = "NEXUS_ROUTER_V3";
+const GATE_MARKER = "NEXUS_DELEGATION_GATE";
 const TERMINAL_RUN_STATES = new Set(["COMPLETED", "FAILED"]);
 const KNOWLEDGE_RELEVANT_STATES = new Set([
   "PLANNED",
@@ -19,17 +21,22 @@ const KNOWLEDGE_RELEVANT_STATES = new Set([
   "BLOCKED",
 ]);
 
-const COMPACT_ROUTER = [
-  "<EXTREMELY_IMPORTANT>",
-  BOOTSTRAP_MARKER,
-  "OpenCode Nexus is installed. Keep this routing pointer compact and load detailed instructions only with the native skill tool when the phase requires them.",
-  "Route: start or orient a Nexus session → using-nexus; unclear requirements → brainstorming; write a plan → writing-plans; map the codebase → Graphify query/affected/update; before edits → blast-radius; execute an approved plan → orchestrating; isolate work → using-feature-branches; finish/reconcile → finishing-a-development-branch or reconcile.",
-  "Use scripts for state, graph, blast, call estimates, and cleanup. Canonical artifacts live under .opencode/. Review policy is profile-aware; never lower a stored safety gate. Automatic skill routing remains available through the configured skills path.",
-  "</EXTREMELY_IMPORTANT>",
-].join("\n");
+function buildCompactRouter() {
+  return [
+    "<EXTREMELY_IMPORTANT>",
+    BOOTSTRAP_MARKER,
+    "OpenCode Nexus is installed. Keep this routing pointer compact and load detailed instructions only with the native skill tool when the phase requires them.",
+    "Route: start or orient a Nexus session → using-nexus; unclear requirements → brainstorming; write a plan → writing-plans; map the codebase → Graphify query/affected/update; before edits → blast-radius; execute an approved plan → orchestrating; isolate work → using-feature-branches; finish/reconcile → finishing-a-development-branch or reconcile.",
+    "Portable commands (work from any repo): nexus project-init | nexus run ... | nexus blast ... | nexus classify ... | nexus estimate ...",
+    "Use nexus run for state machine gates — do NOT assume repo-local scripts/ exists. Clone-dev fallback only when working inside the Nexus package itself.",
+    "Orchestrator must dispatch implementer for production code. Never self-implement unless execution_mode: direct or narrow direct_eligible exception.",
+    "Use scripts for state, graph, blast, call estimates, and cleanup. Canonical artifacts live under .opencode/. Review policy is profile-aware; never lower a stored safety gate. Automatic skill routing remains available through the configured skills path.",
+    "</EXTREMELY_IMPORTANT>",
+  ].join("\n");
+}
 
-function getBootstrapText() {
-  return COMPACT_ROUTER;
+export function getBootstrapText() {
+  return buildCompactRouter();
 }
 
 function readContextFile(worktree) {
@@ -45,7 +52,7 @@ function readPlanFile(worktree) {
   return fs.readFileSync(planPath, "utf8").trim();
 }
 
-function readRunStateSummary(worktree) {
+export function readRunStateSummary(worktree) {
   const runsRoot = path.join(worktree, ".opencode", "runs");
   if (!fs.existsSync(runsRoot)) return null;
   try {
@@ -99,7 +106,6 @@ function readGraphifySummary(worktree) {
     try {
       const txt = fs.readFileSync(lessons, "utf8").trim();
       if (txt.length > 0) {
-        // Recent entries last – surface tail
         const tailLen = 800;
         const slice = txt.length > tailLen ? txt.slice(-tailLen) : txt;
         parts.push("## Graphify Outcome Memory (LESSONS.md tail)\n" + slice);
@@ -107,10 +113,13 @@ function readGraphifySummary(worktree) {
     } catch {}
   }
 
-  // Latest reconcile if present
   try {
     if (fs.existsSync(reconcileDir)) {
-      const files = fs.readdirSync(reconcileDir).filter(f => f.startsWith("reconcile-") && f.endsWith(".md")).sort().reverse();
+      const files = fs
+        .readdirSync(reconcileDir)
+        .filter((f) => f.startsWith("reconcile-") && f.endsWith(".md"))
+        .sort()
+        .reverse();
       if (files.length > 0) {
         const latest = path.join(reconcileDir, files[0]);
         const txt = fs.readFileSync(latest, "utf8").trim();
@@ -141,6 +150,48 @@ function summarizePlan(planText) {
   return bullets.length > 0 ? bullets.join("\n") : planText.slice(0, 800);
 }
 
+function buildGateInjection(worktree) {
+  const activeRun = readRunStateSummary(worktree);
+  const gate = buildRunGateReminder(activeRun?.state ?? null);
+  if (!gate) return null;
+  return `<EXTREMELY_IMPORTANT>\n${GATE_MARKER}\n${gate}\n</EXTREMELY_IMPORTANT>`;
+}
+
+function findLatestUserMessage(messages) {
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    if (messages[i]?.info?.role === "user") return messages[i];
+  }
+  return null;
+}
+
+function partHasMarker(part, marker) {
+  return (
+    part?.type === "text" &&
+    typeof part.text === "string" &&
+    part.text.includes(marker)
+  );
+}
+
+function injectTextPart(
+  message,
+  text,
+  { marker, replace = false, position = "start" } = {},
+) {
+  if (!message.parts) message.parts = [];
+  if (replace) {
+    const idx = message.parts.findIndex((p) => partHasMarker(p, marker));
+    if (idx >= 0) {
+      message.parts[idx] = { ...message.parts[idx], type: "text", text };
+      return;
+    }
+  }
+  const already = message.parts.some((p) => partHasMarker(p, marker));
+  if (already) return;
+  const part = { type: "text", text };
+  if (position === "end") message.parts.push(part);
+  else message.parts.unshift(part);
+}
+
 export const NexusPlugin = async ({ worktree }) => {
   const homeDir = os.homedir();
   const configDir =
@@ -159,50 +210,52 @@ export const NexusPlugin = async ({ worktree }) => {
     },
 
     "experimental.chat.messages.transform": async (_input, output) => {
+      if (!output.messages || output.messages.length === 0) return;
+      const userMessage = findLatestUserMessage(output.messages);
+      if (
+        !userMessage ||
+        !userMessage.parts ||
+        userMessage.parts.length === 0
+      ) {
+        return;
+      }
+
       const bootstrap = getBootstrapText();
-      if (!bootstrap || !output.messages || output.messages.length === 0)
-        return;
-      const firstUser = output.messages.find(
-        (msg) => msg.info?.role === "user",
+      const alreadyBootstrap = userMessage.parts.some((p) =>
+        partHasMarker(p, BOOTSTRAP_MARKER),
       );
-      if (!firstUser || !firstUser.parts || firstUser.parts.length === 0)
-        return;
-
-      const alreadyInjected = firstUser.parts.some(
-        (part) =>
-          part.type === "text" &&
-          typeof part.text === "string" &&
-          part.text.includes(BOOTSTRAP_MARKER),
-      );
-      if (alreadyInjected) return;
-
-      // Guard against prior bootstrap markers (avoid double-inject)
       const priorMarkers = [
         "NEXUS_BOOTSTRAP_V1",
         "NEXUS_BOOTSTRAP_V2",
         "NEXUS_BOOTSTRAP_V3",
       ];
-      const alreadyPrior = firstUser.parts.some(
+      const alreadyPrior = userMessage.parts.some(
         (p) =>
           p.type === "text" &&
           typeof p.text === "string" &&
           priorMarkers.some((m) => p.text.includes(m)),
       );
-      if (alreadyPrior) return;
 
-      firstUser.parts.unshift({
-        ...firstUser.parts[0],
-        type: "text",
-        text: bootstrap,
-      });
+      if (bootstrap && !alreadyBootstrap && !alreadyPrior) {
+        injectTextPart(userMessage, bootstrap, { marker: BOOTSTRAP_MARKER });
+      }
+
+      if (worktree) {
+        const gateText = buildGateInjection(worktree);
+        if (gateText) {
+          injectTextPart(userMessage, gateText, {
+            marker: GATE_MARKER,
+            replace: true,
+            position: "end",
+          });
+        }
+      }
     },
 
     "experimental.session.compacting": async (_input, output) => {
       if (!worktree) return;
 
       const activeRun = readRunStateSummary(worktree);
-      // Compaction should not pull project-wide memory into unrelated chats.
-      // Only an active, non-terminal run gets state and artifact context.
       if (!activeRun) return;
 
       const chunks = [];
@@ -213,12 +266,20 @@ export const NexusPlugin = async ({ worktree }) => {
 
       chunks.push(activeRun.text);
 
+      const gate = buildRunGateReminder(activeRun.state);
+      if (gate) {
+        chunks.push(gate);
+      }
+
       chunks.push(
         [
           "## Nexus Active Artifact Pointers",
           "- plan: .opencode/plans/PLAN.md",
           "- graphify: graphify-out/",
-          "- metrics: .opencode/runs/" + activeRun.state.run_id + "/metrics.jsonl",
+          "- metrics: .opencode/runs/" +
+            activeRun.state.run_id +
+            "/metrics.jsonl",
+          "- commands: nexus run | nexus blast | nexus classify | nexus estimate",
         ].join("\n"),
       );
 

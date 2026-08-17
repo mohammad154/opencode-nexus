@@ -360,3 +360,117 @@ test("fabricated classification via transition cannot authorize direct", () => {
   assert.equal(denied.ok, false);
   assert.match(JSON.stringify(denied.errors), /classify --apply/i);
 });
+
+test("nexus CLI run forwards workflow in an external temporary repository", () => {
+  const { root, home } = makeTempRepo();
+  const bin = path.join(repoRoot, "bin", "nexus.js");
+  const runId = "e2e-nexus-cli";
+
+  fs.mkdirSync(path.join(root, "src"), { recursive: true });
+  fs.writeFileSync(
+    path.join(root, "src", "app.js"),
+    "export function hello() { return 1; }\n",
+  );
+  fs.writeFileSync(
+    path.join(root, "package.json"),
+    json({ name: "e2e-nexus-cli", type: "module" }) + "\n",
+  );
+  git(root, ["add", "."]);
+  git(root, ["commit", "-m", "initial"]);
+  const baseHead = git(root, ["rev-parse", "HEAD"]);
+  fs.writeFileSync(
+    path.join(root, "src", "app.js"),
+    "export function hello() { return 2; }\n",
+  );
+
+  const projectInit = spawnSync(process.execPath, [bin, "project-init"], {
+    cwd: root,
+    encoding: "utf8",
+    env: { ...process.env, HOME: home },
+  });
+  assert.equal(projectInit.status, 0, projectInit.stderr);
+
+  function nexus(args, { expectStatus = 0 } = {}) {
+    const result = spawnSync(process.execPath, [bin, "run", ...args], {
+      cwd: root,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        HOME: home,
+        NEXUS_WORKTREE: root,
+        PATH: `${path.join(home, "bin")}:${process.env.PATH || ""}`,
+      },
+    });
+    assert.equal(
+      result.status,
+      expectStatus,
+      `${args.join(" ")}\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`,
+    );
+    const out = (result.stdout || result.stderr || "").trim();
+    if (!out) return null;
+    try {
+      return JSON.parse(result.status === 0 ? result.stdout : result.stderr || result.stdout);
+    } catch {
+      return { raw: out };
+    }
+  }
+
+  const initialized = nexus(["init", "--run-id", runId]);
+  assert.equal(initialized.state.state, "CREATED");
+
+  const classified = nexus([
+    "classify",
+    "--run-id",
+    runId,
+    "--apply",
+    "--json",
+    json({
+      changeClass: "small-feature-with-tests",
+      focusedValidation: true,
+    }),
+  ]);
+  assert.equal(classified.state.state, "CLASSIFIED");
+
+  nexus(["transition", "--run-id", runId, "--to", "PLANNED", "--plan-skip"]);
+  nexus(["transition", "--run-id", runId, "--to", "GRAPH_READY"]);
+  nexus([
+    "transition",
+    "--run-id",
+    runId,
+    "--to",
+    "BLAST_READY",
+    "--json",
+    json({
+      blast_verification: {
+        verified: true,
+        method: "e2e-nexus-cli",
+        reason: "provider blast may be UNKNOWN on tiny fixture",
+      },
+    }),
+  ]);
+
+  git(root, ["checkout", "-b", "e2e/nexus-cli"]);
+  const implementing = nexus([
+    "transition",
+    "--run-id",
+    runId,
+    "--to",
+    "IMPLEMENTING",
+    "--json",
+    json({
+      branch: "e2e/nexus-cli",
+      acceptance_criteria: ["CLI forwarded to IMPLEMENTING"],
+      drift: {
+        schema_version: "1.0",
+        drift: "NONE",
+        reasons: [],
+        plan_commit: baseHead,
+        current_head: baseHead,
+        commit_distance: 0,
+        anchors_broken: [],
+        merge_base_changed: false,
+      },
+    }),
+  ]);
+  assert.equal(implementing.state.state, "IMPLEMENTING");
+});

@@ -94,7 +94,7 @@ the direct-path rules.
 Estimate agent calls, not monetary spend:
 
 ```bash
-node scripts/nexus-estimate-calls.js --tasks 3 --profile balanced
+nexus estimate --tasks 3 --profile balanced
 ```
 
 The runtime can enforce the same profile-derived call ceiling through the
@@ -107,7 +107,7 @@ tokens; a `cost_usd` field is retained only when the host supplies it.
 ```bash
 graphify query "<architecture question>"
 graphify affected "<node-or-file>" --depth 2
-node scripts/nexus-blast.js --mermaid
+nexus blast --mermaid
 ```
 
 Graphify owns graph refresh and native metadata. Nexus requires a fresh directed

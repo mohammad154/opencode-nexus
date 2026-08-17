@@ -29,27 +29,28 @@ Security, migration, public API, and credential work always uses `strict` plus d
 Typical initialization and classification:
 
 ```bash
-node scripts/nexus-run.js init --run-id <id>
-node scripts/nexus-classify.js \
+nexus project-init
+nexus run init --run-id <id>
+nexus classify \
   --files <count> --lines <count> --class <change-class> [--focused] [--docs]
-node scripts/nexus-estimate-calls.js --tasks <count> --profile <profile>
+nexus estimate --tasks <count> --profile <profile>
 ```
 
 Typical engine gates:
 
 ```bash
-node scripts/nexus-run.js transition --to CLASSIFIED --json '{"classification":{}}'
-node scripts/nexus-run.js transition --to PLANNED --plan-skip
-node scripts/nexus-run.js transition --to GRAPH_READY
-node scripts/nexus-run.js transition --to BLAST_READY --blast <path-to-blast.json>
-node scripts/nexus-run.js status
-node scripts/nexus-run.js resume
+nexus run transition --to CLASSIFIED --json '{"classification":{}}'
+nexus run transition --to PLANNED --plan-skip
+nexus run transition --to GRAPH_READY
+nexus run transition --to BLAST_READY --blast <path-to-blast.json>
+nexus run status
+nexus run resume
 ```
 
 The orchestrator must validate the implementer and reviewer handoffs before completing a run:
 
 ```bash
-node scripts/nexus-run.js validate-handoff \
+nexus run validate-handoff \
   --role implementer \
   --file .opencode/handoffs/<id>-implementer.json
 jq -e '.verdict == "APPROVED"' .opencode/handoffs/<id>-unified-reviewer.json
@@ -66,8 +67,8 @@ graphify extract . --code-only --directed --no-viz  # when graphify-out/graph.js
 graphify update .                                  # when it already exists
 graphify query "<architecture question>"
 graphify affected "<node-or-file>" --depth 2
-node scripts/nexus-blast.js --files <file1,file2> --json
-node scripts/nexus-blast.js --files <file1,file2> --task <id> --mermaid
+nexus blast --files <file1,file2> --json
+nexus blast --files <file1,file2> --task <id> --mermaid
 ```
 
 Graphify records native freshness metadata and preserves directed node-link relations. Blast output records the detected risk and affected callers. Missing, malformed, stale, failed-refresh, or undirected evidence is UNKNOWN and must be fixed or verified before using a direct path.
@@ -114,7 +115,7 @@ If a unified reviewer requests changes, rerun the implementer and unified review
 - `.opencode/reconcile/` — Nexus reconcile reports; and
 - `graphify-out/memory/` + `graphify-out/reflections/LESSONS.md` — Graphify outcome memory.
 
-Run `node scripts/nexus-run.js status` after resuming a session. If a target, plan, graph, or handoff has drifted, stop and reconcile before implementation.
+Run `nexus run status` after resuming a session. If a target, plan, graph, or handoff has drifted, stop and reconcile before implementation.
 
 ## Verification commands
 

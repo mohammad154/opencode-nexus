@@ -85,7 +85,7 @@ or
 
 VERDICT: BLOCKED (drift / blast surprise)
 - <reason: e.g. new transitive caller discovered not in original blast, target file drifted, symbol missing>
-- Action: re-run `node scripts/nexus-blast.js --depth 3` or reconcile
+- Action: re-run `nexus blast --depth 3` or reconcile
 
 Prioritize findings by severity: HIGH = must fix before merge, MEDIUM = should fix (callers broken), LOW = nit (optional but logged)
 

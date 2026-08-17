@@ -302,23 +302,24 @@ graphify affected "<node-or-file>" --depth 2
 Initialize a run, classify, and estimate agent calls:
 
 ```bash
-node scripts/nexus-run.js init --run-id demo
-node scripts/nexus-classify.js --files 2 --lines 40 --class small-feature-with-tests --focused
-node scripts/nexus-estimate-calls.js --tasks 3 --profile balanced
+nexus project-init
+nexus run init --run-id demo
+nexus classify --files 2 --lines 40 --class small-feature-with-tests --focused
+nexus estimate --tasks 3 --profile balanced
 ```
 
 Blast radius for changed files:
 
 ```bash
-node scripts/nexus-blast.js --files path/to/changed-file.js --json
+nexus blast --files path/to/changed-file.js --json
 ```
 
 State machine and handoff checks:
 
 ```bash
-node scripts/nexus-run.js transition --to CLASSIFIED --json '{"classification":{}}'
-node scripts/nexus-run.js status
-node scripts/nexus-run.js validate-handoff \
+nexus run transition --to CLASSIFIED --json '{"classification":{}}'
+nexus run status
+nexus run validate-handoff \
   --role implementer \
   --file .opencode/handoffs/<run>-implementer.json
 ```
