@@ -1,6 +1,6 @@
 {
   "name": "@mohammad154/opencode-nexus",
-  "version": "1.1.4",
+  "version": "1.1.5",
   "description": "Multi-agent development workflow for OpenCode, with V3 profiles and an executable workflow engine",
   "type": "module",
   "main": ".opencode/plugins/nexus.js",
