@@ -17,6 +17,8 @@ export PATH="$HOME/bin:$SANITIZED_PATH"
 export GRAPHIFY_LOG="$HOME/graphify.log"
 printf '{}\n' >"$HOME/.config/opencode/opencode.json"
 
+CONFIG="$HOME/.config/opencode/opencode.json"
+
 echo "== default install: no optional agents =="
 "$ROOT/install.sh" >/tmp/nexus-install-default.log 2>&1 || {
   cat /tmp/nexus-install-default.log
@@ -25,6 +27,7 @@ echo "== default install: no optional agents =="
 test -f "$HOME/.config/opencode/agents/orchestrator.md"
 test -f "$HOME/.config/opencode/agents/implementer.md"
 test ! -f "$HOME/.config/opencode/agents/blast-analyzer.md"
+jq -e '(.agent | has("blast-analyzer")) | not' "$CONFIG" >/dev/null
 grep -q 'Optional agent skipped' /tmp/nexus-install-default.log
 echo "PASS: default install omits the optional blast agent"
 
@@ -34,6 +37,7 @@ echo "== --with-optional-agents =="
   exit 1
 }
 test -f "$HOME/.config/opencode/agents/blast-analyzer.md"
+jq -e '.agent["blast-analyzer"] | type == "object"' "$CONFIG" >/dev/null
 echo "PASS: --with-optional-agents installs the optional blast agent"
 
 echo "== --prune-optional-agents =="
@@ -43,7 +47,23 @@ echo "== --prune-optional-agents =="
 }
 test ! -f "$HOME/.config/opencode/agents/blast-analyzer.md"
 test -f "$HOME/.config/opencode/agents/orchestrator.md"
+jq -e '(.agent | has("blast-analyzer")) | not' "$CONFIG" >/dev/null
+jq -e '.agent | has("orchestrator")' "$CONFIG" >/dev/null
 echo "PASS: prune removes optional agents, keeps defaults"
+
+echo "== default install strips leaked optional agent config =="
+jq -n --argjson existing "$(cat "$CONFIG")" '
+  $existing * {agent: (($existing.agent // {}) + {"blast-analyzer": {"model": "leaked/model"}})}
+' >"$CONFIG"
+test ! -f "$HOME/.config/opencode/agents/blast-analyzer.md"
+"$ROOT/install.sh" >/tmp/nexus-install-leaked.log 2>&1 || {
+  cat /tmp/nexus-install-leaked.log
+  exit 1
+}
+test ! -f "$HOME/.config/opencode/agents/blast-analyzer.md"
+jq -e '(.agent | has("blast-analyzer")) | not' "$CONFIG" >/dev/null
+jq -e '.agent | has("orchestrator")' "$CONFIG" >/dev/null
+echo "PASS: default install removes leaked blast-analyzer config"
 
 # Agent source files still in repo
 test -f "$ROOT/agents/blast-analyzer.md"

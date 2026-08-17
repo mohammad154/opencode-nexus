@@ -34,6 +34,7 @@ if find "$HOME" -iname '*nexus*' ! -path "$HOME/.config/opencode/*" -print -quit
 fi
 test "$(ls "$HOME/.config/opencode/agents" 2>/dev/null | wc -l)" -gt 0
 test ! -f "$HOME/.config/opencode/agents/blast-analyzer.md"
+jq -e '(.agent | has("blast-analyzer")) | not' "$HOME/.config/opencode/opencode.json" >/dev/null
 grep -q '^install --platform opencode$' "$GRAPHIFY_LOG"
 grep -q '^opencode install$' "$GRAPHIFY_LOG"
 echo "PASS: installer writes only OpenCode artifacts"

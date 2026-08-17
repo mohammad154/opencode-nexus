@@ -90,6 +90,8 @@ done
   || fail "OpenCode unexpectedly prefixed its native agent names"
 [[ ! -e "$agent_root/blast-analyzer.md" ]] \
   || fail "optional compatibility agents installed by default"
+jq -e '(.agent | has("blast-analyzer")) | not' "$home/.config/opencode/opencode.json" >/dev/null \
+  || fail "optional blast-analyzer model config installed by default"
 jq -e --arg spec "$PLUGIN_SPEC" \
   '((.plugin // []) | map(select(. == $spec)) | length) == 1' \
   "$home/.config/opencode/opencode.json" >/dev/null \

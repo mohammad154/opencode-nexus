@@ -104,10 +104,30 @@ done
 for spec in "implementer:NEXUS_IMPLEMENTER_REASONING_EFFORT" "spec-reviewer:NEXUS_SPEC_REVIEWER_REASONING_EFFORT" "code-reviewer:NEXUS_CODE_REVIEWER_REASONING_EFFORT" "unified-reviewer:NEXUS_UNIFIED_REVIEWER_REASONING_EFFORT"; do
   IFS=: read -r ag envv <<<"$spec"; v="${!envv:-}"; [[ -n "$v" ]] && MJ="$(jq --arg a "$ag" --arg e "$v" '.[$a].reasoningEffort=$e' <<<"$MJ")"
 done
+OPTIONAL_JSON="$(printf '%s\n' "${OPTIONAL_AGENTS[@]}" | jq -R . | jq -s .)"
+# Default install must not register optional agents in opencode.json — only copy/merge them with --with-optional-agents.
+if ! (( WITH_OPTIONAL_AGENTS )); then
+  MJ="$(jq --argjson skip "$OPTIONAL_JSON" 'reduce $skip[] as $k (.; del(.[$k]))' <<<"$MJ")"
+fi
+PRUNE_JSON='[]'
+if (( PRUNE_OPTIONAL_AGENTS )); then
+  PRUNE_JSON="$OPTIONAL_JSON"
+elif ! (( WITH_OPTIONAL_AGENTS )); then
+  # Drop leaked optional-agent model config when the agent file was never opted in.
+  leaked=()
+  for a in "${OPTIONAL_AGENTS[@]}"; do
+    if [[ ! -f "$AGENTS_DIR/${a}.md" ]]; then
+      leaked+=("$a")
+    fi
+  done
+  if (( ${#leaked[@]} )); then
+    PRUNE_JSON="$(printf '%s\n' "${leaked[@]}" | jq -R . | jq -s .)"
+  fi
+fi
 TMP="$(mktemp)"
 # Keep object context: `.plugin=(...)` would pipe the array and break later merges
 # Only merge object-valued agent entries (skip any leftover non-objects)
-if ! jq --arg p "$PLUGIN_SPEC" --arg name "$PKG_NAME" --arg legacy "$LEGACY_GIT_SPEC" --argjson m "$MJ" '
+if ! jq --arg p "$PLUGIN_SPEC" --arg name "$PKG_NAME" --arg legacy "$LEGACY_GIT_SPEC" --argjson m "$MJ" --argjson prune "$PRUNE_JSON" '
   .plugin = (
     ((.plugin // []) | map(select(
       . != $legacy
@@ -118,6 +138,11 @@ if ! jq --arg p "$PLUGIN_SPEC" --arg name "$PKG_NAME" --arg legacy "$LEGACY_GIT_
   | .agent = (.agent // {})
   | reduce (($m | to_entries[] | select(.value|type=="object")) ) as $e (.;
       .agent[$e.key] = ((.agent[$e.key] // {}) + $e.value))
+  | reduce $prune[] as $k (.;
+      if .agent[$k] then
+        .agent[$k] |= del(.model, .reasoningEffort)
+        | if .agent[$k] == {} then .agent |= del(.[$k]) else . end
+      else . end)
 ' "$CONFIG_FILE" >"$TMP"; then
   echo "  Error: failed to merge plugin/models into $CONFIG_FILE"
   rm -f "$TMP"
