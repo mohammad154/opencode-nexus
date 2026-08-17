@@ -3,14 +3,7 @@ description: Combined spec+quality review for low/medium risk work under fast/ba
 mode: subagent
 permission:
   edit: deny
-  bash:
-    "git diff*": allow
-    "git log*": allow
-    "git show*": allow
-    "git rev-parse*": allow
-    "jq*": allow
-    "rg*": allow
-    "*": ask
+  bash: allow
   task:
     "*": deny
 ---

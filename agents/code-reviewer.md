@@ -3,14 +3,7 @@ description: Performs code quality review after spec compliance is approved – 
 mode: subagent
 permission:
   edit: deny
-  bash:
-    "git diff*": allow
-    "git log*": allow
-    "git show*": allow
-    "git rev-parse*": allow
-    "jq*": allow
-    "rg*": allow
-    "*": ask
+  bash: allow
   task:
     "*": deny
 ---

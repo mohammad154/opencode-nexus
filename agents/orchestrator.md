@@ -6,26 +6,7 @@ permission:
     ".opencode/**": allow
     "AGENTS.md": allow
     "*": ask
-  bash:
-    "git checkout*": allow
-    "git branch*": allow
-    "git branch -d*": deny
-    "git branch -D*": deny
-    "git merge*": ask
-    "git diff*": allow
-    "git log*": allow
-    "git status*": allow
-    "git rev-parse*": allow
-    "git merge-base*": allow
-    "node*": allow
-    "bash*": allow
-    "graphify*": allow
-    "./scripts/nexus-*": allow
-    "scripts/nexus-*": allow
-    "jq*": allow
-    "rg*": allow
-    "fd*": allow
-    "*": ask
+  bash: allow
   task:
     "*": deny
     implementer: allow

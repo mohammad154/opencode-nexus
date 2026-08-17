@@ -3,42 +3,7 @@ description: Implements a single task or execution-unit batch with blast awarene
 mode: subagent
 permission:
   edit: allow
-  bash:
-    "git add*": allow
-    "git commit*": allow
-    "git status*": allow
-    "git diff*": allow
-    "git log*": allow
-    "git show*": allow
-    "git branch --show-current*": allow
-    "git rev-parse*": allow
-    "npm *": allow
-    "pnpm *": allow
-    "yarn *": allow
-    "bun *": allow
-    "node*": allow
-    "npx *": allow
-    "pytest*": allow
-    "python*": allow
-    "python3*": allow
-    "cargo *": allow
-    "go test*": allow
-    "go build*": allow
-    "make*": allow
-    "task*": allow
-    "ruff*": allow
-    "mypy*": allow
-    "eslint*": allow
-    "tsc*": allow
-    "jq*": allow
-    "rg*": allow
-    "fd*": allow
-    "git push*": deny
-    "git checkout main*": deny
-    "git checkout master*": deny
-    "git branch -d*": deny
-    "git branch -D*": deny
-    "*": ask
+  bash: allow
   task:
     "*": deny
 ---
@@ -61,4 +26,4 @@ Requirements:
 Hard rules:
 - Do not expand scope beyond Scope: In / unit shared_files without noting scope_extras and recommending blast recompute.
 - Do not skip STOP conditions.
-- Do not use broad unrestricted shells to bypass permission policy.
+- Do not expand shell use to skip STOP conditions or leave the assigned branch.

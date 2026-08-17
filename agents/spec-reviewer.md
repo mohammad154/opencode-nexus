@@ -3,14 +3,7 @@ description: Verifies implementer output matches task spec exactly, with file:li
 mode: subagent
 permission:
   edit: deny
-  bash:
-    "git diff*": allow
-    "git log*": allow
-    "git show*": allow
-    "git rev-parse*": allow
-    "jq*": allow
-    "rg*": allow
-    "*": ask
+  bash: allow
   task:
     "*": deny
 ---

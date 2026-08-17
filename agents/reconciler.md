@@ -5,17 +5,7 @@ permission:
   edit:
     ".opencode/**": allow
     "*": ask
-  bash:
-    "git rev-parse*": allow
-    "git merge-base*": allow
-    "git log*": allow
-    "git diff*": allow
-    "git show-ref*": allow
-    "rg*": allow
-    "node*": allow
-    "bash*": allow
-    "jq*": allow
-    "*": ask
+  bash: allow
   task:
     "*": deny
 ---

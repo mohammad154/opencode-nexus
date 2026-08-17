@@ -6,17 +6,7 @@ permission:
     ".opencode/blast/**": allow
     ".opencode/**": ask
     "*": deny
-  bash:
-    "node*": allow
-    "bash*": allow
-    "./scripts/nexus-blast.sh*": allow
-    "graphify*": allow
-    "git diff*": allow
-    "git rev-parse*": allow
-    "git log*": allow
-    "jq*": allow
-    "rg*": allow
-    "*": ask
+  bash: allow
   task:
     "*": deny
 ---
