@@ -191,12 +191,32 @@ function cmdProjectInit() {
     pkgName: pkg.name,
     pkgRoot,
   });
+
+  // Project-level Graphify wiring (instructions + plugin) belongs here, scoped
+  // to the current project — NOT in the global `nexus install`, which may run
+  // from an arbitrary directory and must not mutate an unrelated project.
+  let graphify = { attempted: false, ok: null, detail: "graphify not found on PATH" };
+  if (hasCommand("graphify")) {
+    graphify = { attempted: true, ok: false, detail: null };
+    const r = spawnSync("graphify", ["opencode", "install"], {
+      cwd: worktree,
+      encoding: "utf8",
+    });
+    graphify.ok = r.status === 0;
+    graphify.detail = graphify.ok
+      ? "graphify opencode install completed"
+      : `graphify opencode install failed (exit ${r.status ?? "unknown"}): ${
+          (r.stderr || r.stdout || "").trim() || "no output"
+        }`;
+  }
+
   console.log(
     JSON.stringify(
       {
         ok: true,
         message: "Nexus project bootstrap complete",
         ...result,
+        graphify,
       },
       null,
       2,

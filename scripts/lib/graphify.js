@@ -75,6 +75,21 @@ export function resolveGraphifyGraphPath(worktree = process.cwd(), override = un
   return path.join(resolveGraphifyOut(worktree, override), "graph.json");
 }
 
+/**
+ * A graph path is canonical only when it is exactly the Graphify output the
+ * current worktree owns: <worktree>/<GRAPHIFY_OUT|graphify-out>/graph.json.
+ * Trusted workflow decisions must never bind to a caller-selected custom path,
+ * because a foreign graph.json could otherwise satisfy safety gates.
+ */
+export function isCanonicalGraphifyGraphPath(
+  graphPath,
+  worktree = process.cwd(),
+  override = undefined,
+) {
+  if (typeof graphPath !== "string" || graphPath.trim() === "") return false;
+  return path.resolve(graphPath) === resolveGraphifyGraphPath(worktree, override);
+}
+
 function currentHead(worktree) {
   const result = spawnSync("git", ["rev-parse", "HEAD"], {
     cwd: worktree,
@@ -113,11 +128,18 @@ function manifestSourcePath(value, worktree) {
 /**
  * Validate Graphify freshness without inventing a Nexus graph fingerprint.
  * Graphify's built_at_commit and native manifest are the available evidence.
+ *
+ * Provenance is mandatory for a FRESH verdict: the graph must carry a
+ * commit-matched built_at_commit, and BOTH the .graphify_root marker (pointing
+ * at the current worktree) and a valid manifest.json must be present. Absent
+ * provenance is treated as STALE so a hand-crafted graph.json that merely
+ * copies the current HEAD cannot appear fresh.
  */
 export function validateGraphifyFreshness({
   graph,
   worktree = process.cwd(),
   outDirectory = resolveGraphifyOut(worktree),
+  requireProvenance = true,
 } = {}) {
   const issues = [];
   const checks = {
@@ -144,6 +166,13 @@ export function validateGraphifyFreshness({
     checks.root_match = graphRoot === path.resolve(worktree);
     if (!checks.root_match) {
       issues.push(`Graphify root mismatch: ${graphRoot}`);
+    }
+  } else {
+    checks.root_match = false;
+    if (requireProvenance) {
+      issues.push(
+        `Graphify provenance missing: no .graphify_root in ${outDirectory} proving this graph belongs to ${path.resolve(worktree)}`,
+      );
     }
   }
 
@@ -181,6 +210,13 @@ export function validateGraphifyFreshness({
           }
         }
       }
+    }
+  } else {
+    checks.manifest_match = false;
+    if (requireProvenance) {
+      issues.push(
+        `Graphify provenance missing: no manifest.json in ${outDirectory}`,
+      );
     }
   }
 
@@ -323,7 +359,9 @@ export function readGraphifyGraph({
   worktree = process.cwd(),
   graphPath = resolveGraphifyGraphPath(worktree),
   outDirectory = path.dirname(graphPath),
+  graphifyOut = undefined,
 } = {}) {
+  const canonical = isCanonicalGraphifyGraphPath(graphPath, worktree, graphifyOut);
   if (!fs.existsSync(graphPath)) {
     return {
       ok: false,
@@ -331,6 +369,7 @@ export function readGraphifyGraph({
       issues: [`Graphify graph is missing: ${graphPath}`],
       path: graphPath,
       out_directory: outDirectory,
+      canonical,
       graph: null,
       nodes: [],
       edges: [],
@@ -352,6 +391,7 @@ export function readGraphifyGraph({
       issues: [`Graphify graph JSON is invalid: ${parsed.error.message || String(parsed.error)}`],
       path: graphPath,
       out_directory: outDirectory,
+      canonical,
       graph: null,
       nodes: [],
       edges: [],
@@ -372,14 +412,21 @@ export function readGraphifyGraph({
     worktree,
     outDirectory,
   });
-  const issues = [...parsedGraph.issues, ...freshness.reasons];
+  const provenanceIssues = canonical
+    ? []
+    : [
+        `Graphify graph path is not canonical: ${graphPath} (trusted decisions require ${resolveGraphifyGraphPath(worktree, graphifyOut)})`,
+      ];
+  const issues = [...parsedGraph.issues, ...freshness.reasons, ...provenanceIssues];
   const status = parsedGraph.status === "MALFORMED"
     ? "MALFORMED"
     : parsedGraph.status === "UNDIRECTED"
       ? "UNDIRECTED"
-      : freshness.valid
-        ? "FRESH"
-        : "STALE";
+      : !canonical
+        ? "NON_CANONICAL"
+        : freshness.valid
+          ? "FRESH"
+          : "STALE";
   return {
     ...parsedGraph,
     ok: issues.length === 0,
@@ -387,10 +434,15 @@ export function readGraphifyGraph({
     issues: [...new Set(issues)],
     path: graphPath,
     out_directory: outDirectory,
+    canonical,
     freshness: {
       ...freshness,
       status: status === "FRESH" ? "FRESH" : status,
-      valid: status === "FRESH" && freshness.valid && parsedGraph.issues.length === 0,
+      valid:
+        status === "FRESH" &&
+        canonical &&
+        freshness.valid &&
+        parsedGraph.issues.length === 0,
       reasons: [...new Set(issues)],
     },
   };
@@ -444,6 +496,7 @@ export function prepareGraphifyGraph(options = {}) {
     worktree,
     graphPath,
     outDirectory: path.dirname(graphPath),
+    graphifyOut: options.graphifyOut,
   });
   return {
     ...loaded,

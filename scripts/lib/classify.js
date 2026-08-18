@@ -96,11 +96,21 @@ const PATH_SIGNAL_RULES = [
     flag: "security",
     reason: "authentication subsystem",
     re: /(^|\/)(auth|oauth|saml|oidc|sso|session|credential|rbac|acl|permissions?)(\/|$)/i,
+    // Hard signals are authoritative: a safer declared change_class can never
+    // suppress them. The Git diff is the source of truth.
+    hard: true,
   },
   {
     flag: "migration",
     reason: "database migration",
     re: /(^|\/)(migrations?|alembic|prisma\/migrations)(\/|$)|(?:^|\/).*(?:^|[-_.])migration(?:[-_.].*)?\.(sql|js|ts|py)$/i,
+    hard: true,
+  },
+  {
+    flag: "credential_handling",
+    reason: "credential/secret handling",
+    re: /(^|\/)(secrets?|credentials?|vault|keystore|keychain)(\/|$)|(?:^|[-_.])(secret|credential|private[-_.]?key)(?:[-_.][^/]*)?\.(json|ya?ml|env|pem|key)$/i,
+    hard: true,
   },
   {
     flag: "database_storage",
@@ -123,6 +133,9 @@ const PATH_SIGNAL_RULES = [
     re: /(^|\/)(workers?|queues?|jobs?|async)(\/|$)/i,
   },
 ];
+
+const HARD_PATH_SIGNAL_RULES = PATH_SIGNAL_RULES.filter((rule) => rule.hard);
+const SOFT_PATH_SIGNAL_RULES = PATH_SIGNAL_RULES.filter((rule) => !rule.hard);
 
 /**
  * Map legacy v1 classificationRules (with ambiguous fastIf.or) to v2 scoring.
@@ -327,21 +340,36 @@ function allFilesAreTestsOrDocs(files) {
   );
 }
 
-function inferPathSignals(changedFiles, changeClass, flags, reasons) {
-  if (!changedFiles.length) return;
-  if (
-    SKIP_PATH_HARD_CLASSES.has(changeClass) ||
-    allFilesAreTestsOrDocs(changedFiles)
-  ) {
-    return;
-  }
-  for (const rule of PATH_SIGNAL_RULES) {
+function applyPathSignalRules(rules, changedFiles, flags, reasons) {
+  for (const rule of rules) {
     if (flags.has(rule.flag)) continue;
     const hit = changedFiles.find((file) => rule.re.test(file));
     if (!hit) continue;
     flags.add(rule.flag);
     reasons.push(`${rule.reason} (${hit})`);
   }
+}
+
+function inferPathSignals(changedFiles, changeClass, flags, reasons) {
+  if (!changedFiles.length) return;
+
+  // Hard path signals (auth/security, migration, credential handling) are
+  // authoritative and ALWAYS run. A declared safer change_class such as
+  // documentation/formatting/test-only/one_file_internal — or an all-docs/tests
+  // file set — can never suppress them, because the Git diff is the source of
+  // truth. Suppressing a security signal by mislabeling a change must be
+  // impossible.
+  applyPathSignalRules(HARD_PATH_SIGNAL_RULES, changedFiles, flags, reasons);
+
+  // Soft (size/behavior) signals may still be skipped for declared-safe
+  // classes or all-docs/tests changes; they only influence weighted scoring.
+  if (
+    SKIP_PATH_HARD_CLASSES.has(changeClass) ||
+    allFilesAreTestsOrDocs(changedFiles)
+  ) {
+    return;
+  }
+  applyPathSignalRules(SOFT_PATH_SIGNAL_RULES, changedFiles, flags, reasons);
 }
 
 function blastRiskOf(blast) {

@@ -221,22 +221,29 @@ export const NexusPlugin = async ({ worktree }) => {
       }
 
       const bootstrap = getBootstrapText();
-      const alreadyBootstrap = userMessage.parts.some((p) =>
-        partHasMarker(p, BOOTSTRAP_MARKER),
-      );
       const priorMarkers = [
         "NEXUS_BOOTSTRAP_V1",
         "NEXUS_BOOTSTRAP_V2",
         "NEXUS_BOOTSTRAP_V3",
       ];
-      const alreadyPrior = userMessage.parts.some(
-        (p) =>
-          p.type === "text" &&
-          typeof p.text === "string" &&
-          priorMarkers.some((m) => p.text.includes(m)),
+      // The router bootstrap is session-once: if ANY message in the session
+      // (not just the latest user turn) already carries the marker, do not
+      // re-inject it. Checking only the latest message re-injected the router
+      // on every new user turn, wasting context and repeatedly biasing the
+      // orchestrator.
+      const sessionHasBootstrap = output.messages.some(
+        (message) =>
+          Array.isArray(message?.parts) &&
+          message.parts.some(
+            (p) =>
+              partHasMarker(p, BOOTSTRAP_MARKER) ||
+              (p?.type === "text" &&
+                typeof p.text === "string" &&
+                priorMarkers.some((m) => p.text.includes(m))),
+          ),
       );
 
-      if (bootstrap && !alreadyBootstrap && !alreadyPrior) {
+      if (bootstrap && !sessionHasBootstrap) {
         injectTextPart(userMessage, bootstrap, { marker: BOOTSTRAP_MARKER });
       }
 

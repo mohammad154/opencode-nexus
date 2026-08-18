@@ -36,7 +36,12 @@ test "$(ls "$HOME/.config/opencode/agents" 2>/dev/null | wc -l)" -gt 0
 test ! -f "$HOME/.config/opencode/agents/blast-analyzer.md"
 jq -e '(.agent | has("blast-analyzer")) | not' "$HOME/.config/opencode/opencode.json" >/dev/null
 grep -q '^install --platform opencode$' "$GRAPHIFY_LOG"
-grep -q '^opencode install$' "$GRAPHIFY_LOG"
+# `graphify opencode install` is a PROJECT-level mutation and must NOT run from a
+# global `nexus install`; it belongs to `nexus project-init`.
+if grep -q '^opencode install$' "$GRAPHIFY_LOG"; then
+  echo "FAIL: global install performed project-level 'graphify opencode install'" >&2
+  exit 1
+fi
 echo "PASS: installer writes only OpenCode artifacts"
 
 echo "== rejected unknown flags =="

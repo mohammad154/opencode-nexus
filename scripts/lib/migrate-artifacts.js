@@ -197,8 +197,41 @@ export function writeRunState(worktree, state) {
   const dir = path.dirname(runStatePath(worktree, state.run_id));
   fs.mkdirSync(dir, { recursive: true });
   const target = path.join(dir, "state.json");
+
+  // Optimistic concurrency control: a caller that read revision N must write
+  // N (which we bump to N+1). If the on-disk revision advanced meanwhile,
+  // another agent wrote first and this write is rejected so its changes are
+  // not silently destroyed. Callers without a base revision (fresh init) skip
+  // the check.
+  const expectedRevision = Number.isInteger(state._revision)
+    ? state._revision
+    : null;
+  if (expectedRevision !== null && fs.existsSync(target)) {
+    let current = null;
+    try {
+      current = JSON.parse(fs.readFileSync(target, "utf8"));
+    } catch {
+      current = null;
+    }
+    const currentRevision = Number.isInteger(current?._revision)
+      ? current._revision
+      : 0;
+    if (currentRevision !== expectedRevision) {
+      const err = new Error(
+        `run state revision conflict for ${state.run_id}: expected ${expectedRevision}, found ${currentRevision} (concurrent write)`,
+      );
+      err.code = "REVISION_CONFLICT";
+      err.expected = expectedRevision;
+      err.actual = currentRevision;
+      throw err;
+    }
+  }
+
+  const nextRevision =
+    (Number.isInteger(state._revision) ? state._revision : 0) + 1;
+  const { _revision: _drop, ...rest } = state;
   const tmp = `${target}.${process.pid}.${Date.now()}.tmp`;
-  const next = { ...state, updated_at: nowIso() };
+  const next = { ...rest, _revision: nextRevision, updated_at: nowIso() };
   fs.writeFileSync(tmp, JSON.stringify(next, null, 2) + "\n", "utf8");
   fs.renameSync(tmp, target);
   return next;
@@ -242,18 +275,80 @@ export function inferRunFromContext(worktree) {
   const handoffsDir = path.join(worktree, ".opencode", "handoffs");
   let latestImplementer = null;
   let latestReview = null;
+  let ambiguousImplementer = false;
+  let ambiguousReview = false;
   if (fs.existsSync(handoffsDir)) {
+    const runId = fields.run_id || null;
+    const currentUnit = fields.current_unit || null;
+
+    const candidates = [];
     for (const f of fs.readdirSync(handoffsDir)) {
       if (!f.endsWith(".json")) continue;
       const full = path.join(handoffsDir, f);
+      let raw;
       try {
-        const raw = JSON.parse(fs.readFileSync(full, "utf8"));
-        if (f.includes("implementer")) latestImplementer = raw;
-        if (f.includes("reviewer")) latestReview = raw;
+        raw = JSON.parse(fs.readFileSync(full, "utf8"));
       } catch {
-        /* ignore corrupt */
+        continue; // ignore corrupt
       }
+      // Filter to this run and execution unit when the CONTEXT provides them.
+      // A handoff that declares a different run_id/unit must never be selected.
+      const handoffRun = raw.run_id ?? null;
+      const handoffUnit = raw.unit_or_task ?? raw.task_id ?? null;
+      if (runId && handoffRun && handoffRun !== runId) continue;
+      if (currentUnit && handoffUnit && handoffUnit !== currentUnit) continue;
+
+      let mtimeMs = 0;
+      try {
+        mtimeMs = fs.statSync(full).mtimeMs;
+      } catch {
+        mtimeMs = 0;
+      }
+      const kind = f.includes("implementer")
+        ? "implementer"
+        : f.includes("reviewer")
+          ? "reviewer"
+          : null;
+      if (!kind) continue;
+      candidates.push({
+        file: f,
+        raw,
+        kind,
+        created_at: typeof raw.created_at === "string" ? raw.created_at : null,
+        mtimeMs,
+      });
     }
+
+    // Sort by created_at (ISO) when available, else mtime; newest last.
+    const byRecency = (a, b) => {
+      if (a.created_at && b.created_at && a.created_at !== b.created_at) {
+        return a.created_at < b.created_at ? -1 : 1;
+      }
+      return a.mtimeMs - b.mtimeMs;
+    };
+
+    const pickLatest = (kind) => {
+      const list = candidates.filter((c) => c.kind === kind).sort(byRecency);
+      if (list.length === 0) return { value: null, ambiguous: false };
+      const newest = list[list.length - 1];
+      // Ambiguous when the two most recent are indistinguishable in ordering
+      // evidence (same/absent created_at AND same mtime) — do not guess.
+      let ambiguous = false;
+      if (list.length >= 2) {
+        const prev = list[list.length - 2];
+        const sameCreated =
+          (newest.created_at || null) === (prev.created_at || null);
+        if (sameCreated && newest.mtimeMs === prev.mtimeMs) ambiguous = true;
+      }
+      return { value: newest.raw, ambiguous };
+    };
+
+    const impl = pickLatest("implementer");
+    const rev = pickLatest("reviewer");
+    latestImplementer = impl.value;
+    ambiguousImplementer = impl.ambiguous;
+    latestReview = rev.value;
+    ambiguousReview = rev.ambiguous;
   }
 
   if (
@@ -266,12 +361,22 @@ export function inferRunFromContext(worktree) {
     state = latestReview.verdict === "APPROVED" ? "REVIEWING" : "REVIEWING";
   }
 
+  // Ambiguous latest handoff must block rather than silently guess.
+  if (ambiguousImplementer || ambiguousReview) {
+    state = "BLOCKED";
+  }
+
   return createEmptyRunState(runId, {
     state,
     profile,
     plan_commit: fields.plan_commit || null,
     branch: fields.feature_branch || fields.branch || null,
     current_unit: fields.current_unit || null,
+    block_reason:
+      state === "BLOCKED"
+        ? "ambiguous latest handoff: multiple candidates with indistinguishable recency"
+        : null,
+    block_code: state === "BLOCKED" ? "AMBIGUOUS_HANDOFF" : null,
     classification: fields.workflow_profile
       ? {
           schema_version: "1.0",

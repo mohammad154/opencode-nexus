@@ -339,6 +339,12 @@ function makeGraphifyProviderFixture({ stale = false } = {}) {
       links: [],
     }),
   );
+  fs.writeFileSync(
+    path.join(out, "manifest.json"),
+    JSON.stringify({
+      "index.js": { mtime: fs.statSync(path.join(worktree, "index.js")).mtimeMs / 1000 },
+    }),
+  );
   const command = path.join(worktree, "fake-graphify");
   fs.writeFileSync(command, "#!/bin/sh\nexit 0\n");
   fs.chmodSync(command, 0o755);

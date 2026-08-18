@@ -485,12 +485,39 @@ export function createGraphifyGraphProvider() {
     ...GRAPH_PROVIDER_METADATA,
     build(ctx = {}) {
       const worktree = ctx.worktree || process.cwd();
-      const requestedPath = ctx.path && String(ctx.path).endsWith("graph.json")
-        ? String(ctx.path)
-        : resolveGraphifyGraphPath(worktree);
-      const graphPath = requestedPath && path.isAbsolute(requestedPath)
-        ? requestedPath
-        : path.resolve(worktree, requestedPath);
+      // Trusted workflow decisions bind ONLY to the canonical Graphify output
+      // for this worktree. A caller-supplied custom graph.json path is never
+      // accepted here, so a foreign graph cannot be provider-sealed and satisfy
+      // safety gates. Custom paths remain available for inspection tooling.
+      const graphPath = resolveGraphifyGraphPath(worktree, ctx.graphifyOut);
+      const requestedPath =
+        ctx.path && String(ctx.path).endsWith("graph.json")
+          ? path.resolve(
+              path.isAbsolute(String(ctx.path))
+                ? String(ctx.path)
+                : path.resolve(worktree, String(ctx.path)),
+            )
+          : null;
+      if (requestedPath && requestedPath !== graphPath) {
+        return {
+          ok: false,
+          ...providerResultMetadata(GRAPH_PROVIDER_METADATA, false),
+          provider: "graphify",
+          graph_provider: "graphify",
+          path: requestedPath,
+          graph_path: requestedPath,
+          canonical: false,
+          stale: true,
+          fresh: false,
+          trusted: false,
+          quality: "UNKNOWN",
+          confidence: 0,
+          trust_issues: [
+            `custom graph path rejected for trusted decisions: ${requestedPath} (canonical is ${graphPath})`,
+          ],
+          error: `custom graph path rejected for trusted decisions: ${requestedPath}`,
+        };
+      }
       const snapshot = prepareGraphifyGraph({
         worktree,
         graphPath,
@@ -517,8 +544,20 @@ function readBlastReport(reportPath) {
   }
 }
 
-function trustedGraphifyBlastReport(report) {
-  return Boolean(
+function currentGitHead(worktree) {
+  try {
+    const r = spawnSync("git", ["rev-parse", "HEAD"], {
+      cwd: worktree,
+      encoding: "utf8",
+    });
+    return r.status === 0 ? String(r.stdout || "").trim() || null : null;
+  } catch {
+    return null;
+  }
+}
+
+function trustedGraphifyBlastReport(report, { worktree } = {}) {
+  const baseTrust = Boolean(
     report &&
     report.graph_provider === "graphify" &&
     report.analysis_quality === "PRECISE" &&
@@ -526,6 +565,21 @@ function trustedGraphifyBlastReport(report) {
     report.graph_freshness?.valid === true &&
     report.analysis_complete !== false,
   );
+  if (!baseTrust) return false;
+  // Provenance: when we can determine the current HEAD, the report's freshness
+  // evidence must have been computed against that same HEAD. This prevents a
+  // supplied/stale PRECISE-looking report from being trusted for a different
+  // repository state.
+  if (worktree) {
+    const head = currentGitHead(worktree);
+    const reportHead =
+      report.graph_freshness?.current_head ||
+      report.graph_freshness?.built_at_commit ||
+      report.worktree_head ||
+      null;
+    if (head && reportHead && reportHead !== head) return false;
+  }
+  return true;
 }
 
 function normalizeUntrustedBlastReport(report, reason) {
@@ -577,7 +631,7 @@ export function createGraphifyBlastProvider() {
             ...ctx.report,
             risk: ctx.report.risk || ctx.report.level || "UNKNOWN",
           });
-          const trusted = trustedGraphifyBlastReport(report);
+          const trusted = trustedGraphifyBlastReport(report, { worktree });
           return {
             ok: true,
             ...providerResultMetadata(BLAST_PROVIDER_METADATA, true),
@@ -605,11 +659,11 @@ export function createGraphifyBlastProvider() {
         return {
           ok: true,
           ...providerResultMetadata(BLAST_PROVIDER_METADATA, true),
-          report: trustedGraphifyBlastReport(normalized)
+          report: trustedGraphifyBlastReport(normalized, { worktree })
             ? normalized
             : normalizeUntrustedBlastReport(
               normalized,
-              "blast report lacks fresh, directed Graphify evidence",
+              "blast report lacks fresh, directed Graphify evidence for the current HEAD",
             ),
           path: reportPath,
         };
@@ -626,11 +680,34 @@ export function createGraphifyBlastProvider() {
       if (ctx.files?.length) args.push("--files", ctx.files.join(","));
       if (ctx.task != null) args.push("--task", String(ctx.task));
       if (ctx.mermaid) args.push("--mermaid");
+      // Record the pre-existing output signature so a stale report from an
+      // earlier invocation cannot be consumed if this generation fails.
+      const priorStat = fs.existsSync(outPath) ? fs.statSync(outPath) : null;
+      const priorSignature = priorStat
+        ? `${priorStat.mtimeMs}:${priorStat.size}`
+        : null;
       const r = spawnSync(process.execPath, args, {
         cwd: worktree,
         encoding: "utf8",
       });
       if (fs.existsSync(outPath)) {
+        const freshStat = fs.statSync(outPath);
+        const freshSignature = `${freshStat.mtimeMs}:${freshStat.size}`;
+        const regenerated = freshSignature !== priorSignature;
+        // Only trust the on-disk report when THIS invocation both succeeded and
+        // rewrote the file. A pre-existing report left behind by a failed run
+        // must never satisfy a safety gate.
+        if (r.status !== 0 || !regenerated) {
+          return {
+            ok: false,
+            ...providerResultMetadata(BLAST_PROVIDER_METADATA, false),
+            error:
+              r.status !== 0
+                ? `Graphify blast generation failed (exit ${r.status}); refusing stale report at ${outPath}`
+                : `Graphify blast did not regenerate ${outPath}; refusing stale report`,
+            stderr: r.stderr,
+          };
+        }
         const report = readBlastReport(outPath);
         if (!report) {
           return {
@@ -640,7 +717,7 @@ export function createGraphifyBlastProvider() {
           };
         }
         return {
-          ok: r.status === 0,
+          ok: true,
           ...providerResultMetadata(BLAST_PROVIDER_METADATA, false),
           report: annotateGraphifyBlastReport(report),
           path: outPath,

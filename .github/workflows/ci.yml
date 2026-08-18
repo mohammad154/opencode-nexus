@@ -32,3 +32,5 @@ jobs:
         run: bash scripts/test-install-only.sh
       - name: Optional agents demotion
         run: bash scripts/test-optional-agents.sh
+      - name: Uninstall lifecycle
+        run: bash scripts/test-uninstall-lifecycle.sh

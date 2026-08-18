@@ -14,7 +14,7 @@
  */
 import fs from "fs";
 import path from "path";
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import {
   createEmptyRunState,
@@ -39,7 +39,6 @@ import { assessDrift } from "./lib/drift.js";
 import { assertValidRunId } from "./lib/policy.js";
 import {
   appendTrajectoryStep,
-  readTrajectory,
 } from "./lib/trajectory.js";
 
 function parseArgs(argv) {
@@ -98,15 +97,9 @@ function recordTrajectory(flags, action, observation, state, request = process.a
   const runId = state?.run_id || runIdForFlags(flags);
   if (!runId) return;
   const file = trajectoryFile(runId);
-  let step = 1;
-  try {
-    step = readTrajectory(file).length + 1;
-  } catch {
-    // A corrupt artifact must not hide the primary CLI result.
-    step = 1;
-  }
+  // Step is computed under a lockfile inside appendTrajectoryStep so concurrent
+  // writers cannot select the same step number.
   appendTrajectoryStep(file, {
-    step,
     run_id: runId,
     request: redact(request),
     action: redact(action),
@@ -203,9 +196,36 @@ function resolveRun(flags) {
   return null;
 }
 
+function defaultRunId() {
+  // Include time + random suffix so two `nexus run init` calls on the same UTC
+  // date never collide on a single run_id (which would silently overwrite the
+  // earlier run's state).
+  const iso = new Date().toISOString().replace(/[:.]/g, "-").replace("Z", "");
+  const suffix = randomBytes(3).toString("hex");
+  return `run-${iso}-${suffix}`;
+}
+
 function cmdInit(flags) {
-  const id = flags["run-id"] || `run-${new Date().toISOString().slice(0, 10)}`;
+  const explicit = flags["run-id"];
+  const id = explicit ? String(explicit) : defaultRunId();
   assertValidRunId(id);
+  // Refuse to clobber an existing run unless --force is explicitly supplied.
+  const existing = (() => {
+    try {
+      return readRunState(worktree(), id);
+    } catch {
+      return null;
+    }
+  })();
+  if (existing && !flags.force) {
+    console.error(
+      JSON.stringify({
+        ok: false,
+        error: `run_id already exists: ${id} (state=${existing.state}). Use a new --run-id or pass --force to overwrite.`,
+      }),
+    );
+    process.exit(2);
+  }
   const state = createEmptyRunState(id, {
     profile: flags.profile || "balanced",
   });

@@ -62,11 +62,40 @@ CONFIG_DIR="${OPENCODE_CONFIG_DIR:-$HOME/.config/opencode}"
 AGENTS_DIR="$CONFIG_DIR/agents"
 CONFIG_FILE="$CONFIG_DIR/opencode.json"
 MODELS_FILE="$CONFIG_DIR/nexus.models.json"
+MANIFEST_FILE="$CONFIG_DIR/nexus-install-manifest.json"
 DEFAULT_MODELS="$SCRIPT_DIR/config/default-models.json"
 OPTIONAL_MODELS="$SCRIPT_DIR/config/optional-models.json"
 MODELS_EXAMPLE="$SCRIPT_DIR/config/models.example.json"
 PKG_JSON="$SCRIPT_DIR/package.json"
 LEGACY_GIT_SPEC="nexus@git+https://github.com/mohammad154/opencode-nexus.git"
+
+# Record, exactly once per file, whether an agent file existed before Nexus and
+# where its pristine pre-Nexus backup lives. Re-running or upgrading Nexus must
+# NEVER overwrite the recorded original with a newer Nexus-authored file, so
+# uninstall can always restore the user's real original.
+manifest_record_original() {
+  local target=$1
+  command -v jq >/dev/null 2>&1 || return 0
+  [[ -f "$MANIFEST_FILE" ]] || printf '{\n  "schema_version": "1.0",\n  "files": {}\n}\n' >"$MANIFEST_FILE"
+  # Already recorded → keep the first-seen provenance, do not touch it.
+  if jq -e --arg t "$target" '.files[$t] != null' "$MANIFEST_FILE" >/dev/null 2>&1; then
+    return 0
+  fi
+  local existed="false" backup=""
+  if [[ -f "$target" ]]; then
+    existed="true"
+    backup="$target.nexus-original.$(date +%Y%m%d%H%M%S)"
+    cp "$target" "$backup"
+  fi
+  local tmp; tmp="$(mktemp)"
+  if jq --arg t "$target" --arg e "$existed" --arg b "$backup" \
+    '.files[$t] = {pre_nexus_existed: ($e == "true"), original_backup: (if $b == "" then null else $b end), recorded_at: (now | todate)}' \
+    "$MANIFEST_FILE" >"$tmp"; then
+    mv "$tmp" "$MANIFEST_FILE"
+  else
+    rm -f "$tmp"
+  fi
+}
 
 if command -v jq >/dev/null 2>&1 && [[ -f "$PKG_JSON" ]]; then
   echo "Installing OpenCode Nexus $(jq -r '.version' "$PKG_JSON")..."; echo ""
@@ -153,6 +182,8 @@ fi
 mv "$TMP" "$CONFIG_FILE"
 while IFS= read -r ag; do
   src="$SCRIPT_DIR/agents/$ag.md"; [[ -f "$src" ]] || continue
+  # Record the pristine pre-Nexus original exactly once, then install.
+  manifest_record_original "$AGENTS_DIR/$ag.md"
   bak "$AGENTS_DIR/$ag.md"; cp "$src" "$AGENTS_DIR/$ag.md"
 done < <(nexus_agent_basenames)
 prune_optional_from_dir "$AGENTS_DIR"
@@ -166,11 +197,10 @@ if ! graphify install --platform opencode; then
   echo "  Error: Graphify global OpenCode skill installation failed; install Graphify separately and retry." >&2
   exit 1
 fi
-echo "  [opencode] Installing Graphify project instructions and plugin..."
-if ! graphify opencode install; then
-  echo "  Error: Graphify project OpenCode installation failed; install Graphify separately and retry." >&2
-  exit 1
-fi
+# NOTE: `graphify opencode install` is a PROJECT-level mutation and must not run
+# from a global `nexus install` invoked in an arbitrary directory. It now runs
+# in `nexus project-init` (see scripts/lib/project-init.js), which is the
+# command documented for bootstrapping the current project's .opencode/.
 echo "  [opencode] Done → $CONFIG_FILE agents: $AGENTS_DIR/"
 
 echo ""; echo "[scripts] Checking:"

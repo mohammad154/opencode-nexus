@@ -21,15 +21,39 @@ USAGE
 done
 
 bak_restore() {
-  local t=$1; local latest; latest="$(ls -t "$t".bak.* 2>/dev/null | head -1 || true)"
-  if [[ -n "$latest" ]]; then mv "$latest" "$t"; elif [[ -f "$t.bak" ]]; then mv "$t.bak" "$t"; else rm -f "$t"; fi
+  local t=$1
+  # Prefer the pristine pre-Nexus original recorded in the install manifest.
+  if [[ -n "${MANIFEST_FILE:-}" && -f "$MANIFEST_FILE" ]] && command -v jq >/dev/null 2>&1; then
+    local recorded existed backup
+    recorded="$(jq -e --arg t "$t" '.files[$t] != null' "$MANIFEST_FILE" 2>/dev/null || true)"
+    if [[ "$recorded" == "true" ]]; then
+      existed="$(jq -r --arg t "$t" '.files[$t].pre_nexus_existed' "$MANIFEST_FILE" 2>/dev/null || echo "false")"
+      backup="$(jq -r --arg t "$t" '.files[$t].original_backup // ""' "$MANIFEST_FILE" 2>/dev/null || echo "")"
+      if [[ "$existed" == "true" && -n "$backup" && -f "$backup" ]]; then
+        mv "$backup" "$t"
+      else
+        # File did not exist before Nexus → remove the Nexus-authored file.
+        rm -f "$t"
+      fi
+      # Drop the manifest entry now that provenance is consumed.
+      local tmp; tmp="$(mktemp)"
+      if jq --arg t "$t" 'del(.files[$t])' "$MANIFEST_FILE" >"$tmp"; then mv "$tmp" "$MANIFEST_FILE"; else rm -f "$tmp"; fi
+      return 0
+    fi
+  fi
+  # Fallback (no manifest): oldest .bak is closest to the pre-Nexus original.
+  local oldest
+  oldest="$(ls -tr "$t".bak.* 2>/dev/null | head -1 || true)"
+  if [[ -n "$oldest" ]]; then mv "$oldest" "$t"; elif [[ -f "$t.bak" ]]; then mv "$t.bak" "$t"; else rm -f "$t"; fi
 }
+
+CD="${OPENCODE_CONFIG_DIR:-$HOME/.config/opencode}"; AD="$CD/agents"; CF="$CD/opencode.json"
+MANIFEST_FILE="$CD/nexus-install-manifest.json"
 
 echo ""; echo "[opencode] Removing..."
 if ! command -v jq >/dev/null 2>&1; then
-  echo "  Warn: jq missing — skip JSON cleanup"
+  echo "  Warn: jq missing — skipping opencode.json JSON cleanup only (agent files are still removed/restored)"
 else
-  CD="${OPENCODE_CONFIG_DIR:-$HOME/.config/opencode}"; AD="$CD/agents"; CF="$CD/opencode.json"
   SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
   PKG_NAME="$(jq -r '.name' "$SCRIPT_DIR/package.json")"
   PKG_VERSION="$(jq -r '.version' "$SCRIPT_DIR/package.json")"
@@ -56,12 +80,18 @@ else
       echo "  Failed to clean $CF"; rm -f "$TJ"
     fi
   fi
-  for ag in orchestrator implementer spec-reviewer code-reviewer unified-reviewer blast-analyzer reconciler; do
-    t="$AD/$ag.md"; [[ -f "$t" ]] && bak_restore "$t" || rm -f "$t"
-  done
-  rm -f "$CD/nexus.models.example.json"
-  echo "  [opencode] Done. Kept $CD/nexus.models.json"
 fi
+
+# Agent file deletion/restoration ALWAYS runs, regardless of jq availability.
+for ag in orchestrator implementer spec-reviewer code-reviewer unified-reviewer blast-analyzer reconciler; do
+  t="$AD/$ag.md"; [[ -e "$t" ]] && bak_restore "$t" || true
+done
+rm -f "$CD/nexus.models.example.json"
+# Provenance manifest is consumed during restore; drop it (and any leftover
+# pristine originals) so no Nexus bookkeeping files remain.
+rm -f "$MANIFEST_FILE"
+rm -f "$AD"/*.nexus-original.* 2>/dev/null || true
+echo "  [opencode] Done. Kept $CD/nexus.models.json"
 
 echo ""; echo "Uninstall complete."
 echo "Notes: graphify-out/ and Graphify installation are not touched; nexus.models.json kept"
