@@ -3,8 +3,8 @@ description: Verifies task outcomes still hold after time/commits, investigates 
 mode: subagent
 permission:
   edit:
-    ".opencode/**": allow
     "*": ask
+    ".opencode/**": allow
   bash: allow
   task:
     "*": deny

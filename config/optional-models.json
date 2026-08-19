@@ -1,6 +1,6 @@
 {
   "blast-analyzer": {
     "model": "opencode/deepseek-v4-flash-free",
-    "reasoningEffort": "medium"
+    "variant": "medium"
   }
 }

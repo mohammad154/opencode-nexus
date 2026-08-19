@@ -35,7 +35,7 @@ function buildCompactRouter() {
   ].join("\n");
 }
 
-export function getBootstrapText() {
+function getBootstrapText() {
   return buildCompactRouter();
 }
 
@@ -52,7 +52,7 @@ function readPlanFile(worktree) {
   return fs.readFileSync(planPath, "utf8").trim();
 }
 
-export function readRunStateSummary(worktree) {
+function readRunStateSummary(worktree) {
   const runsRoot = path.join(worktree, ".opencode", "runs");
   if (!fs.existsSync(runsRoot)) return null;
   try {
@@ -309,3 +309,5 @@ export const NexusPlugin = async ({ worktree }) => {
     },
   };
 };
+
+export default NexusPlugin;

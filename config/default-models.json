@@ -4,22 +4,22 @@
   },
   "implementer": {
     "model": "opencode/deepseek-v4-flash-free",
-    "reasoningEffort": "high"
+    "variant": "high"
   },
   "unified-reviewer": {
     "model": "opencode-go/deepseek-v4-pro",
-    "reasoningEffort": "high"
+    "variant": "high"
   },
   "spec-reviewer": {
     "model": "opencode-go/deepseek-v4-pro",
-    "reasoningEffort": "max"
+    "variant": "max"
   },
   "code-reviewer": {
     "model": "opencode-go/deepseek-v4-pro",
-    "reasoningEffort": "max"
+    "variant": "max"
   },
   "reconciler": {
     "model": "opencode-go/deepseek-v4-pro",
-    "reasoningEffort": "max"
+    "variant": "max"
   }
 }

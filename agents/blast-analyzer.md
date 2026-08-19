@@ -3,9 +3,9 @@ description: "OPTIONAL COMPAT AGENT — prefer scripts/nexus-blast.js. Computes 
 mode: subagent
 permission:
   edit:
-    ".opencode/blast/**": allow
-    ".opencode/**": ask
     "*": deny
+    ".opencode/**": ask
+    ".opencode/blast/**": allow
   bash: allow
   task:
     "*": deny

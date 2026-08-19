@@ -142,8 +142,8 @@ MJ="$(jq 'def strip: with_entries(select(.key|startswith("_")|not));
 for spec in "orchestrator:NEXUS_ORCHESTRATOR_MODEL" "implementer:NEXUS_IMPLEMENTER_MODEL" "spec-reviewer:NEXUS_SPEC_REVIEWER_MODEL" "code-reviewer:NEXUS_CODE_REVIEWER_MODEL" "unified-reviewer:NEXUS_UNIFIED_REVIEWER_MODEL"; do
   IFS=: read -r ag envv <<<"$spec"; v="${!envv:-}"; [[ -n "$v" ]] && MJ="$(jq --arg a "$ag" --arg m "$v" '.[$a].model=$m' <<<"$MJ")"
 done
-for spec in "implementer:NEXUS_IMPLEMENTER_REASONING_EFFORT" "spec-reviewer:NEXUS_SPEC_REVIEWER_REASONING_EFFORT" "code-reviewer:NEXUS_CODE_REVIEWER_REASONING_EFFORT" "unified-reviewer:NEXUS_UNIFIED_REVIEWER_REASONING_EFFORT"; do
-  IFS=: read -r ag envv <<<"$spec"; v="${!envv:-}"; [[ -n "$v" ]] && MJ="$(jq --arg a "$ag" --arg e "$v" '.[$a].reasoningEffort=$e' <<<"$MJ")"
+for spec in "implementer:NEXUS_IMPLEMENTER_VARIANT:NEXUS_IMPLEMENTER_REASONING_EFFORT" "spec-reviewer:NEXUS_SPEC_REVIEWER_VARIANT:NEXUS_SPEC_REVIEWER_REASONING_EFFORT" "code-reviewer:NEXUS_CODE_REVIEWER_VARIANT:NEXUS_CODE_REVIEWER_REASONING_EFFORT" "unified-reviewer:NEXUS_UNIFIED_REVIEWER_VARIANT:NEXUS_UNIFIED_REVIEWER_REASONING_EFFORT"; do
+  IFS=: read -r ag envv legacy_envv <<<"$spec"; v="${!envv:-${!legacy_envv:-}}"; [[ -n "$v" ]] && MJ="$(jq --arg a "$ag" --arg e "$v" '.[$a].variant=$e' <<<"$MJ")"
 done
 OPTIONAL_JSON="$(printf '%s\n' "${OPTIONAL_AGENTS[@]}" | jq -R . | jq -s .)"
 # Default install must not register optional agents in opencode.json — only copy/merge them with --with-optional-agents.
@@ -171,7 +171,7 @@ if ! jq --arg p "$PLUGIN_SPEC" --arg name "$PKG_NAME" --arg legacy "$LEGACY_GIT_
       .agent[$e.key] = ((.agent[$e.key] // {}) + $e.value))
   | reduce $prune[] as $k (.;
       if .agent[$k] then
-        .agent[$k] |= del(.model, .reasoningEffort)
+        .agent[$k] |= del(.model, .variant, .reasoningEffort)
         | if .agent[$k] == {} then .agent |= del(.[$k]) else . end
       else . end)
 ' "$CONFIG_FILE" >"$TMP"; then

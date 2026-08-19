@@ -154,3 +154,53 @@ test("compaction includes delegation gate for active run", async () => {
   assert.equal(output.context.length, 1);
   assert.match(output.context[0], /Complete workflow gates/);
 });
+
+test("plugin module provides default export and does not leak helper functions", async () => {
+  const module = await import("../../.opencode/plugins/nexus.js");
+  assert.equal(typeof module.default, "function", "plugin must have a default export function");
+  assert.equal(module.default, module.NexusPlugin, "default export must equal NexusPlugin");
+  const namedExports = Object.keys(module);
+  assert.deepEqual(
+    namedExports.sort(),
+    ["NexusPlugin", "default"].sort(),
+    "plugin module should only export plugin initializer to avoid loader calling helper functions",
+  );
+});
+
+test("agent permissions place catch-all '*' before specific rules", () => {
+  const agentsDir = path.resolve(import.meta.dirname, "../../agents");
+  const files = fs.readdirSync(agentsDir).filter((f) => f.endsWith(".md"));
+  assert.ok(files.length >= 6);
+
+  for (const file of files) {
+    const content = fs.readFileSync(path.join(agentsDir, file), "utf8");
+    const lines = content.split("\n");
+    let inEdit = false;
+    let editKeys = [];
+
+    for (const line of lines) {
+      if (line.startsWith("---") && inEdit) break;
+      if (/^\s*edit:\s*$/.test(line)) {
+        inEdit = true;
+        continue;
+      }
+      if (inEdit) {
+        if (/^\s{2}[a-z_]+:/i.test(line) && !line.startsWith("    ")) {
+          inEdit = false;
+          continue;
+        }
+        const m = line.match(/^\s{4}"?([^":]+)"?\s*:/);
+        if (m) editKeys.push(m[1]);
+      }
+    }
+
+    if (editKeys.length > 1) {
+      assert.equal(
+        editKeys[0],
+        "*",
+        `Agent ${file} edit permissions must define catch-all '*' first so specific rules take precedence`,
+      );
+    }
+  }
+});
+

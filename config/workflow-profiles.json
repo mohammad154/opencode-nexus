@@ -155,25 +155,25 @@
   },
   "modelTiers": {
     "low": {
-      "orchestrator": { "reasoningEffort": "low" },
-      "implementer": { "reasoningEffort": "medium" },
-      "unified-reviewer": { "reasoningEffort": "medium" },
-      "spec-reviewer": { "reasoningEffort": "medium" },
-      "code-reviewer": { "reasoningEffort": "medium" }
+      "orchestrator": { "variant": "low" },
+      "implementer": { "variant": "medium" },
+      "unified-reviewer": { "variant": "medium" },
+      "spec-reviewer": { "variant": "medium" },
+      "code-reviewer": { "variant": "medium" }
     },
     "medium": {
-      "orchestrator": { "reasoningEffort": "medium" },
-      "implementer": { "reasoningEffort": "high" },
-      "unified-reviewer": { "reasoningEffort": "high" },
-      "spec-reviewer": { "reasoningEffort": "high" },
-      "code-reviewer": { "reasoningEffort": "high" }
+      "orchestrator": { "variant": "medium" },
+      "implementer": { "variant": "high" },
+      "unified-reviewer": { "variant": "high" },
+      "spec-reviewer": { "variant": "high" },
+      "code-reviewer": { "variant": "high" }
     },
     "high": {
-      "orchestrator": { "reasoningEffort": "high" },
-      "implementer": { "reasoningEffort": "high" },
-      "spec-reviewer": { "reasoningEffort": "max" },
-      "code-reviewer": { "reasoningEffort": "max" },
-      "reconciler": { "reasoningEffort": "max" }
+      "orchestrator": { "variant": "high" },
+      "implementer": { "variant": "high" },
+      "spec-reviewer": { "variant": "max" },
+      "code-reviewer": { "variant": "max" },
+      "reconciler": { "variant": "max" }
     }
   }
 }

@@ -2,7 +2,9 @@
 description: Combined spec+quality review for low/medium risk work under fast/balanced profiles. Returns APPROVED or REQUEST_CHANGES with file:line. Use instead of dual review when reviewPolicy is risk-based/unified.
 mode: subagent
 permission:
-  edit: deny
+  edit:
+    "*": deny
+    ".opencode/handoffs/**": allow
   bash: allow
   task:
     "*": deny

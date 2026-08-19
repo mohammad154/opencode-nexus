@@ -2,7 +2,9 @@
 description: Performs code quality review after spec compliance is approved – with blast regression check, LESSONS anti-pattern check, security, file:line findings, severity prioritization.
 mode: subagent
 permission:
-  edit: deny
+  edit:
+    "*": deny
+    ".opencode/handoffs/**": allow
   bash: allow
   task:
     "*": deny

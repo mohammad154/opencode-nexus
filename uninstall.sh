@@ -71,7 +71,7 @@ else
       )))
       | reduce $ns[] as $n (.;
           if .agent[$n] then
-            .agent[$n] |= del(.model, .reasoningEffort)
+            .agent[$n] |= del(.model, .variant, .reasoningEffort)
             | if .agent[$n] == {} then .agent |= del(.[$n]) else . end
           else . end)
     ' "$CF" >"$TJ"; then

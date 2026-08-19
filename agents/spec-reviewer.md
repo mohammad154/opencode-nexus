@@ -2,7 +2,9 @@
 description: Verifies implementer output matches task spec exactly, with file:line evidence, blast scope fidelity, drift awareness, and STOP handling. Returns APPROVED or REQUEST_CHANGES with file:line.
 mode: subagent
 permission:
-  edit: deny
+  edit:
+    "*": deny
+    ".opencode/handoffs/**": allow
   bash: allow
   task:
     "*": deny

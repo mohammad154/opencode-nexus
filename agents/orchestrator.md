@@ -3,9 +3,9 @@ description: Primary workflow controller. Brainstorms, plans, delegates with pro
 mode: primary
 permission:
   edit:
+    "*": deny
     ".opencode/**": allow
     "AGENTS.md": allow
-    "*": deny
   bash: allow
   task:
     "*": deny
