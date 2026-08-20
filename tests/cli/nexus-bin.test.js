@@ -41,6 +41,7 @@ test("nexus help lists workflow commands", () => {
     "blast",
     "classify",
     "estimate",
+    "worktree",
   ]) {
     assert.match(result.stdout, new RegExp(word));
   }

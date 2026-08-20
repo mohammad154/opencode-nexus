@@ -41,6 +41,11 @@ import {
   appendTrajectoryStep,
   readTrajectory,
 } from "./lib/trajectory.js";
+import {
+  createTaskWorktree,
+  removeTaskWorktree,
+  listTaskWorktrees,
+} from "./lib/worktree.js";
 
 function parseArgs(argv) {
   const out = { _: [], flags: {} };
@@ -560,6 +565,56 @@ function cmdInspect(flags) {
   console.log(JSON.stringify(report, null, 2));
 }
 
+function cmdWorktree(subArgs, flags) {
+  const subcmd = subArgs[1];
+  const wt = worktree();
+  if (!subcmd || subcmd === "help" || subcmd === "--help" || subcmd === "-h") {
+    console.log(`Usage: nexus run worktree <create|list|remove> [flags]`);
+    return;
+  }
+  switch (subcmd) {
+    case "create": {
+      const task = flags.task || flags["task-id"];
+      if (!task) {
+        console.error(JSON.stringify({ ok: false, error: "--task required" }, null, 2));
+        process.exit(2);
+      }
+      const branch = flags.branch ? String(flags.branch) : undefined;
+      const baseCommit = flags.base || flags["base-commit"] ? String(flags.base || flags["base-commit"]) : undefined;
+      const result = createTaskWorktree(wt, task, { branch, baseCommit });
+      if (!result.ok) {
+        console.error(JSON.stringify(result, null, 2));
+        process.exit(2);
+      }
+      console.log(JSON.stringify(result, null, 2));
+      break;
+    }
+    case "list": {
+      const worktrees = listTaskWorktrees(wt);
+      console.log(JSON.stringify({ ok: true, worktrees }, null, 2));
+      break;
+    }
+    case "remove": {
+      const task = flags.task || flags["task-id"];
+      if (!task) {
+        console.error(JSON.stringify({ ok: false, error: "--task required" }, null, 2));
+        process.exit(2);
+      }
+      const result = removeTaskWorktree(wt, task);
+      if (!result.ok) {
+        console.error(JSON.stringify({ ok: false, task, ...result }, null, 2));
+        process.exit(2);
+      }
+      console.log(JSON.stringify({ ok: true, task, ...result }, null, 2));
+      break;
+    }
+    default: {
+      console.error(`Unknown worktree subcommand: ${subcmd}`);
+      process.exit(2);
+    }
+  }
+}
+
 function main() {
   const args = parseArgs(process.argv.slice(2));
   const cmd = args._[0];
@@ -584,9 +639,11 @@ function main() {
         return cmdCan(flags);
       case "inspect":
         return cmdInspect(flags);
+      case "worktree":
+        return cmdWorktree(args._, flags);
       default:
         console.error(
-          `Unknown or missing command. Use: init|classify|transition|validate-handoff|status|resume|drift|can-transition|inspect`,
+          `Unknown or missing command. Use: init|classify|transition|validate-handoff|status|resume|drift|can-transition|inspect|worktree`,
         );
         process.exit(2);
     }

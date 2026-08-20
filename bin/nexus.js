@@ -25,6 +25,7 @@ Commands:
   blast          Alias for impact (compatibility)
   classify       Risk classifier CLI
   estimate       Estimate minimum agent calls for a plan
+  worktree       Manage task worktrees (create, list, remove)
   version        Print the package version
   doctor         Check local prerequisites and project readiness
   help           Show this message
@@ -38,6 +39,7 @@ Examples:
   nexus classify --files 2 --lines 40 --class small-feature-with-tests --focused
   nexus impact --json
   nexus estimate --tasks 3 --profile balanced
+  nexus worktree create --task task-1 --base HEAD
   nexus doctor
 
 Install flags are forwarded to install.sh:
@@ -60,6 +62,7 @@ Subcommands:
   drift             Assess plan drift
   can-transition    Check if a transition is legal
   inspect           Trajectory + artifact digests + gate failures
+  worktree          Manage task worktrees (create, list, remove)
 
 Exit codes: 0 ok, 2 validation failure, 3 illegal transition
 `;
@@ -256,6 +259,10 @@ function cmdEstimate(args) {
   runNodeScript("nexus-estimate-calls.js", args);
 }
 
+function cmdWorktree(args) {
+  runNodeScript("nexus-worktree.js", args);
+}
+
 function doctor() {
   const configDir =
     process.env.OPENCODE_CONFIG_DIR || path.join(os.homedir(), ".config", "opencode");
@@ -415,6 +422,9 @@ switch (command) {
     break;
   case "estimate":
     cmdEstimate(args);
+    break;
+  case "worktree":
+    cmdWorktree(args);
     break;
   case "version":
   case "--version":

@@ -21,40 +21,45 @@ export function createTaskWorktree(repoRoot, taskId, { branch, baseCommit } = {}
     const head = run(repoRoot, ["rev-parse", "HEAD"]);
     const wtHead = run(dir, ["rev-parse", "HEAD"]);
     const status = run(dir, ["status", "--porcelain"]);
-    if (status.stdout.trim()) {
+    if (status.stdout && status.stdout.trim()) {
       return {
         ok: false,
         error: "existing worktree is dirty — remove or clean before reuse",
         path: dir,
       };
     }
-    if (baseCommit && wtHead.stdout && wtHead.stdout !== baseCommit) {
+    const headSha = (head.stdout || "").trim();
+    const wtSha = (wtHead.stdout || "").trim();
+    const base = baseCommit ? String(baseCommit).trim() : null;
+
+    if (base && wtSha && wtSha !== base) {
       return {
         ok: false,
-        error: `worktree HEAD ${wtHead.stdout} != expected base ${baseCommit}`,
+        error: `worktree HEAD ${wtSha} != expected base ${base}`,
         path: dir,
       };
     }
-    if (head.stdout && wtHead.stdout && head.stdout !== wtHead.stdout) {
+    if (headSha && wtSha && headSha !== wtSha) {
       return {
         ok: true,
         path: dir,
         reused: true,
         diverged: true,
-        head: wtHead.stdout,
+        head: wtSha,
       };
     }
-    return { ok: true, path: dir, reused: true, head: wtHead.stdout || null };
+    return { ok: true, path: dir, reused: true, head: wtSha || null };
   }
   const branchName = branch || `nexus/${safe}`;
-  const r = run(repoRoot, ["worktree", "add", "-b", branchName, dir, "HEAD"]);
+  const startPoint = (baseCommit ? String(baseCommit).trim() : "") || "HEAD";
+  const r = run(repoRoot, ["worktree", "add", "-b", branchName, dir, startPoint]);
   if (r.status !== 0) {
     // Branch may exist — try without -b
     const r2 = run(repoRoot, ["worktree", "add", dir, branchName]);
     if (r2.status !== 0) {
       return {
         ok: false,
-        error: r2.stderr || r.stderr || "worktree add failed",
+        error: (r2.stderr || r.stderr || "worktree add failed").trim(),
       };
     }
   }
@@ -66,7 +71,7 @@ export function removeTaskWorktree(repoRoot, taskId) {
   const dir = path.join(worktreeRoot(repoRoot), safe);
   if (!fs.existsSync(dir)) return { ok: true, removed: false };
   const r = run(repoRoot, ["worktree", "remove", "--force", dir]);
-  return { ok: r.status === 0, stderr: r.stderr };
+  return { ok: r.status === 0, removed: r.status === 0, stderr: r.stderr ? r.stderr.trim() : undefined };
 }
 
 export function listTaskWorktrees(repoRoot) {
