@@ -84,6 +84,13 @@ cmp -s "$home/adapter-before-second-install.txt" "$home/adapter-after-second-ins
 agent_root="$home/.config/opencode/agents"
 for agent in "${CANONICAL_AGENTS[@]}"; do
   [[ -f "$agent_root/$agent.md" ]] || fail "OpenCode missing expected agent: $agent_root/$agent.md"
+  if [[ "$agent" == "orchestrator" ]]; then
+    grep -qx 'mode: primary' "$agent_root/$agent.md" \
+      || fail "OpenCode agent $agent must declare mode: primary"
+  else
+    grep -qx 'mode: subagent' "$agent_root/$agent.md" \
+      || fail "OpenCode agent $agent must declare mode: subagent (missing mode defaults to primary)"
+  fi
 done
 
 [[ ! -e "$agent_root/nexus-orchestrator.md" ]] \

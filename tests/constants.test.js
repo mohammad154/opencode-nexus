@@ -36,3 +36,39 @@ test("all canonical and optional agents have corresponding markdown files in age
     );
   }
 });
+
+test("orchestrator is primary; all other canonical agents are subagents", () => {
+  for (const agent of CANONICAL_AGENTS) {
+    const body = fs.readFileSync(
+      path.join(repoRoot, "agents", `${agent}.md`),
+      "utf8",
+    );
+    assert.ok(
+      body.startsWith("---\n"),
+      `${agent}.md must start with YAML frontmatter so OpenCode can read mode`,
+    );
+    const expected =
+      agent === "orchestrator" ? "mode: primary" : "mode: subagent";
+    assert.ok(
+      new RegExp(`^${expected}$`, "m").test(body),
+      `${agent}.md must declare ${expected} (OpenCode defaults missing mode to primary)`,
+    );
+  }
+});
+
+test("optional agents declare mode: subagent so they never appear as primary", () => {
+  for (const agent of OPTIONAL_AGENTS) {
+    const body = fs.readFileSync(
+      path.join(repoRoot, "agents", `${agent}.md`),
+      "utf8",
+    );
+    assert.ok(
+      body.startsWith("---\n"),
+      `${agent}.md must start with YAML frontmatter so OpenCode can read mode`,
+    );
+    assert.ok(
+      /^mode: subagent$/m.test(body),
+      `${agent}.md must declare mode: subagent`,
+    );
+  }
+});
