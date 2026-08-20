@@ -161,6 +161,8 @@ export function createEmptyRunState(runId, overrides = {}) {
     verification_policy: { exempt: false, reason: null },
     compatibility_mode: null,
     require_post_impact: false,
+    blocked_from: null,
+    resume_state: null,
     block_reason: null,
     block_code: null,
     escalation_reasons: [],

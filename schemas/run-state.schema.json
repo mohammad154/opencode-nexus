@@ -45,6 +45,8 @@
     "impact": { "type": ["object", "null"], "additionalProperties": true },
     "graph": { "type": ["object", "null"], "additionalProperties": true },
     "blast": { "type": ["object", "null"], "additionalProperties": true },
+    "blocked_from": { "type": ["string", "null"] },
+    "resume_state": { "type": ["string", "null"] },
     "block_reason": { "type": ["string", "null"] },
     "block_code": { "type": ["string", "null"] },
     "transitions": {

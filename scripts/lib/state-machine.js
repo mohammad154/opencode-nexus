@@ -588,8 +588,22 @@ export function canTransition(state, to, ctx = {}) {
   if (from === "FINAL_VERIFYING") {
     allowed.add("COMPLETED");
   }
-  if (from === "BLOCKED" && ctx.resume_to && STATES.includes(ctx.resume_to)) {
-    if (!TERMINAL.has(ctx.resume_to)) allowed.add(ctx.resume_to);
+  if (from === "BLOCKED") {
+    const resumeTarget = state.resume_state || state.blocked_from;
+    if (
+      resumeTarget &&
+      STATES.includes(resumeTarget) &&
+      !TERMINAL.has(resumeTarget)
+    ) {
+      allowed.add(resumeTarget);
+    }
+    if (
+      state.blocked_from &&
+      STATES.includes(state.blocked_from) &&
+      !TERMINAL.has(state.blocked_from)
+    ) {
+      allowed.add(state.blocked_from);
+    }
   }
   allowed.add("BLOCKED");
   allowed.add("FAILED");
@@ -599,7 +613,7 @@ export function canTransition(state, to, ctx = {}) {
     return { ok: false, errors };
   }
 
-  if (from === "CREATED" && to === "CLASSIFIED") {
+  if (to === "CLASSIFIED") {
     const c = ctx.classification || state.classification;
     const v = validateClassification(c || {});
     if (!v.ok) {
@@ -609,7 +623,7 @@ export function canTransition(state, to, ctx = {}) {
     }
   }
 
-  if (from === "CLASSIFIED" && to === "PLANNED") {
+  if (to === "PLANNED") {
     const skip = ctx.plan_skip === true || ctx.planSkip === true;
     const planOk =
       skip ||
@@ -791,13 +805,18 @@ export function canTransition(state, to, ctx = {}) {
     }
   }
 
-  if (from === "VERIFYING" && to === "REVIEWING") {
+  if (to === "REVIEWING") {
     const docsSkip = policy.review_level === "none";
     if (!docsSkip && !verificationPolicyExempt(state)) {
+      const pv = ctx.provider_verification || state.provider_verification;
       if (
-        !verifySealedArtifact(state.provider_verification) ||
-        state.provider_verification.ok !== true
+        ctx.provider_verification &&
+        !verifySealedArtifact(ctx.provider_verification)
       ) {
+        errors.push(
+          "caller-supplied provider_verification rejected — must be provider-sealed",
+        );
+      } else if (!verifySealedArtifact(pv) || pv.ok !== true) {
         errors.push(
           "REVIEWING requires sealed provider_verification from VERIFYING",
         );
@@ -806,7 +825,7 @@ export function canTransition(state, to, ctx = {}) {
   }
 
   if (to === "FINAL_VERIFYING") {
-    if (from !== "REVIEWING") {
+    if (from !== "REVIEWING" && from !== "BLOCKED") {
       errors.push("FINAL_VERIFYING must follow REVIEWING");
     }
     // Require review approval evidence
@@ -1143,8 +1162,26 @@ export function transition(state, to, evidence = {}, providers = null) {
     next.final_verification = ctx.final_verification;
   }
   if (to === "BLOCKED") {
-    next.block_reason = ctx.block_reason || ctx.reason || null;
-    next.block_code = ctx.block_code || ctx.code || null;
+    next.blocked_from =
+      state.state === "BLOCKED" ? state.blocked_from || "BLOCKED" : state.state;
+    next.resume_state =
+      ctx.resume_state ||
+      evidence.resume_state ||
+      (state.state === "BLOCKED"
+        ? state.resume_state || next.blocked_from
+        : state.state);
+    next.block_reason =
+      ctx.block_reason ||
+      ctx.reason ||
+      evidence.block_reason ||
+      evidence.reason ||
+      null;
+    next.block_code =
+      ctx.block_code ||
+      ctx.code ||
+      evidence.block_code ||
+      evidence.code ||
+      null;
   }
   if (to === "DIRECT_IMPLEMENTING") {
     next.execution_mode = "direct";
