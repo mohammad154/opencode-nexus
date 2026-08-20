@@ -179,7 +179,26 @@ export function mockTrustProviders({ impact, graph, blast } = {}) {
           plan: { ecosystem: "node", steps: [] },
         };
       },
+      verifyTdd(ctx = {}) {
+        return sealImpactArtifact({
+          schema_version: "1.0",
+          test_id: "noop",
+          command: ["true"],
+          red: {
+            commit: ctx.base_commit || "base",
+            exit_code: 1,
+            output_digest: "sha256:red",
+          },
+          green: {
+            commit: ctx.implementer_commit || "head",
+            exit_code: 0,
+            output_digest: "sha256:green",
+          },
+          ok: true,
+        });
+      },
     },
+
     telemetry: { emit() {} },
     memory: {
       retrieve() {

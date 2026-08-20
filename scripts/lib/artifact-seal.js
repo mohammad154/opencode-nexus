@@ -53,4 +53,5 @@ export function verifySealedArtifact(artifact) {
   return artifact_digest === sha256Digest(stableStringify(canonical));
 }
 
-export { sha256Digest, stableStringify, nowIso };
+export { sha256Digest, stableStringify, nowIso, sealProviderArtifact as sealArtifact };
+

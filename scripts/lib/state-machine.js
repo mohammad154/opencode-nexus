@@ -12,8 +12,10 @@ import { isPlanCommitAcceptable } from "./drift.js";
 import { createDefaultProviders } from "./providers.js";
 import {
   sealProviderArtifact,
+  sealArtifact,
   verifySealedArtifact,
 } from "./artifact-seal.js";
+
 import {
   effectivePolicy,
   applyBlastEscalation,
@@ -82,7 +84,13 @@ export function sealVerificationReport(report, worktreeHead = null) {
   return sealProviderArtifact(report, worktreeHead);
 }
 
-export { verifySealedArtifact };
+/** Seal provider-measured TDD evidence bound to worktree HEAD. */
+export function sealTddArtifact(report, worktreeHead = null) {
+  return sealProviderArtifact(report, worktreeHead);
+}
+
+export { verifySealedArtifact, sealArtifact };
+
 
 /** @deprecated Use sealImpactArtifact */
 export function sealGraphArtifact(graph, worktreeHead = null) {
@@ -316,14 +324,48 @@ function assertVerificationGates(data, state, errors, ctx = {}) {
 
   const tddRequired = requiresTdd(state) && !exempt;
   if (tddRequired) {
-    if (!data.tdd?.red || data.tdd.red.exit_code === 0) {
-      errors.push("TDD requires red evidence with non-zero exit_code before fix");
+    const tddEvidence =
+      ctx.tdd_evidence ||
+      state.tdd_evidence ||
+      data.tdd_evidence;
+
+    if (ctx.tdd_evidence && !verifySealedArtifact(ctx.tdd_evidence)) {
+      errors.push(
+        "caller-supplied tdd_evidence rejected — must be provider-sealed",
+      );
+      return;
     }
-    if (!data.tdd?.green || data.tdd.green.exit_code !== 0) {
+
+    if (!tddEvidence || !verifySealedArtifact(tddEvidence)) {
+      errors.push("TDD requires provider-sealed TDD evidence report");
+      return;
+    }
+
+    if (
+      !tddEvidence.red ||
+      tddEvidence.red.exit_code === 0 ||
+      tddEvidence.red.exit_code == null
+    ) {
+      errors.push(
+        "TDD requires red evidence with non-zero exit_code before fix",
+      );
+    }
+    if (!tddEvidence.green || tddEvidence.green.exit_code !== 0) {
       errors.push("TDD requires green evidence with exit_code 0 after fix");
+    }
+    if (tddEvidence.ok !== true) {
+      errors.push("provider TDD verification failed");
+    }
+    const worktree = ctx.worktree || state.worktree;
+    if (worktree && tddEvidence.worktree_head) {
+      const head = gitRevParse(worktree, "HEAD");
+      if (head && tddEvidence.worktree_head !== head) {
+        errors.push("tdd_evidence worktree_head mismatch with current HEAD");
+      }
     }
   }
 }
+
 
 function isProviderTrustedImpact(impact) {
   return verifySealedArtifact(impact) && isTrustedLowRiskImpact(impact);
@@ -529,9 +571,48 @@ export function revalidateTransitionEvidence(to, ctx, providers, state = {}) {
         );
       }
     }
+
+    if (!exempt && to === "VERIFYING" && requiresTdd(state)) {
+      if (providers?.verificationProvider?.verifyTdd) {
+        const raw =
+          ctx.implementer_handoff ||
+          ctx.handoff ||
+          state.last_implementer_handoff;
+        let handoffData = null;
+        if (raw) {
+          const norm = normalizeAndValidateHandoff("implementer", raw);
+          handoffData = norm.data || raw;
+        }
+        const related =
+          next.post_impact?.related_tests ||
+          state.post_impact?.related_tests ||
+          state.impact?.related_tests ||
+          [];
+        const tddReport = providers.verificationProvider.verifyTdd({
+          worktree,
+          base_commit: handoffData?.base_commit || state.head_commit,
+          implementer_commit:
+            handoffData?.commit || state.implementer_commit || head,
+          related_tests: related,
+          ...(ctx.tdd_options || {}),
+        });
+        if (tddReport) {
+          next.tdd_evidence = tddReport;
+        }
+      } else if (ctx.tdd_evidence) {
+        if (!verifySealedArtifact(ctx.tdd_evidence)) {
+          errors.push(
+            "caller-supplied tdd_evidence rejected — must be provider-sealed",
+          );
+        } else {
+          next.tdd_evidence = ctx.tdd_evidence;
+        }
+      }
+    }
   }
 
   return { ctx: next, errors };
+
 }
 
 
@@ -1177,8 +1258,10 @@ export function transition(state, to, evidence = {}, providers = null) {
       next.provider_verification = ctx.provider_verification;
     }
     if (ctx.post_impact) next.post_impact = ctx.post_impact;
+    if (ctx.tdd_evidence) next.tdd_evidence = ctx.tdd_evidence;
     if (ctx.require_post_impact === false) next.require_post_impact = false;
   }
+
   if (to === "COMPLETED" && ctx.final_verification) {
     next.final_verification = ctx.final_verification;
   }
