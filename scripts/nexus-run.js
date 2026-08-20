@@ -35,6 +35,7 @@ import {
   CLASSIFY_APPLY_SOURCE,
 } from "./lib/state-machine.js";
 import { createDefaultProviders } from "./lib/providers.js";
+import { createVerificationProvider } from "./lib/providers/verification-provider.js";
 import { assessDrift } from "./lib/drift.js";
 import { assertValidRunId } from "./lib/policy.js";
 import {
@@ -615,6 +616,64 @@ function cmdWorktree(subArgs, flags) {
   }
 }
 
+function cmdBaseline(flags) {
+  const provider = createVerificationProvider();
+  const wt = worktree();
+  const state = resolveRun(flags);
+  const runId = state?.run_id || (flags["run-id"] ? String(flags["run-id"]) : null);
+  const headResult = spawnSync("git", ["rev-parse", "HEAD"], {
+    cwd: wt,
+    encoding: "utf8",
+  });
+  const worktreeHead =
+    headResult.status === 0 ? String(headResult.stdout || "").trim() || null : null;
+  const commit = flags.commit ? String(flags.commit) : worktreeHead;
+
+  const baseline = provider.baseline({
+    worktree: wt,
+    runId,
+    commit,
+  });
+  recordTrajectory(flags, { command: "baseline", run_id: runId }, { ok: true, baseline }, state);
+  console.log(JSON.stringify({ ok: true, baseline }, null, 2));
+}
+
+function cmdVerify(flags) {
+  if (flags.baseline) {
+    return cmdBaseline(flags);
+  }
+  const provider = createVerificationProvider();
+  const wt = worktree();
+  const state = resolveRun(flags);
+  const runId = state?.run_id || (flags["run-id"] ? String(flags["run-id"]) : null);
+  const run = provider.run({ worktree: wt, runId });
+  if (flags.compare) {
+    const baselinePath =
+      flags.compare === true
+        ? runId
+          ? path.join(wt, ".opencode", "runs", runId, "baseline.json")
+          : null
+        : String(flags.compare);
+    let baselineData = null;
+    if (baselinePath && fs.existsSync(baselinePath)) {
+      baselineData = JSON.parse(fs.readFileSync(baselinePath, "utf8"));
+    }
+    const comparison = provider.compare(baselineData, run);
+    recordTrajectory(
+      flags,
+      { command: "verify", compare: true },
+      { ok: comparison.ok, run, comparison },
+      state,
+    );
+    console.log(JSON.stringify({ ok: comparison.ok, run, comparison }, null, 2));
+    if (!comparison.ok) process.exit(2);
+    return;
+  }
+  recordTrajectory(flags, { command: "verify" }, { ok: run.ok, run }, state);
+  console.log(JSON.stringify({ ok: run.ok, run }, null, 2));
+  if (!run.ok) process.exit(2);
+}
+
 function main() {
   const args = parseArgs(process.argv.slice(2));
   const cmd = args._[0];
@@ -641,9 +700,13 @@ function main() {
         return cmdInspect(flags);
       case "worktree":
         return cmdWorktree(args._, flags);
+      case "baseline":
+        return cmdBaseline(flags);
+      case "verify":
+        return cmdVerify(flags);
       default:
         console.error(
-          `Unknown or missing command. Use: init|classify|transition|validate-handoff|status|resume|drift|can-transition|inspect|worktree`,
+          `Unknown or missing command. Use: init|classify|transition|validate-handoff|status|resume|drift|can-transition|inspect|worktree|baseline|verify`,
         );
         process.exit(2);
     }

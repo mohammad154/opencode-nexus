@@ -55,27 +55,29 @@ Nexus gives OpenCode a repeatable delivery loop with explicit ownership and evid
 | Capability | What it adds |
 |---|---|
 | **Orchestration** | Classifies the request, selects a profile, creates the plan, and dispatches bounded work |
-| **Impact mapping** | Uses Graphify’s directed repository graph to map changed files and downstream risk |
-| **Safe implementation** | Gives production-file edits to the implementer, with branch and handoff context |
-| **Risk-based review** | Uses unified review for normal work and dual spec/code review for high-risk changes |
-| **Durable state** | Stores plans, tasks, handoffs, blast reports, and run state so interrupted work can recover |
+| **Impact mapping** | Built-in Nexus Impact Engine (git + AST + imports + tests) maps changed files and downstream risk |
+| **Safe implementation** | Gives production-file edits to the implementer, with branch, worktree, and handoff context |
+| **Risk-based review** | Uses unified review for normal work, dual spec/code review for high-risk changes, and integration review for multi-task branches |
+| **Durable state** | Stores plans, tasks, handoffs, impact reports, and run state so interrupted work can recover |
 
 ### Installed agents
 
-After install, OpenCode has six agents:
+After install, OpenCode has eight canonical agents:
 
 | Agent | Role |
 |---|---|
 | `orchestrator` | Routes the run, owns state, dispatches work |
 | `implementer` | Implements one task (or batched unit) and verifies it |
+| `diagnostician` | Reproduces bugs before implementer edits code |
 | `unified-reviewer` | One-pass review for low- and medium-risk work |
 | `spec-reviewer` | High-risk: scope, acceptance criteria, callers |
 | `code-reviewer` | High-risk: quality, security, regressions |
+| `integration-reviewer` | Whole-branch review across integrated tasks |
 | `reconciler` | Recovers stale plans and blocked runs |
 
-Nexus also installs a plugin and model config, and wires in [Graphify](https://github.com/Graphify-Labs/graphify) so agents can query a directed graph of your repo instead of guessing from file lists.
+Nexus also installs a plugin and model config, with the **Nexus Impact Engine** as the primary canonical evidence provider.
 
-Plans, run state, handoffs, and blast reports live in `.opencode/`. The repository graph stays in Graphify’s native `graphify-out/`.
+Plans, run state, handoffs, and impact reports live in `.opencode/`. Legacy Graphify repository graphs (if used) stay in `graphify-out/`.
 
 ---
 
@@ -87,7 +89,7 @@ Do this once on your machine, then open any project in OpenCode.
 
 - Node.js 20+, Git, Bash, [`jq`](https://jqlang.org/)
 - [OpenCode](https://opencode.ai/docs/installation/)
-- [Graphify](https://github.com/Graphify-Labs/graphify) (`graphify` on your `PATH`)
+- The **Nexus Impact Engine** is built-in and requires no external binaries.
 
 **2. Install the Nexus CLI globally, then set up OpenCode:**
 
@@ -122,14 +124,11 @@ That is the normal path. The rest of this README is for setup details, profiles,
 
 | Tool | Why |
 |---|---|
-| [Node.js](https://nodejs.org/) 20+ | CLI, blast script, call estimator |
+| [Node.js](https://nodejs.org/) 20+ | CLI, Nexus Impact Engine, state machine, call estimator |
 | Bash | Installer (`Git Bash` or WSL on Windows) |
-| Git | Branches, change evidence, graph freshness |
+| Git | Branches, worktrees, change evidence |
 | [`jq`](https://jqlang.org/) | Merges `opencode.json` on install/uninstall |
 | [OpenCode](https://opencode.ai/docs/installation/) | Host for agents, plugin, and models |
-| [Graphify](https://github.com/Graphify-Labs/graphify) | Directed repo graph (`graphify` must be on `PATH`) |
-
-Nexus **does not** install Graphify or talk to the network during setup. If `graphify` is missing, `nexus install` stops with a clear error.
 
 **`jq`**
 
@@ -151,25 +150,10 @@ winget install jqlang.jq
 jq --version
 ```
 
-**Graphify** — PyPI package is `graphifyy` (two y’s); the CLI command is `graphify`:
-
-```bash
-# recommended
-uv tool install graphifyy
-
-# or
-pipx install graphifyy
-```
-
-```bash
-graphify --version
-```
-
-Nexus install then runs Graphify’s OpenCode integration for you (`graphify install --platform opencode` and `graphify opencode install`). See the [Graphify README](https://github.com/Graphify-Labs/graphify) if the CLI is not found after install.
-
 ### Optional (recommended)
 
-`rg` ([ripgrep](https://github.com/BurntSushi/ripgrep)) and `fd` ([fd](https://github.com/sharkdp/fd)) speed up repository discovery.
+- [Graphify](https://github.com/Graphify-Labs/graphify) (`graphify` on `PATH`): Optional repository visualization and graph exploration.
+- `rg` ([ripgrep](https://github.com/BurntSushi/ripgrep)) and `fd` ([fd](https://github.com/sharkdp/fd)) speed up repository discovery.
 
 ```bash
 # Ubuntu / Debian / WSL
@@ -249,13 +233,13 @@ rm -rf /tmp/opencode-nexus
 | Plugin + models | `~/.config/opencode/opencode.json` |
 | Optional model overrides | `~/.config/opencode/nexus.models.json` |
 
-Canonical agent files: `orchestrator`, `implementer`, `unified-reviewer`, `spec-reviewer`, `code-reviewer`, `reconciler`.
+Canonical agent files: `orchestrator`, `implementer`, `diagnostician`, `unified-reviewer`, `spec-reviewer`, `code-reviewer`, `integration-reviewer`, `reconciler`.
 
 On Windows, set `OPENCODE_CONFIG_DIR` if your OpenCode config is not under `~/.config/opencode`.
 
 ### Optional compatibility agent
 
-`blast-analyzer` is **not** installed by default. Graphify plus `scripts/nexus-blast.js` cover graph and blast work. Install the legacy agent only if a host still needs that entry point:
+`blast-analyzer` is **not** installed by default. Nexus Impact Engine (`nexus impact`) covers git, AST, and affected test evidence. Install the legacy agent only if a host still needs that entry point:
 
 ```bash
 nexus install --with-optional-agents
@@ -271,7 +255,7 @@ To drop it explicitly:
 nexus install --prune-optional-agents
 ```
 
-Verification steps and V3 notes: [`.opencode/INSTALL.md`](.opencode/INSTALL.md).
+Verification steps and notes: [`.opencode/INSTALL.md`](.opencode/INSTALL.md).
 
 ---
 
@@ -279,25 +263,9 @@ Verification steps and V3 notes: [`.opencode/INSTALL.md`](.opencode/INSTALL.md).
 
 1. Open your project in OpenCode.
 2. Select the **orchestrator** agent.
-3. Describe the change (feature, bugfix, refactor). The orchestrator classifies risk, plans, maps impact with Graphify, then dispatches implementer and reviewers.
+3. Describe the change (feature, bugfix, refactor). The orchestrator classifies risk, plans, maps impact with the Nexus Impact Engine, then dispatches implementer and reviewers.
 
 You usually do **not** need to run the scripts below by hand. They are the same gates the orchestrator uses.
-
-### First graph in a repo
-
-If `graphify-out/graph.json` does not exist yet:
-
-```bash
-graphify extract . --code-only --directed --no-viz
-```
-
-Refresh later:
-
-```bash
-graphify update .
-graphify query "<architecture question>"
-graphify affected "<node-or-file>" --depth 2
-```
 
 ### Workflow scripts (optional / debugging)
 
@@ -310,10 +278,12 @@ nexus classify --files 2 --lines 40 --class small-feature-with-tests --focused
 nexus estimate --tasks 3 --profile balanced
 ```
 
-Blast radius for changed files:
+Impact analysis & baseline:
 
 ```bash
-nexus blast --files path/to/changed-file.js --json
+nexus impact --json
+nexus baseline
+nexus verify --baseline
 ```
 
 State machine and handoff checks:
@@ -328,19 +298,19 @@ nexus run validate-handoff \
 
 The exact transition sequence depends on the profile and whether the run is direct, delegated, or blocked. A stale or uncertain analysis must be verified before a direct path is allowed.
 
-Handoffs use **schema_version `1.1`** (shared envelope: `run_id`, `unit_or_task`, `agent`, `base_commit`, `created_at`). Legacy `1.0` / `0.9` handoffs migrate as `legacy_unverified` and cannot satisfy completion gates. Only `classify --apply` may authorize `direct_eligible`. Graph/blast trust requires provider revalidation — a caller-supplied `trusted: true` label is not enough.
+Handoffs use **schema_version `1.1`** (shared envelope: `run_id`, `unit_or_task`, `agent`, `base_commit`, `created_at`). Legacy `1.0` / `0.9` handoffs migrate as `legacy_unverified` and cannot satisfy completion gates. Only `classify --apply` may authorize `direct_eligible`. Impact trust requires provider revalidation — a caller-supplied `trusted: true` label is not enough.
 
 ---
 
 ## How the workflow works
 
 ```text
-request → classify → plan → graph → blast → implement → review → finish
-                                      │
-                                      └─ stale or blocked → reconcile
+request → classify → plan → impact → baseline → implement → review → final-verify → finish
+                                       │
+                                       └─ stale or blocked → reconcile
 ```
 
-Only the **implementer** writes production code. Review shape comes from the V3 profile and the change class:
+Only the **implementer** writes production code. Review shape comes from the profile and the change class:
 
 | Profile | When | Branching | Review |
 |---|---|---|---|
@@ -348,9 +318,9 @@ Only the **implementer** writes production code. Review shape comes from the V3 
 | `balanced` (default) | Normal features | One branch per feature / execution unit | Risk-based |
 | `strict` | Security, migration, public API, credentials | One branch per task | Spec review, then code review |
 
-High-risk work always uses `strict` and dual review. A **HIGH** blast always escalates **review** to dual; the execution profile can stay `balanced` when Graphify impact still says batching is safe.
+High-risk work always uses `strict` and dual review. A **HIGH** impact always escalates **review** to dual; the execution profile can stay `balanced` when impact analysis still says batching is safe.
 
-UNKNOWN graph or blast evidence never classifies as `fast`. Direct (no-dispatch) work is narrow: small, focused, low-risk, and high classifier confidence.
+UNKNOWN impact evidence never classifies as `fast`. Direct (no-dispatch) work is narrow: small, focused, low-risk, and high classifier confidence.
 
 Full policy: [`docs/workflow.md`](docs/workflow.md).
 
@@ -362,13 +332,9 @@ Full policy: [`docs/workflow.md`](docs/workflow.md).
 | `.opencode/CONTEXT.md` | Active profile, branch, verification context |
 | `.opencode/plans/PLAN.md` and `tasks/` | Plan and execution units |
 | `.opencode/handoffs/` | Implementer and reviewer results |
-| `.opencode/blast/` | Blast-radius reports |
+| `.opencode/impact/` | Impact analysis reports |
 | `.opencode/reconcile/` | Reconcile reports |
-| `graphify-out/graph.json` | Directed repository graph |
-| `graphify-out/GRAPH_REPORT.md` | Human-readable graph report |
-| `graphify-out/memory/` + `reflections/LESSONS.md` | Outcome memory |
-
-Use Graphify for graph / query / refresh. Use Nexus scripts for blast, call estimation, run gates, and branch cleanup. Do not dispatch an agent just to run a deterministic command.
+| `.opencode/memory/` + `reflections/LESSONS.md` | Outcome memory |
 
 ---
 
@@ -457,7 +423,7 @@ bash -n install.sh uninstall.sh scripts/test-install-only.sh \
 Confirm agents on disk:
 
 ```bash
-ls ~/.config/opencode/agents/{orchestrator,implementer,unified-reviewer,spec-reviewer,code-reviewer,reconciler}.md
+ls ~/.config/opencode/agents/{orchestrator,implementer,diagnostician,unified-reviewer,spec-reviewer,code-reviewer,integration-reviewer,reconciler}.md
 ```
 
 ---
@@ -468,10 +434,10 @@ ls ~/.config/opencode/agents/{orchestrator,implementer,unified-reviewer,spec-rev
 agents/          canonical agent definitions
 skills/          workflow skills the orchestrator loads
 config/          profiles and model defaults
-scripts/         blast, classify, state machine, estimate, cleanup
-schemas/         handoff, blast, and run-state JSON schemas
+scripts/         impact, classify, state machine, estimate, cleanup
+schemas/         handoff, impact, and run-state JSON schemas
 bin/nexus.js     npm CLI: install | update | uninstall | doctor
-docs/workflow.md V3 workflow reference
+docs/workflow.md V4 workflow reference
 install.sh       OpenCode installer
 uninstall.sh     matching cleanup
 ```

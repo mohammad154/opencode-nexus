@@ -17,7 +17,7 @@ Responsibilities:
 - Run drift check: plan_commit vs current HEAD, base_branch ancestor check, file:line evidence still holds?
 - Verify DONE tasks: does Scope In file still contain feature? Run cheap verification gates if available.
 - Investigate BLOCKED/NEEDS_CONTEXT: classify DRIFT_BLOCK|ENV_BLOCK|SCOPE_BLOCK|AUTH_BLOCK, attempt auto-recovery (rg file:line), or escalate.
-- Refresh remaining TODO: re-run blast via nexus-blast.js, update effort/confidence if needed.
+- Refresh remaining TODO: re-run impact analysis via nexus impact (or legacy nexus-blast.js), update effort/confidence if needed.
 - Retire findings fixed elsewhere (PLAN.md findings triage table).
 - Write `.opencode/reconcile/reconcile-<timestamp>.md` + update CONTEXT.md reconcile block.
 

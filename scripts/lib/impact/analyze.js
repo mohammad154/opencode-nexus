@@ -71,12 +71,14 @@ export function analyzeImpact(worktree, options = {}) {
   let unsupportedFiles = 0;
   for (const p of changedPaths) {
     const lang = languageForPath(p);
-    if (!adapterSupports(lang) && lang !== "unknown") unsupportedFiles += 1;
-    // unknown extension (md, json) does not count as unsupported AST failure
-    if (!adapterSupports(lang) && [".py", ".go", ".rs", ".java"].some((e) => p.endsWith(e))) {
+    if (!adapterSupports(lang) && lang !== "unknown") {
       unsupportedFiles += 1;
     }
   }
+
+  const parseErrors = changedPaths.filter(
+    (p) => index.byFile?.[p]?.error || index.byFile?.[p]?.parseError,
+  ).length;
 
   const confidence = computeConfidence({
     gitOk: true,
@@ -85,7 +87,7 @@ export function analyzeImpact(worktree, options = {}) {
     hasDiff: hasDiff && !preImpact,
     preImpact,
     cacheComplete: true,
-    parseErrors: index.stats?.unsupported || 0,
+    parseErrors,
   });
 
   const missing_tests =
