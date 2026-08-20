@@ -59,7 +59,7 @@ else
   PKG_VERSION="$(jq -r '.version' "$SCRIPT_DIR/package.json")"
   SPEC="${NEXUS_PLUGIN_SPEC:-${PKG_NAME}@${PKG_VERSION}}"
   LEGACY_GIT_SPEC="nexus@git+https://github.com/mohammad154/opencode-nexus.git"
-  NAG='["orchestrator","implementer","spec-reviewer","code-reviewer","unified-reviewer","blast-analyzer","reconciler"]'
+  NAG='["orchestrator","implementer","diagnostician","unified-reviewer","spec-reviewer","code-reviewer","integration-reviewer","reconciler","blast-analyzer"]'
   if [[ -f "$CF" ]]; then
     TJ="$(mktemp)"
     if jq --arg pl "$SPEC" --arg name "$PKG_NAME" --arg legacy "$LEGACY_GIT_SPEC" --argjson ns "$NAG" '
@@ -83,7 +83,7 @@ else
 fi
 
 # Agent file deletion/restoration ALWAYS runs, regardless of jq availability.
-for ag in orchestrator implementer spec-reviewer code-reviewer unified-reviewer blast-analyzer reconciler; do
+for ag in orchestrator implementer diagnostician unified-reviewer spec-reviewer code-reviewer integration-reviewer reconciler blast-analyzer; do
   t="$AD/$ag.md"; [[ -e "$t" ]] && bak_restore "$t" || true
 done
 rm -f "$CD/nexus.models.example.json"

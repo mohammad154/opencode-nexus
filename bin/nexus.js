@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { projectInit } from "../scripts/lib/project-init.js";
+import { CANONICAL_AGENTS } from "../scripts/lib/constants.js";
 
 const pkgRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const pkg = JSON.parse(fs.readFileSync(path.join(pkgRoot, "package.json"), "utf8"));
@@ -261,16 +262,7 @@ function doctor() {
   const configFile = path.join(configDir, "opencode.json");
   const agentsDir = path.join(configDir, "agents");
   const worktree = process.cwd();
-  const canonical = [
-  "orchestrator",
-  "implementer",
-  "unified-reviewer",
-  "spec-reviewer",
-  "code-reviewer",
-  "reconciler",
-  "diagnostician",
-  "integration-reviewer",
-];
+  const canonical = CANONICAL_AGENTS;
 
   const rows = [
     ["node", true, process.version],

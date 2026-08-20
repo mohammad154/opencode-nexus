@@ -9,7 +9,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WITH_OPTIONAL_AGENTS=0
 PRUNE_OPTIONAL_AGENTS=0
 # Canonical roster. OpenCode uses these names natively.
-CANONICAL_AGENTS=(orchestrator implementer unified-reviewer spec-reviewer code-reviewer reconciler diagnostician integration-reviewer)
+CANONICAL_AGENTS=(orchestrator implementer diagnostician unified-reviewer spec-reviewer code-reviewer integration-reviewer reconciler)
 OPTIONAL_AGENTS=(blast-analyzer)
 if [[ "${NEXUS_OPTIONAL_AGENTS:-}" == "1" ]]; then WITH_OPTIONAL_AGENTS=1; fi
 
@@ -134,10 +134,10 @@ fi
 # Always strip underscore meta-keys and nested _comment so jq agent merge stays object+object
 MJ="$(jq 'def strip: with_entries(select(.key|startswith("_")|not));
   strip | with_entries(.value = (if (.value|type)=="object" then (.value|strip) else .value end))' <<<"$MJ")"
-for spec in "orchestrator:NEXUS_ORCHESTRATOR_MODEL" "implementer:NEXUS_IMPLEMENTER_MODEL" "spec-reviewer:NEXUS_SPEC_REVIEWER_MODEL" "code-reviewer:NEXUS_CODE_REVIEWER_MODEL" "unified-reviewer:NEXUS_UNIFIED_REVIEWER_MODEL" "diagnostician:NEXUS_DIAGNOSTICIAN_MODEL" "integration-reviewer:NEXUS_INTEGRATION_REVIEWER_MODEL"; do
+for spec in "orchestrator:NEXUS_ORCHESTRATOR_MODEL" "implementer:NEXUS_IMPLEMENTER_MODEL" "spec-reviewer:NEXUS_SPEC_REVIEWER_MODEL" "code-reviewer:NEXUS_CODE_REVIEWER_MODEL" "unified-reviewer:NEXUS_UNIFIED_REVIEWER_MODEL" "diagnostician:NEXUS_DIAGNOSTICIAN_MODEL" "integration-reviewer:NEXUS_INTEGRATION_REVIEWER_MODEL" "reconciler:NEXUS_RECONCILER_MODEL"; do
   IFS=: read -r ag envv <<<"$spec"; v="${!envv:-}"; [[ -n "$v" ]] && MJ="$(jq --arg a "$ag" --arg m "$v" '.[$a].model=$m' <<<"$MJ")"
 done
-for spec in "implementer:NEXUS_IMPLEMENTER_VARIANT:NEXUS_IMPLEMENTER_REASONING_EFFORT" "spec-reviewer:NEXUS_SPEC_REVIEWER_VARIANT:NEXUS_SPEC_REVIEWER_REASONING_EFFORT" "code-reviewer:NEXUS_CODE_REVIEWER_VARIANT:NEXUS_CODE_REVIEWER_REASONING_EFFORT" "unified-reviewer:NEXUS_UNIFIED_REVIEWER_VARIANT:NEXUS_UNIFIED_REVIEWER_REASONING_EFFORT"; do
+for spec in "implementer:NEXUS_IMPLEMENTER_VARIANT:NEXUS_IMPLEMENTER_REASONING_EFFORT" "spec-reviewer:NEXUS_SPEC_REVIEWER_VARIANT:NEXUS_SPEC_REVIEWER_REASONING_EFFORT" "code-reviewer:NEXUS_CODE_REVIEWER_VARIANT:NEXUS_CODE_REVIEWER_REASONING_EFFORT" "unified-reviewer:NEXUS_UNIFIED_REVIEWER_VARIANT:NEXUS_UNIFIED_REVIEWER_REASONING_EFFORT" "diagnostician:NEXUS_DIAGNOSTICIAN_VARIANT:NEXUS_DIAGNOSTICIAN_REASONING_EFFORT" "integration-reviewer:NEXUS_INTEGRATION_REVIEWER_VARIANT:NEXUS_INTEGRATION_REVIEWER_REASONING_EFFORT" "reconciler:NEXUS_RECONCILER_VARIANT:NEXUS_RECONCILER_REASONING_EFFORT"; do
   IFS=: read -r ag envv legacy_envv <<<"$spec"; v="${!envv:-${!legacy_envv:-}}"; [[ -n "$v" ]] && MJ="$(jq --arg a "$ag" --arg e "$v" '.[$a].variant=$e' <<<"$MJ")"
 done
 OPTIONAL_JSON="$(printf '%s\n' "${OPTIONAL_AGENTS[@]}" | jq -R . | jq -s .)"
