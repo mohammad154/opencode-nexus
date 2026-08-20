@@ -1,54 +1,8 @@
 import fs from "fs";
 import path from "path";
+import { withFileLock } from "./lock.js";
 
 const TRAJECTORY_VERSION = "1.0";
-
-/**
- * Acquire a coarse advisory lockfile via O_EXCL. Multiple concurrent agents
- * appending to the same trajectory would otherwise compute the same step
- * number (length + 1) and the replay code rejects non-increasing steps.
- */
-function withLock(filePath, fn, { retries = 100, delayMs = 5 } = {}) {
-  const lock = `${filePath}.lock`;
-  fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  let fd = null;
-  for (let attempt = 0; attempt < retries; attempt += 1) {
-    try {
-      fd = fs.openSync(lock, "wx");
-      break;
-    } catch (error) {
-      if (error.code !== "EEXIST") throw error;
-      // Reap a stale lock (older than 10s) left by a crashed writer.
-      try {
-        const age = Date.now() - fs.statSync(lock).mtimeMs;
-        if (age > 10000) {
-          fs.rmSync(lock, { force: true });
-          continue;
-        }
-      } catch {
-        // lock vanished between stat and rm — retry immediately
-        continue;
-      }
-      const until = Date.now() + delayMs;
-      while (Date.now() < until) {
-        // busy-wait briefly; appends are short-lived
-      }
-    }
-  }
-  if (fd === null) {
-    throw new Error(`could not acquire trajectory lock: ${lock}`);
-  }
-  try {
-    return fn();
-  } finally {
-    try {
-      fs.closeSync(fd);
-    } catch {
-      /* ignore */
-    }
-    fs.rmSync(lock, { force: true });
-  }
-}
 
 function assertStep(step) {
   if (!step || typeof step !== "object" || Array.isArray(step)) {
@@ -72,7 +26,7 @@ function assertStep(step) {
  */
 export function appendTrajectoryStep(filePath, step) {
   assertStep(step);
-  return withLock(filePath, () => {
+  return withFileLock(filePath, () => {
     let stepNumber = Number.isInteger(step.step) ? step.step : null;
     if (stepNumber === null) {
       let existing = 0;

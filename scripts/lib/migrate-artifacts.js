@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import { validateHandoff, validateRunState } from "./schema-validate.js";
 import { assertValidRunId } from "./policy.js";
+import { withFileLock } from "./lock.js";
 
 const RUN_STATE_VERSION = "1.0";
 const HANDOFF_VERSION = "1.1";
@@ -202,43 +203,45 @@ export function writeRunState(worktree, state) {
   fs.mkdirSync(dir, { recursive: true });
   const target = path.join(dir, "state.json");
 
-  // Optimistic concurrency control: a caller that read revision N must write
-  // N (which we bump to N+1). If the on-disk revision advanced meanwhile,
-  // another agent wrote first and this write is rejected so its changes are
-  // not silently destroyed. Callers without a base revision (fresh init) skip
-  // the check.
-  const expectedRevision = Number.isInteger(state._revision)
-    ? state._revision
-    : null;
-  if (expectedRevision !== null && fs.existsSync(target)) {
-    let current = null;
-    try {
-      current = JSON.parse(fs.readFileSync(target, "utf8"));
-    } catch {
-      current = null;
+  return withFileLock(target, () => {
+    // Optimistic concurrency control: a caller that read revision N must write
+    // N (which we bump to N+1). If the on-disk revision advanced meanwhile,
+    // another agent wrote first and this write is rejected so its changes are
+    // not silently destroyed. Callers without a base revision (fresh init) skip
+    // the check.
+    const expectedRevision = Number.isInteger(state._revision)
+      ? state._revision
+      : null;
+    if (expectedRevision !== null && fs.existsSync(target)) {
+      let current = null;
+      try {
+        current = JSON.parse(fs.readFileSync(target, "utf8"));
+      } catch {
+        current = null;
+      }
+      const currentRevision = Number.isInteger(current?._revision)
+        ? current._revision
+        : 0;
+      if (currentRevision !== expectedRevision) {
+        const err = new Error(
+          `run state revision conflict for ${state.run_id}: expected ${expectedRevision}, found ${currentRevision} (concurrent write)`,
+        );
+        err.code = "REVISION_CONFLICT";
+        err.expected = expectedRevision;
+        err.actual = currentRevision;
+        throw err;
+      }
     }
-    const currentRevision = Number.isInteger(current?._revision)
-      ? current._revision
-      : 0;
-    if (currentRevision !== expectedRevision) {
-      const err = new Error(
-        `run state revision conflict for ${state.run_id}: expected ${expectedRevision}, found ${currentRevision} (concurrent write)`,
-      );
-      err.code = "REVISION_CONFLICT";
-      err.expected = expectedRevision;
-      err.actual = currentRevision;
-      throw err;
-    }
-  }
 
-  const nextRevision =
-    (Number.isInteger(state._revision) ? state._revision : 0) + 1;
-  const { _revision: _drop, ...rest } = state;
-  const tmp = `${target}.${process.pid}.${Date.now()}.tmp`;
-  const next = { ...rest, _revision: nextRevision, updated_at: nowIso() };
-  fs.writeFileSync(tmp, JSON.stringify(next, null, 2) + "\n", "utf8");
-  fs.renameSync(tmp, target);
-  return next;
+    const nextRevision =
+      (Number.isInteger(state._revision) ? state._revision : 0) + 1;
+    const { _revision: _drop, ...rest } = state;
+    const tmp = `${target}.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}.tmp`;
+    const next = { ...rest, _revision: nextRevision, updated_at: nowIso() };
+    fs.writeFileSync(tmp, JSON.stringify(next, null, 2) + "\n", "utf8");
+    fs.renameSync(tmp, target);
+    return next;
+  });
 }
 
 function parseContextYamlish(text) {
