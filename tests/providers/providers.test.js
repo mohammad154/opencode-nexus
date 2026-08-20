@@ -167,51 +167,30 @@ test("default providers preserve the resolved run context in call budgets", () =
   const worktree = tempDir("nexus-run-context-");
   const providers = createDefaultProviders({
     worktree,
-    profile: "strict",
-    changeClass: "public-api",
-    executionMode: "delegated",
     units: 2,
   });
 
   assert.deepEqual(providers.telemetry.getBudget(), {
-    profile: "strict",
-    change_class: "public-api",
+    profile: "default",
+    workflow: "default",
+    change_class: "task",
     execution_mode: "delegated",
     units: 2,
-    category: "dual",
+    category: "normal",
     max_calls: 6,
     derived_max_calls: 6,
-    source: "workflow-profile-defaults",
+    source: "v5-default-workflow",
     used_calls: 0,
     remaining_calls: 6,
   });
 });
 
-test("agent-call budgets mirror profile defaults and never allow an escalation", () => {
-  for (const profile of ["fast", "balanced", "strict"]) {
-    assert.equal(
-      getAgentCallBudget({ profile, changeClass: "documentation" }).max_calls,
-      1,
-    );
-    assert.equal(
-      getAgentCallBudget({ profile, executionMode: "direct" }).max_calls,
-      1,
-    );
-  }
-  assert.equal(getAgentCallBudget({ profile: "balanced", units: 2 }).max_calls, 4);
-  assert.equal(getAgentCallBudget({ profile: "strict" }).max_calls, 3);
-  assert.equal(
-    getAgentCallBudget({ profile: "balanced", changeClass: "public-api" }).max_calls,
-    3,
-  );
-  assert.equal(
-    getAgentCallBudget({ profile: "strict", maxCalls: 99 }).max_calls,
-    3,
-  );
-  assert.equal(
-    getAgentCallBudget({ profile: "fast", maxCalls: 1 }).max_calls,
-    1,
-  );
+test("agent-call budgets use V5 fixed formula and never escalate past derived max", () => {
+  // tasks * 2 + headroom(max(2, units))
+  assert.equal(getAgentCallBudget({ units: 1 }).max_calls, 4);
+  assert.equal(getAgentCallBudget({ units: 2 }).max_calls, 6);
+  assert.equal(getAgentCallBudget({ units: 1, maxCalls: 99 }).max_calls, 4);
+  assert.equal(getAgentCallBudget({ units: 1, maxCalls: 1 }).max_calls, 1);
 });
 
 test("edit validator requires scope and validates an in-scope diff", () => {
@@ -315,8 +294,8 @@ test("metrics enforce the hard agent-call budget and record rejected calls", () 
   const telemetry = createMetricsTelemetry({
     worktree,
     metricsPath,
-    profile: "balanced",
     units: 1,
+    maxCalls: 2,
   });
 
   assert.equal(telemetry.recordCall({ run_id: "budget-run", provider: "host" }).accepted, true);
@@ -328,18 +307,11 @@ test("metrics enforce the hard agent-call budget and record rejected calls", () 
   assert.equal(rejected.accepted, false);
   assert.equal(rejected.budget_exceeded, true);
   assert.equal(rejected.failure_code, "AGENT_CALL_BUDGET_EXCEEDED");
-  assert.deepEqual(telemetry.getBudget(), {
-    profile: "balanced",
-    change_class: "small-feature-with-tests",
-    execution_mode: "delegated",
-    units: 1,
-    category: "normal",
-    max_calls: 2,
-    derived_max_calls: 2,
-    source: "workflow-profile-defaults",
-    used_calls: 2,
-    remaining_calls: 0,
-  });
+  const budget = telemetry.getBudget();
+  assert.equal(budget.max_calls, 2);
+  assert.equal(budget.used_calls, 2);
+  assert.equal(budget.remaining_calls, 0);
+  assert.equal(budget.source, "v5-default-workflow");
   const lines = fs.readFileSync(metricsPath, "utf8").trim().split("\n").map(JSON.parse);
   assert.equal(lines.filter((line) => line.event === "agent_call").length, 2);
   assert.equal(lines.filter((line) => line.failure_code === "AGENT_CALL_BUDGET_EXCEEDED").length, 1);

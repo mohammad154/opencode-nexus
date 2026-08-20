@@ -1,13 +1,20 @@
-# Impact Analysis
+# Impact Analysis (V5)
 
-Use the Nexus Impact Engine instead of Graphify/blast.
+Use the Nexus Impact Engine (deterministic scripts — not an agent).
 
 ```bash
 nexus impact --json
 # or
-node scripts/nexus-impact.js --json --base HEAD
+node scripts/nexus-impact.js --json --base HEAD --targets <files>
 ```
+
+## When
+
+- **Pre-impact** — before **every** implementer dispatch (first attempt and every REQUEST_CHANGES fix).
+- **Post-impact** — during VERIFYING after implementation (detects scope expansion vs plan).
 
 Evidence includes git diff, changed symbols, imports/dependents, related tests, **risk**, and **confidence** (separate fields).
 
-Low confidence (&lt; 0.75) escalates verification and review. Never invent impact numbers in agent prose — scripts measure.
+Never invent impact numbers in agent prose — scripts measure.
+
+Invariant: **no implementer without fresh sealed pre-impact for the current unit.**

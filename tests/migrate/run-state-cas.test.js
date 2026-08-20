@@ -19,7 +19,7 @@ test("optimistic concurrency rejects a stale second writer", (t) => {
   assert.equal(a._revision, b._revision);
 
   // First writer commits successfully.
-  const committed = writeRunState(wt, { ...a, state: "CLASSIFIED" });
+  const committed = writeRunState(wt, { ...a, state: "BRAINSTORMING" });
   assert.equal(committed._revision, a._revision + 1);
 
   // Second writer still holds the old revision → conflict.

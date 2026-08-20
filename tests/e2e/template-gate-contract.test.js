@@ -59,33 +59,31 @@ function handoffFromImplementerTemplate({
   };
 }
 
-function handoffFromUnifiedTemplate({
+function handoffFromReviewerTemplate({
   runId = "contract-run",
   unit = "unit-contract",
   base = "baseaaa",
   commit = "commitbb",
 } = {}) {
-  const prompt = read("skills/orchestrating/unified-reviewer-prompt.md");
+  const prompt = read("skills/orchestrating/reviewer-prompt.md");
   assert.match(prompt, /"schema_version": "1\.1"/);
   assert.match(prompt, /reviewed_commit/);
   assert.match(prompt, /run_id/);
+  assert.match(prompt, /"agent": "reviewer"/);
 
   return {
     schema_version: "1.1",
     run_id: runId,
     unit_or_task: unit,
-    agent: "unified-reviewer",
+    agent: "reviewer",
     base_commit: base,
     created_at: "2026-07-30T12:00:00.000Z",
     reviewed_commit: commit,
     verdict: "APPROVED",
-    change_class: "small-feature-with-tests",
-    blast_risk: "LOW",
     acceptance: [],
     findings: [],
-    escalate_to_dual: false,
     notes: "from template contract",
-    blast: { pass: true, risk: "LOW" },
+    impact: { pass: true, risk: "LOW" },
   };
 }
 
@@ -124,27 +122,23 @@ test("documented implementer template produces a gate-valid handoff", () => {
   assert.equal(applied.state.implementer_commit, "commitbb");
 });
 
-test("documented unified template produces a gate-valid approval", () => {
-  const handoff = handoffFromUnifiedTemplate();
-  const { ok, errors } = normalizeAndValidateHandoff(
-    "unified-reviewer",
-    handoff,
-  );
+test("documented reviewer template produces a gate-valid approval", () => {
+  const handoff = handoffFromReviewerTemplate();
+  const { ok, errors, data } = normalizeAndValidateHandoff("reviewer", handoff);
   assert.equal(ok, true, JSON.stringify(errors));
+  assert.equal(data.agent, "reviewer");
 
   const state = {
     ...createEmptyRunState("contract-run"),
     state: "REVIEWING",
-    review_level: "unified",
-    compatibility_mode: "v3",
     current_unit: "unit-contract",
     head_commit: "baseaaa",
     implementer_commit: "commitbb",
   };
-  const completed = canTransition(state, "COMPLETED", { legacy_skip_final: true,
-    unified_handoff: handoff,
+  const final = canTransition(state, "FINAL_VERIFYING", {
+    review_handoff: data,
   });
-  assert.equal(completed.ok, true, JSON.stringify(completed.errors));
+  assert.equal(final.ok, true, JSON.stringify(final.errors));
 });
 
 test("OpenCode compact router uses unprefixed skill names", () => {

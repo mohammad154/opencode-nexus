@@ -9,7 +9,7 @@ cleanup() { rm -rf "$TMPROOT"; }
 trap cleanup EXIT
 
 SANITIZED_PATH="/usr/bin:/bin"
-CANONICAL_AGENTS=(orchestrator implementer diagnostician unified-reviewer spec-reviewer code-reviewer integration-reviewer reconciler)
+CANONICAL_AGENTS=(orchestrator implementer reviewer)
 
 fail() {
   echo "FAIL: $*" >&2

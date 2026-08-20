@@ -62,41 +62,29 @@ function normalizeMode(mode) {
 
 /**
  * Resolve the hard maximum number of agent calls for a run.
- *
- * The defaults intentionally mirror nexus-estimate-calls.js. Hosts may pass
- * a lower explicit max_calls, but cannot raise the profile-derived ceiling.
+ * V5: ~2 calls per task (implementer + reviewer), plus headroom for fix loops.
  */
 export function getAgentCallBudget(options = {}) {
-  const profile = String(options.profile || "balanced").trim().toLowerCase();
-  const matrix = PROFILE_CALLS_PER_UNIT[profile] || PROFILE_CALLS_PER_UNIT.balanced;
-  const changeClass = String(options.changeClass || options.change_class || "small-feature-with-tests")
-    .trim()
-    .toLowerCase();
-  const executionMode = String(options.executionMode || options.execution_mode || "")
-    .trim()
-    .toLowerCase();
   const units = Math.max(1, Math.floor(Number(options.units) || 1));
-  const kind = options.direct === true || executionMode === "direct"
-    ? "direct"
-    : changeClass === "documentation"
-    ? "documentation"
-    : DUAL_REVIEW_CLASSES.has(changeClass)
-      ? "dual"
-      : "normal";
-  const derivedMax = matrix[kind] * units;
+  const perTask = 2;
+  const fixHeadroom = Math.max(2, units); // one extra implementer+reviewer pair per task
+  const derivedMax = perTask * units + fixHeadroom;
   const requestedMax = Number(options.maxCalls ?? options.max_calls);
   const maxCalls = Number.isFinite(requestedMax) && requestedMax >= 0
     ? Math.min(Math.floor(requestedMax), derivedMax)
     : derivedMax;
   return {
-    profile: PROFILE_CALLS_PER_UNIT[profile] ? profile : "balanced",
-    change_class: changeClass,
-    execution_mode: executionMode || (options.direct === true ? "direct" : "delegated"),
+    profile: "default",
+    workflow: "default",
+    change_class: String(options.changeClass || options.change_class || "task")
+      .trim()
+      .toLowerCase(),
+    execution_mode: "delegated",
     units,
-    category: kind,
+    category: "normal",
     max_calls: maxCalls,
     derived_max_calls: derivedMax,
-    source: "workflow-profile-defaults",
+    source: "v5-default-workflow",
   };
 }
 

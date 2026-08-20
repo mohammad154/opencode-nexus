@@ -7,10 +7,12 @@ const SCHEMAS_DIR = path.resolve(__dirname, "../../schemas");
 
 const HANDOFF_SCHEMA = {
   implementer: "handoff-implementer.schema.json",
-  "unified-reviewer": "handoff-unified-reviewer.schema.json",
-  "spec-reviewer": "handoff-spec-reviewer.schema.json",
-  "code-reviewer": "handoff-code-reviewer.schema.json",
-  "integration-reviewer": "handoff-integration-reviewer.schema.json",
+  reviewer: "handoff-reviewer.schema.json",
+  // Legacy aliases → reviewer schema (V5 broke dual/unified split)
+  "unified-reviewer": "handoff-reviewer.schema.json",
+  "spec-reviewer": "handoff-reviewer.schema.json",
+  "code-reviewer": "handoff-reviewer.schema.json",
+  "integration-reviewer": "handoff-reviewer.schema.json",
 };
 
 const cache = new Map();

@@ -3,7 +3,6 @@ import path from "path";
 import { spawnSync } from "node:child_process";
 import { normalizeAndValidateHandoff } from "./migrate-artifacts.js";
 import {
-  validateClassification,
   validateBlastReport,
   validateDriftReport,
   validateImpactReport,
@@ -25,11 +24,8 @@ import {
   isUnknownBlast,
   isUnknownGraph,
   isUnknownImpact,
-  isTrustedLowRiskBlast,
-  isTrustedLowRiskImpact,
   maxReview,
   requiresTdd,
-  isMultiTaskRun,
   isAcceptablePreImpact,
 } from "./policy.js";
 import {
@@ -39,11 +35,11 @@ import {
 
 export const STATES = [
   "CREATED",
-  "CLASSIFIED",
+  "BRAINSTORMING",
+  "WAITING_FOR_USER",
   "PLANNED",
-  "IMPACT_READY",
+  "TASK_IMPACT_READY",
   "IMPLEMENTING",
-  "DIRECT_IMPLEMENTING",
   "VERIFYING",
   "REVIEWING",
   "FINAL_VERIFYING",
@@ -52,11 +48,12 @@ export const STATES = [
   "FAILED",
 ];
 
+/** Primary happy-path order (task loop re-enters TASK_IMPACT_READY). */
 export const LINEAR = [
   "CREATED",
-  "CLASSIFIED",
+  "BRAINSTORMING",
   "PLANNED",
-  "IMPACT_READY",
+  "TASK_IMPACT_READY",
   "IMPLEMENTING",
   "VERIFYING",
   "REVIEWING",
@@ -65,7 +62,11 @@ export const LINEAR = [
 ];
 
 const TERMINAL = new Set(["COMPLETED", "FAILED"]);
+/** @deprecated V5 has no classify gate; kept for import compatibility. */
 export const CLASSIFY_APPLY_SOURCE = "classify-apply";
+
+/** Alias for tests/docs that still say IMPACT_READY. */
+export const IMPACT_READY = "TASK_IMPACT_READY";
 
 function nowIso() {
   return new Date().toISOString();
@@ -165,24 +166,22 @@ function gitIsAncestor(worktree, ancestor, descendant) {
 
 export function requiredEvidence(from, to) {
   const map = {
-    "CREATED->CLASSIFIED": ["classification"],
-    "CLASSIFIED->PLANNED": ["plan_path|plan_skip"],
-    "PLANNED->IMPACT_READY": ["impact"],
-    "IMPACT_READY->IMPLEMENTING": [
+    "CREATED->BRAINSTORMING": [],
+    "BRAINSTORMING->WAITING_FOR_USER": ["question"],
+    "WAITING_FOR_USER->BRAINSTORMING": [],
+    "BRAINSTORMING->PLANNED": ["plan_path|plan_skip"],
+    "PLANNED->TASK_IMPACT_READY": ["impact"],
+    "TASK_IMPACT_READY->IMPLEMENTING": [
       "branch",
       "impact",
       "acceptance_criteria",
       "drift",
     ],
-    "CLASSIFIED->DIRECT_IMPLEMENTING": ["direct_eligible"],
-    "PLANNED->DIRECT_IMPLEMENTING": ["direct_eligible"],
     "IMPLEMENTING->VERIFYING": ["implementer_handoff"],
-    "DIRECT_IMPLEMENTING->VERIFYING": ["implementer_handoff"],
     "VERIFYING->REVIEWING": ["provider_verification"],
+    "REVIEWING->TASK_IMPACT_READY": ["review_handoff"],
     "REVIEWING->FINAL_VERIFYING": ["review_approval"],
     "FINAL_VERIFYING->COMPLETED": ["final_verification"],
-    "REVIEWING->COMPLETED": ["review_approval|legacy_skip_final+compatibility_mode_v3"],
-    "VERIFYING->COMPLETED": ["review_level_none"],
   };
   return map[`${from}->${to}`] || [];
 }
@@ -307,18 +306,14 @@ function assertVerificationGates(data, state, errors, ctx = {}) {
 
   if (!exempt) {
     assertProviderVerification(ctx, state, errors, { phase: "implementer" });
-    const impactRequired =
-      state.review_level !== "none" && state.execution_mode !== "direct";
-    if (impactRequired) {
-      assertPostImpactEvidence(ctx, state, errors);
-      const impactOk =
-        (data.impact && data.impact.verified === true) ||
-        (data.blast && data.blast.verified === true);
-      if (!impactOk) {
-        errors.push(
-          "impact.verified (or legacy blast.verified) must be true when impact verification is required",
-        );
-      }
+    assertPostImpactEvidence(ctx, state, errors);
+    const impactOk =
+      (data.impact && data.impact.verified === true) ||
+      (data.blast && data.blast.verified === true);
+    if (!impactOk) {
+      errors.push(
+        "impact.verified (or legacy blast.verified) must be true when impact verification is required",
+      );
     }
     if (!data.drift_check || typeof data.drift_check !== "object") {
       errors.push("VERIFYING requires drift_check");
@@ -372,18 +367,6 @@ function assertVerificationGates(data, state, errors, ctx = {}) {
 }
 
 
-function isProviderTrustedImpact(impact) {
-  return verifySealedArtifact(impact) && isTrustedLowRiskImpact(impact);
-}
-
-function allowsLegacySkipFinal(state, ctx) {
-  if (ctx.legacy_skip_final !== true) return false;
-  return (
-    state.compatibility_mode === "v3" ||
-    state.classification?.compatibility_mode === "v3"
-  );
-}
-
 function loadRunBaseline(state, ctx, worktree) {
   if (ctx.baseline && typeof ctx.baseline === "object") return ctx.baseline;
   if (state.baseline && typeof state.baseline === "object") return state.baseline;
@@ -413,7 +396,7 @@ export function revalidateTransitionEvidence(to, ctx, providers, state = {}) {
   const next = { ...ctx };
   const errors = [];
 
-  if (to === "IMPACT_READY" || to === "DIRECT_IMPLEMENTING") {
+  if (to === "TASK_IMPACT_READY" || to === "IMPACT_READY") {
     if (providers?.impactProvider?.analyze) {
       const analyzed = providers.impactProvider.analyze({
         worktree,
@@ -422,7 +405,8 @@ export function revalidateTransitionEvidence(to, ctx, providers, state = {}) {
         change_class:
           ctx.change_class ||
           ctx.classification?.change_class ||
-          state.classification?.change_class,
+          state.classification?.change_class ||
+          state.change_class,
         planned_targets:
           ctx.planned_targets || ctx.targets || ctx.allowed_files || ctx.files,
         // Never pass sealed inline report — digests are not provenance.
@@ -452,7 +436,7 @@ export function revalidateTransitionEvidence(to, ctx, providers, state = {}) {
         if (isAcceptablePreImpact(nextReport)) {
           next.require_post_impact = true;
         }
-      } else if (to === "IMPACT_READY") {
+      } else {
         errors.push(
           `impact provider rejected artifact: ${analyzed?.error || "not ok"}`,
         );
@@ -475,13 +459,14 @@ export function revalidateTransitionEvidence(to, ctx, providers, state = {}) {
           head,
         );
         next.blast = next.impact;
-      } else if (to === "IMPACT_READY") {
+      } else {
         errors.push(
           `impact provider rejected artifact: ${analyzed?.error || "not ok"}`,
         );
       }
     } else if (ctx.impact || ctx.blast) {
-      const report = ctx.impact?.report || ctx.impact || ctx.blast?.report || ctx.blast;
+      const report =
+        ctx.impact?.report || ctx.impact || ctx.blast?.report || ctx.blast;
       if (report?.trusted === true) {
         errors.push(
           "impact trusted label rejected: provider revalidation required",
@@ -644,6 +629,8 @@ export function canTransition(state, to, ctx = {}) {
   const errors = [];
   const from = state?.state;
   if (!from) return { ok: false, errors: ["missing current state"] };
+  // Normalize legacy alias before unknown-state check
+  if (to === "IMPACT_READY") to = "TASK_IMPACT_READY";
   if (!STATES.includes(to)) {
     return { ok: false, errors: [`unknown target state ${to}`] };
   }
@@ -669,33 +656,26 @@ export function canTransition(state, to, ctx = {}) {
     return { ok: errors.length === 0, errors };
   }
 
-  const allowed = new Set();
-  const idx = LINEAR.indexOf(from);
-  if (idx >= 0 && idx + 1 < LINEAR.length) allowed.add(LINEAR[idx + 1]);
+  // Normalize legacy IMPACT_READY alias (already done at top; keep idempotent)
+  if (to === "IMPACT_READY") to = "TASK_IMPACT_READY";
 
-  if (from === "CLASSIFIED" || from === "PLANNED") {
-    allowed.add("DIRECT_IMPLEMENTING");
+  const allowed = new Set();
+  if (from === "CREATED") allowed.add("BRAINSTORMING");
+  if (from === "BRAINSTORMING") {
+    allowed.add("WAITING_FOR_USER");
+    allowed.add("PLANNED");
   }
-  if (from === "DIRECT_IMPLEMENTING") {
-    allowed.add("VERIFYING");
-    allowed.add("BLOCKED");
-  }
-  // COMPLETED from VERIFYING only when stored review_level is none
-  if (from === "VERIFYING" && policy.review_level === "none") {
-    allowed.add("COMPLETED");
-  }
-  // Legacy: REVIEWING → COMPLETED still allowed when skip_final is set (PR11 tightens)
+  if (from === "WAITING_FOR_USER") allowed.add("BRAINSTORMING");
+  if (from === "PLANNED") allowed.add("TASK_IMPACT_READY");
+  if (from === "TASK_IMPACT_READY") allowed.add("IMPLEMENTING");
+  if (from === "IMPLEMENTING") allowed.add("VERIFYING");
+  if (from === "VERIFYING") allowed.add("REVIEWING");
   if (from === "REVIEWING") {
-    allowed.add("FINAL_VERIFYING");
-    allowed.add("COMPLETED");
+    allowed.add("TASK_IMPACT_READY"); // REQUEST_CHANGES fix loop or next task
+    allowed.add("FINAL_VERIFYING"); // all tasks APPROVED
   }
-  if (from === "FINAL_VERIFYING") {
-    allowed.add("COMPLETED");
-  }
+  if (from === "FINAL_VERIFYING") allowed.add("COMPLETED");
   if (from === "BLOCKED") {
-    // Hard checkpoint: only resume to the state we blocked from (or FAILED).
-    // Caller-supplied resume_state is ignored at apply time; treat blocked_from
-    // as the sole non-terminal destination.
     const resumeTarget = state.blocked_from || state.resume_state;
     if (
       resumeTarget &&
@@ -713,13 +693,14 @@ export function canTransition(state, to, ctx = {}) {
     return { ok: false, errors };
   }
 
-  if (to === "CLASSIFIED") {
-    const c = ctx.classification || state.classification;
-    const v = validateClassification(c || {});
-    if (!v.ok) {
-      errors.push(
-        `classification invalid: ${v.errors.map((e) => e.message).join("; ")}`,
-      );
+  if (to === "BRAINSTORMING") {
+    // No evidence required — optional notes only
+  }
+
+  if (to === "WAITING_FOR_USER") {
+    const q = ctx.question || ctx.user_question || ctx.clarifying_question;
+    if (!q || (typeof q === "string" && !q.trim())) {
+      errors.push("WAITING_FOR_USER requires a clarifying question");
     }
   }
 
@@ -734,30 +715,87 @@ export function canTransition(state, to, ctx = {}) {
     if (!planOk) errors.push("PLANNED requires PLAN.md or plan_skip");
   }
 
-  if (to === "IMPACT_READY") {
-    const impact = ctx.impact?.report || ctx.impact || state.impact || ctx.blast || state.blast;
+  if (to === "TASK_IMPACT_READY") {
+    // Fresh pre-impact required every time (including after REQUEST_CHANGES)
+    const impact =
+      ctx.impact?.report ||
+      ctx.impact ||
+      state.impact ||
+      ctx.blast ||
+      state.blast;
     const report = impact?.report || impact;
+    // When coming from REVIEWING, require a new impact in ctx (not stale state.impact alone)
+    if (from === "REVIEWING") {
+      const fresh = ctx.impact?.report || ctx.impact || ctx.blast;
+      if (!fresh) {
+        errors.push(
+          "TASK_IMPACT_READY after review requires fresh impact evidence (every implementer dispatch needs re-impact)",
+        );
+      }
+      const reviewRaw =
+        ctx.review_handoff ||
+        ctx.unified_handoff ||
+        ctx.request_changes_handoff ||
+        state.last_review_handoff;
+      if (reviewRaw) {
+        const {
+          ok,
+          data,
+          errors: he,
+        } = normalizeAndValidateHandoff("reviewer", reviewRaw);
+        if (!ok) {
+          errors.push(
+            `review handoff invalid: ${(he || []).map((e) => e.message).join("; ")}`,
+          );
+        } else if (
+          data.verdict !== "REQUEST_CHANGES" &&
+          data.verdict !== "APPROVED"
+        ) {
+          errors.push(
+            `REVIEWING → TASK_IMPACT_READY requires REQUEST_CHANGES or APPROVED (next task), got ${data.verdict}`,
+          );
+        } else if (
+          data.verdict === "APPROVED" &&
+          ctx.next_task !== true &&
+          ctx.more_tasks !== true &&
+          !ctx.next_unit &&
+          !(ctx.current_unit && ctx.current_unit !== state.current_unit)
+        ) {
+          errors.push(
+            "APPROVED review returning to TASK_IMPACT_READY requires next_task/more_tasks or a new current_unit",
+          );
+        }
+      } else if (ctx.force_reimpact !== true) {
+        errors.push(
+          "REVIEWING → TASK_IMPACT_READY requires review_handoff (REQUEST_CHANGES or next-task APPROVED)",
+        );
+      }
+    }
     if (report?.fabricated === true) {
-      errors.push("IMPACT_READY rejects fabricated impact trust labels");
+      errors.push("TASK_IMPACT_READY rejects fabricated impact trust labels");
     }
     if (report?.trusted === true && !verifySealedArtifact(report)) {
       errors.push(
-        "IMPACT_READY rejects unsealed trusted impact; provider revalidation required",
+        "TASK_IMPACT_READY rejects unsealed trusted impact; provider revalidation required",
       );
     }
-    if (!report) {
-      errors.push("IMPACT_READY requires impact provider result");
+    const impactForGate =
+      from === "REVIEWING"
+        ? ctx.impact?.report || ctx.impact || ctx.blast || report
+        : report;
+    if (!impactForGate) {
+      errors.push("TASK_IMPACT_READY requires impact provider result");
     } else {
       const normalized = {
         uncertainties: [],
         dimensions: {},
-        confidence: report.confidence ?? 0,
-        ...report,
+        confidence: impactForGate.confidence ?? 0,
+        ...impactForGate,
       };
-      if (!normalized.risk && normalized.level) normalized.risk = normalized.level;
+      if (!normalized.risk && normalized.level)
+        normalized.risk = normalized.level;
       const v = validateImpactReport(normalized);
       if (!v.ok) {
-        // Fall back to blast schema for transitional reports
         const bv = validateBlastReport(normalized);
         if (!bv.ok) {
           errors.push(
@@ -777,7 +815,7 @@ export function canTransition(state, to, ctx = {}) {
         )
       ) {
         errors.push(
-          "UNKNOWN impact analysis requires explicit impact_verification evidence before IMPACT_READY",
+          "UNKNOWN impact analysis requires explicit impact_verification evidence before TASK_IMPACT_READY",
         );
       }
     }
@@ -797,6 +835,16 @@ export function canTransition(state, to, ctx = {}) {
     const report = impact?.report || impact;
     if (!report || !(report.risk || report.level)) {
       errors.push("IMPLEMENTING requires valid impact report");
+    }
+    // Invariant: impact must be bound to current unit / fresh for this dispatch
+    if (
+      state.impact_consumed_for_implement === true &&
+      !ctx.impact &&
+      !ctx.blast
+    ) {
+      errors.push(
+        "IMPLEMENTING requires fresh impact — previous impact already consumed (re-run pre-impact)",
+      );
     }
     const allowedFiles =
       ctx.allowed_files ||
@@ -849,50 +897,6 @@ export function canTransition(state, to, ctx = {}) {
     }
   }
 
-  if (to === "DIRECT_IMPLEMENTING") {
-    const source =
-      state.classification_source ||
-      state.classification?.classification_source ||
-      ctx.classification_source;
-    if (source !== CLASSIFY_APPLY_SOURCE) {
-      errors.push(
-        "DIRECT_IMPLEMENTING requires classification persisted by classify --apply",
-      );
-    }
-    if (!policy.direct_eligible) {
-      errors.push(
-        "DIRECT_IMPLEMENTING requires stored classification.direct_eligible (ctx cannot grant)",
-      );
-    }
-    if (policy.execution_mode === "delegated" && !policy.direct_eligible) {
-      errors.push("direct execution forbidden: execution_mode is delegated");
-    }
-    if (policy.confidence != null && policy.confidence < 0.85) {
-      errors.push("direct path requires confidence >= 0.85");
-    }
-    if (state.classification?.diff_clean === true) {
-      errors.push(
-        "direct execution requires existing non-clean diff (existing-diff-only in PR A)",
-      );
-    }
-    if (ctx.forbid_direct === true) {
-      errors.push("direct execution explicitly forbidden");
-    }
-    // V4: only documentation/formatting — enforced via classification; impact must be trusted LOW
-    const impact =
-      ctx.impact?.report ||
-      ctx.impact ||
-      state.impact ||
-      ctx.blast?.report ||
-      ctx.blast ||
-      state.blast;
-    if (!isProviderTrustedImpact(impact)) {
-      errors.push(
-        "direct execution requires a provider-revalidated sealed LOW impact analysis",
-      );
-    }
-  }
-
   if (to === "VERIFYING") {
     const raw = ctx.implementer_handoff || ctx.handoff;
     if (!raw) errors.push("VERIFYING requires implementer handoff");
@@ -931,8 +935,7 @@ export function canTransition(state, to, ctx = {}) {
   }
 
   if (to === "REVIEWING") {
-    const docsSkip = policy.review_level === "none";
-    if (!docsSkip && !verificationPolicyExempt(state)) {
+    if (!verificationPolicyExempt(state)) {
       const pv = ctx.provider_verification || state.provider_verification;
       if (
         ctx.provider_verification &&
@@ -953,104 +956,25 @@ export function canTransition(state, to, ctx = {}) {
     if (from !== "REVIEWING" && from !== "BLOCKED") {
       errors.push("FINAL_VERIFYING must follow REVIEWING");
     }
-    // Require review approval evidence
-    const level = policy.review_level;
-    if (level === "unified") {
-      const h = ctx.unified_handoff || ctx.review_handoff || state.last_review_handoff;
-      const { ok, data, errors: he } = normalizeAndValidateHandoff(
-        "unified-reviewer",
-        h || {},
+    const h =
+      ctx.review_handoff || ctx.unified_handoff || state.last_review_handoff;
+    const {
+      ok,
+      data,
+      errors: he,
+    } = normalizeAndValidateHandoff("reviewer", h || {});
+    if (!ok || data.verdict !== "APPROVED") {
+      errors.push(
+        `FINAL_VERIFYING requires reviewer APPROVED: ${(he || []).map((e) => e.message).join("; ") || data?.verdict}`,
       );
-      if (!ok || data.verdict !== "APPROVED") {
-        errors.push(
-          `FINAL_VERIFYING requires unified APPROVED: ${(he || []).map((e) => e.message).join("; ") || data?.verdict}`,
-        );
-      } else {
-        errors.push(...bindReviewerHandoffErrors(data, state, "unified-reviewer"));
-      }
-      if (data?.agent !== "unified-reviewer") {
-        errors.push(
-          `unified review requires agent "unified-reviewer", got "${data?.agent}"`,
-        );
-      }
-      if (canSelfApproveSafe(state, data, ctx)) {
-        errors.push("no self-approval: reviewer agent matches implementer");
-      }
-    } else if (level === "dual") {
-      const spec = normalizeAndValidateHandoff(
-        "spec-reviewer",
-        ctx.spec_handoff || state.last_spec_handoff || {},
-      );
-      const code = normalizeAndValidateHandoff(
-        "code-reviewer",
-        ctx.code_handoff || state.last_code_handoff || {},
-      );
-      if (!spec.ok || spec.data.verdict !== "APPROVED") {
-        errors.push("FINAL_VERIFYING requires spec-reviewer APPROVED");
-      } else {
-        errors.push(...bindReviewerHandoffErrors(spec.data, state, "spec-reviewer"));
-      }
-      if (spec.data?.agent !== "spec-reviewer") {
-        errors.push(
-          `spec-reviewer agent must be "spec-reviewer", got "${spec.data?.agent}"`,
-        );
-      }
-      if (canSelfApproveSafe(state, spec.data, ctx)) {
-        errors.push("no self-approval: spec-reviewer agent matches implementer");
-      }
-
-      if (!code.ok || code.data.verdict !== "APPROVED") {
-        errors.push("FINAL_VERIFYING requires code-reviewer APPROVED");
-      } else {
-        errors.push(...bindReviewerHandoffErrors(code.data, state, "code-reviewer"));
-      }
-      if (code.data?.agent !== "code-reviewer") {
-        errors.push(
-          `code-reviewer agent must be "code-reviewer", got "${code.data?.agent}"`,
-        );
-      }
-      if (canSelfApproveSafe(state, code.data, ctx)) {
-        errors.push("no self-approval: code-reviewer agent matches implementer");
-      }
-
-      if (
-        spec.data?.agent &&
-        code.data?.agent &&
-        spec.data.agent === code.data.agent
-      ) {
-        errors.push(
-          `dual review requires distinct agents: spec-reviewer and code-reviewer cannot be the same agent ("${spec.data.agent}")`,
-        );
-      }
+    } else {
+      errors.push(...bindReviewerHandoffErrors(data, state, "reviewer"));
     }
-    if (isMultiTaskRun(state) && !verificationPolicyExempt(state)) {
-      const integration = normalizeAndValidateHandoff(
-        "integration-reviewer",
-        ctx.integration_handoff || state.last_integration_handoff || {},
-      );
-      if (!integration.ok || integration.data.verdict !== "APPROVED") {
-        errors.push(
-          "multi-task FINAL_VERIFYING requires integration-reviewer APPROVED",
-        );
-      } else {
-        errors.push(
-          ...bindReviewerHandoffErrors(
-            integration.data,
-            state,
-            "integration-reviewer",
-          ),
-        );
-      }
-      if (integration.data?.agent !== "integration-reviewer") {
-        errors.push(
-          `integration-reviewer agent must be "integration-reviewer", got "${integration.data?.agent}"`,
-        );
-      }
-      if (canSelfApproveSafe(state, integration.data, ctx)) {
-        errors.push(
-          "no self-approval: integration-reviewer agent matches implementer",
-        );
-      }
+    if (data?.agent && data.agent !== "reviewer") {
+      errors.push(`review requires agent "reviewer", got "${data?.agent}"`);
+    }
+    if (canSelfApproveSafe(state, data, ctx)) {
+      errors.push("no self-approval: reviewer agent matches implementer");
     }
     const high = unresolvedHighFromCtx(ctx, state);
     if (high.length > 0) {
@@ -1061,137 +985,19 @@ export function canTransition(state, to, ctx = {}) {
   }
 
   if (to === "COMPLETED") {
-    const level = policy.review_level;
+    if (from !== "FINAL_VERIFYING" && from !== "BLOCKED") {
+      errors.push("COMPLETED must follow FINAL_VERIFYING");
+    }
+    if (ctx.skip_final_verification === true) {
+      errors.push("skip_final_verification is not allowed");
+    }
     if (from === "FINAL_VERIFYING") {
-      if (ctx.skip_final_verification === true) {
-        errors.push("skip_final_verification is not allowed");
-      }
       const finalOk =
         verifySealedArtifact(ctx.final_verification) &&
         ctx.final_verification.ok === true;
       if (!finalOk) {
         errors.push(
           "FINAL_VERIFYING → COMPLETED requires provider-sealed final_verification.ok",
-        );
-      }
-      // Stale artifact check
-      if (
-        state.impact &&
-        state.impact.provider_validated === true &&
-        state.impact.worktree_head &&
-        ctx.worktree
-      ) {
-        const head = gitRevParse(ctx.worktree, "HEAD");
-        if (head && state.impact.worktree_head !== head && !ctx.allow_stale_impact) {
-          // Integrated branch may have moved — require fresh final verification only
-        }
-      }
-    } else if (from === "REVIEWING" && !allowsLegacySkipFinal(state, ctx)) {
-      // Prefer FINAL_VERIFYING; V3 migration only when run has compatibility_mode:"v3"
-      if (level !== "none") {
-        errors.push(
-          "COMPLETED should follow FINAL_VERIFYING (legacy_skip_final requires persisted compatibility_mode:v3)",
-        );
-      }
-    }
-    if (level === "none") {
-      if (!["VERIFYING", "REVIEWING", "FINAL_VERIFYING"].includes(from)) {
-        errors.push(
-          "COMPLETED with review_level none must come from VERIFYING, REVIEWING, or FINAL_VERIFYING",
-        );
-      }
-      const raw = ctx.implementer_handoff || state.last_implementer_handoff;
-      if (raw?.legacy_unverified === true && !ctx.allow_legacy_complete) {
-        errors.push(
-          "legacy_unverified handoff cannot COMPLETE without allow_legacy_complete",
-        );
-      }
-    } else if (
-      level === "unified" &&
-      from === "REVIEWING" &&
-      allowsLegacySkipFinal(state, ctx)
-    ) {
-      const h = ctx.unified_handoff || ctx.review_handoff || state.last_review_handoff;
-      const {
-        ok,
-        data,
-        errors: he,
-      } = normalizeAndValidateHandoff("unified-reviewer", h || {});
-      if (!ok) {
-        errors.push(
-          `unified review invalid: ${he.map((e) => e.message).join("; ")}`,
-        );
-      } else if (data.verdict !== "APPROVED") {
-        errors.push(`unified review not APPROVED (${data.verdict})`);
-      } else if (data.escalate_to_dual === true) {
-        errors.push(
-          "unified handoff escalate_to_dual=true — must run dual review, cannot COMPLETE",
-        );
-      } else {
-        errors.push(
-          ...bindReviewerHandoffErrors(data, state, "unified-reviewer"),
-        );
-      }
-      if (data?.agent !== "unified-reviewer") {
-        errors.push(
-          `unified review requires agent "unified-reviewer", got "${data?.agent}"`,
-        );
-      }
-      if (canSelfApproveSafe(state, data, ctx)) {
-        errors.push("no self-approval: reviewer agent matches implementer");
-      }
-    } else if (
-      level === "dual" &&
-      from === "REVIEWING" &&
-      allowsLegacySkipFinal(state, ctx)
-    ) {
-      const spec = normalizeAndValidateHandoff(
-        "spec-reviewer",
-        ctx.spec_handoff || state.last_spec_handoff || {},
-      );
-      const code = normalizeAndValidateHandoff(
-        "code-reviewer",
-        ctx.code_handoff || state.last_code_handoff || {},
-      );
-      if (!spec.ok || spec.data.verdict !== "APPROVED") {
-        errors.push("dual review requires spec-reviewer APPROVED");
-      } else {
-        errors.push(
-          ...bindReviewerHandoffErrors(spec.data, state, "spec-reviewer"),
-        );
-      }
-      if (spec.data?.agent !== "spec-reviewer") {
-        errors.push(
-          `spec-reviewer agent must be "spec-reviewer", got "${spec.data?.agent}"`,
-        );
-      }
-      if (canSelfApproveSafe(state, spec.data, ctx)) {
-        errors.push("no self-approval: spec-reviewer agent matches implementer");
-      }
-
-      if (!code.ok || code.data.verdict !== "APPROVED") {
-        errors.push("dual review requires code-reviewer APPROVED");
-      } else {
-        errors.push(
-          ...bindReviewerHandoffErrors(code.data, state, "code-reviewer"),
-        );
-      }
-      if (code.data?.agent !== "code-reviewer") {
-        errors.push(
-          `code-reviewer agent must be "code-reviewer", got "${code.data?.agent}"`,
-        );
-      }
-      if (canSelfApproveSafe(state, code.data, ctx)) {
-        errors.push("no self-approval: code-reviewer agent matches implementer");
-      }
-
-      if (
-        spec.data?.agent &&
-        code.data?.agent &&
-        spec.data.agent === code.data.agent
-      ) {
-        errors.push(
-          `dual review requires distinct agents: spec-reviewer and code-reviewer cannot be the same agent ("${spec.data.agent}")`,
         );
       }
     }
@@ -1232,23 +1038,20 @@ function unresolvedHighFromCtx(ctx, state) {
 
 function agentCallsForTransition(from, to, state, ctx) {
   // Charge when an agent phase completes / starts requiring a discrete agent call.
-  if (to === "VERIFYING" && (from === "IMPLEMENTING" || from === "DIRECT_IMPLEMENTING")) {
+  if (to === "VERIFYING" && from === "IMPLEMENTING") {
     return { count: 1, agent: "implementer" };
   }
-  if (to === "FINAL_VERIFYING" || (to === "COMPLETED" && from === "REVIEWING")) {
-    const level = effectivePolicy(state).review_level;
-    if (level === "dual") {
-      let n = 2;
-      if (isMultiTaskRun(state)) n += 1;
-      return { count: n, agent: "reviewers" };
-    }
-    if (level === "unified") {
-      return { count: 1, agent: "unified-reviewer" };
+  if (
+    to === "FINAL_VERIFYING" ||
+    (to === "TASK_IMPACT_READY" && from === "REVIEWING")
+  ) {
+    const h =
+      ctx.review_handoff || ctx.unified_handoff || state.last_review_handoff;
+    if (h || to === "FINAL_VERIFYING") {
+      return { count: 1, agent: "reviewer" };
     }
   }
-  if (to === "IMPLEMENTING" || to === "DIRECT_IMPLEMENTING") {
-    // Dispatch slot reserved when entering implement — counted at VERIFYING to
-    // avoid double-charge; no charge here.
+  if (to === "IMPLEMENTING") {
     return { count: 0, agent: null };
   }
   return { count: 0, agent: null };
@@ -1263,12 +1066,9 @@ function assertAgentCallBudget(state, to, ctx = {}) {
     (Array.isArray(state.units) && state.units.length) ||
     (Array.isArray(state.execution_units) && state.execution_units.length) ||
     (Array.isArray(state.tasks) && state.tasks.length) ||
-    state.classification?.units ||
+    state.task_count ||
     1;
   const budget = getAgentCallBudget({
-    profile: state.profile || state.classification?.profile,
-    changeClass: state.classification?.change_class,
-    executionMode: state.execution_mode || state.classification?.execution_mode,
     units,
     maxCalls: state.agent_call_budget?.max_calls,
   });
@@ -1293,13 +1093,9 @@ function assertAgentCallBudget(state, to, ctx = {}) {
 export function transition(state, to, evidence = {}, providers = null) {
   const prov = providers || createDefaultProviders();
   let ctx = { ...evidence };
+  if (to === "IMPACT_READY") to = "TASK_IMPACT_READY";
 
-  if (
-    to === "IMPACT_READY" ||
-    to === "DIRECT_IMPLEMENTING" ||
-    to === "VERIFYING" ||
-    to === "COMPLETED"
-  ) {
+  if (to === "TASK_IMPACT_READY" || to === "VERIFYING" || to === "COMPLETED") {
     const revalidated = revalidateTransitionEvidence(to, ctx, prov, state);
     ctx = revalidated.ctx;
     if (revalidated.errors.length) {
@@ -1351,65 +1147,33 @@ export function transition(state, to, evidence = {}, providers = null) {
     });
   }
 
-  if (to === "CLASSIFIED" && (ctx.classification || evidence.classification)) {
-    let classification = {
-      ...(ctx.classification || evidence.classification),
-    };
-    const fromClassifyApply =
-      ctx.classification_source === CLASSIFY_APPLY_SOURCE ||
-      evidence.classification_source === CLASSIFY_APPLY_SOURCE ||
-      classification.classification_source === CLASSIFY_APPLY_SOURCE;
-
-    if (!fromClassifyApply) {
-      // transition --json/--classification cannot authorize direct
-      classification = {
-        ...classification,
-        direct_eligible: false,
-        execution_mode:
-          classification.execution_mode === "direct"
-            ? "delegated"
-            : classification.execution_mode || "delegated",
-        classification_source: "transition-untrusted",
-      };
-      next.classification_source = "transition-untrusted";
-    } else {
-      classification.classification_source = CLASSIFY_APPLY_SOURCE;
-      next.classification_source = CLASSIFY_APPLY_SOURCE;
-      if (
-        classification.change_class === "documentation" &&
-        classification.execution_mode === "direct" &&
-        classification.direct_eligible === true
-      ) {
-        next.verification_policy = {
-          exempt: true,
-          reason: "documentation-only direct path",
-        };
-      } else if (classification.review_level === "none") {
-        next.verification_policy = {
-          exempt: true,
-          reason: "review_level none — documentation/formatting path",
-        };
-      }
+  if (to === "BRAINSTORMING") {
+    if (ctx.notes) next.brainstorm_notes = ctx.notes;
+    if (ctx.question || ctx.user_question) {
+      next.last_user_question = ctx.question || ctx.user_question;
     }
-
-    next.classification = classification;
-    next.profile = classification.profile || next.profile;
-    next.review_level = classification.review_level || next.review_level;
-    next.execution_mode = classification.execution_mode || next.execution_mode;
-    next.tdd_required = requiresTdd(next);
+  }
+  if (to === "WAITING_FOR_USER") {
+    next.last_user_question =
+      ctx.question || ctx.user_question || ctx.clarifying_question || null;
+  }
+  if (to === "PLANNED") {
+    if (ctx.tasks != null) next.tasks = ctx.tasks;
     if (ctx.units != null) next.units = ctx.units;
     if (ctx.execution_units != null) next.execution_units = ctx.execution_units;
-    if (ctx.tasks != null) next.tasks = ctx.tasks;
+    if (ctx.change_class) next.change_class = ctx.change_class;
+    if (ctx.tdd_required === true) next.tdd_required = true;
+    else next.tdd_required = requiresTdd(next);
   }
-  if (to === "IMPACT_READY") {
-    const impact = ctx.impact?.report || ctx.impact || evidence.impact || ctx.blast;
+  if (to === "TASK_IMPACT_READY") {
+    const impact =
+      ctx.impact?.report || ctx.impact || evidence.impact || ctx.blast;
     const report = impact?.report || impact;
     next.impact = report;
     next.blast = report; // legacy mirror
     next = applyImpactEscalation(next, report);
-    if (ctx.require_post_impact === true || isAcceptablePreImpact(report)) {
-      next.require_post_impact = true;
-    }
+    next.require_post_impact = true;
+    next.impact_consumed_for_implement = false;
     const verification =
       ctx.impact_verification ||
       ctx.blast_verification ||
@@ -1419,8 +1183,22 @@ export function transition(state, to, evidence = {}, providers = null) {
       next.impact_verification = verification;
       next.blast_verification = verification;
     }
+    if (ctx.current_unit || ctx.next_unit) {
+      next.current_unit = ctx.next_unit || ctx.current_unit;
+    }
+    const reviewRaw =
+      ctx.review_handoff || ctx.unified_handoff || ctx.request_changes_handoff;
+    if (reviewRaw) {
+      const { data } = normalizeAndValidateHandoff("reviewer", reviewRaw);
+      next.last_review_handoff = data;
+      if (data.verdict === "REQUEST_CHANGES") {
+        next.pending_review_findings = data.findings || [];
+      } else if (data.verdict === "APPROVED") {
+        next.pending_review_findings = null;
+      }
+    }
   }
-  if (to === "IMPLEMENTING" || to === "DIRECT_IMPLEMENTING") {
+  if (to === "IMPLEMENTING") {
     if (ctx.branch) next.branch = ctx.branch;
     if (ctx.current_unit) next.current_unit = ctx.current_unit;
     if (ctx.drift?.plan_commit) next.plan_commit = ctx.drift.plan_commit;
@@ -1430,6 +1208,7 @@ export function transition(state, to, evidence = {}, providers = null) {
     if (ctx.blast) next.blast = ctx.blast?.report || ctx.blast;
     if (ctx.graph) next.graph = ctx.graph;
     if (!next.impact && next.blast) next.impact = next.blast;
+    next.impact_consumed_for_implement = true;
     const resolvedAllowed =
       ctx.allowed_files ||
       evidence.allowed_files ||
@@ -1448,15 +1227,17 @@ export function transition(state, to, evidence = {}, providers = null) {
       next.implementer_context =
         ctx.implementer_context || evidence.implementer_context;
     }
+    // Attach pending review findings into implementer context for fix loops
+    if (state.pending_review_findings?.length) {
+      next.implementer_context = {
+        ...(next.implementer_context || {}),
+        review_findings: state.pending_review_findings,
+      };
+    }
   }
   if (to === "FINAL_VERIFYING") {
     if (ctx.unified_handoff || ctx.review_handoff) {
       next.last_review_handoff = ctx.unified_handoff || ctx.review_handoff;
-    }
-    if (ctx.spec_handoff) next.last_spec_handoff = ctx.spec_handoff;
-    if (ctx.code_handoff) next.last_code_handoff = ctx.code_handoff;
-    if (ctx.integration_handoff) {
-      next.last_integration_handoff = ctx.integration_handoff;
     }
   }
   if (to === "VERIFYING") {
@@ -1494,9 +1275,6 @@ export function transition(state, to, evidence = {}, providers = null) {
       evidence.block_code ||
       evidence.code ||
       null;
-  }
-  if (to === "DIRECT_IMPLEMENTING") {
-    next.execution_mode = "direct";
   }
 
   prov.telemetry.emit({

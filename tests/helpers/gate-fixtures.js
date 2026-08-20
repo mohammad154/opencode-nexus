@@ -1,5 +1,5 @@
 /**
- * Shared helpers for gate-integrity tests (schema 1.1 + sealed artifacts).
+ * Shared helpers for gate-integrity tests (schema 1.1 + sealed artifacts) — V5.
  */
 import {
   sealImpactArtifact,
@@ -41,25 +41,25 @@ export function goodImplementerHandoff(overrides = {}) {
   };
 }
 
-export function goodUnifiedHandoff(overrides = {}) {
+export function goodReviewerHandoff(overrides = {}) {
   return {
-    ...handoffEnvelope({ agent: "unified-reviewer" }),
+    ...handoffEnvelope({ agent: "reviewer" }),
     verdict: "APPROVED",
     reviewed_commit: "impl222",
     impact: { pass: true, risk: "LOW" },
-    blast: { pass: true, risk: "LOW" },
+    findings: [],
+    acceptance: [],
     ...overrides,
   };
 }
 
+/** @deprecated Use goodReviewerHandoff */
+export function goodUnifiedHandoff(overrides = {}) {
+  return goodReviewerHandoff(overrides);
+}
+
 export function goodIntegrationHandoff(overrides = {}) {
-  return {
-    ...handoffEnvelope({ agent: "integration-reviewer" }),
-    verdict: "APPROVED",
-    reviewed_commit: "impl222",
-    findings: [],
-    ...overrides,
-  };
+  return goodReviewerHandoff(overrides);
 }
 
 export function sealedImpact(overrides = {}) {
@@ -98,6 +98,7 @@ export function sealedVerification(overrides = {}) {
 
 export function verifyingEvidence(overrides = {}) {
   return {
+    implementer_handoff: goodImplementerHandoff(),
     provider_verification: sealedVerification(),
     post_impact: sealedImpact({ phase: "post", pre_impact: false }),
     ...overrides,
@@ -112,9 +113,6 @@ export function sealedPreciseGraph(overrides = {}) {
     stale: false,
     fresh: true,
     freshness: { valid: true },
-    confidence: 0.95,
-    graph_provider: "nexus-impact",
-    graph_path: "/tmp/impact/latest.json",
     ...overrides,
   });
 }
@@ -123,98 +121,42 @@ export function sealedLowBlast(overrides = {}) {
   return sealedImpact(overrides);
 }
 
-export function mockTrustProviders({ impact, graph, blast } = {}) {
-  const i = impact || blast || sealedImpact();
-  const g = graph || sealedPreciseGraph();
+export function mockTrustProviders(opts = {}) {
+  const impact = opts.blast || opts.impact || sealedImpact();
   return {
     impactProvider: {
-      analyze(ctx = {}) {
-        let phase = i.phase;
-        if (ctx.post_impact === true || ctx.phase === "post") phase = "post";
-        else if (ctx.phase === "pre") phase = "pre";
-        const report = {
-          ...i,
-          provider_validated: undefined,
-          artifact_digest: undefined,
-          related_tests: i.related_tests || [],
-        };
-        if (phase) report.phase = phase;
-        if (phase === "pre") {
-          report.pre_impact = true;
-          report.trusted = false;
-        }
-        return { ok: true, report, recomputed: true };
-      },
-    },
-    graphProvider: {
-      build() {
-        return {
-          ...g,
-          provider_validated: undefined,
-          artifact_digest: undefined,
-        };
+      analyze() {
+        return { ok: true, report: impact };
       },
     },
     blastProvider: {
       analyze() {
-        return {
-          ok: true,
-          report: {
-            ...i,
-            provider_validated: undefined,
-            artifact_digest: undefined,
-          },
-        };
+        return { ok: true, report: impact };
       },
     },
     verificationProvider: {
       discover() {
-        return {
-          ecosystem: "node",
-          steps: [{ id: "noop", command: "true", kind: "generic" }],
-        };
+        return { steps: [{ id: "noop", command: "true" }] };
       },
       run() {
         return {
           ok: true,
           results: [{ id: "noop", command: "true", exit_code: 0, pass: true }],
-          plan: { ecosystem: "node", steps: [] },
         };
       },
-      verifyTdd(ctx = {}) {
+      compare() {
+        return { ok: true, new_regressions: [] };
+      },
+      verifyTdd() {
         return sealImpactArtifact({
-          schema_version: "1.0",
-          test_id: "noop",
-          command: ["true"],
-          red: {
-            commit: ctx.base_commit || "base",
-            exit_code: 1,
-            output_digest: "sha256:red",
-          },
-          green: {
-            commit: ctx.implementer_commit || "head",
-            exit_code: 0,
-            output_digest: "sha256:green",
-          },
           ok: true,
+          red: { exit_code: 1, command: "npm test" },
+          green: { exit_code: 0, command: "npm test" },
         });
       },
     },
-
     telemetry: { emit() {} },
-    memory: {
-      retrieve() {
-        return { entries: [] };
-      },
-      record() {
-        return { ok: true };
-      },
-    },
-    editValidator: {
-      validate() {
-        return { ok: true };
-      },
-    },
+    ...(opts.extra || {}),
   };
 }
 

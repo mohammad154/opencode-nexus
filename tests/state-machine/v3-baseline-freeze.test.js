@@ -1,21 +1,17 @@
 /**
- * V4 lifecycle freeze — IMPACT_READY replaces GRAPH/BLAST; FINAL_VERIFYING added.
+ * V5 lifecycle freeze — TASK_IMPACT_READY; no CLASSIFIED / DIRECT.
  */
 import test from "node:test";
 import assert from "node:assert/strict";
-import {
-  STATES,
-  LINEAR,
-  requiredEvidence,
-} from "../../scripts/lib/state-machine.js";
+import { STATES, LINEAR, requiredEvidence } from "../../scripts/lib/state-machine.js";
 
-const V4_STATES = [
+const EXPECTED = [
   "CREATED",
-  "CLASSIFIED",
+  "BRAINSTORMING",
+  "WAITING_FOR_USER",
   "PLANNED",
-  "IMPACT_READY",
+  "TASK_IMPACT_READY",
   "IMPLEMENTING",
-  "DIRECT_IMPLEMENTING",
   "VERIFYING",
   "REVIEWING",
   "FINAL_VERIFYING",
@@ -24,39 +20,39 @@ const V4_STATES = [
   "FAILED",
 ];
 
-const V4_LINEAR = [
-  "CREATED",
-  "CLASSIFIED",
-  "PLANNED",
-  "IMPACT_READY",
-  "IMPLEMENTING",
-  "VERIFYING",
-  "REVIEWING",
-  "FINAL_VERIFYING",
-  "COMPLETED",
-];
-
-test("V4 freeze: STATES enum matches IMPACT_READY lifecycle", () => {
-  assert.deepEqual([...STATES].sort(), [...V4_STATES].sort());
+test("V5 freeze: STATES enum matches fixed pipeline", () => {
+  assert.deepEqual(STATES, EXPECTED);
 });
 
-test("V4 freeze: LINEAR path is impact → implement → review → final", () => {
-  assert.deepEqual(LINEAR, V4_LINEAR);
+test("V5 freeze: LINEAR happy path", () => {
+  assert.deepEqual(LINEAR, [
+    "CREATED",
+    "BRAINSTORMING",
+    "PLANNED",
+    "TASK_IMPACT_READY",
+    "IMPLEMENTING",
+    "VERIFYING",
+    "REVIEWING",
+    "FINAL_VERIFYING",
+    "COMPLETED",
+  ]);
 });
 
-test("V4 freeze: PLANNED→IMPACT_READY evidence locked", () => {
-  assert.deepEqual(requiredEvidence("PLANNED", "IMPACT_READY"), ["impact"]);
-  assert.deepEqual(requiredEvidence("IMPACT_READY", "IMPLEMENTING"), [
+test("V5 freeze: PLANNED→TASK_IMPACT_READY evidence locked", () => {
+  assert.deepEqual(requiredEvidence("PLANNED", "TASK_IMPACT_READY"), ["impact"]);
+  assert.deepEqual(requiredEvidence("TASK_IMPACT_READY", "IMPLEMENTING"), [
     "branch",
     "impact",
     "acceptance_criteria",
     "drift",
   ]);
+  assert.deepEqual(requiredEvidence("REVIEWING", "TASK_IMPACT_READY"), [
+    "review_handoff",
+  ]);
 });
 
-test("V4 freeze: GRAPH_READY and BLAST_READY are gone", () => {
-  assert.equal(STATES.includes("GRAPH_READY"), false);
-  assert.equal(STATES.includes("BLAST_READY"), false);
-  assert.equal(STATES.includes("IMPACT_READY"), true);
-  assert.equal(STATES.includes("FINAL_VERIFYING"), true);
+test("V5 freeze: retired states absent", () => {
+  assert.equal(STATES.includes("CLASSIFIED"), false);
+  assert.equal(STATES.includes("DIRECT_IMPLEMENTING"), false);
+  assert.equal(STATES.includes("IMPACT_READY"), false);
 });

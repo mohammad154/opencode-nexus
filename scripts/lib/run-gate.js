@@ -1,18 +1,18 @@
 /**
- * Run-state gate reminders for orchestrator sessions.
- * Used by the OpenCode plugin to discourage self-implementation.
+ * Run-state gate reminders for orchestrator sessions (V5).
  */
 
 const TERMINAL_RUN_STATES = new Set(["COMPLETED", "FAILED"]);
 
 const PRE_IMPLEMENTING = new Set([
   "CREATED",
-  "CLASSIFIED",
+  "BRAINSTORMING",
+  "WAITING_FOR_USER",
   "PLANNED",
-  "IMPACT_READY",
+  "TASK_IMPACT_READY",
 ]);
 
-const IMPLEMENTING_STATES = new Set(["IMPLEMENTING", "DIRECT_IMPLEMENTING"]);
+const IMPLEMENTING_STATES = new Set(["IMPLEMENTING"]);
 
 function resolveState(activeRun) {
   if (typeof activeRun === "string") {
@@ -36,7 +36,7 @@ export function buildRunGateReminder(activeRun) {
       "STOP: No active Nexus run. Before production edits:",
       "1. nexus project-init  (once per repo)",
       "2. nexus run init --run-id <id>",
-      "3. Complete classify → plan → impact → IMPLEMENTING gates",
+      "3. Complete brainstorm → plan → pre-impact → IMPLEMENTING gates",
       "4. Dispatch implementer via Task tool — orchestrator must NOT edit production code.",
     ].join("\n");
   }
@@ -69,7 +69,7 @@ export function buildRunGateReminder(activeRun) {
       "## Nexus Delegation Gate",
       `Active run ${runId || "unknown"} is in ${state}.`,
       "Do not implement production code in the orchestrator turn.",
-      "Continue review/reconcile workflow or dispatch the appropriate reviewer/reconciler.",
+      "Continue review workflow or dispatch the reviewer / re-impact for REQUEST_CHANGES.",
     ].join("\n");
   }
 

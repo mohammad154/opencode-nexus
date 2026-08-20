@@ -1,470 +1,152 @@
+/**
+ * V5 gate hardening — fixed pipeline invariants.
+ */
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createEmptyRunState } from "../../scripts/lib/migrate-artifacts.js";
 import {
   canTransition,
   transition,
-  CLASSIFY_APPLY_SOURCE,
 } from "../../scripts/lib/state-machine.js";
-import { classify, loadWorkflowConfig } from "../../scripts/lib/classify.js";
-import {
-  assessDrift,
-  isPlanCommitAcceptable,
-} from "../../scripts/lib/drift.js";
 import { assertValidRunId } from "../../scripts/lib/policy.js";
 import { normalizeHandoff } from "../../scripts/lib/migrate-artifacts.js";
 import {
   goodImplementerHandoff,
-  goodUnifiedHandoff,
+  goodReviewerHandoff,
   mockTrustProviders,
-  sealedPreciseGraph,
-  sealedLowBlast,
   sealedImpact,
   sealedVerification,
 } from "../helpers/gate-fixtures.js";
 
-function sampleClassification(overrides = {}) {
+function driftOk(head = "base111") {
   return {
     schema_version: "1.0",
-    profile: "balanced",
-    review_level: "dual",
-    execution_mode: "delegated",
-    risk_score: 4,
-    confidence: 0.8,
-    reasons: ["test"],
-    direct_eligible: false,
-    change_class: "small-feature-with-tests",
-    hard_triggers: [],
-    ...overrides,
+    plan_commit: head,
+    current_head: head,
+    drift: "NONE",
+    reasons: [],
   };
 }
 
-test("ctx review_level none cannot downgrade stored dual", () => {
-  const state = {
-    ...createEmptyRunState("gate-1"),
-    state: "VERIFYING",
-    review_level: "dual",
-    profile: "strict",
-    compatibility_mode: "v3",
-    classification: sampleClassification(),
-  };
-  const r = canTransition(state, "COMPLETED", { legacy_skip_final: true,
-    review_level: "none",
-  });
-  assert.equal(r.ok, false);
-  assert.ok(
-    r.errors.some((e) => /illegal|dual|spec/i.test(e) || e.includes("dual")),
-  );
-});
+function toPlanned(runId = "gate") {
+  let s = createEmptyRunState(runId);
+  s = transition(s, "BRAINSTORMING", {}).state;
+  s = transition(s, "PLANNED", { plan_skip: true }).state;
+  return s;
+}
 
-test("ctx direct_eligible cannot grant DIRECT_IMPLEMENTING", () => {
-  let state = createEmptyRunState("gate-2");
-  state = transition(state, "CLASSIFIED", {
-    classification: sampleClassification({
-      direct_eligible: false,
-      execution_mode: "delegated",
-    }),
-  }).state;
-  const r = canTransition(state, "DIRECT_IMPLEMENTING", {
-    direct_eligible: true,
-  });
-  assert.equal(r.ok, false);
-});
-
-test("stored direct flag without authoritative diff cannot enter direct path", () => {
-  const state = {
-    ...createEmptyRunState("gate-direct-evidence"),
-    state: "CLASSIFIED",
-    execution_mode: "direct",
-    classification_source: CLASSIFY_APPLY_SOURCE,
-    classification: sampleClassification({
-      execution_mode: "direct",
-      direct_eligible: true,
-      confidence: 0.95,
-      evidence_source: "explicit-input",
-      classification_source: CLASSIFY_APPLY_SOURCE,
-    }),
-    graph: sealedPreciseGraph(),
-    blast: sealedLowBlast(),
-  };
-  const r = canTransition(state, "DIRECT_IMPLEMENTING", {});
-  assert.equal(r.ok, false);
-  assert.match(r.errors.join("\n"), /stored classification\.direct_eligible/i);
-});
-
-test("direct transition rejects untrusted impact analysis", () => {
-  const state = {
-    ...createEmptyRunState("gate-direct-graph"),
-    state: "CLASSIFIED",
-    execution_mode: "direct",
-    classification_source: CLASSIFY_APPLY_SOURCE,
-    impact: sealedImpact({
-      ok: false,
-      trusted: false,
-      risk: "UNKNOWN",
-      confidence: 0.4,
-      analysis_quality: "UNKNOWN",
-    }),
-    classification: sampleClassification({
-      execution_mode: "direct",
-      direct_eligible: true,
-      confidence: 0.95,
-      evidence_source: "git-diff",
-      diff_verified: true,
-      diff_available: true,
-      diff_clean: false,
-      classification_source: CLASSIFY_APPLY_SOURCE,
-    }),
-  };
-  const r = canTransition(state, "DIRECT_IMPLEMENTING", {});
-  assert.equal(r.ok, false);
-  assert.match(r.errors.join("\n"), /LOW impact/i);
-});
-
-test("HIGH blast escalates review_level to dual without forcing strict execution", () => {
-  const providers = mockTrustProviders();
-  providers.blastProvider.analyze = () => ({
-    ok: true,
-    report: {
-      risk: "HIGH",
-      level: "HIGH",
-      score: 20,
-      uncertainties: [],
-      dimensions: {},
-    },
-  });
-  let state = createEmptyRunState("gate-3");
-  state = transition(state, "CLASSIFIED", {
-    classification: sampleClassification({
-      profile: "balanced",
-      review_level: "unified",
-    }),
-  }).state;
-  state = transition(state, "PLANNED", { plan_skip: true }).state;
-  providers.impactProvider.analyze = providers.blastProvider.analyze;
-  const r = transition(state, "IMPACT_READY", {}, providers);
-  assert.equal(r.ok, true, JSON.stringify(r.errors));
-  assert.equal(r.state.review_level, "dual");
-  assert.equal(r.state.profile, "balanced");
-  assert.equal(r.state.execution_mode, "delegated");
-  assert.ok(
-    r.state.escalation_reasons.includes("impact_risk_high") ||
-      r.state.escalation_reasons.includes("blast_risk_high"),
-  );
-});
-
-test("HIGH blast with many Graphify callers escalates execution profile to strict", () => {
-  const providers = mockTrustProviders();
-  providers.blastProvider.analyze = () => ({
-    ok: true,
-    report: {
-      risk: "HIGH",
-      level: "HIGH",
-      score: 40,
-      direct_dependents: Array.from({ length: 17 }, (_, i) => `src/c${i}.js`),
-      affected_packages: ["packages/a", "packages/b"],
-      uncertainties: [],
-      dimensions: {},
-    },
-  });
-  let state = createEmptyRunState("gate-3-callers");
-  state = transition(state, "CLASSIFIED", {
-    classification: sampleClassification({
-      profile: "balanced",
-      review_level: "unified",
-      change_class: "small-feature-with-tests",
-      semantic_signals: ["exported_symbol_change"],
-      evidence: {
-        files_changed: 1,
-        estimated_lines: 12,
-        changed_exported_symbols: ["login"],
-      },
-    }),
-  }).state;
-  state = transition(state, "PLANNED", { plan_skip: true }).state;
-  providers.impactProvider.analyze = providers.blastProvider.analyze;
-  const r = transition(state, "IMPACT_READY", {}, providers);
-  assert.equal(r.ok, true, JSON.stringify(r.errors));
-  assert.equal(r.state.review_level, "dual");
-  assert.equal(r.state.profile, "strict");
-  assert.ok(
-    r.state.escalation_reasons.includes("impact_risk_high") ||
-      r.state.escalation_reasons.includes("blast_risk_high"),
-  );
-});
-
-test("escalate_to_dual APPROVED cannot COMPLETE unified", () => {
-  const state = {
-    ...createEmptyRunState("gate-4"),
-    state: "REVIEWING",
-    review_level: "unified",
-    compatibility_mode: "v3",
-    current_unit: "unit-1",
-    implementer_commit: "abc123",
-    head_commit: "base000",
-  };
-  const r = canTransition(state, "COMPLETED", { legacy_skip_final: true,
-    unified_handoff: goodUnifiedHandoff({
-      run_id: "gate-4",
-      unit_or_task: "unit-1",
-      reviewed_commit: "abc123",
-      base_commit: "base000",
-      escalate_to_dual: true,
-    }),
-  });
-  assert.equal(r.ok, false);
-  assert.ok(r.errors.some((e) => /escalate_to_dual/i.test(e)));
-});
-
-test("public-api class alone → strict dual via reviewMatrix", () => {
-  const cfg = loadWorkflowConfig();
-  const r = classify(
-    { filesChanged: 1, estimatedLines: 10, changeClass: "public-api" },
-    { workflowConfig: cfg },
-  );
-  assert.equal(r.profile, "strict");
-  assert.equal(r.review_level, "dual");
-  assert.ok(r.hard_triggers.includes("public_api"));
+test("assertValidRunId rejects path separators", () => {
+  assert.throws(() => assertValidRunId("../x"));
+  assert.equal(assertValidRunId("ok-run_1"), "ok-run_1");
 });
 
 test("IMPLEMENTING without drift is rejected", () => {
-  const state = {
-    ...createEmptyRunState("gate-5"),
-    state: "IMPACT_READY",
-    blast: { risk: "LOW", uncertainties: [], dimensions: {} },
-    branch: "feature/x",
-  };
-  const r = canTransition(state, "IMPLEMENTING", {
-    branch: "feature/x",
-    blast: state.blast,
-    acceptance_criteria: ["works"],
-  });
-  assert.equal(r.ok, false);
-  assert.ok(r.errors.some((e) => /DriftReport/i.test(e)));
-});
-
-test("empty drift object is not acceptable", () => {
-  assert.equal(isPlanCommitAcceptable({}), false);
-  assert.equal(isPlanCommitAcceptable(null), false);
-});
-
-test("VERIFYING rejects missing provider verification", () => {
-  const state = {
-    ...createEmptyRunState("gate-6"),
-    state: "IMPLEMENTING",
-    review_level: "unified",
-    execution_mode: "delegated",
-    run_id: "gate-6",
-    current_unit: "u1",
-    head_commit: "base111",
-  };
-  const r = canTransition(state, "VERIFYING", {
-    implementer_handoff: goodImplementerHandoff({
-      run_id: "gate-6",
-      unit_or_task: "u1",
-      base_commit: "base111",
-      commit: "c1",
-      verification_gates: [],
-      drift_check: { pass: true },
-      blast: { verified: true, risk: "LOW" },
-    }),
-  });
-  assert.equal(r.ok, false);
-  assert.ok(r.errors.some((e) => /provider|verification/i.test(e)));
-});
-
-test("stale approval without run binding rejected", () => {
-  const state = {
-    ...createEmptyRunState("gate-7"),
-    state: "REVIEWING",
-    review_level: "unified",
-    compatibility_mode: "v3",
-    current_unit: "auth",
-    implementer_commit: "deadbeef",
-    head_commit: "base",
-  };
-  const r = canTransition(state, "COMPLETED", { legacy_skip_final: true,
-    unified_handoff: {
-      schema_version: "1.1",
-      verdict: "APPROVED",
-      agent: "unified-reviewer",
-      unit_or_task: "auth",
-      base_commit: "base",
-      created_at: "2026-07-30T00:00:00.000Z",
-      reviewed_commit: "deadbeef",
-    },
-  });
-  assert.equal(r.ok, false);
-  assert.ok(
-    r.errors.some((e) =>
-      /run_id|binding|required property missing|expected type "string"/i.test(
-        e,
-      ),
-    ),
-    JSON.stringify(r.errors),
-  );
-});
-
-test("COMPLETED is terminal", () => {
-  const state = { ...createEmptyRunState("gate-8"), state: "COMPLETED" };
-  const r = canTransition(state, "BLOCKED", {
-    reason: "nope",
-    code: "X",
-  });
-  assert.equal(r.ok, false);
-  assert.ok(r.errors.some((e) => /terminal/i.test(e)));
-});
-
-test("run_id path traversal rejected", () => {
-  assert.throws(() => assertValidRunId("../etc"), /invalid run_id/);
-  assert.throws(() => assertValidRunId("a/b"), /invalid run_id/);
-  assert.equal(assertValidRunId("run-2026-auth"), "run-2026-auth");
-});
-
-test("acceptance criteria version mismatch is HIGH drift", () => {
-  const r = assessDrift({
-    acceptance_criteria_version: "v1",
-    expected_acceptance_criteria_version: "v2",
-    commit_distance: 0,
-  });
-  assert.equal(r.drift, "HIGH");
-});
-
-test("legacy handoff marked legacy_unverified", () => {
-  const { data } = normalizeHandoff("implementer", { status: "DONE" });
-  assert.equal(data.legacy_unverified, true);
-});
-
-test("FINAL_VERIFYING rejects caller-supplied final_verification.ok", () => {
-  const state = {
-    ...createEmptyRunState("gate-final-fake"),
-    state: "FINAL_VERIFYING",
-    review_level: "unified",
-    current_unit: "auth",
-    implementer_commit: "abc123",
-    head_commit: "base",
-  };
-  const r = canTransition(state, "COMPLETED", {
-    final_verification: { ok: true },
-    skip_final_verification: true,
-  });
-  assert.equal(r.ok, false);
-  assert.ok(r.errors.some((e) => /skip_final|provider-sealed|final_verification/i.test(e)));
-});
-
-test("policy-driven TDD cannot be omitted by implementer", () => {
-  const state = {
-    ...createEmptyRunState("gate-tdd"),
-    state: "IMPLEMENTING",
-    review_level: "unified",
-    execution_mode: "delegated",
-    current_unit: "u1",
-    head_commit: "base111",
-    classification: sampleClassification({ change_class: "bug-fix" }),
-    tdd_required: true,
-  };
-  const r = canTransition(state, "VERIFYING", {
-    provider_verification: sealedVerification(),
-    post_impact: sealedImpact({ phase: "post" }),
-    implementer_handoff: goodImplementerHandoff({
-      run_id: "gate-tdd",
-      unit_or_task: "u1",
-      base_commit: "base111",
-      commit: "c1",
-    }),
-  });
-  assert.equal(r.ok, false);
-  assert.ok(r.errors.some((e) => /TDD/i.test(e)));
-});
-
-test("multi-task FINAL_VERIFYING requires integration-reviewer", () => {
-  const state = {
-    ...createEmptyRunState("gate-int"),
-    state: "REVIEWING",
-    review_level: "unified",
-    current_unit: "auth",
-    implementer_commit: "deadbeef",
-    head_commit: "base",
-    units: 2,
-  };
-  const r = canTransition(state, "FINAL_VERIFYING", {
-    unified_handoff: goodUnifiedHandoff({
-      run_id: "gate-int",
-      unit_or_task: "auth",
-      reviewed_commit: "deadbeef",
-      base_commit: "base",
-    }),
-  });
-  assert.equal(r.ok, false);
-  assert.ok(r.errors.some((e) => /integration-reviewer/i.test(e)));
-});
-
-test("legacy_skip_final rejected without compatibility_mode v3", () => {
-  const state = {
-    ...createEmptyRunState("gate-no-compat"),
-    state: "REVIEWING",
-    review_level: "unified",
-    current_unit: "auth",
-    implementer_commit: "abc123",
-    head_commit: "base000",
-  };
-  const r = canTransition(state, "COMPLETED", {
-    legacy_skip_final: true,
-    unified_handoff: goodUnifiedHandoff({
-      run_id: "gate-no-compat",
-      unit_or_task: "auth",
-      reviewed_commit: "abc123",
-      base_commit: "base000",
-    }),
-  });
-  assert.equal(r.ok, false);
-  assert.ok(r.errors.some((e) => /compatibility_mode/i.test(e)));
-});
-
-test("pre-impact can enter IMPACT_READY without trusted label", () => {
   const providers = mockTrustProviders({
-    impact: sealedImpact({
-      trusted: false,
-      confidence: 0.5,
-      phase: "pre",
-      pre_impact: true,
-      changed_files: [{ path: "src/a.js", planned: true }],
-    }),
+    impact: sealedImpact({ phase: "pre", pre_impact: true, trusted: false }),
   });
-  // Strip seal so provider returns raw pre-impact shape
-  providers.impactProvider.analyze = () => ({
-    ok: true,
-    recomputed: true,
-    report: {
-      schema_version: "1.0",
-      ok: true,
-      provider: "nexus-impact",
-      risk: "LOW",
-      level: "LOW",
-      confidence: 0.5,
-      trusted: false,
-      phase: "pre",
-      pre_impact: true,
-      analysis_quality: "PRECISE",
-      graph_quality: "PRECISE",
-      analysis_complete: true,
-      graph_freshness: { valid: true },
-      uncertainties: [],
-      dimensions: {},
-      changed_files: [{ path: "src/a.js", planned: true }],
+  let state = toPlanned("g-drift");
+  state = transition(
+    state,
+    "TASK_IMPACT_READY",
+    {
+      planned_targets: ["src/app.js"],
+      impact: sealedImpact({ phase: "pre", pre_impact: true, trusted: false }),
     },
+    providers,
+  ).state;
+  const r = canTransition(state, "IMPLEMENTING", {
+    branch: "feat/x",
+    acceptance_criteria: ["a"],
+    allowed_files: ["src/app.js"],
   });
-  let state = createEmptyRunState("gate-pre");
-  state = transition(state, "CLASSIFIED", {
-    classification: sampleClassification(),
-  }).state;
-  state = transition(state, "PLANNED", { plan_skip: true }).state;
+  assert.equal(r.ok, false);
+  assert.ok(r.errors.some((e) => /drift/i.test(e)));
+});
+
+test("pre-impact can enter TASK_IMPACT_READY without trusted label", () => {
+  const providers = mockTrustProviders({
+    impact: sealedImpact({ phase: "pre", pre_impact: true, trusted: false }),
+  });
+  let state = toPlanned("g-pre");
   const r = transition(
     state,
-    "IMPACT_READY",
-    { planned_targets: ["src/a.js"] },
+    "TASK_IMPACT_READY",
+    {
+      planned_targets: ["src/app.js"],
+      impact: sealedImpact({ phase: "pre", pre_impact: true, trusted: false }),
+    },
     providers,
   );
   assert.equal(r.ok, true, JSON.stringify(r.errors));
   assert.equal(r.state.require_post_impact, true);
+});
+
+test("REVIEWING → COMPLETED is illegal (must FINAL_VERIFYING)", () => {
+  const state = {
+    ...createEmptyRunState("g-complete"),
+    state: "REVIEWING",
+    implementer_commit: "impl222",
+  };
+  const r = canTransition(state, "COMPLETED", {
+    review_handoff: goodReviewerHandoff({ run_id: "g-complete" }),
+  });
+  assert.equal(r.ok, false);
+  assert.ok(r.errors.some((e) => /illegal transition/i.test(e)));
+});
+
+test("multi-task FINAL_VERIFYING does not require integration-reviewer", () => {
+  const state = {
+    ...createEmptyRunState("g-multi"),
+    state: "REVIEWING",
+    implementer_commit: "impl222",
+    current_unit: "unit-1",
+    tasks: ["a", "b"],
+  };
+  const r = canTransition(state, "FINAL_VERIFYING", {
+    review_handoff: goodReviewerHandoff({ run_id: "g-multi" }),
+  });
+  assert.equal(r.ok, true, JSON.stringify(r.errors));
+});
+
+test("normalizeHandoff remaps legacy unified-reviewer agent to reviewer", () => {
+  const { data } = normalizeHandoff("unified-reviewer", {
+    schema_version: "1.1",
+    run_id: "x",
+    unit_or_task: "u",
+    agent: "unified-reviewer",
+    base_commit: null,
+    created_at: "2026-01-01T00:00:00.000Z",
+    verdict: "APPROVED",
+    reviewed_commit: "c",
+  });
+  assert.equal(data.agent, "reviewer");
+});
+
+test("VERIFYING requires sealed provider verification path via gates", () => {
+  let state = {
+    ...createEmptyRunState("g-ver"),
+    state: "IMPLEMENTING",
+    head_commit: "base111",
+    current_unit: "unit-1",
+    allowed_files: ["src/app.js"],
+    require_post_impact: true,
+  };
+  const r = canTransition(state, "VERIFYING", {
+    implementer_handoff: goodImplementerHandoff({ run_id: "g-ver" }),
+  });
+  // May fail on provider verification / post-impact — must not silently pass
+  assert.equal(r.ok, false);
+});
+
+test("fabricated trusted impact rejected at TASK_IMPACT_READY without provider", () => {
+  let state = toPlanned("g-fab");
+  const r = canTransition(state, "TASK_IMPACT_READY", {
+    impact: {
+      risk: "LOW",
+      trusted: true,
+      fabricated: true,
+      planned_targets: ["src/app.js"],
+    },
+  });
+  assert.equal(r.ok, false);
 });

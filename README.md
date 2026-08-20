@@ -10,21 +10,25 @@
   <a href="https://nodejs.org/"><img src="https://img.shields.io/badge/node-%E2%89%A520-3c873a?style=flat-square&logo=node.js&logoColor=white" alt="Node.js 20 or newer"></a>
 </p>
 
-<p align="center"><strong>Evidence-driven multi-agent development for <a href="https://opencode.ai">OpenCode</a>.</strong></p>
+<p align="center"><strong>Fixed three-agent development workflow for <a href="https://opencode.ai">OpenCode</a>.</strong></p>
 
-Nexus installs a small, inspectable team of agents into OpenCode. The **orchestrator** plans and gates the work, the **implementer** writes production code, and reviewers check the result — with the **Nexus Impact Engine**, TDD evidence, isolated worktrees, and durable run state under `.opencode/`.
+Nexus installs a predictable team into OpenCode: **orchestrator**, **implementer**, and **reviewer** — with the **Nexus Impact Engine**, TDD evidence, isolated worktrees, and durable run state under `.opencode/`.
 
 ```text
 you describe the work
         ↓
-orchestrator classifies → plans → impact analysis → baseline
+orchestrator brainstorms → plans
         ↓
-implementer (fresh, scoped, TDD) writes code
+(for each task) pre-impact → implementer → post-impact + verify → reviewer
         ↓
-verify → spec/code review → integrate → final verify → finish
+REQUEST_CHANGES? → fresh pre-impact → implementer → reviewer (auto)
+        ↓
+final verify → finish
 ```
 
-**Principle:** LLM proposes. Scripts measure. Tests prove. Independent agents review. State machine decides.
+**Principle:** LLM proposes. Scripts measure. Tests prove. Independent reviewer approves. State machine decides.
+
+**Three invariants:** (1) brainstorm + plan every request (2) fresh impact before every implementer (3) reviewer APPROVED every task.
 
 Package: [`@mohammad154/opencode-nexus`](https://www.npmjs.com/package/@mohammad154/opencode-nexus) · Node 20+ · MIT
 
@@ -54,26 +58,21 @@ Nexus gives OpenCode a repeatable delivery loop with explicit ownership and evid
 
 | Capability | What it adds |
 |---|---|
-| **Orchestration** | Classifies the request, selects a profile, creates the plan, and dispatches bounded work |
-| **Impact mapping** | Built-in Nexus Impact Engine (git + AST + imports + tests) maps changed files and downstream risk |
-| **Safe implementation** | Gives production-file edits to the implementer, with branch, worktree, and handoff context |
-| **Risk-based review** | Uses unified review for normal work, dual spec/code review for high-risk changes, and integration review for multi-task branches |
+| **Orchestration** | Fixed pipeline: brainstorm → plan → per-task impact/implement/review loop |
+| **Impact mapping** | Built-in Nexus Impact Engine (git + AST + imports + tests) before every implementer |
+| **Safe implementation** | Production edits only via implementer, with branch, worktree, and handoff context |
+| **Always-on review** | Single `reviewer` on every task; auto fix-loop on REQUEST_CHANGES |
 | **Durable state** | Stores plans, tasks, handoffs, impact reports, and run state so interrupted work can recover |
 
 ### Installed agents
 
-After install, OpenCode has eight canonical agents:
+After install, OpenCode has three canonical agents:
 
 | Agent | Role |
 |---|---|
-| `orchestrator` | Routes the run, owns state, dispatches work |
-| `implementer` | Implements one task (or batched unit) and verifies it |
-| `diagnostician` | Reproduces bugs before implementer edits code |
-| `unified-reviewer` | One-pass review for low- and medium-risk work |
-| `spec-reviewer` | High-risk: scope, acceptance criteria, callers |
-| `code-reviewer` | High-risk: quality, security, regressions |
-| `integration-reviewer` | Whole-branch review across integrated tasks |
-| `reconciler` | Recovers stale plans and blocked runs |
+| `orchestrator` | Owns the fixed workflow, plan, and task loop |
+| `implementer` | Implements one task and verifies it |
+| `reviewer` | Spec + correctness + quality + regression review every task |
 
 Nexus also installs a plugin and model config, with the **Nexus Impact Engine** as the primary canonical evidence provider.
 
@@ -233,13 +232,13 @@ rm -rf /tmp/opencode-nexus
 | Plugin + models | `~/.config/opencode/opencode.json` |
 | Optional model overrides | `~/.config/opencode/nexus.models.json` |
 
-Canonical agent files: `orchestrator`, `implementer`, `diagnostician`, `unified-reviewer`, `spec-reviewer`, `code-reviewer`, `integration-reviewer`, `reconciler`.
+Canonical agent files: `orchestrator`, `implementer`, `reviewer`.
 
 On Windows, set `OPENCODE_CONFIG_DIR` if your OpenCode config is not under `~/.config/opencode`.
 
 ### Optional compatibility agent
 
-`blast-analyzer` is **not** installed by default. Nexus Impact Engine (`nexus impact`) covers git, AST, and affected test evidence. Install the legacy agent only if a host still needs that entry point:
+V5 does not install optional agents. Nexus Impact Engine (`nexus impact`) covers git, AST, and affected test evidence.
 
 ```bash
 nexus install --with-optional-agents
@@ -289,7 +288,7 @@ nexus verify --baseline
 State machine and handoff checks:
 
 ```bash
-nexus run transition --to CLASSIFIED --json '{"classification":{}}'
+nexus run transition --to BRAINSTORMING
 nexus run status
 nexus run validate-handoff \
   --role implementer \
@@ -423,7 +422,7 @@ bash -n install.sh uninstall.sh scripts/test-install-only.sh \
 Confirm agents on disk:
 
 ```bash
-ls ~/.config/opencode/agents/{orchestrator,implementer,diagnostician,unified-reviewer,spec-reviewer,code-reviewer,integration-reviewer,reconciler}.md
+ls ~/.config/opencode/agents/{orchestrator,implementer,reviewer}.md
 ```
 
 ---

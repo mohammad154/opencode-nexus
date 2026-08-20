@@ -3,7 +3,7 @@ import path from "node:path";
 
 const DEFAULT_CONTEXT = `# Nexus Context
 
-workflow_profile: balanced
+workflow: default
 execution_mode: delegated
 branch_cleanup_policy: always
 `;

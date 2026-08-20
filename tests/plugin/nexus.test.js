@@ -144,8 +144,8 @@ test("compaction includes delegation gate for active run", async () => {
   const worktree = tempDir("nexus-plugin-compact-gate-");
   writeJson(path.join(worktree, ".opencode", "runs", "active", "state.json"), {
     run_id: "active",
-    state: "IMPACT_READY",
-    profile: "balanced",
+    state: "TASK_IMPACT_READY",
+    workflow: "default",
     updated_at: "2026-07-30T12:00:00.000Z",
   });
   const plugin = await NexusPlugin({ worktree });
@@ -170,7 +170,7 @@ test("plugin module provides default export and does not leak helper functions",
 test("agent permissions place catch-all '*' before specific rules", () => {
   const agentsDir = path.resolve(import.meta.dirname, "../../agents");
   const files = fs.readdirSync(agentsDir).filter((f) => f.endsWith(".md"));
-  assert.ok(files.length >= 6);
+  assert.ok(files.length >= 3);
 
   for (const file of files) {
     const content = fs.readFileSync(path.join(agentsDir, file), "utf8");

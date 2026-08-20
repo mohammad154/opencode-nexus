@@ -6,27 +6,7 @@
     "model": "opencode/deepseek-v4-flash-free",
     "variant": "high"
   },
-  "unified-reviewer": {
-    "model": "opencode-go/deepseek-v4-pro",
-    "variant": "high"
-  },
-  "spec-reviewer": {
-    "model": "opencode-go/deepseek-v4-pro",
-    "variant": "max"
-  },
-  "code-reviewer": {
-    "model": "opencode-go/deepseek-v4-pro",
-    "variant": "max"
-  },
-  "reconciler": {
-    "model": "opencode-go/deepseek-v4-pro",
-    "variant": "max"
-  },
-  "diagnostician": {
-    "model": "opencode/deepseek-v4-flash-free",
-    "variant": "high"
-  },
-  "integration-reviewer": {
+  "reviewer": {
     "model": "opencode-go/deepseek-v4-pro",
     "variant": "high"
   }

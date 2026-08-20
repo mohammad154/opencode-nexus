@@ -1,12 +1,10 @@
 export const CANONICAL_AGENTS = Object.freeze([
   "orchestrator",
   "implementer",
-  "diagnostician",
-  "unified-reviewer",
-  "spec-reviewer",
-  "code-reviewer",
-  "integration-reviewer",
-  "reconciler",
+  "reviewer",
 ]);
 
-export const OPTIONAL_AGENTS = Object.freeze(["blast-analyzer"]);
+/** @deprecated V5 has no optional agents; kept empty for install script compat. */
+export const OPTIONAL_AGENTS = Object.freeze([]);
+
+export const WORKFLOW_VERSION = "5.0";

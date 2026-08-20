@@ -1,12 +1,14 @@
 ---
 name: writing-plans
-description: Use to create a concrete implementation plan with task breakdown, file:line evidence, effort/confidence scoring, STOP conditions, verification gates, and drift checking — the plan is the product
+description: Always create a concrete implementation plan after brainstorming — task breakdown for sequential orchestrator execution with verification gates and STOP conditions
 compatibility: opencode
 ---
 
-# Writing Plans (improve-grade)
+# Writing Plans (V5)
 
-Create or update `.opencode/plans/PLAN.md` — a self-contained, verification-gated, drift-resistant plan for weaker executors that have zero context from your session.
+**Always** create a plan after brainstorming. There is no "small enough to skip planning" path.
+
+Create or update `.opencode/plans/PLAN.md` — a self-contained, verification-gated plan. The orchestrator executes tasks **one by one** through the fixed pipeline (pre-impact → implementer → post-impact → reviewer).
 
 This skill borrows the three guarantees from shadcn/improve:
 - **Self-contained.** All context inlined — exact file paths, current-state excerpts, conventions with an exemplar, git commit stamped.

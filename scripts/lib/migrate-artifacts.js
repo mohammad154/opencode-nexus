@@ -82,25 +82,30 @@ export function normalizeHandoff(role, raw) {
     if (data.notes_for_reviewer == null) data.notes_for_reviewer = "";
   }
 
-  if (
+  const isReviewerRole =
+    role === "reviewer" ||
     role === "unified-reviewer" ||
     role === "spec-reviewer" ||
-    role === "code-reviewer"
-  ) {
+    role === "code-reviewer" ||
+    role === "integration-reviewer";
+  if (isReviewerRole) {
+    const legacyReviewAgents = new Set([
+      "unified-reviewer",
+      "spec-reviewer",
+      "code-reviewer",
+      "integration-reviewer",
+    ]);
+    if (!data.agent || legacyReviewAgents.has(data.agent)) {
+      data.agent = "reviewer";
+    }
     if (!("reviewed_commit" in data)) data.reviewed_commit = null;
-    if (!data.blast || typeof data.blast !== "object") {
-      data.blast = { pass: null, risk: "UNKNOWN" };
-    } else if (!("pass" in data.blast) && data.blast.pass !== false) {
-      if (data.blast.pass === undefined) data.blast.pass = null;
-      if (!data.blast.risk) data.blast.risk = "UNKNOWN";
+    if (!data.impact || typeof data.impact !== "object") {
+      data.impact = data.blast && typeof data.blast === "object"
+        ? { pass: data.blast.pass ?? null, risk: data.blast.risk || "UNKNOWN" }
+        : { pass: null, risk: "UNKNOWN" };
     }
     if (!Array.isArray(data.findings)) data.findings = [];
-    if (
-      (role === "unified-reviewer" || role === "spec-reviewer") &&
-      !Array.isArray(data.acceptance)
-    ) {
-      data.acceptance = [];
-    }
+    if (!Array.isArray(data.acceptance)) data.acceptance = [];
   }
 
   if (wasLegacy) {
@@ -147,21 +152,19 @@ export function createEmptyRunState(runId, overrides = {}) {
     schema_version: RUN_STATE_VERSION,
     run_id: runId,
     state: "CREATED",
-    profile: "balanced",
-    review_level: "unified",
+    workflow: "default",
     execution_mode: "delegated",
     current_unit: null,
-    classification: null,
-    classification_source: null,
+    pending_review_findings: null,
     plan_commit: null,
     head_commit: null,
     implementer_commit: null,
     branch: null,
-    graph: null,
-    blast: null,
+    impact: null,
+    change_class: null,
     verification_policy: { exempt: false, reason: null },
     compatibility_mode: null,
-    require_post_impact: false,
+    require_post_impact: true,
     blocked_from: null,
     resume_state: null,
     block_reason: null,

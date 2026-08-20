@@ -20,7 +20,7 @@ trap 'rm -rf "$T1" "${T2:-}"' EXIT
   export PATH="$HOME/bin:/usr/bin:/bin"
   printf '{}\n' >"$CD/opencode.json"
   git init -q "$HOME/project"
-  for ag in orchestrator implementer diagnostician unified-reviewer spec-reviewer code-reviewer integration-reviewer reconciler; do
+  for ag in orchestrator implementer reviewer; do
     printf 'ORIGINAL USER %s\n' "$ag" >"$AD/$ag.md"
   done
   for _ in 1 2 3; do
@@ -28,7 +28,7 @@ trap 'rm -rf "$T1" "${T2:-}"' EXIT
     sleep 1
   done
   ( cd "$HOME/project" && "$ROOT/uninstall.sh" ) >/dev/null 2>&1
-  for ag in orchestrator implementer diagnostician unified-reviewer spec-reviewer code-reviewer integration-reviewer reconciler; do
+  for ag in orchestrator implementer reviewer; do
     grep -q "^ORIGINAL USER $ag$" "$AD/$ag.md" \
       || { echo "restored $ag was: $(cat "$AD/$ag.md" 2>/dev/null || echo '<missing>')"; exit 1; }
   done
@@ -57,7 +57,7 @@ T2="$(mktemp -d)"
   command -v jq >/dev/null 2>&1 && { echo "jq unexpectedly still on PATH"; exit 1; }
   ( cd "$HOME/project" && "$ROOT/uninstall.sh" ) >"$T2/uninstall.log" 2>&1
   grep -q "Uninstall complete" "$T2/uninstall.log" || { echo "no complete message"; exit 1; }
-  for ag in orchestrator implementer diagnostician unified-reviewer spec-reviewer code-reviewer integration-reviewer reconciler; do
+  for ag in orchestrator implementer reviewer; do
     [[ ! -f "$AD/$ag.md" ]] || { echo "agent file left behind: $ag"; exit 1; }
   done
 ) || fail "jq-less uninstall did not remove agent files"

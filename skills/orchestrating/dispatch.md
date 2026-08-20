@@ -1,102 +1,58 @@
-# Subagent Dispatch (OpenCode) — V3 profiles
+# Subagent Dispatch (OpenCode) — V5 fixed pipeline
 
-Portable CLI (works from any repo):
+Portable CLI:
 
 ```bash
 nexus project-init
 nexus run init --run-id <id>
-nexus classify --files N --lines N --class <c>
-nexus blast --files ... --task <id>
-nexus estimate --tasks N --profile <p>
+nexus impact --json --targets <files>
+nexus estimate --tasks N
 ```
 
-Clone-dev fallback (inside Nexus package repo only): `node scripts/nexus-run.js ...`
+Canonical roles (only these):
 
-Canonical roles:
-
-| Role            | Canonical key       | When                                      |
-| --------------- | ------------------- | ----------------------------------------- |
-| Implementer     | `implementer`       | After blast + branch ready                |
-| Spec reviewer   | `spec-reviewer`     | Dual-review path after implementer DONE\* |
-| Code reviewer   | `code-reviewer`     | After spec verdict APPROVED               |
-| Unified reviewer| `unified-reviewer`  | Fast/balanced risk-based unified review   |
-| Blast analyzer  | `blast-analyzer`    | Optional; **prefer scripts**              |
-| Graphify graph | `graphify query` / `graphify affected` | External prerequisite; sole graph provider |
-| Reconciler      | `reconciler`        | On BLOCKED / drift                        |
+| Role         | Canonical key | When                                      |
+| ------------ | ------------- | ----------------------------------------- |
+| Implementer  | `implementer` | After fresh pre-impact + branch ready     |
+| Reviewer     | `reviewer`    | After VERIFYING for **every** task        |
 
 Deterministic ops (do **not** dispatch an agent):
 
 | Op        | Command |
 |-----------|---------|
-| Run / gates | `nexus run <init\|classify\|transition\|validate-handoff\|status\|resume\|drift>` |
-| Classify  | `nexus classify --files N --lines N --class <c>` |
-| Graph     | `graphify extract . --code-only --directed --no-viz` when missing; `graphify update .` otherwise |
-| Blast     | `nexus blast --files ...` (JSON default; `--mermaid` or HIGH risk for diagrams; `--task <id>` persists) |
+| Run / gates | `nexus run <init\|transition\|validate-handoff\|status\|resume\|drift>` |
+| Impact    | `nexus impact --json --targets …` |
 | Cleanup   | `bash scripts/nexus-branch-cleanup.sh --base <base> --out <json> <branches...>` |
-| Call est. | `nexus estimate --tasks N --profile <p>` |
-| Gates     | `nexus run validate-handoff --role <role> --file ...` then `jq -e '...'` |
+| Call est. | `nexus estimate --tasks N` |
 
-The optional `blast-analyzer` agent is **not** in the default install. Prefer Graphify and Nexus scripts. Use `install.sh --with-optional-agents` only for compatibility.
-
-## Resolve the local agent name
-
-Dispatch with the canonical key as installed under `~/.config/opencode/agents/`.
-OpenCode uses the bare name (`@spec-reviewer`, Task tool, or the matching agent
-file). Never invent a prefixed `nexus-*` alias.
-
-## Review gates by profile
-
-Read `workflow_profile` + change class from CONTEXT / execution-unit JSON. See [`profiles.md`](profiles.md).
-
-### Dual review (strict, or high-risk under any profile)
+## Review gate (always)
 
 After implementer returns `DONE` or `DONE_WITH_CONCERNS`:
 
-1. **Do not** review in the orchestrator turn.
-2. Dispatch **spec-reviewer** → wait `"verdict": "APPROVED"`.
-3. Dispatch **code-reviewer** → wait `"verdict": "APPROVED"`.
-4. Then outcome-memory (per lessonPolicy) → mark done → finishing/merge → script cleanup.
+1. Do not review in the orchestrator turn.
+2. Dispatch **reviewer** with [`reviewer-prompt.md`](reviewer-prompt.md).
+3. Wait `.opencode/handoffs/<id>-reviewer.json` verdict.
 
 ```bash
-jq -e '.status=="DONE" or .status=="DONE_WITH_CONCERNS"' .opencode/handoffs/<id>-implementer.json
-jq -e '.verdict=="APPROVED"' .opencode/handoffs/<id>-spec-reviewer.json
-jq -e '.verdict=="APPROVED"' .opencode/handoffs/<id>-code-reviewer.json
+jq -e '.verdict=="APPROVED"' .opencode/handoffs/<id>-reviewer.json
 ```
 
-### Unified review (fast/balanced, low–medium risk)
+### REQUEST_CHANGES (automatic fix loop)
 
-1. Dispatch **unified-reviewer** with `unified-reviewer-prompt.md`.
-2. Wait `.opencode/handoffs/<id>-unified-reviewer.json` `"verdict": "APPROVED"`.
-3. If handoff sets `escalate_to_dual: true` → run dual path instead.
+1. Extract findings from the reviewer handoff.
+2. Fresh `nexus impact` for the updated scope.
+3. `TASK_IMPACT_READY` with `review_handoff` + new impact.
+4. Dispatch implementer with `review_findings`.
+5. VERIFYING → reviewer again until APPROVED.
 
-```bash
-jq -e '.verdict=="APPROVED"' .opencode/handoffs/<id>-unified-reviewer.json
-```
+### APPROVED
 
-### Skip review (documentation-only under fast)
-
-1. Implementer DONE + verification gates green.
-2. No reviewer dispatch. Record `review: skipped` in CONTEXT.
-
-### Fix loops
-
-- Spec `REQUEST_CHANGES` → implementer → re-run spec (then code). Max 3 loops.
-- Code `REQUEST_CHANGES` → implementer → re-run **both** dual stages. Max 3 loops.
-- Unified `REQUEST_CHANGES` → implementer → re-run unified (or dual if escalated). Max 3 loops.
+- More tasks → next task `TASK_IMPACT_READY` with fresh impact (`next_task: true`).
+- No more tasks → `FINAL_VERIFYING` → `COMPLETED`.
 
 ## Anti-patterns
 
-- Using dual review when profile+matrix say skip/unified **without** high-risk trigger
-- Skipping required dual review for security / migration / public-api / HIGH blast
-- Parallel spec + code review when dual is required
-- Self-review inside orchestrator/implementer when a reviewer is required
-- **Orchestrator writing production code** instead of dispatching implementer — exceptions only:
-  - CONTEXT has exact `execution_mode: direct`, **or**
-  - classifier `direct_eligible: true` **and** dispatch unavailable **and** user did not set `execution_mode: delegated`
-- Treating a pasted plan / “please implement” / “start coding” as permission to self-implement
-- Falling back to self-coding when Task/Agent dispatch fails **unless** the narrow direct-eligible exception above applies (then mandatory verification + handoff JSON)
-- Skipping `nexus run transition` gates before IMPLEMENTING / COMPLETED
-- Dispatching LLM agents for graph rebuild, blast script, branch delete, or jq gates
-- Finishing without required APPROVED handoff JSON(s) (`validate-handoff` + jq)
-- Calling a prefixed `nexus-*` agent name instead of the canonical OpenCode name
-- Assuming repo-local `scripts/nexus-*.js` exists in external projects — use `nexus run` / `nexus blast` / `nexus classify` instead
+- Dispatching retired agents (spec/code/unified/integration/diagnostician/reconciler)
+- Skipping reviewer for "small" or "docs" changes
+- Skipping pre-impact before any implementer dispatch (including fix loops)
+- Waiting for the user to say "fix review issues"

@@ -237,7 +237,7 @@ function cmdInit(flags) {
     process.exit(2);
   }
   const state = createEmptyRunState(id, {
-    profile: flags.profile || "balanced",
+    workflow: "default",
   });
   writeRunState(worktree(), state);
   recordTrajectory(flags, { command: "init", run_id: id }, { ok: true, state }, state);
@@ -314,35 +314,17 @@ function cmdClassify(flags) {
     fs.mkdirSync(path.dirname(classPath), { recursive: true });
     fs.writeFileSync(classPath, JSON.stringify(classification, null, 2) + "\n");
 
-    const r = smTransition(
-      state,
-      "CLASSIFIED",
-      {
-        classification,
-        classification_source: CLASSIFY_APPLY_SOURCE,
-      },
-      createDefaultProviders({ worktree: worktree() }),
-    );
-    if (!r.ok) {
-      console.error(
-        JSON.stringify(
-          { ok: false, errors: r.errors, classification: result },
-          null,
-          2,
-        ),
-      );
-      process.exit(3);
-    }
-    writeRunState(worktree(), r.state);
-    recordTrajectory(
-      flags,
-      { command: "classify", apply: true },
-      { ok: true, classification: result, state: r.state },
-      r.state,
-    );
+    // V5: classify is advisory only — does not advance run state.
     console.log(
       JSON.stringify(
-        { ok: true, classification: result, state: r.state },
+        {
+          ok: true,
+          deprecated: true,
+          warning:
+            "V5: nexus classify --apply no longer transitions run state. Use brainstorming → PLANNED.",
+          classification: result,
+          state,
+        },
         null,
         2,
       ),
@@ -387,12 +369,21 @@ function cmdTransition(flags) {
 
   // Provider revalidation happens inside transition(); do not pre-inject
   // untrusted impact objects as authoritative when providers will rebuild.
-  if (to === "IMPACT_READY" && evidence.impact && !evidence.impact_path) {
+  if (
+    (to === "IMPACT_READY" || to === "TASK_IMPACT_READY") &&
+    evidence.impact &&
+    !evidence.impact_path
+  ) {
     if (evidence.impact.trusted === true && !evidence.impact.provider_validated) {
       delete evidence.impact.trusted;
     }
   }
-  if (to === "IMPACT_READY" && evidence.blast && !flags.blast && !flags.impact) {
+  if (
+    (to === "IMPACT_READY" || to === "TASK_IMPACT_READY") &&
+    evidence.blast &&
+    !flags.blast &&
+    !flags.impact
+  ) {
     if (evidence.blast.trusted === true && !evidence.blast.provider_validated) {
       delete evidence.blast.trusted;
     }

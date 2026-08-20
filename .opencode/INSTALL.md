@@ -1,8 +1,8 @@
-# Installing OpenCode Nexus V4
+# Installing OpenCode Nexus V5
 
-Nexus V4 has one evidence-driven workflow core and an OpenCode installer. The
+Nexus V5 has a **fixed three-agent pipeline** and an OpenCode installer. The
 core owns workflow states, the Impact Engine, verification gates, handoffs, and
-review rules. The installer writes native OpenCode agents and merges
+always-on review. The installer writes native OpenCode agents and merges
 plugin/model config.
 
 ## Prerequisites
@@ -34,31 +34,22 @@ nexus install
 | Agents | `~/.config/opencode/agents/*.md` |
 | Plugin and models | `~/.config/opencode/opencode.json` |
 
-Canonical agents:
+Canonical agents (V5):
 
-`orchestrator`, `implementer`, `unified-reviewer`, `spec-reviewer`,
-`code-reviewer`, `reconciler`, `diagnostician`, `integration-reviewer`.
+`orchestrator`, `implementer`, `reviewer`.
 
-## Project bootstrap
+## Three invariants
+
+1. Every request starts with brainstorming and a plan.
+2. Every implementer call requires fresh impact analysis.
+3. Every implementation must be approved by an independent reviewer.
+
+## Next
 
 ```bash
 nexus project-init
+nexus run init --run-id demo
+nexus estimate --tasks 3
 ```
 
-Creates `.opencode/` (CONTEXT, plans, handoffs, runs).
-
-## Impact analysis
-
-```bash
-nexus impact --json
-nexus run transition --to IMPACT_READY
-nexus run inspect --run-id <id>
-```
-
-## Uninstall
-
-```bash
-nexus uninstall
-```
-
-Removes Nexus agents/plugin entries. Project-local `.opencode/` is kept.
+See [docs/workflow.md](../docs/workflow.md) and the repository README.

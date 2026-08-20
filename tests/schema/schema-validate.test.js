@@ -115,12 +115,12 @@ test("normalize strips verification_exempt from implementer handoffs", () => {
   assert.equal("verification_exempt" in data, false);
 });
 
-test("reviewer missing blast gets UNKNOWN defaults", () => {
-  const { data } = normalizeHandoff("spec-reviewer", {
+test("reviewer missing impact gets UNKNOWN defaults", () => {
+  const { data } = normalizeHandoff("reviewer", {
     schema_version: "1.1",
     run_id: "r",
     unit_or_task: "task-1",
-    agent: "spec-reviewer",
+    agent: "reviewer",
     base_commit: "a",
     created_at: "2026-07-30T00:00:00.000Z",
     verdict: "APPROVED",
@@ -128,9 +128,10 @@ test("reviewer missing blast gets UNKNOWN defaults", () => {
     task_id: "task-1",
   });
   assert.equal(data.schema_version, "1.1");
-  assert.equal(data.blast.pass, null);
-  assert.equal(data.blast.risk, "UNKNOWN");
-  const r = validateHandoff("spec-reviewer", data);
+  assert.equal(data.agent, "reviewer");
+  assert.equal(data.impact.pass, null);
+  assert.equal(data.impact.risk, "UNKNOWN");
+  const r = validateHandoff("reviewer", data);
   assert.equal(r.ok, true, JSON.stringify(r.errors));
 });
 

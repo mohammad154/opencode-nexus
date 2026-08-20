@@ -4,7 +4,7 @@
   "title": "NexusRunState",
   "type": "object",
   "additionalProperties": true,
-  "required": ["schema_version", "run_id", "state", "profile", "transitions"],
+  "required": ["schema_version", "run_id", "state", "transitions"],
   "properties": {
     "schema_version": { "type": "string", "enum": ["1.0"] },
     "run_id": {
@@ -17,11 +17,11 @@
       "type": "string",
       "enum": [
         "CREATED",
-        "CLASSIFIED",
+        "BRAINSTORMING",
+        "WAITING_FOR_USER",
         "PLANNED",
-        "IMPACT_READY",
+        "TASK_IMPACT_READY",
         "IMPLEMENTING",
-        "DIRECT_IMPLEMENTING",
         "VERIFYING",
         "REVIEWING",
         "FINAL_VERIFYING",
@@ -30,21 +30,18 @@
         "FAILED"
       ]
     },
-    "profile": { "type": "string", "enum": ["fast", "balanced", "strict"] },
-    "review_level": { "type": "string", "enum": ["none", "unified", "dual"] },
-    "execution_mode": { "type": "string", "enum": ["direct", "delegated"] },
+    "workflow": { "type": "string", "enum": ["default"] },
+    "execution_mode": { "type": "string", "enum": ["delegated"] },
     "compatibility_mode": { "type": ["string", "null"] },
     "require_post_impact": { "type": "boolean" },
     "current_unit": { "type": ["string", "null"] },
-    "classification": {
-      "type": ["object", "null"],
-      "additionalProperties": true
+    "pending_review_findings": {
+      "type": ["array", "null"],
+      "items": { "type": "object", "additionalProperties": true }
     },
     "plan_commit": { "type": ["string", "null"] },
     "branch": { "type": ["string", "null"] },
     "impact": { "type": ["object", "null"], "additionalProperties": true },
-    "graph": { "type": ["object", "null"], "additionalProperties": true },
-    "blast": { "type": ["object", "null"], "additionalProperties": true },
     "blocked_from": { "type": ["string", "null"] },
     "resume_state": { "type": ["string", "null"] },
     "block_reason": { "type": ["string", "null"] },

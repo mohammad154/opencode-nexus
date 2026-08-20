@@ -1,26 +1,38 @@
 ---
 name: brainstorming
-description: Use before writing or executing a plan to clarify goals, constraints, and acceptance criteria – optionally augmented by Graphify context
+description: Clarify goals, constraints, and acceptance criteria before writing a plan. Ask questions only when genuinely ambiguous.
 compatibility: opencode
 ---
 
-# Brainstorming
+# Brainstorming (V5)
 
 Before planning:
 
-1. Restate user goal in plain language.
-2. Identify technical constraints and trade-offs.
-3. If `graphify-out/graph.json` exists, run `graphify query` or `graphify affected` and skim hub/related files to ground questions in real codebase structure (not guesses) – e.g. "this touches `src/auth/*` which is a hub with 12 dependents – should scope include middleware?"
-4. Ask focused clarifying questions if needed – tie questions to file:line evidence when possible (from graph discovery or rg).
+1. Restate the user goal in plain language.
+2. Skim the repository for the relevant area (rg / file reads). Prefer Nexus Impact Engine over guessing structure.
+3. Identify technical constraints and trade-offs.
+4. **Ask focused clarifying questions only if needed.** If the repo + prompt are enough to plan, do **not** invent questions.
 5. Define success criteria and non-goals.
-6. Propose a preferred approach with rationale, citing past LESSONS.md entry if relevant on similar area.
+6. Propose a preferred approach with rationale.
 
-Output must include:
+## Ambiguity gate
+
+Enough information?
+
+- **Yes** → no question → hand off to `writing-plans` immediately.
+- **No** → ask a specific question → wait for the user → continue brainstorming.
+
+Examples:
+
+- "Add CSV export to reports." + clear report module → brainstorm → plan (no question).
+- "Change authentication system." without JWT/session/OAuth/compat choice → ask one concrete question.
+
+## Output
+
 - Problem framing
-- Current code reading (file:line evidence for questions, if any)
-- Graphify insight (when graph present: relevant hub nodes, dependent files near proposed change, languages)
+- Current code reading (file:line when asking questions)
 - Suggested implementation direction with trade-offs
-- Risks and mitigations (including blast awareness: is proposed area HIGH blast in graph?)
-- Clear handoff into `writing-plans` – note whether verification baseline exists, and whether a fresh directed Graphify graph is present for accurate planning
+- Risks and mitigations
+- Clear handoff into `writing-plans`
 
-Optional but recommended: `graphify query "<architecture question>"` early in brainstorming when the graph exists; run `graphify extract . --code-only --directed --no-viz` when it is missing.
+Graphify (if present) is an **optional** analysis aid only — never block brainstorming on it. Prefer `nexus impact` once targets are known.

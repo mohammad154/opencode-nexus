@@ -1,12 +1,10 @@
-import { reclassifyAfterBlast } from "./classify.js";
-
 /**
- * Monotonic policy helpers — persisted state is authoritative.
- * Transition context may escalate, never weaken.
+ * V5 policy helpers — single fixed workflow; no profile/review-level routing.
+ * Impact risk still drives verification ladder intensity via callers.
  */
 
-export const REVIEW_RANK = { none: 0, unified: 1, dual: 2 };
-export const PROFILE_RANK = { fast: 0, balanced: 1, strict: 2 };
+export const REVIEW_RANK = { none: 0, unified: 1, dual: 2, reviewer: 1 };
+export const PROFILE_RANK = { fast: 0, balanced: 1, strict: 2, default: 1 };
 export const EXEC_RANK = { direct: 0, delegated: 1 };
 
 export function blastRisk(report) {
@@ -21,7 +19,7 @@ export function isUnknownBlast(report) {
   return (
     risk === "UNKNOWN" ||
     report.trusted === false ||
-    report.analysis_complete === false && analysisQuality !== "" ||
+    (report.analysis_complete === false && analysisQuality !== "") ||
     ["UNKNOWN", "UNSUPPORTED", "CONSERVATIVE"].includes(analysisQuality) ||
     ["UNKNOWN", "UNSUPPORTED", "CONSERVATIVE"].includes(graphQuality) ||
     report.analysis_quality === "UNKNOWN" ||
@@ -84,13 +82,13 @@ export function hasExplicitBlastVerification(value) {
 export function maxReview(a, b) {
   const ra = REVIEW_RANK[a] ?? 0;
   const rb = REVIEW_RANK[b] ?? 0;
-  return ra >= rb ? a || "none" : b;
+  return ra >= rb ? a || "reviewer" : b;
 }
 
 export function maxProfile(a, b) {
   const ra = PROFILE_RANK[a] ?? 1;
   const rb = PROFILE_RANK[b] ?? 1;
-  return ra >= rb ? a || "balanced" : b;
+  return ra >= rb ? a || "default" : b;
 }
 
 export function maxExecution(a, b) {
@@ -100,58 +98,17 @@ export function maxExecution(a, b) {
 }
 
 /**
- * Policy fields come only from persisted run state (+ classification snapshot).
- * Context may request escalation via escalate_* flags; never downgrade.
+ * V5: always delegated + always reviewer. No profile matrix.
  */
 export function effectivePolicy(state, ctx = {}) {
-  const c = state?.classification || {};
-  let review_level = state?.review_level || c.review_level || "unified";
-  let profile = state?.profile || c.profile || "balanced";
-  let execution_mode = state?.execution_mode || c.execution_mode || "delegated";
-
-  // Monotonic escalation only from explicit escalate hints (not raw overrides)
-  if (ctx.escalate_review_to) {
-    review_level = maxReview(review_level, ctx.escalate_review_to);
-  }
-  if (ctx.escalate_profile_to) {
-    profile = maxProfile(profile, ctx.escalate_profile_to);
-  }
-  if (ctx.escalate_execution_to) {
-    execution_mode = maxExecution(execution_mode, ctx.escalate_execution_to);
-  }
-
-  // Reject any attempt to pass weaker policy via ctx
-  if (
-    ctx.review_level &&
-    (REVIEW_RANK[ctx.review_level] ?? 0) < (REVIEW_RANK[review_level] ?? 0)
-  ) {
-    /* ignored — stored wins */
-  }
-  if (
-    ctx.profile &&
-    (PROFILE_RANK[ctx.profile] ?? 0) < (PROFILE_RANK[profile] ?? 0)
-  ) {
-    /* ignored */
-  }
-  if (ctx.execution_mode === "direct" && execution_mode === "delegated") {
-    /* ignored — cannot weaken to direct via JSON */
-  }
-
-  const direct_eligible =
-    c.direct_eligible === true &&
-    c.evidence_source === "git-diff" &&
-    c.diff_verified === true &&
-    c.diff_available === true &&
-    c.diff_clean !== true &&
-    (state?.execution_mode === "direct" || c.execution_mode === "direct");
-
   return {
-    review_level,
-    profile,
-    execution_mode,
-    direct_eligible,
-    confidence: c.confidence ?? null,
-    change_class: c.change_class || state?.change_class || null,
+    review_level: "reviewer",
+    profile: "default",
+    workflow: "default",
+    execution_mode: "delegated",
+    direct_eligible: false,
+    confidence: state?.classification?.confidence ?? null,
+    change_class: state?.change_class || state?.classification?.change_class || null,
   };
 }
 
@@ -160,15 +117,6 @@ export function applyBlastEscalation(state, blastReport) {
 }
 
 export function applyImpactEscalation(state, impactReport) {
-  const previous = state?.classification || {
-    profile: state?.profile,
-    review_level: state?.review_level,
-    execution_mode: state?.execution_mode,
-    change_class: state?.change_class,
-  };
-  const reclassified = reclassifyAfterBlast(previous, impactReport, {
-    graph: state?.graph,
-  });
   const risk = blastRisk(impactReport);
   const reasons = [...(state.escalation_reasons || [])];
   if (
@@ -187,34 +135,14 @@ export function applyImpactEscalation(state, impactReport) {
   ) {
     reasons.push("low_impact_confidence");
   }
-  let profile = maxProfile(state?.profile, reclassified.profile);
-  let review_level = maxReview(state?.review_level, reclassified.review_level);
-  if (
-    typeof impactReport?.confidence === "number" &&
-    impactReport.confidence < 0.75
-  ) {
-    review_level = maxReview(review_level, "dual");
-    profile = maxProfile(profile, "strict");
-  }
-  const execution_mode = maxExecution(
-    state?.execution_mode,
-    reclassified.execution_mode,
-  );
   return {
     ...state,
     impact: impactReport,
     blast: impactReport,
-    classification: {
-      ...previous,
-      ...reclassified,
-      profile,
-      review_level,
-      execution_mode,
-      direct_eligible: false,
-    },
-    review_level,
-    profile,
-    execution_mode,
+    review_level: "reviewer",
+    workflow: "default",
+    profile: "default",
+    execution_mode: "delegated",
     escalation_reasons: reasons,
   };
 }
@@ -228,9 +156,8 @@ export function isUnknownImpact(report) {
 }
 
 /**
- * Provider-produced pre-impact may pass IMPACT_READY (planned targets on a
- * clean tree) without authorizing direct mode. Post-impact remains mandatory
- * before review.
+ * Provider-produced pre-impact may pass TASK_IMPACT_READY (planned targets on a
+ * clean tree). Post-impact remains mandatory before review.
  */
 export function isAcceptablePreImpact(report) {
   if (!report || typeof report !== "object") return false;
@@ -247,7 +174,6 @@ export function isAcceptablePreImpact(report) {
     report.files ||
     [];
   if (!Array.isArray(targets) || targets.length === 0) return false;
-  // Never treat pre-impact as trusted LOW for direct mode.
   if (report.trusted === true && (phase === "pre" || report.pre_impact === true)) {
     return false;
   }
@@ -262,7 +188,6 @@ export function isTrustedLowRiskImpact(report) {
   if (typeof report.confidence === "number" && report.confidence < 0.85) {
     return false;
   }
-  // Prefer explicit impact trust markers; fall back to blast-shaped trust.
   if (report.provider === "nexus-impact" || report.graph_provider === "nexus-impact") {
     return (
       report.trusted === true &&
@@ -322,6 +247,7 @@ export function isMultiTaskRun(state = {}) {
 }
 
 export function requiresTdd(state = {}, classification = null) {
+  if (state.tdd_required === true) return true;
   const cls = classification || state.classification || {};
   const changeClass = cls.change_class || state.change_class;
   if (changeClass && TDD_CHANGE_CLASSES.has(String(changeClass))) return true;

@@ -1,231 +1,25 @@
 {
-  "_comment": "Profile matrix for Nexus V4. Impact Engine replaces graph/blast policies.",
+  "_comment": "V5: profile matrix retired. Kept as a thin shim so older tooling that loads this file does not crash. Use config/default-workflow.json.",
+  "deprecated": true,
   "profiles": {
-    "fast": {
-      "description": "Small low-risk changes: one implementer, Impact Engine, optional unified review, one branch per request",
+    "default": {
+      "description": "Fixed V5 pipeline: brainstorm → plan → pre-impact → implement → post-impact → review",
       "branchPolicy": "per-feature",
-      "reviewPolicy": "unified-or-skip",
+      "reviewPolicy": "always-reviewer",
       "lessonPolicy": "noteworthy-only",
-      "impactPolicy": "cache-by-file-hash",
-      "cleanupPolicy": "script",
-      "batchTasks": true,
-      "implementerPer": "task",
-      "maxTasksPerBatch": 5,
-      "maxParallelTasks": 2,
-      "requireDualReviewOn": [
-        "security",
-        "migration",
-        "public-api",
-        "high-blast"
-      ]
-    },
-    "balanced": {
-      "description": "Normal feature work: feature branch, impact analysis, risk-based review, LESSONS when noteworthy",
-      "branchPolicy": "per-feature",
-      "reviewPolicy": "risk-based",
-      "lessonPolicy": "noteworthy-only",
-      "impactPolicy": "cache-by-file-hash",
-      "cleanupPolicy": "script",
-      "batchTasks": true,
-      "implementerPer": "task",
-      "maxTasksPerBatch": 5,
-      "maxParallelTasks": 2,
-      "requireDualReviewOn": [
-        "security",
-        "migration",
-        "public-api",
-        "high-blast"
-      ]
-    },
-    "strict": {
-      "description": "High-assurance: per-task worktree, impact rebuild, dual review, LESSONS every task",
-      "branchPolicy": "per-task",
-      "reviewPolicy": "always-dual",
-      "lessonPolicy": "every-task",
       "impactPolicy": "rebuild-each-task",
       "cleanupPolicy": "script",
       "batchTasks": false,
       "implementerPer": "task",
       "maxTasksPerBatch": 1,
       "maxParallelTasks": 1,
-      "requireDualReviewOn": [
-        "*"
-      ]
+      "requireDualReviewOn": []
     }
   },
-  "reviewMatrix": {
-    "documentation": {
-      "spec": "skip",
-      "code": "skip-or-lightweight",
-      "unified": false
-    },
-    "test-only": {
-      "spec": "skip",
-      "code": "unified",
-      "unified": true
-    },
-    "small-internal-refactor": {
-      "spec": "skip",
-      "code": "required",
-      "unified": true
-    },
-    "small-feature-with-tests": {
-      "spec": "unified",
-      "code": "unified",
-      "unified": true
-    },
-    "public-api": {
-      "spec": "required",
-      "code": "required",
-      "unified": false
-    },
-    "authentication-security": {
-      "spec": "required",
-      "code": "required",
-      "unified": false
-    },
-    "database-migration": {
-      "spec": "required",
-      "code": "required",
-      "unified": false
-    },
-    "high-blast": {
-      "spec": "required",
-      "code": "required",
-      "unified": false
-    }
+  "defaults": {
+    "default": "default"
   },
-  "classificationRules": {
-    "version": 2,
-    "default": "balanced",
-    "hard_strict_triggers": [
-      "security",
-      "migration",
-      "public_api",
-      "credential_handling"
-    ],
-    "dual_review_triggers": [
-      "security",
-      "migration",
-      "public_api",
-      "credential_handling",
-      "blast_risk_high"
-    ],
-    "risk_weights": {
-      "files_changed_over_5": 1,
-      "estimated_lines_over_200": 1,
-      "files_changed_over_2": 0,
-      "estimated_lines_over_50": 0,
-      "generated_file_change": 1,
-      "high_fan_in_symbol": 4,
-      "missing_tests": 2,
-      "cross_package_change": 3,
-      "exported_symbol_change": 3,
-      "config_schema_protocol": 3,
-      "concurrency_async": 2,
-      "dependency_update": 2,
-      "database_storage": 3,
-      "blast_risk_medium": 2,
-      "blast_risk_high": 3,
-      "many_direct_callers": 2
-    },
-    "thresholds": {
-      "fast_max": 1,
-      "balanced_max": 5,
-      "strict_min": 6
-    },
-    "confidence_gates": {
-      "fast_min": 0.85,
-      "balanced_min": 0.65
-    },
-    "caller_thresholds": {
-      "high_fan_in": 8,
-      "many_direct": 15,
-      "low_direct": 1
-    },
-    "direct_path": {
-      "max_risk_score": 0,
-      "max_files": 1,
-      "max_lines": 30,
-      "require_focused_validation": true,
-      "forbid_exported_symbol_change": true,
-      "min_confidence": 0.85,
-      "allowed_classes": [
-        "documentation",
-        "formatting"
-      ]
-    },
-    "escalateToStrictOnHighBlast": false,
-    "escalateReviewOnHighBlast": true,
-    "allowExplicitOverride": true,
-    "_deprecated_fastIf": {
-      "_comment": "Legacy v1 shape. Nested 'or' was documented as AND (tiny internal). Migrated by scripts/lib/classify.js loadClassificationRules.",
-      "documentationOnly": true,
-      "or": {
-        "filesChangedMax": 2,
-        "estimatedLinesMax": 50,
-        "notPublicApi": true,
-        "notSecuritySensitive": true
-      }
-    },
-    "_deprecated_strictIf": [
-      "securitySensitive",
-      "databaseMigration",
-      "publicApi",
-      "blastRiskHigh"
-    ]
-  },
-  "modelTiers": {
-    "low": {
-      "orchestrator": {
-        "variant": "low"
-      },
-      "implementer": {
-        "variant": "medium"
-      },
-      "unified-reviewer": {
-        "variant": "medium"
-      },
-      "spec-reviewer": {
-        "variant": "medium"
-      },
-      "code-reviewer": {
-        "variant": "medium"
-      }
-    },
-    "medium": {
-      "orchestrator": {
-        "variant": "medium"
-      },
-      "implementer": {
-        "variant": "high"
-      },
-      "unified-reviewer": {
-        "variant": "high"
-      },
-      "spec-reviewer": {
-        "variant": "high"
-      },
-      "code-reviewer": {
-        "variant": "high"
-      }
-    },
-    "high": {
-      "orchestrator": {
-        "variant": "high"
-      },
-      "implementer": {
-        "variant": "high"
-      },
-      "spec-reviewer": {
-        "variant": "max"
-      },
-      "code-reviewer": {
-        "variant": "max"
-      },
-      "reconciler": {
-        "variant": "max"
-      }
-    }
+  "agentCallBudget": {
+    "default": { "normal": 2 }
   }
 }

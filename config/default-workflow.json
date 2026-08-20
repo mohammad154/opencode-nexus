@@ -1,9 +1,21 @@
 {
-  "_comment": "Default Nexus workflow settings. Copy fields into .opencode/CONTEXT.md or override via /nexus --profile. Default profile is balanced.",
-  "workflowProfile": "balanced",
-  "reviewPolicy": "risk-based",
+  "_comment": "V5 single default workflow. No fast/balanced/strict profile matrix. Impact Engine risk still drives verification ladder intensity.",
+  "workflow": "default",
   "branchPolicy": "per-feature",
+  "reviewPolicy": "always-reviewer",
   "lessonPolicy": "noteworthy-only",
-  "impactPolicy": "cache-by-file-hash",
-  "cleanupPolicy": "script"
+  "impactPolicy": "rebuild-each-task",
+  "cleanupPolicy": "script",
+  "batchTasks": false,
+  "implementerPer": "task",
+  "maxTasksPerBatch": 1,
+  "maxParallelTasks": 1,
+  "requireReviewerOn": ["*"],
+  "requirePreImpactBeforeImplementer": true,
+  "requirePostImpactBeforeReview": true,
+  "agentCallsPerTask": {
+    "implementer": 1,
+    "reviewer": 1,
+    "fixLoopExtra": 2
+  }
 }

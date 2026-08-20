@@ -1,75 +1,49 @@
-# Nexus V4 workflow
+# Nexus V5 workflow
 
-Nexus is an evidence-driven multi-agent workflow for OpenCode. The orchestrator coordinates; the implementer codes; reviewers stay read-only; **scripts own measurement and gates**.
+Nexus is a **fixed** three-agent development workflow for OpenCode. The orchestrator coordinates; the implementer codes; the reviewer stays read-only; **scripts own measurement and gates**.
+
+## Three invariants
+
+1. Every request starts with brainstorming and a plan.
+2. Every implementer call requires fresh impact analysis.
+3. Every implementation must be approved by an independent reviewer.
 
 ## Lifecycle
 
 ```text
-request → classify → plan → impact → implement → verify → review → final verify → finish
+request → brainstorm → plan → (per task) pre-impact → implement → post-impact+verify → review → final verify → finish
 ```
 
 Durable state: `.opencode/runs/<run-id>/state.json`
 
-States: `CREATED` → `CLASSIFIED` → `PLANNED` → `IMPACT_READY` → `IMPLEMENTING` → `VERIFYING` → `REVIEWING` → `FINAL_VERIFYING` → `COMPLETED`
+States: `CREATED` → `BRAINSTORMING` ↔ `WAITING_FOR_USER` → `PLANNED` → `TASK_IMPACT_READY` → `IMPLEMENTING` → `VERIFYING` → `REVIEWING` → (`TASK_IMPACT_READY` on REQUEST_CHANGES / next task) → `FINAL_VERIFYING` → `COMPLETED`
 
-## Impact Engine (replaces Graphify/blast)
+## Impact Engine
 
 ```bash
 nexus impact --json
-# or
-node scripts/nexus-impact.js --json --base HEAD
+nexus run transition --to TASK_IMPACT_READY
 ```
 
-Produces sealed impact reports with separate **risk** and **confidence**, changed symbols, dependents, and related tests.
-
-```bash
-nexus run transition --to IMPACT_READY
-```
-
-## Verification
-
-Baseline before edits → `.opencode/runs/<id>/baseline.json`. Agent test claims are re-run by scripts. Direct mode is limited to `documentation` and `formatting`.
-
-## TDD
-
-Implementer handoffs for behavioral changes should include:
-
-```json
-{
-  "tdd": {
-    "red": { "command": "npm test -- …", "exit_code": 1 },
-    "green": { "command": "npm test -- …", "exit_code": 0 }
-  }
-}
-```
-
-## Isolation
-
-Per-task git worktrees under `.opencode/worktrees/<task-id>/` with scope locks (`allowed_files`). Out-of-scope edits require re-impact.
+Pre-impact before every implementer (including fix loops). Post-impact during VERIFYING.
 
 ## Review
 
-Spec → code (or unified) → integration reviewer on the whole branch → `FINAL_VERIFYING` → `COMPLETED`.
+Always dispatch `reviewer` after VERIFYING. Verdicts: `APPROVED` | `REQUEST_CHANGES`.
 
-No self-approval. Unresolved HIGH findings block final verify.
-
-## Inspect
-
-```bash
-nexus run inspect --run-id <id>
-```
+On `REQUEST_CHANGES`, the orchestrator automatically re-impacts and re-dispatches the implementer — the user does not need to ask for fixes.
 
 ## Agent roster
 
 ```text
 orchestrator
 implementer
-diagnostician
-unified-reviewer
-spec-reviewer
-code-reviewer
-integration-reviewer
-reconciler
+reviewer
 ```
 
-`blast-analyzer` is obsolete; use the Impact Engine.
+## Inspect
+
+```bash
+nexus run inspect --run-id <id>
+nexus estimate --tasks 3
+```

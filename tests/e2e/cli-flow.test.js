@@ -73,7 +73,6 @@ test("nexus-run completes a full CLI workflow in a temporary repository", () => 
   const { root, home } = makeTempRepo();
   const runId = "e2e-complete";
 
-  // Seed a small source tree so graph/blast providers have something to analyze
   fs.mkdirSync(path.join(root, "src"), { recursive: true });
   fs.writeFileSync(
     path.join(root, "src", "app.js"),
@@ -91,7 +90,6 @@ test("nexus-run completes a full CLI workflow in a temporary repository", () => 
   git(root, ["commit", "-m", "initial"]);
   const baseHead = git(root, ["rev-parse", "HEAD"]);
 
-  // Existing diff for classification (and eventual implementation)
   fs.writeFileSync(
     path.join(root, "src", "app.js"),
     "export function hello() { return 2; }\n",
@@ -99,22 +97,15 @@ test("nexus-run completes a full CLI workflow in a temporary repository", () => 
 
   const initialized = invoke(root, home, ["init", "--run-id", runId]);
   assert.equal(initialized.state.state, "CREATED");
+  assert.equal(initialized.state.workflow, "default");
 
-  const classified = invoke(root, home, [
-    "classify",
+  invoke(root, home, [
+    "transition",
     "--run-id",
     runId,
-    "--apply",
-    "--json",
-    json({
-      changeClass: "small-feature-with-tests",
-      focusedValidation: true,
-    }),
+    "--to",
+    "BRAINSTORMING",
   ]);
-  assert.equal(classified.state.state, "CLASSIFIED");
-  assert.equal(classified.state.classification_source, "classify-apply");
-  assert.equal(classified.state.review_level, "unified");
-
   invoke(root, home, [
     "transition",
     "--run-id",
@@ -123,70 +114,24 @@ test("nexus-run completes a full CLI workflow in a temporary repository", () => 
     "PLANNED",
     "--plan-skip",
   ]);
-  const graphReady = invoke(root, home, [
+
+  const impactReady = invoke(root, home, [
     "transition",
     "--run-id",
     runId,
     "--to",
-    "IMPACT_READY",
+    "TASK_IMPACT_READY",
+    "--json",
+    json({
+      planned_targets: ["src/app.js"],
+      impact_verification: {
+        verified: true,
+        method: "e2e-fixture",
+        reason: "provider impact may be UNKNOWN on tiny fixture",
+      },
+    }),
   ]);
-  assert.equal(graphReady.state.state, "IMPACT_READY");
-  assert.equal(graphReady.state.impact?.provider_validated, true);
-  assert.ok(
-    graphReady.state.impact?.provider === "nexus-impact" ||
-      graphReady.state.impact?.graph_provider === "nexus-impact" ||
-      graphReady.state.blast?.provider_validated === true,
-  );
-
-  // Fabricated trusted impact must be rejected or rebuilt by provider
-  const fabricated = invoke(
-    root,
-    home,
-    [
-      "transition",
-      "--run-id",
-      runId,
-      "--to",
-      "IMPACT_READY",
-      "--json",
-      json({
-        impact: {
-          risk: "LOW",
-          confidence: 0.99,
-          trusted: true,
-          analysis_quality: "PRECISE",
-          graph_quality: "PRECISE",
-          graph_freshness: { valid: true },
-          analysis_complete: true,
-          uncertainties: [],
-        },
-      }),
-    ],
-    { expectStatus: 3 },
-  );
-  // Illegal second IMPACT_READY from IMPACT_READY — expect failure
-  assert.equal(fabricated.ok, false);
-
-  let state = invoke(root, home, ["status", "--run-id", runId]).state;
-  if (state.state !== "IMPACT_READY") {
-    const impactReady = invoke(root, home, [
-      "transition",
-      "--run-id",
-      runId,
-      "--to",
-      "IMPACT_READY",
-      "--json",
-      json({
-        impact_verification: {
-          verified: true,
-          method: "e2e-fixture",
-          reason: "provider impact may be UNKNOWN on tiny fixture",
-        },
-      }),
-    ]);
-    assert.equal(impactReady.state.state, "IMPACT_READY");
-    state = impactReady.state;
-  }
+  assert.equal(impactReady.state.state, "TASK_IMPACT_READY");
 
   git(root, ["checkout", "-b", "e2e/complete"]);
   const implementing = invoke(root, home, [
@@ -200,6 +145,7 @@ test("nexus-run completes a full CLI workflow in a temporary repository", () => 
       branch: "e2e/complete",
       allowed_files: ["src/app.js"],
       acceptance_criteria: ["the CLI flow reaches COMPLETED"],
+      current_unit: "e2e-unit",
       drift: {
         schema_version: "1.0",
         drift: "NONE",
@@ -238,11 +184,10 @@ test("nexus-run completes a full CLI workflow in a temporary repository", () => 
       current_head: implCommit,
       pass: true,
     },
-    blast: { risk: "LOW", verified: true, callers_checked: [] },
+    impact: { risk: "LOW", verified: true, callers_checked: [] },
     notes_for_reviewer: "e2e",
   };
 
-  // Set current_unit for binding
   const statePath = path.join(root, ".opencode", "runs", runId, "state.json");
   const st = JSON.parse(fs.readFileSync(statePath, "utf8"));
   st.current_unit = "e2e-unit";
@@ -267,8 +212,19 @@ test("nexus-run completes a full CLI workflow in a temporary repository", () => 
     json({}),
   ]);
 
-  let statusBeforeComplete = invoke(root, home, ["status", "--run-id", runId]).state;
-  const reviewLevel = statusBeforeComplete.review_level || "unified";
+  const reviewHandoff = {
+    schema_version: "1.1",
+    run_id: runId,
+    unit_or_task: "e2e-unit",
+    agent: "reviewer",
+    base_commit: baseHead,
+    created_at: new Date().toISOString(),
+    verdict: "APPROVED",
+    reviewed_commit: implCommit,
+    impact: { pass: true, risk: "LOW" },
+    findings: [],
+    acceptance: [],
+  };
 
   invoke(root, home, [
     "transition",
@@ -277,44 +233,7 @@ test("nexus-run completes a full CLI workflow in a temporary repository", () => 
     "--to",
     "FINAL_VERIFYING",
     "--json",
-    json(
-      reviewLevel === "dual"
-        ? {
-            spec_handoff: {
-              schema_version: "1.1",
-              run_id: runId,
-              unit_or_task: "e2e-unit",
-              agent: "spec-reviewer",
-              base_commit: baseHead,
-              created_at: new Date().toISOString(),
-              verdict: "APPROVED",
-              reviewed_commit: implCommit,
-            },
-            code_handoff: {
-              schema_version: "1.1",
-              run_id: runId,
-              unit_or_task: "e2e-unit",
-              agent: "code-reviewer",
-              base_commit: baseHead,
-              created_at: new Date().toISOString(),
-              verdict: "APPROVED",
-              reviewed_commit: implCommit,
-            },
-          }
-        : {
-            unified_handoff: {
-              schema_version: "1.1",
-              run_id: runId,
-              unit_or_task: "e2e-unit",
-              agent: "unified-reviewer",
-              base_commit: baseHead,
-              created_at: new Date().toISOString(),
-              verdict: "APPROVED",
-              reviewed_commit: implCommit,
-              blast: { pass: true, risk: "LOW" },
-            },
-          },
-    ),
+    json({ review_handoff: reviewHandoff }),
   ]);
 
   const completed = invoke(root, home, [
@@ -324,44 +243,7 @@ test("nexus-run completes a full CLI workflow in a temporary repository", () => 
     "--to",
     "COMPLETED",
     "--json",
-    json({
-      ...(reviewLevel === "dual"
-        ? {
-            spec_handoff: {
-              schema_version: "1.1",
-              run_id: runId,
-              unit_or_task: "e2e-unit",
-              agent: "spec-reviewer",
-              base_commit: baseHead,
-              created_at: new Date().toISOString(),
-              verdict: "APPROVED",
-              reviewed_commit: implCommit,
-            },
-            code_handoff: {
-              schema_version: "1.1",
-              run_id: runId,
-              unit_or_task: "e2e-unit",
-              agent: "code-reviewer",
-              base_commit: baseHead,
-              created_at: new Date().toISOString(),
-              verdict: "APPROVED",
-              reviewed_commit: implCommit,
-            },
-          }
-        : {
-            unified_handoff: {
-              schema_version: "1.1",
-              run_id: runId,
-              unit_or_task: "e2e-unit",
-              agent: "unified-reviewer",
-              base_commit: baseHead,
-              created_at: new Date().toISOString(),
-              verdict: "APPROVED",
-              reviewed_commit: implCommit,
-              blast: { pass: true, risk: "LOW" },
-            },
-          }),
-    }),
+    json({ review_handoff: reviewHandoff }),
   ]);
   assert.equal(completed.state.state, "COMPLETED");
   assert.equal(completed.state.implementer_commit, implCommit);
@@ -371,43 +253,13 @@ test("nexus-run completes a full CLI workflow in a temporary repository", () => 
   assert.equal(status.state.transitions.at(-1).to, "COMPLETED");
 });
 
-test("fabricated classification via transition cannot authorize direct", () => {
+test("CLASSIFIED and DIRECT_IMPLEMENTING are rejected in V5 CLI", () => {
   const { root, home } = makeTempRepo();
   fs.writeFileSync(path.join(root, "README.md"), "# fixture\n");
   git(root, ["add", "."]);
   git(root, ["commit", "-m", "initial"]);
-  fs.writeFileSync(path.join(root, "README.md"), "# fixture changed\n");
 
   invoke(root, home, ["init", "--run-id", "e2e-direct-deny"]);
-  const classified = invoke(root, home, [
-    "transition",
-    "--run-id",
-    "e2e-direct-deny",
-    "--to",
-    "CLASSIFIED",
-    "--json",
-    json({
-      classification: {
-        schema_version: "1.0",
-        profile: "fast",
-        review_level: "none",
-        execution_mode: "direct",
-        direct_eligible: true,
-        confidence: 0.99,
-        risk_score: 0,
-        reasons: ["fabricated"],
-        change_class: "documentation",
-        hard_triggers: [],
-        evidence_source: "git-diff",
-        diff_verified: true,
-        diff_available: true,
-        diff_clean: false,
-      },
-    }),
-  ]);
-  assert.equal(classified.state.classification.direct_eligible, false);
-  assert.equal(classified.state.classification_source, "transition-untrusted");
-
   const denied = invoke(
     root,
     home,
@@ -416,29 +268,13 @@ test("fabricated classification via transition cannot authorize direct", () => {
       "--run-id",
       "e2e-direct-deny",
       "--to",
-      "DIRECT_IMPLEMENTING",
+      "CLASSIFIED",
       "--json",
-      json({
-        graph: {
-          ok: true,
-          trusted: true,
-          quality: "PRECISE",
-          freshness: { valid: true },
-        },
-        blast: {
-          risk: "LOW",
-          trusted: true,
-          analysis_quality: "PRECISE",
-          graph_quality: "PRECISE",
-          graph_freshness: { valid: true },
-          analysis_complete: true,
-        },
-      }),
+      json({ classification: { profile: "fast" } }),
     ],
     { expectStatus: 3 },
   );
   assert.equal(denied.ok, false);
-  assert.match(JSON.stringify(denied.errors), /classify --apply/i);
 });
 
 test("nexus CLI run forwards workflow in an external temporary repository", () => {
@@ -498,28 +334,17 @@ test("nexus CLI run forwards workflow in an external temporary repository", () =
   const initialized = nexus(["init", "--run-id", runId]);
   assert.equal(initialized.state.state, "CREATED");
 
-  const classified = nexus([
-    "classify",
-    "--run-id",
-    runId,
-    "--apply",
-    "--json",
-    json({
-      changeClass: "small-feature-with-tests",
-      focusedValidation: true,
-    }),
-  ]);
-  assert.equal(classified.state.state, "CLASSIFIED");
-
+  nexus(["transition", "--run-id", runId, "--to", "BRAINSTORMING"]);
   nexus(["transition", "--run-id", runId, "--to", "PLANNED", "--plan-skip"]);
   const impactReady = nexus([
     "transition",
     "--run-id",
     runId,
     "--to",
-    "IMPACT_READY",
+    "TASK_IMPACT_READY",
     "--json",
     json({
+      planned_targets: ["src/app.js"],
       impact_verification: {
         verified: true,
         method: "e2e-nexus-cli",
@@ -527,7 +352,7 @@ test("nexus CLI run forwards workflow in an external temporary repository", () =
       },
     }),
   ]);
-  assert.equal(impactReady.state.state, "IMPACT_READY");
+  assert.equal(impactReady.state.state, "TASK_IMPACT_READY");
 
   git(root, ["checkout", "-b", "e2e/nexus-cli"]);
   const implementing = nexus([

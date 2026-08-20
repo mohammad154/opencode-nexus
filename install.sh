@@ -1,17 +1,18 @@
 #!/usr/bin/env bash
-# OpenCode Nexus installer — V4 evidence-driven workflow for OpenCode
-# Usage: ./install.sh [--with-optional-agents] [--prune-optional-agents] [--uninstall] [-h]
+# OpenCode Nexus installer — V5 fixed three-agent pipeline for OpenCode
+# Usage: ./install.sh [--prune-optional-agents] [--uninstall] [-h]
 # Deps: bash, jq; git optional. Graphify is NOT a runtime prerequisite.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 WITH_OPTIONAL_AGENTS=0
-PRUNE_OPTIONAL_AGENTS=0
-# Canonical roster. OpenCode uses these names natively.
-CANONICAL_AGENTS=(orchestrator implementer diagnostician unified-reviewer spec-reviewer code-reviewer integration-reviewer reconciler)
-OPTIONAL_AGENTS=(blast-analyzer)
-if [[ "${NEXUS_OPTIONAL_AGENTS:-}" == "1" ]]; then WITH_OPTIONAL_AGENTS=1; fi
+PRUNE_OPTIONAL_AGENTS=1
+# Canonical roster (V5).
+CANONICAL_AGENTS=(orchestrator implementer reviewer)
+OPTIONAL_AGENTS=()
+RETIRED_AGENTS=(diagnostician unified-reviewer spec-reviewer code-reviewer integration-reviewer reconciler blast-analyzer)
+if [[ "${NEXUS_OPTIONAL_AGENTS:-}" == "1" ]]; then WITH_OPTIONAL_AGENTS=0; fi
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -20,13 +21,11 @@ while [[ $# -gt 0 ]]; do
     --uninstall) exec "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/uninstall.sh" "${@:2}" ;;
     -h|--help)
       cat <<'USAGE'
-Usage: ./install.sh [--with-optional-agents] [--prune-optional-agents]
-  --with-optional-agents  also install blast-analyzer (optional compatibility agent)
-  --prune-optional-agents remove optional agents from the OpenCode install dir on upgrade
+Usage: ./install.sh [--prune-optional-agents]
+  --prune-optional-agents remove retired V4 agents from the OpenCode install dir
   --uninstall             delegate to uninstall.sh
 
-Canonical agents: orchestrator implementer diagnostician unified-reviewer spec-reviewer code-reviewer integration-reviewer reconciler
-Optional (not installed by default): blast-analyzer — Graphify is optional compatibility only
+Canonical agents (V5): orchestrator implementer reviewer
 USAGE
       exit 0 ;;
     *)
@@ -39,19 +38,12 @@ done
 nexus_agent_basenames() {
   local a
   for a in "${CANONICAL_AGENTS[@]}"; do echo "$a"; done
-  if (( WITH_OPTIONAL_AGENTS )); then
-    for a in "${OPTIONAL_AGENTS[@]}"; do echo "$a"; done
-  fi
 }
 
 prune_optional_from_dir() {
   local dest=$1 a
-  # Default install is not sticky: leftover optional agents from older
-  # releases (or a previous --with-optional-agents) are removed unless the
-  # flag is passed again.
-  (( WITH_OPTIONAL_AGENTS )) && return 0
   [[ -d "$dest" ]] || return 0
-  for a in "${OPTIONAL_AGENTS[@]}"; do
+  for a in "${RETIRED_AGENTS[@]}"; do
     rm -f "$dest/${a}.md" 2>/dev/null || true
   done
 }
@@ -134,12 +126,15 @@ fi
 # Always strip underscore meta-keys and nested _comment so jq agent merge stays object+object
 MJ="$(jq 'def strip: with_entries(select(.key|startswith("_")|not));
   strip | with_entries(.value = (if (.value|type)=="object" then (.value|strip) else .value end))' <<<"$MJ")"
-for spec in "orchestrator:NEXUS_ORCHESTRATOR_MODEL" "implementer:NEXUS_IMPLEMENTER_MODEL" "spec-reviewer:NEXUS_SPEC_REVIEWER_MODEL" "code-reviewer:NEXUS_CODE_REVIEWER_MODEL" "unified-reviewer:NEXUS_UNIFIED_REVIEWER_MODEL" "diagnostician:NEXUS_DIAGNOSTICIAN_MODEL" "integration-reviewer:NEXUS_INTEGRATION_REVIEWER_MODEL" "reconciler:NEXUS_RECONCILER_MODEL"; do
+for spec in "orchestrator:NEXUS_ORCHESTRATOR_MODEL" "implementer:NEXUS_IMPLEMENTER_MODEL" "reviewer:NEXUS_REVIEWER_MODEL"; do
   IFS=: read -r ag envv <<<"$spec"; v="${!envv:-}"; [[ -n "$v" ]] && MJ="$(jq --arg a "$ag" --arg m "$v" '.[$a].model=$m' <<<"$MJ")"
 done
-for spec in "implementer:NEXUS_IMPLEMENTER_VARIANT:NEXUS_IMPLEMENTER_REASONING_EFFORT" "spec-reviewer:NEXUS_SPEC_REVIEWER_VARIANT:NEXUS_SPEC_REVIEWER_REASONING_EFFORT" "code-reviewer:NEXUS_CODE_REVIEWER_VARIANT:NEXUS_CODE_REVIEWER_REASONING_EFFORT" "unified-reviewer:NEXUS_UNIFIED_REVIEWER_VARIANT:NEXUS_UNIFIED_REVIEWER_REASONING_EFFORT" "diagnostician:NEXUS_DIAGNOSTICIAN_VARIANT:NEXUS_DIAGNOSTICIAN_REASONING_EFFORT" "integration-reviewer:NEXUS_INTEGRATION_REVIEWER_VARIANT:NEXUS_INTEGRATION_REVIEWER_REASONING_EFFORT" "reconciler:NEXUS_RECONCILER_VARIANT:NEXUS_RECONCILER_REASONING_EFFORT"; do
+for spec in "implementer:NEXUS_IMPLEMENTER_VARIANT:NEXUS_IMPLEMENTER_REASONING_EFFORT" "reviewer:NEXUS_REVIEWER_VARIANT:NEXUS_REVIEWER_REASONING_EFFORT"; do
   IFS=: read -r ag envv legacy_envv <<<"$spec"; v="${!envv:-${!legacy_envv:-}}"; [[ -n "$v" ]] && MJ="$(jq --arg a "$ag" --arg e "$v" '.[$a].variant=$e' <<<"$MJ")"
 done
+# Always prune retired V4 agent model keys from the merge payload
+RETIRED_JSON="$(printf '%s\n' "${RETIRED_AGENTS[@]}" | jq -R . | jq -s .)"
+MJ="$(jq --argjson skip "$RETIRED_JSON" 'reduce $skip[] as $k (.; del(.[$k]))' <<<"$MJ")"
 OPTIONAL_JSON="$(printf '%s\n' "${OPTIONAL_AGENTS[@]}" | jq -R . | jq -s .)"
 # Default install must not register optional agents in opencode.json — only copy/merge them with --with-optional-agents.
 if ! (( WITH_OPTIONAL_AGENTS )); then
@@ -182,11 +177,7 @@ while IFS= read -r ag; do
   bak "$AGENTS_DIR/$ag.md"; cp "$src" "$AGENTS_DIR/$ag.md"
 done < <(nexus_agent_basenames)
 prune_optional_from_dir "$AGENTS_DIR"
-if (( WITH_OPTIONAL_AGENTS )); then
-  echo "  [opencode] Optional agent included (blast-analyzer)"
-else
-  echo "  [opencode] Optional agent skipped (use --with-optional-agents)"
-fi
+echo "  [opencode] V5 agents: orchestrator, implementer, reviewer"
 echo "  [opencode] Graphify is optional (Impact Engine is the default evidence provider)."
 if command -v graphify >/dev/null 2>&1; then
   echo "  [opencode] Graphify found — installing optional global skill..."
@@ -209,19 +200,18 @@ chmod a+r "$SCRIPT_DIR/scripts/nexus-blast.js" "$SCRIPT_DIR/scripts/nexus-estima
 
 cat <<END
 
-Installation complete (Nexus V4 engine — profiles: fast|balanced|strict, default balanced).
-Canonical agents: orchestrator, implementer, diagnostician, unified-reviewer, spec-reviewer, code-reviewer, integration-reviewer, reconciler.
-Optional agent: blast-analyzer (install with --with-optional-agents). Graphify is optional; Impact Engine is the default evidence provider.
+Installation complete (Nexus V5 — fixed pipeline: brainstorm → plan → impact → implement → review).
+Canonical agents: orchestrator, implementer, reviewer.
+Graphify is optional; Impact Engine is the default evidence provider.
 OpenCode → ~/.config/opencode/ (plugin + canonical agents)
 Next:
   - nexus project-init
   - nexus run init --run-id demo
-  - nexus estimate --tasks 3 --profile balanced
+  - nexus estimate --tasks 3
   - nexus impact --json --targets <path>
   - bash ./scripts/nexus-branch-cleanup.sh --base <base> <feature-branch>
   - restart OpenCode and select orchestrator
   - Customize: edit $CONFIG_DIR/nexus.models.json && re-run install
-  nexus install --with-optional-agents
 Uninstall:
   nexus uninstall
   ./uninstall.sh
