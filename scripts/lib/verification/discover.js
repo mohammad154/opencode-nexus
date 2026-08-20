@@ -4,6 +4,7 @@
  */
 import fs from "fs";
 import path from "path";
+import { verificationLadder } from "./compare.js";
 
 function hasCmd(worktree, bin) {
   // Soft check: package scripts or lockfiles imply toolchain presence
@@ -23,6 +24,32 @@ export function isSafeRelPath(rel) {
 
 function step(id, command, args, kind, extra = {}) {
   return { id, command, args: [...args], kind, ...extra };
+}
+
+function filterStepsByLadder(steps, options = {}) {
+  const risk = options.risk || options.risk_tier;
+  if (!risk) return steps;
+  const ladder = verificationLadder(risk);
+  const levels = new Set(ladder.levels || []);
+
+  return steps.filter((s) => {
+    if (s.kind === "targeted-test" || (s.id && s.id.startsWith("related:"))) {
+      return levels.has("related_tests");
+    }
+    if (s.kind === "test" || s.id === "test") {
+      return levels.has("full_tests") || ladder.require_full === true;
+    }
+    if (s.kind === "lint" || s.id === "lint" || s.id === "vet") {
+      return levels.has("lint");
+    }
+    if (s.kind === "typecheck" || s.id === "typecheck" || s.id === "check") {
+      return levels.has("typecheck");
+    }
+    if (s.kind === "build" || s.id === "build") {
+      return levels.has("build");
+    }
+    return true;
+  });
 }
 
 export function discoverVerification(worktree, options = {}) {
@@ -57,7 +84,7 @@ export function discoverVerification(worktree, options = {}) {
     }
     return {
       ecosystem: "node",
-      steps,
+      steps: filterStepsByLadder(steps, options),
       related_tests: related,
     };
   }
@@ -68,28 +95,31 @@ export function discoverVerification(worktree, options = {}) {
   ) {
     return {
       ecosystem: "python",
-      steps: [
+      steps: filterStepsByLadder([
         step("test", "pytest", [], "test"),
         step("lint", "ruff", ["check", "."], "lint", { status: "UNAVAILABLE" }),
-      ],
+      ], options),
+      related_tests: options.related_tests || [],
     };
   }
   if (fs.existsSync(path.join(worktree, "Cargo.toml"))) {
     return {
       ecosystem: "rust",
-      steps: [
+      steps: filterStepsByLadder([
         step("test", "cargo", ["test"], "test"),
         step("check", "cargo", ["check"], "typecheck"),
-      ],
+      ], options),
+      related_tests: options.related_tests || [],
     };
   }
   if (fs.existsSync(path.join(worktree, "go.mod"))) {
     return {
       ecosystem: "go",
-      steps: [
+      steps: filterStepsByLadder([
         step("test", "go", ["test", "./..."], "test"),
         step("vet", "go", ["vet", "./..."], "lint"),
-      ],
+      ], options),
+      related_tests: options.related_tests || [],
     };
   }
 
@@ -98,7 +128,9 @@ export function discoverVerification(worktree, options = {}) {
     steps: [
       step("noop", "true", [], "generic", { status: "UNAVAILABLE" }),
     ],
+    related_tests: options.related_tests || [],
   };
 }
 
 export { hasCmd };
+

@@ -81,7 +81,11 @@ test("nexus-run completes a full CLI workflow in a temporary repository", () => 
   );
   fs.writeFileSync(
     path.join(root, "package.json"),
-    json({ name: "e2e-fixture", type: "module" }) + "\n",
+    json({
+      name: "e2e-fixture",
+      type: "module",
+      scripts: { test: "node -e 'process.exit(0)'" },
+    }) + "\n",
   );
   git(root, ["add", "."]);
   git(root, ["commit", "-m", "initial"]);

@@ -73,8 +73,16 @@ export function createVerificationProvider() {
           stderr_tail: String(r.stderr || r.error || "").slice(-2000),
         });
       }
+      const executed = results.filter(
+        (r) => r.status !== "UNAVAILABLE" && r.exit_code != null,
+      );
+      const hasExecutedChecks = executed.length > 0;
+      const allPassed =
+        hasExecutedChecks && executed.every((x) => x.pass === true);
+
       return {
-        ok: results.every((x) => x.pass === true || x.status === "UNAVAILABLE"),
+        ok: allPassed,
+        ...(hasExecutedChecks ? {} : { code: "VERIFICATION_UNAVAILABLE" }),
         results,
         plan,
       };
