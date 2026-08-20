@@ -9,7 +9,7 @@ import {
   validateImpactReport,
 } from "./schema-validate.js";
 import { isPlanCommitAcceptable } from "./drift.js";
-import { createDefaultProviders } from "./providers.js";
+import { createDefaultProviders, getAgentCallBudget } from "./providers.js";
 import {
   sealProviderArtifact,
   sealArtifact,
@@ -525,13 +525,27 @@ export function revalidateTransitionEvidence(to, ctx, providers, state = {}) {
         state.post_impact?.related_tests ||
         state.impact?.related_tests ||
         [];
+      const risk =
+        next.post_impact?.risk ||
+        next.post_impact?.level ||
+        state.post_impact?.risk ||
+        state.post_impact?.level ||
+        state.impact?.risk ||
+        state.impact?.level ||
+        state.classification?.risk ||
+        ctx.risk ||
+        null;
+      const discoverOpts = {
+        worktree,
+        related_tests: related,
+        ...(risk ? { risk, risk_tier: risk } : {}),
+      };
       const run = providers.verificationProvider.run({
         worktree,
         related_tests: related,
-        plan: providers.verificationProvider.discover?.({
-          worktree,
-          related_tests: related,
-        }),
+        risk,
+        risk_tier: risk,
+        plan: providers.verificationProvider.discover?.(discoverOpts),
       });
       const baseline = loadRunBaseline(state, ctx, worktree);
       let baseline_comparison = null;
@@ -679,20 +693,16 @@ export function canTransition(state, to, ctx = {}) {
     allowed.add("COMPLETED");
   }
   if (from === "BLOCKED") {
-    const resumeTarget = state.resume_state || state.blocked_from;
+    // Hard checkpoint: only resume to the state we blocked from (or FAILED).
+    // Caller-supplied resume_state is ignored at apply time; treat blocked_from
+    // as the sole non-terminal destination.
+    const resumeTarget = state.blocked_from || state.resume_state;
     if (
       resumeTarget &&
       STATES.includes(resumeTarget) &&
       !TERMINAL.has(resumeTarget)
     ) {
       allowed.add(resumeTarget);
-    }
-    if (
-      state.blocked_from &&
-      STATES.includes(state.blocked_from) &&
-      !TERMINAL.has(state.blocked_from)
-    ) {
-      allowed.add(state.blocked_from);
     }
   }
   allowed.add("BLOCKED");
@@ -787,6 +797,21 @@ export function canTransition(state, to, ctx = {}) {
     const report = impact?.report || impact;
     if (!report || !(report.risk || report.level)) {
       errors.push("IMPLEMENTING requires valid impact report");
+    }
+    const allowedFiles =
+      ctx.allowed_files ||
+      state.allowed_files ||
+      ctx.implementer_context?.allowed_files ||
+      state.implementer_context?.allowed_files ||
+      report?.changed_files ||
+      report?.planned_targets;
+    const normalizedAllowed = Array.isArray(allowedFiles)
+      ? allowedFiles.filter((f) => typeof f === "string" && f.trim())
+      : [];
+    if (normalizedAllowed.length === 0) {
+      errors.push(
+        "IMPLEMENTING requires non-empty allowed_files (persist scope before implementer dispatch)",
+      );
     }
     if (
       isUnknownImpact(report) &&
@@ -1205,6 +1230,63 @@ function unresolvedHighFromCtx(ctx, state) {
   );
 }
 
+function agentCallsForTransition(from, to, state, ctx) {
+  // Charge when an agent phase completes / starts requiring a discrete agent call.
+  if (to === "VERIFYING" && (from === "IMPLEMENTING" || from === "DIRECT_IMPLEMENTING")) {
+    return { count: 1, agent: "implementer" };
+  }
+  if (to === "FINAL_VERIFYING" || (to === "COMPLETED" && from === "REVIEWING")) {
+    const level = effectivePolicy(state).review_level;
+    if (level === "dual") {
+      let n = 2;
+      if (isMultiTaskRun(state)) n += 1;
+      return { count: n, agent: "reviewers" };
+    }
+    if (level === "unified") {
+      return { count: 1, agent: "unified-reviewer" };
+    }
+  }
+  if (to === "IMPLEMENTING" || to === "DIRECT_IMPLEMENTING") {
+    // Dispatch slot reserved when entering implement — counted at VERIFYING to
+    // avoid double-charge; no charge here.
+    return { count: 0, agent: null };
+  }
+  return { count: 0, agent: null };
+}
+
+function assertAgentCallBudget(state, to, ctx = {}) {
+  const from = state.state;
+  const charge = agentCallsForTransition(from, to, state, ctx);
+  if (!charge.count) return { ok: true, used: state.agent_calls_used || 0 };
+
+  const units =
+    (Array.isArray(state.units) && state.units.length) ||
+    (Array.isArray(state.execution_units) && state.execution_units.length) ||
+    (Array.isArray(state.tasks) && state.tasks.length) ||
+    state.classification?.units ||
+    1;
+  const budget = getAgentCallBudget({
+    profile: state.profile || state.classification?.profile,
+    changeClass: state.classification?.change_class,
+    executionMode: state.execution_mode || state.classification?.execution_mode,
+    units,
+    maxCalls: state.agent_call_budget?.max_calls,
+  });
+  const used = Number.isInteger(state.agent_calls_used) ? state.agent_calls_used : 0;
+  if (used + charge.count > budget.max_calls) {
+    return {
+      ok: false,
+      errors: [
+        `AGENT_CALL_BUDGET_EXCEEDED: used ${used}+${charge.count} > max ${budget.max_calls} (${budget.category})`,
+      ],
+      used,
+      budget,
+      charge,
+    };
+  }
+  return { ok: true, used: used + charge.count, budget, charge };
+}
+
 /**
  * Apply transition; returns { ok, state, errors }.
  */
@@ -1228,10 +1310,17 @@ export function transition(state, to, evidence = {}, providers = null) {
   const check = canTransition(state, to, ctx);
   if (!check.ok) return { ok: false, state, errors: check.errors };
 
+  const budgetCheck = assertAgentCallBudget(state, to, ctx);
+  if (!budgetCheck.ok) {
+    return { ok: false, state, errors: budgetCheck.errors };
+  }
+
   let next = {
     ...state,
     state: to,
     updated_at: nowIso(),
+    agent_calls_used: budgetCheck.used,
+    agent_call_budget: budgetCheck.budget || state.agent_call_budget || null,
     transitions: [
       ...(state.transitions || []),
       {
@@ -1239,9 +1328,28 @@ export function transition(state, to, evidence = {}, providers = null) {
         to,
         at: nowIso(),
         evidence: evidence.evidence_path || evidence.evidence || null,
+        ...(budgetCheck.charge?.count
+          ? {
+              agent_calls: budgetCheck.charge.count,
+              agent: budgetCheck.charge.agent,
+            }
+          : {}),
       },
     ],
   };
+
+  if (budgetCheck.charge?.count) {
+    prov.telemetry?.emit?.({
+      event: "agent_call",
+      run_id: state.run_id,
+      agent: budgetCheck.charge.agent,
+      from: state.state,
+      to,
+      call_count: budgetCheck.charge.count,
+      agent_calls_used: budgetCheck.used,
+      budget_max: budgetCheck.budget?.max_calls,
+    });
+  }
 
   if (to === "CLASSIFIED" && (ctx.classification || evidence.classification)) {
     let classification = {
@@ -1322,8 +1430,19 @@ export function transition(state, to, evidence = {}, providers = null) {
     if (ctx.blast) next.blast = ctx.blast?.report || ctx.blast;
     if (ctx.graph) next.graph = ctx.graph;
     if (!next.impact && next.blast) next.impact = next.blast;
-    if (ctx.allowed_files || evidence.allowed_files) {
-      next.allowed_files = ctx.allowed_files || evidence.allowed_files;
+    const resolvedAllowed =
+      ctx.allowed_files ||
+      evidence.allowed_files ||
+      state.allowed_files ||
+      ctx.implementer_context?.allowed_files ||
+      evidence.implementer_context?.allowed_files ||
+      next.impact?.changed_files ||
+      next.impact?.planned_targets ||
+      null;
+    if (Array.isArray(resolvedAllowed) && resolvedAllowed.length > 0) {
+      next.allowed_files = resolvedAllowed.filter(
+        (f) => typeof f === "string" && f.trim(),
+      );
     }
     if (ctx.implementer_context || evidence.implementer_context) {
       next.implementer_context =
@@ -1361,12 +1480,8 @@ export function transition(state, to, evidence = {}, providers = null) {
   if (to === "BLOCKED") {
     next.blocked_from =
       state.state === "BLOCKED" ? state.blocked_from || "BLOCKED" : state.state;
-    next.resume_state =
-      ctx.resume_state ||
-      evidence.resume_state ||
-      (state.state === "BLOCKED"
-        ? state.resume_state || next.blocked_from
-        : state.state);
+    // Ignore caller-forged resume_state — resume only to blocked_from.
+    next.resume_state = next.blocked_from;
     next.block_reason =
       ctx.block_reason ||
       ctx.reason ||

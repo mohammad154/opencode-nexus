@@ -448,6 +448,7 @@ uninstall.sh     matching cleanup
 
 - [`.opencode/INSTALL.md`](.opencode/INSTALL.md) — installer behavior and verification
 - [`docs/workflow.md`](docs/workflow.md) — profiles, gates, handoffs, and review policy
+- [`docs/compatibility-v3.md`](docs/compatibility-v3.md) — legacy Graphify / V3 compatibility only
 - [`skills/using-nexus/SKILL.md`](skills/using-nexus/SKILL.md) — how the orchestrator routes skills
 - [OpenCode installation](https://opencode.ai/docs/installation/)
 - [Graphify](https://github.com/Graphify-Labs/graphify)

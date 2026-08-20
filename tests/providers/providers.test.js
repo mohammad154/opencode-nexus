@@ -101,6 +101,40 @@ test("Graphify blast downgrades legacy or stale report files to UNKNOWN", (t) =>
   assert.match(result.report.uncertainties.join("\n"), /Graphify evidence/i);
 });
 
+test("Graphify blast refuses trust when report HEAD is missing under a real git worktree", (t) => {
+  const worktree = tempDir("nexus-blast-missing-head-");
+  t.after(() => fs.rmSync(worktree, { recursive: true, force: true }));
+  execFileSync("git", ["init"], { cwd: worktree });
+  execFileSync("git", ["config", "user.email", "t@t"], { cwd: worktree });
+  execFileSync("git", ["config", "user.name", "t"], { cwd: worktree });
+  fs.writeFileSync(path.join(worktree, "a.js"), "1\n");
+  execFileSync("git", ["add", "."], { cwd: worktree });
+  execFileSync("git", ["commit", "-m", "base"], { cwd: worktree });
+
+  const reportPath = path.join(worktree, "reports", "no-head.json");
+  fs.mkdirSync(path.dirname(reportPath), { recursive: true });
+  fs.writeFileSync(
+    reportPath,
+    JSON.stringify({
+      risk: "LOW",
+      graph_provider: "graphify",
+      analysis_quality: "PRECISE",
+      graph_quality: "PRECISE",
+      graph_freshness: { valid: true },
+      analysis_complete: true,
+    }),
+  );
+
+  const result = getBlastProvider("graphify").analyze({
+    worktree,
+    reportPath: "reports/no-head.json",
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.report.risk, "UNKNOWN");
+  assert.match(result.report.uncertainties.join("\n"), /Graphify evidence/i);
+});
+
+
 test("default providers expose deterministic edit validation and metrics", () => {
   const providers = createDefaultProviders();
   assert.equal(providers.editValidator.mode, "deterministic");

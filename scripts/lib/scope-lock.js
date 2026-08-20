@@ -1,6 +1,25 @@
 import { spawnSync } from "node:child_process";
 import { scopeExpansionNeeded, normalizeAllowedFiles } from "./impact/boundaries.js";
 
+/** Nexus/runtime paths are not implementer scope — same policy as diff-evidence. */
+export function isNexusRuntimePath(file) {
+  if (!file || typeof file !== "string") return false;
+  const normalized = file.replace(/\\/g, "/");
+  return (
+    normalized === ".opencode" ||
+    normalized.startsWith(".opencode/") ||
+    normalized === "graphify-out" ||
+    normalized.startsWith("graphify-out/")
+  );
+}
+
+function collectGitNameOnly(stdout, files) {
+  for (const line of String(stdout || "").split(/\r?\n/)) {
+    const f = line.trim().replace(/\\/g, "/");
+    if (f && !isNexusRuntimePath(f)) files.add(f);
+  }
+}
+
 /**
  * Derive actual changed files from git diff between base and implementer commits,
  * including any working tree or untracked changes if in a worktree.
@@ -23,10 +42,7 @@ export function getChangedFilesFromGit(
     });
     if (r.status === 0) {
       gotAny = true;
-      for (const line of (r.stdout || "").split(/\r?\n/)) {
-        const f = line.trim().replace(/\\/g, "/");
-        if (f) files.add(f);
-      }
+      collectGitNameOnly(r.stdout, files);
     }
   } else if (base) {
     const r = spawnSync("git", ["diff", "--name-only", base], {
@@ -35,10 +51,7 @@ export function getChangedFilesFromGit(
     });
     if (r.status === 0) {
       gotAny = true;
-      for (const line of (r.stdout || "").split(/\r?\n/)) {
-        const f = line.trim().replace(/\\/g, "/");
-        if (f) files.add(f);
-      }
+      collectGitNameOnly(r.stdout, files);
     }
   }
 
@@ -49,10 +62,7 @@ export function getChangedFilesFromGit(
   });
   if (wtDiff.status === 0) {
     gotAny = true;
-    for (const line of (wtDiff.stdout || "").split(/\r?\n/)) {
-      const f = line.trim().replace(/\\/g, "/");
-      if (f) files.add(f);
-    }
+    collectGitNameOnly(wtDiff.stdout, files);
   }
 
   const untracked = spawnSync(
@@ -65,10 +75,7 @@ export function getChangedFilesFromGit(
   );
   if (untracked.status === 0) {
     gotAny = true;
-    for (const line of (untracked.stdout || "").split(/\r?\n/)) {
-      const f = line.trim().replace(/\\/g, "/");
-      if (f) files.add(f);
-    }
+    collectGitNameOnly(untracked.stdout, files);
   }
 
   if (!gotAny) return null;
@@ -102,20 +109,42 @@ export function assertScopeLock({
   };
 }
 
+function resolveAllowedFiles({ state = {}, ctx = {}, handoffData = null } = {}) {
+  return (
+    ctx.allowed_files ??
+    state.allowed_files ??
+    ctx.implementer_context?.allowed_files ??
+    state.implementer_context?.allowed_files ??
+    handoffData?.allowed_files ??
+    null
+  );
+}
+
+/**
+ * Authoritative scope gate for VERIFYING (and related) transitions.
+ * Fail-closed: missing allowed_files → SCOPE_UNBOUND.
+ * With a worktree, only git-derived diffs are trusted (never handoff claims).
+ * Without a worktree, only engine-supplied ctx/state.changed_files are used —
+ * implementer handoff files_changed is ignored.
+ */
 export function assertTransitionScopeLock({
   state = {},
   ctx = {},
   handoffData = null,
 } = {}) {
-  const allowedFiles =
-    ctx.allowed_files ??
-    state.allowed_files ??
-    ctx.implementer_context?.allowed_files ??
-    state.implementer_context?.allowed_files ??
-    handoffData?.allowed_files;
+  const policy = state?.verification_policy;
+  if (policy && policy.exempt === true) {
+    return { ok: true, skipped: true, reason: "verification_policy.exempt" };
+  }
 
+  const allowedFiles = resolveAllowedFiles({ state, ctx, handoffData });
   if (allowedFiles == null) {
-    return { ok: true, skipped: true };
+    return {
+      ok: false,
+      code: "SCOPE_UNBOUND",
+      message:
+        "allowed_files must be persisted before VERIFYING — missing scope fails closed",
+    };
   }
 
   const worktree = ctx.worktree || state.worktree;
@@ -137,15 +166,23 @@ export function assertTransitionScopeLock({
       base_commit: baseCommit,
       implementer_commit: implementerCommit,
     });
-  }
-
-  if (changedFiles == null) {
-    changedFiles =
-      ctx.changed_files ||
-      state.changed_files ||
-      handoffData?.changed_files ||
-      handoffData?.files_changed ||
-      [];
+    if (changedFiles == null) {
+      return {
+        ok: false,
+        code: "SCOPE_EVIDENCE_UNAVAILABLE",
+        message:
+          "authoritative git diff unavailable for scope lock — refusing handoff-claimed changed_files",
+      };
+    }
+  } else {
+    // Engine/orchestrator-measured only. Never trust implementer handoff claims.
+    if (Array.isArray(ctx.changed_files)) {
+      changedFiles = ctx.changed_files;
+    } else if (Array.isArray(state.changed_files)) {
+      changedFiles = state.changed_files;
+    } else {
+      changedFiles = [];
+    }
   }
 
   return assertScopeLock({

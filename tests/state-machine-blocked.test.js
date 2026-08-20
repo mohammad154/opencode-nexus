@@ -8,6 +8,7 @@ import {
   sealedVerification,
   mockTrustProviders,
   sealedImpact,
+  verifyingEvidence,
 } from "./helpers/gate-fixtures.js";
 
 test("BLOCKED preserves blocked_from and resume_state", () => {
@@ -34,7 +35,7 @@ test("BLOCKED cannot transition directly to REVIEWING without resume gate satisf
   assert.strictEqual(r.ok, false);
 });
 
-test("BLOCKED preserves custom resume_state when provided", () => {
+test("BLOCKED ignores caller-forged resume_state (locked to blocked_from)", () => {
   const state = { ...createEmptyRunState("r1"), state: "VERIFYING" };
   const r = transition(state, "BLOCKED", {
     code: "SCOPE_EXPANSION_REQUIRED",
@@ -43,11 +44,34 @@ test("BLOCKED preserves custom resume_state when provided", () => {
   });
   assert.strictEqual(r.ok, true);
   assert.strictEqual(r.state.blocked_from, "VERIFYING");
-  assert.strictEqual(r.state.resume_state, "PLANNED");
+  assert.strictEqual(r.state.resume_state, "VERIFYING");
   assert.strictEqual(r.state.block_reason, "needs re-planning");
 });
 
-test("BLOCKED rejects transition to arbitrary states that do not match resume_state or blocked_from", () => {
+test("BLOCKED cannot resume to PLANNED when blocked_from is VERIFYING", () => {
+  const state = {
+    ...createEmptyRunState("r1"),
+    state: "BLOCKED",
+    blocked_from: "VERIFYING",
+    resume_state: "VERIFYING",
+    block_code: "REPLAN_NEEDED",
+  };
+  const fail = transition(state, "PLANNED", { plan_skip: true });
+  assert.strictEqual(fail.ok, false);
+  assert.ok(fail.errors.some((e) => /illegal transition/i.test(e)));
+
+  const resume = transition(state, "VERIFYING", {
+    ...verifyingEvidence(),
+    implementer_handoff: goodImplementerHandoff({ run_id: "r1" }),
+  });
+  // May fail on other gates; must not be illegal-transition to VERIFYING
+  assert.ok(
+    resume.ok || !resume.errors.some((e) => /illegal transition/i.test(e)),
+    JSON.stringify(resume.errors),
+  );
+});
+
+test("BLOCKED rejects transition to arbitrary states that do not match blocked_from", () => {
   const state = {
     ...createEmptyRunState("r1"),
     state: "BLOCKED",
@@ -168,21 +192,18 @@ test("BLOCKED cannot transition directly to COMPLETED even if review_level is no
   assert.ok(r.errors.some((e) => /illegal transition/i.test(e)));
 });
 
-test("BLOCKED resuming to PLANNED satisfies plan predecessor gates", () => {
+test("BLOCKED ignores stale forged resume_state field; only blocked_from is allowed", () => {
   const state = {
     ...createEmptyRunState("r1"),
     state: "BLOCKED",
     blocked_from: "VERIFYING",
+    // Stale/forged field from older runs — must not authorize PLANNED
     resume_state: "PLANNED",
     block_code: "REPLAN_NEEDED",
   };
-  const fail = transition(state, "PLANNED", {});
-  assert.strictEqual(fail.ok, false);
-  assert.ok(fail.errors.some((e) => /PLAN\.md|plan_skip/i.test(e)));
-
-  const pass = transition(state, "PLANNED", { plan_skip: true });
-  assert.strictEqual(pass.ok, true);
-  assert.strictEqual(pass.state.state, "PLANNED");
+  const forged = transition(state, "PLANNED", { plan_skip: true });
+  assert.strictEqual(forged.ok, false);
+  assert.ok(forged.errors.some((e) => /illegal transition/i.test(e)));
 });
 
 test("BLOCKED re-blocking preserves blocked_from and updates reason/code", () => {

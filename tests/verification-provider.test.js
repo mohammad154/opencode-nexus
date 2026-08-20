@@ -71,7 +71,7 @@ test("discoverVerification filters steps based on risk ladder", () => {
     );
     fs.writeFileSync(path.join(tmp, "test.js"), "// test");
 
-    // LOW risk: related_tests, lint (no test, no typecheck, no build)
+    // LOW risk: related_tests, lint, full_tests safety net (no typecheck/build)
     const lowPlan = discoverVerification(tmp, {
       risk: "LOW",
       related_tests: ["test.js"],
@@ -79,11 +79,11 @@ test("discoverVerification filters steps based on risk ladder", () => {
     const lowIds = lowPlan.steps.map((s) => s.id);
     assert.ok(lowIds.includes("lint"));
     assert.ok(lowIds.includes("related:test.js"));
-    assert.ok(!lowIds.includes("test"));
+    assert.ok(lowIds.includes("test"), "LOW keeps full_tests as safety net");
     assert.ok(!lowIds.includes("typecheck"));
     assert.ok(!lowIds.includes("build"));
 
-    // MEDIUM risk: related_tests, lint, typecheck (no full test, no build)
+    // MEDIUM risk: related_tests, lint, typecheck, full_tests (no build)
     const medPlan = discoverVerification(tmp, {
       risk: "MEDIUM",
       related_tests: ["test.js"],
@@ -92,7 +92,7 @@ test("discoverVerification filters steps based on risk ladder", () => {
     assert.ok(medIds.includes("lint"));
     assert.ok(medIds.includes("typecheck"));
     assert.ok(medIds.includes("related:test.js"));
-    assert.ok(!medIds.includes("test"));
+    assert.ok(medIds.includes("test"), "MEDIUM keeps full_tests as safety net");
     assert.ok(!medIds.includes("build"));
 
     // HIGH risk: full_tests, related_tests, lint, typecheck, build

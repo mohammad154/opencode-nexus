@@ -48,6 +48,7 @@ function handoffFromImplementerTemplate({
     status: "DONE",
     commit,
     files_changed: ["src/example.js"],
+    allowed_files: ["src/example.js"],
     tests: ["npm test"],
     tasks_completed: [unit],
     notes_for_reviewer: "from template contract",

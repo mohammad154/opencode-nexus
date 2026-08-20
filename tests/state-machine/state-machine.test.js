@@ -284,6 +284,7 @@ test("delegated low-risk transition remains allowed with conservative analysis",
   const result = canTransition(state, "IMPLEMENTING", {
     branch: "feature/conservative",
     blast: state.blast,
+    allowed_files: ["src/app.js"],
     acceptance_criteria: ["works"],
     drift: {
       schema_version: "1.0",
@@ -365,6 +366,7 @@ test("full delegated happy path through IMPACT_READY", () => {
   const toImpl = canTransition(state, "IMPLEMENTING", {
     branch: "feature/x",
     blast: state.blast,
+    allowed_files: ["src/app.js"],
     acceptance_criteria: ["works"],
     drift: {
       schema_version: "1.0",
@@ -432,6 +434,7 @@ test("unknown impact cannot pass IMPACT_READY without persisted verification", (
     branch: "feature/unknown-blast",
     impact: verified.state.impact || verified.state.blast,
     blast: verified.state.blast,
+    allowed_files: ["src/app.js"],
     acceptance_criteria: ["verification is explicit"],
     drift: {
       schema_version: "1.0",

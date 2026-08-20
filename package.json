@@ -1,6 +1,6 @@
 {
   "name": "@mohammad154/opencode-nexus",
-  "version": "4.0.0",
+  "version": "4.1.0",
   "description": "Evidence-driven multi-agent development workflow for OpenCode (Impact Engine, TDD gates, isolated worktrees)",
   "type": "module",
   "main": ".opencode/plugins/nexus.js",

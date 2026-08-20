@@ -538,18 +538,17 @@ function trustedGraphifyBlastReport(report, { worktree } = {}) {
     report.analysis_complete !== false,
   );
   if (!baseTrust) return false;
-  // Provenance: when we can determine the current HEAD, the report's freshness
-  // evidence must have been computed against that same HEAD. This prevents a
-  // supplied/stale PRECISE-looking report from being trusted for a different
-  // repository state.
+  // Provenance: when we can determine the current HEAD, the report MUST bind
+  // to that HEAD. Missing report HEAD is not trusted (fail closed).
   if (worktree) {
     const head = currentGitHead(worktree);
+    if (!head) return false;
     const reportHead =
       report.graph_freshness?.current_head ||
       report.graph_freshness?.built_at_commit ||
       report.worktree_head ||
       null;
-    if (head && reportHead && reportHead !== head) return false;
+    if (!reportHead || reportHead !== head) return false;
   }
   return true;
 }

@@ -198,6 +198,7 @@ test("nexus-run completes a full CLI workflow in a temporary repository", () => 
     "--json",
     json({
       branch: "e2e/complete",
+      allowed_files: ["src/app.js"],
       acceptance_criteria: ["the CLI flow reaches COMPLETED"],
       drift: {
         schema_version: "1.0",
@@ -229,6 +230,7 @@ test("nexus-run completes a full CLI workflow in a temporary repository", () => 
     status: "DONE",
     commit: implCommit,
     files_changed: ["src/app.js"],
+    allowed_files: ["src/app.js"],
     tests: [],
     verification_gates: [{ id: "unit", cmd: "npm test", pass: true }],
     drift_check: {
@@ -537,6 +539,7 @@ test("nexus CLI run forwards workflow in an external temporary repository", () =
     "--json",
     json({
       branch: "e2e/nexus-cli",
+      allowed_files: ["src/app.js"],
       acceptance_criteria: ["CLI forwarded to IMPLEMENTING"],
       drift: {
         schema_version: "1.0",

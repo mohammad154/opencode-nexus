@@ -38,17 +38,36 @@ export function compareBaselines(baseline, current) {
 export function verificationLadder(risk = "MEDIUM") {
   const r = String(risk).toUpperCase();
   if (r === "LOW") {
-    return { levels: ["related_tests", "lint"], require_full: false };
+    // full_tests is a safety net when related_tests/lint are unavailable —
+    // otherwise fail-closed verification would reject every low-risk Node project
+    // that only defines `npm test`.
+    return {
+      levels: ["related_tests", "lint", "full_tests"],
+      require_full: false,
+    };
   }
   if (r === "MEDIUM") {
-    return { levels: ["related_tests", "lint", "typecheck"], require_full: false };
+    return {
+      levels: ["related_tests", "lint", "typecheck", "full_tests"],
+      require_full: false,
+    };
   }
   if (r === "HIGH") {
-    return { levels: ["related_tests", "full_tests", "lint", "typecheck", "build"], require_full: true };
+    return {
+      levels: ["related_tests", "full_tests", "lint", "typecheck", "build"],
+      require_full: true,
+    };
   }
   // CRITICAL
   return {
-    levels: ["related_tests", "full_tests", "lint", "typecheck", "build", "mutation_optional"],
+    levels: [
+      "related_tests",
+      "full_tests",
+      "lint",
+      "typecheck",
+      "build",
+      "mutation_optional",
+    ],
     require_full: true,
     dual_review: true,
   };

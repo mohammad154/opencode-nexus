@@ -166,6 +166,8 @@ export function createEmptyRunState(runId, overrides = {}) {
     resume_state: null,
     block_reason: null,
     block_code: null,
+    agent_calls_used: 0,
+    agent_call_budget: null,
     escalation_reasons: [],
     transitions: [],
     created_at: t,
