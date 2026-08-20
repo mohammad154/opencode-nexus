@@ -1,0 +1,2192 @@
+{
+  "ok": true,
+  "schema_version": "1.0",
+  "provider": "nexus-impact",
+  "graph_provider": "nexus-impact",
+  "base_commit": "70eff31cb6a6119d00f7d492a3ad21dbb920d474",
+  "head_commit": "70eff31cb6a6119d00f7d492a3ad21dbb920d474",
+  "worktree_head": "70eff31cb6a6119d00f7d492a3ad21dbb920d474",
+  "changed_files": [
+    {
+      "status": "M",
+      "path": "config/default-workflow.json"
+    },
+    {
+      "status": "M",
+      "path": "config/workflow-profiles.json"
+    },
+    {
+      "status": "M",
+      "path": "schemas/handoff-implementer.schema.json"
+    },
+    {
+      "status": "M",
+      "path": "schemas/run-state.schema.json"
+    },
+    {
+      "status": "M",
+      "path": "scripts/lib/classify.js"
+    },
+    {
+      "status": "M",
+      "path": "scripts/lib/policy.js"
+    },
+    {
+      "status": "M",
+      "path": "scripts/lib/providers.js"
+    },
+    {
+      "status": "M",
+      "path": "scripts/lib/run-gate.js"
+    },
+    {
+      "status": "M",
+      "path": "scripts/lib/schema-validate.js"
+    },
+    {
+      "status": "M",
+      "path": "scripts/lib/state-machine.js"
+    },
+    {
+      "status": "M",
+      "path": "scripts/nexus-blast.js"
+    },
+    {
+      "status": "M",
+      "path": "scripts/nexus-run.js"
+    },
+    {
+      "status": "M",
+      "path": "tests/blast/blast-output.test.js"
+    },
+    {
+      "status": "M",
+      "path": "tests/e2e/cli-flow.test.js"
+    },
+    {
+      "status": "M",
+      "path": "tests/e2e/template-gate-contract.test.js"
+    },
+    {
+      "status": "M",
+      "path": "tests/helpers/gate-fixtures.js"
+    },
+    {
+      "status": "M",
+      "path": "tests/plugin/nexus.test.js"
+    },
+    {
+      "status": "M",
+      "path": "tests/providers/providers.test.js"
+    },
+    {
+      "status": "M",
+      "path": "tests/state-machine/gate-hardening.test.js"
+    },
+    {
+      "status": "M",
+      "path": "tests/state-machine/state-machine.test.js"
+    },
+    {
+      "status": "A",
+      "path": ".opencode/cache/impact/files.json"
+    },
+    {
+      "status": "A",
+      "path": ".opencode/cache/impact/imports.json"
+    },
+    {
+      "status": "A",
+      "path": ".opencode/cache/impact/symbols.json"
+    },
+    {
+      "status": "A",
+      "path": ".opencode/impact/latest.json"
+    },
+    {
+      "status": "A",
+      "path": "agents/diagnostician.md"
+    },
+    {
+      "status": "A",
+      "path": "agents/integration-reviewer.md"
+    },
+    {
+      "status": "A",
+      "path": "schemas/handoff-integration-reviewer.schema.json"
+    },
+    {
+      "status": "A",
+      "path": "schemas/impact-report.schema.json"
+    },
+    {
+      "status": "A",
+      "path": "schemas/verification-report.schema.json"
+    },
+    {
+      "status": "A",
+      "path": "scripts/lib/impact/adapters.js"
+    },
+    {
+      "status": "A",
+      "path": "scripts/lib/impact/analyze.js"
+    },
+    {
+      "status": "A",
+      "path": "scripts/lib/impact/boundaries.js"
+    },
+    {
+      "status": "A",
+      "path": "scripts/lib/impact/confidence.js"
+    },
+    {
+      "status": "A",
+      "path": "scripts/lib/impact/git.js"
+    },
+    {
+      "status": "A",
+      "path": "scripts/lib/impact/imports.js"
+    },
+    {
+      "status": "A",
+      "path": "scripts/lib/impact/references.js"
+    },
+    {
+      "status": "A",
+      "path": "scripts/lib/impact/risk.js"
+    },
+    {
+      "status": "A",
+      "path": "scripts/lib/impact/symbols.js"
+    },
+    {
+      "status": "A",
+      "path": "scripts/lib/impact/tests.js"
+    },
+    {
+      "status": "A",
+      "path": "scripts/lib/providers/impact-provider.js"
+    },
+    {
+      "status": "A",
+      "path": "scripts/lib/providers/memory-provider.js"
+    },
+    {
+      "status": "A",
+      "path": "scripts/lib/providers/verification-provider.js"
+    },
+    {
+      "status": "A",
+      "path": "scripts/lib/review-protocol.js"
+    },
+    {
+      "status": "A",
+      "path": "scripts/lib/scope-lock.js"
+    },
+    {
+      "status": "A",
+      "path": "scripts/lib/task-dag.js"
+    },
+    {
+      "status": "A",
+      "path": "scripts/lib/verification/compare.js"
+    },
+    {
+      "status": "A",
+      "path": "scripts/lib/verification/discover.js"
+    },
+    {
+      "status": "A",
+      "path": "scripts/lib/verification/generic.js"
+    },
+    {
+      "status": "A",
+      "path": "scripts/lib/verification/go.js"
+    },
+    {
+      "status": "A",
+      "path": "scripts/lib/verification/node.js"
+    },
+    {
+      "status": "A",
+      "path": "scripts/lib/verification/python.js"
+    },
+    {
+      "status": "A",
+      "path": "scripts/lib/verification/rust.js"
+    },
+    {
+      "status": "A",
+      "path": "scripts/lib/worktree.js"
+    },
+    {
+      "status": "A",
+      "path": "scripts/nexus-impact.js"
+    },
+    {
+      "status": "A",
+      "path": "skills/impact-analysis/SKILL.md"
+    },
+    {
+      "status": "A",
+      "path": "tests/evals/seeded-bugs.test.js"
+    },
+    {
+      "status": "A",
+      "path": "tests/helpers/v3-golden-flows.js"
+    },
+    {
+      "status": "A",
+      "path": "tests/impact/impact-engine.test.js"
+    },
+    {
+      "status": "A",
+      "path": "tests/state-machine/v3-baseline-freeze.test.js"
+    },
+    {
+      "status": "A",
+      "path": "tests/verification/verification-and-dag.test.js"
+    }
+  ],
+  "added_lines": 733,
+  "deleted_lines": 996,
+  "changed_symbols": [
+    {
+      "file": "scripts/lib/classify.js",
+      "name": "migrateV1RulesToV2",
+      "kind": "function",
+      "exported": true,
+      "line": 144
+    },
+    {
+      "file": "scripts/lib/classify.js",
+      "name": "loadClassificationRules",
+      "kind": "function",
+      "exported": true,
+      "line": 175
+    },
+    {
+      "file": "scripts/lib/classify.js",
+      "name": "loadWorkflowConfig",
+      "kind": "function",
+      "exported": true,
+      "line": 182
+    },
+    {
+      "file": "scripts/lib/classify.js",
+      "name": "CLASS_FLAGS",
+      "kind": "constant",
+      "exported": true,
+      "line": 225
+    },
+    {
+      "file": "scripts/lib/classify.js",
+      "name": "maxByRank",
+      "kind": "function",
+      "exported": false,
+      "line": 243
+    },
+    {
+      "file": "scripts/lib/classify.js",
+      "name": "maxProfile",
+      "kind": "function",
+      "exported": false,
+      "line": 250
+    },
+    {
+      "file": "scripts/lib/classify.js",
+      "name": "maxReview",
+      "kind": "function",
+      "exported": false,
+      "line": 254
+    },
+    {
+      "file": "scripts/lib/classify.js",
+      "name": "maxExecution",
+      "kind": "function",
+      "exported": false,
+      "line": 258
+    },
+    {
+      "file": "scripts/lib/classify.js",
+      "name": "reviewLevelFor",
+      "kind": "function",
+      "exported": false,
+      "line": 262
+    },
+    {
+      "file": "scripts/lib/classify.js",
+      "name": "profileOverrideFor",
+      "kind": "function",
+      "exported": false,
+      "line": 284
+    },
+    {
+      "file": "scripts/lib/classify.js",
+      "name": "nonNegativeNumber",
+      "kind": "function",
+      "exported": false,
+      "line": 295
+    },
+    {
+      "file": "scripts/lib/classify.js",
+      "name": "stringArray",
+      "kind": "function",
+      "exported": false,
+      "line": 300
+    },
+    {
+      "file": "scripts/lib/classify.js",
+      "name": "asObject",
+      "kind": "function",
+      "exported": false,
+      "line": 304
+    },
+    {
+      "file": "scripts/lib/classify.js",
+      "name": "evidenceForInput",
+      "kind": "function",
+      "exported": false,
+      "line": 310
+    },
+    {
+      "file": "scripts/lib/classify.js",
+      "name": "allFilesAreTestsOrDocs",
+      "kind": "function",
+      "exported": false,
+      "line": 336
+    },
+    {
+      "file": "scripts/lib/classify.js",
+      "name": "applyPathSignalRules",
+      "kind": "function",
+      "exported": false,
+      "line": 343
+    },
+    {
+      "file": "scripts/lib/classify.js",
+      "name": "inferPathSignals",
+      "kind": "function",
+      "exported": false,
+      "line": 353
+    },
+    {
+      "file": "scripts/lib/classify.js",
+      "name": "blastRiskOf",
+      "kind": "function",
+      "exported": false,
+      "line": 375
+    },
+    {
+      "file": "scripts/lib/classify.js",
+      "name": "isUnknownBlastEvidence",
+      "kind": "function",
+      "exported": false,
+      "line": 381
+    },
+    {
+      "file": "scripts/lib/classify.js",
+      "name": "isUnknownGraphEvidence",
+      "kind": "function",
+      "exported": false,
+      "line": 398
+    },
+    {
+      "file": "scripts/lib/classify.js",
+      "name": "graphifySignalsFrom",
+      "kind": "function",
+      "exported": false,
+      "line": 423
+    },
+    {
+      "file": "scripts/lib/classify.js",
+      "name": "collectFlags",
+      "kind": "function",
+      "exported": false,
+      "line": 457
+    },
+    {
+      "file": "scripts/lib/classify.js",
+      "name": "describeEvidenceSource",
+      "kind": "function",
+      "exported": false,
+      "line": 541
+    },
+    {
+      "file": "scripts/lib/classify.js",
+      "name": "assessEvidenceQuality",
+      "kind": "function",
+      "exported": false,
+      "line": 582
+    },
+    {
+      "file": "scripts/lib/classify.js",
+      "name": "addWeighted",
+      "kind": "function",
+      "exported": false,
+      "line": 636
+    },
+    {
+      "file": "scripts/lib/classify.js",
+      "name": "scoreSemanticRisk",
+      "kind": "function",
+      "exported": false,
+      "line": 643
+    },
+    {
+      "file": "scripts/lib/classify.js",
+      "name": "tinyInternalEvidence",
+      "kind": "function",
+      "exported": false,
+      "line": 808
+    },
+    {
+      "file": "scripts/lib/classify.js",
+      "name": "applyConfidenceGates",
+      "kind": "function",
+      "exported": false,
+      "line": 826
+    },
+    {
+      "file": "scripts/lib/classify.js",
+      "name": "classifyStage",
+      "kind": "function",
+      "exported": false,
+      "line": 860
+    },
+    {
+      "file": "scripts/lib/classify.js",
+      "name": "classify",
+      "kind": "function",
+      "exported": true,
+      "line": 869
+    },
+    {
+      "file": "scripts/lib/classify.js",
+      "name": "uniqueReasons",
+      "kind": "function",
+      "exported": false,
+      "line": 1042
+    },
+    {
+      "file": "scripts/lib/classify.js",
+      "name": "finalize",
+      "kind": "function",
+      "exported": false,
+      "line": 1054
+    },
+    {
+      "file": "scripts/lib/classify.js",
+      "name": "priorInputFrom",
+      "kind": "function",
+      "exported": false,
+      "line": 1216
+    },
+    {
+      "file": "scripts/lib/classify.js",
+      "name": "reclassifyAfterBlast",
+      "kind": "function",
+      "exported": true,
+      "line": 1250
+    },
+    {
+      "file": "scripts/lib/classify.js",
+      "name": "DEFAULT_V2",
+      "kind": "named",
+      "exported": true,
+      "line": 1319
+    },
+    {
+      "file": "scripts/lib/classify.js",
+      "name": "DEFAULT_PROFILES",
+      "kind": "named",
+      "exported": true,
+      "line": 1319
+    },
+    {
+      "file": "scripts/lib/classify.js",
+      "name": "PROFILE_RANK",
+      "kind": "named",
+      "exported": true,
+      "line": 1319
+    },
+    {
+      "file": "scripts/lib/classify.js",
+      "name": "REVIEW_RANK",
+      "kind": "named",
+      "exported": true,
+      "line": 1319
+    },
+    {
+      "file": "scripts/lib/policy.js",
+      "name": "REVIEW_RANK",
+      "kind": "constant",
+      "exported": true,
+      "line": 8
+    },
+    {
+      "file": "scripts/lib/policy.js",
+      "name": "PROFILE_RANK",
+      "kind": "constant",
+      "exported": true,
+      "line": 9
+    },
+    {
+      "file": "scripts/lib/policy.js",
+      "name": "EXEC_RANK",
+      "kind": "constant",
+      "exported": true,
+      "line": 10
+    },
+    {
+      "file": "scripts/lib/policy.js",
+      "name": "blastRisk",
+      "kind": "function",
+      "exported": true,
+      "line": 12
+    },
+    {
+      "file": "scripts/lib/policy.js",
+      "name": "isUnknownBlast",
+      "kind": "function",
+      "exported": true,
+      "line": 16
+    },
+    {
+      "file": "scripts/lib/policy.js",
+      "name": "isUnknownGraph",
+      "kind": "function",
+      "exported": true,
+      "line": 35
+    },
+    {
+      "file": "scripts/lib/policy.js",
+      "name": "isTrustedLowRiskBlast",
+      "kind": "function",
+      "exported": true,
+      "line": 67
+    },
+    {
+      "file": "scripts/lib/policy.js",
+      "name": "hasExplicitBlastVerification",
+      "kind": "function",
+      "exported": true,
+      "line": 78
+    },
+    {
+      "file": "scripts/lib/policy.js",
+      "name": "maxReview",
+      "kind": "function",
+      "exported": true,
+      "line": 84
+    },
+    {
+      "file": "scripts/lib/policy.js",
+      "name": "maxProfile",
+      "kind": "function",
+      "exported": true,
+      "line": 90
+    },
+    {
+      "file": "scripts/lib/policy.js",
+      "name": "maxExecution",
+      "kind": "function",
+      "exported": true,
+      "line": 96
+    },
+    {
+      "file": "scripts/lib/policy.js",
+      "name": "effectivePolicy",
+      "kind": "function",
+      "exported": true,
+      "line": 106
+    },
+    {
+      "file": "scripts/lib/policy.js",
+      "name": "applyBlastEscalation",
+      "kind": "function",
+      "exported": true,
+      "line": 158
+    },
+    {
+      "file": "scripts/lib/policy.js",
+      "name": "applyImpactEscalation",
+      "kind": "function",
+      "exported": true,
+      "line": 162
+    },
+    {
+      "file": "scripts/lib/policy.js",
+      "name": "isUnknownImpact",
+      "kind": "function",
+      "exported": true,
+      "line": 222
+    },
+    {
+      "file": "scripts/lib/policy.js",
+      "name": "isTrustedLowRiskImpact",
+      "kind": "function",
+      "exported": true,
+      "line": 230
+    },
+    {
+      "file": "scripts/lib/policy.js",
+      "name": "hasExplicitImpactVerification",
+      "kind": "function",
+      "exported": true,
+      "line": 248
+    },
+    {
+      "file": "scripts/lib/policy.js",
+      "name": "RUN_ID_RE",
+      "kind": "constant",
+      "exported": true,
+      "line": 252
+    },
+    {
+      "file": "scripts/lib/policy.js",
+      "name": "assertValidRunId",
+      "kind": "function",
+      "exported": true,
+      "line": 254
+    },
+    {
+      "file": "scripts/lib/providers.js",
+      "name": "normalizeMode",
+      "kind": "function",
+      "exported": false,
+      "line": 55
+    },
+    {
+      "file": "scripts/lib/providers.js",
+      "name": "getAgentCallBudget",
+      "kind": "function",
+      "exported": true,
+      "line": 68
+    },
+    {
+      "file": "scripts/lib/providers.js",
+      "name": "unsupportedProviderResult",
+      "kind": "function",
+      "exported": false,
+      "line": 102
+    },
+    {
+      "file": "scripts/lib/providers.js",
+      "name": "createUnsupportedProvider",
+      "kind": "function",
+      "exported": true,
+      "line": 116
+    },
+    {
+      "file": "scripts/lib/providers.js",
+      "name": "providerResultMetadata",
+      "kind": "function",
+      "exported": false,
+      "line": 128
+    },
+    {
+      "file": "scripts/lib/providers.js",
+      "name": "annotateGraphifyBlastReport",
+      "kind": "function",
+      "exported": false,
+      "line": 139
+    },
+    {
+      "file": "scripts/lib/providers.js",
+      "name": "createNoopTelemetry",
+      "kind": "function",
+      "exported": true,
+      "line": 167
+    },
+    {
+      "file": "scripts/lib/providers.js",
+      "name": "finiteNonNegative",
+      "kind": "function",
+      "exported": false,
+      "line": 177
+    },
+    {
+      "file": "scripts/lib/providers.js",
+      "name": "safeMetricLabel",
+      "kind": "function",
+      "exported": false,
+      "line": 181
+    },
+    {
+      "file": "scripts/lib/providers.js",
+      "name": "safeMetricRunId",
+      "kind": "function",
+      "exported": false,
+      "line": 188
+    },
+    {
+      "file": "scripts/lib/providers.js",
+      "name": "numericMetric",
+      "kind": "function",
+      "exported": false,
+      "line": 192
+    },
+    {
+      "file": "scripts/lib/providers.js",
+      "name": "normalizeTokens",
+      "kind": "function",
+      "exported": false,
+      "line": 196
+    },
+    {
+      "file": "scripts/lib/providers.js",
+      "name": "tokenDataFromEvent",
+      "kind": "function",
+      "exported": false,
+      "line": 206
+    },
+    {
+      "file": "scripts/lib/providers.js",
+      "name": "sanitizeMetricEvent",
+      "kind": "function",
+      "exported": false,
+      "line": 220
+    },
+    {
+      "file": "scripts/lib/providers.js",
+      "name": "metricsPathFor",
+      "kind": "function",
+      "exported": false,
+      "line": 255
+    },
+    {
+      "file": "scripts/lib/providers.js",
+      "name": "addMetricTotals",
+      "kind": "function",
+      "exported": false,
+      "line": 269
+    },
+    {
+      "file": "scripts/lib/providers.js",
+      "name": "createMetricsTelemetry",
+      "kind": "function",
+      "exported": true,
+      "line": 292
+    },
+    {
+      "file": "scripts/lib/providers.js",
+      "name": "emit",
+      "kind": "function",
+      "exported": false,
+      "line": 305
+    },
+    {
+      "file": "scripts/lib/providers.js",
+      "name": "createLessonsMemory",
+      "kind": "function",
+      "exported": true,
+      "line": 420
+    },
+    {
+      "file": "scripts/lib/providers.js",
+      "name": "graphifyGraphResult",
+      "kind": "function",
+      "exported": false,
+      "line": 425
+    },
+    {
+      "file": "scripts/lib/providers.js",
+      "name": "createGraphifyGraphProvider",
+      "kind": "function",
+      "exported": true,
+      "line": 452
+    },
+    {
+      "file": "scripts/lib/providers.js",
+      "name": "createLiteGraphProvider",
+      "kind": "function",
+      "exported": true,
+      "line": 506
+    },
+    {
+      "file": "scripts/lib/providers.js",
+      "name": "readBlastReport",
+      "kind": "function",
+      "exported": false,
+      "line": 510
+    },
+    {
+      "file": "scripts/lib/providers.js",
+      "name": "currentGitHead",
+      "kind": "function",
+      "exported": false,
+      "line": 518
+    },
+    {
+      "file": "scripts/lib/providers.js",
+      "name": "trustedGraphifyBlastReport",
+      "kind": "function",
+      "exported": false,
+      "line": 530
+    },
+    {
+      "file": "scripts/lib/providers.js",
+      "name": "normalizeUntrustedBlastReport",
+      "kind": "function",
+      "exported": false,
+      "line": 556
+    },
+    {
+      "file": "scripts/lib/providers.js",
+      "name": "createGraphifyBlastProvider",
+      "kind": "function",
+      "exported": true,
+      "line": 578
+    },
+    {
+      "file": "scripts/lib/providers.js",
+      "name": "createLiteBlastProvider",
+      "kind": "function",
+      "exported": true,
+      "line": 724
+    },
+    {
+      "file": "scripts/lib/providers.js",
+      "name": "normalizePathValue",
+      "kind": "function",
+      "exported": false,
+      "line": 728
+    },
+    {
+      "file": "scripts/lib/providers.js",
+      "name": "collectFileValues",
+      "kind": "function",
+      "exported": false,
+      "line": 743
+    },
+    {
+      "file": "scripts/lib/providers.js",
+      "name": "collectRawFileValues",
+      "kind": "function",
+      "exported": false,
+      "line": 759
+    },
+    {
+      "file": "scripts/lib/providers.js",
+      "name": "normalizedFileValues",
+      "kind": "function",
+      "exported": false,
+      "line": 774
+    },
+    {
+      "file": "scripts/lib/providers.js",
+      "name": "filesFromDiff",
+      "kind": "function",
+      "exported": false,
+      "line": 782
+    },
+    {
+      "file": "scripts/lib/providers.js",
+      "name": "scopeMatches",
+      "kind": "function",
+      "exported": false,
+      "line": 803
+    },
+    {
+      "file": "scripts/lib/providers.js",
+      "name": "unsafeAddedLines",
+      "kind": "function",
+      "exported": false,
+      "line": 833
+    },
+    {
+      "file": "scripts/lib/providers.js",
+      "name": "declaredScopeValue",
+      "kind": "function",
+      "exported": false,
+      "line": 849
+    },
+    {
+      "file": "scripts/lib/providers.js",
+      "name": "createEditValidator",
+      "kind": "function",
+      "exported": true,
+      "line": 867
+    },
+    {
+      "file": "scripts/lib/providers.js",
+      "name": "getGraphProvider",
+      "kind": "function",
+      "exported": true,
+      "line": 967
+    },
+    {
+      "file": "scripts/lib/providers.js",
+      "name": "getBlastProvider",
+      "kind": "function",
+      "exported": true,
+      "line": 977
+    },
+    {
+      "file": "scripts/lib/providers.js",
+      "name": "getEditValidator",
+      "kind": "function",
+      "exported": true,
+      "line": 987
+    },
+    {
+      "file": "scripts/lib/providers.js",
+      "name": "createDefaultProviders",
+      "kind": "function",
+      "exported": true,
+      "line": 991
+    },
+    {
+      "file": "scripts/lib/run-gate.js",
+      "name": "resolveState",
+      "kind": "function",
+      "exported": false,
+      "line": 17
+    },
+    {
+      "file": "scripts/lib/run-gate.js",
+      "name": "buildRunGateReminder",
+      "kind": "function",
+      "exported": true,
+      "line": 31
+    },
+    {
+      "file": "scripts/lib/run-gate.js",
+      "name": "TERMINAL_RUN_STATES",
+      "kind": "named",
+      "exported": true,
+      "line": 79
+    },
+    {
+      "file": "scripts/lib/run-gate.js",
+      "name": "PRE_IMPLEMENTING",
+      "kind": "named",
+      "exported": true,
+      "line": 79
+    },
+    {
+      "file": "scripts/lib/run-gate.js",
+      "name": "IMPLEMENTING_STATES",
+      "kind": "named",
+      "exported": true,
+      "line": 79
+    },
+    {
+      "file": "scripts/lib/schema-validate.js",
+      "name": "isObject",
+      "kind": "function",
+      "exported": false,
+      "line": 17
+    },
+    {
+      "file": "scripts/lib/schema-validate.js",
+      "name": "typeOf",
+      "kind": "function",
+      "exported": false,
+      "line": 21
+    },
+    {
+      "file": "scripts/lib/schema-validate.js",
+      "name": "matchesType",
+      "kind": "function",
+      "exported": false,
+      "line": 27
+    },
+    {
+      "file": "scripts/lib/schema-validate.js",
+      "name": "validate",
+      "kind": "function",
+      "exported": true,
+      "line": 42
+    },
+    {
+      "file": "scripts/lib/schema-validate.js",
+      "name": "fail",
+      "kind": "function",
+      "exported": false,
+      "line": 47
+    },
+    {
+      "file": "scripts/lib/schema-validate.js",
+      "name": "resolveRef",
+      "kind": "function",
+      "exported": false,
+      "line": 51
+    },
+    {
+      "file": "scripts/lib/schema-validate.js",
+      "name": "check",
+      "kind": "function",
+      "exported": false,
+      "line": 71
+    },
+    {
+      "file": "scripts/lib/schema-validate.js",
+      "name": "loadSchema",
+      "kind": "function",
+      "exported": true,
+      "line": 179
+    },
+    {
+      "file": "scripts/lib/schema-validate.js",
+      "name": "loadAllSchemas",
+      "kind": "function",
+      "exported": true,
+      "line": 189
+    },
+    {
+      "file": "scripts/lib/schema-validate.js",
+      "name": "validateHandoff",
+      "kind": "function",
+      "exported": true,
+      "line": 199
+    },
+    {
+      "file": "scripts/lib/schema-validate.js",
+      "name": "validateRunState",
+      "kind": "function",
+      "exported": true,
+      "line": 214
+    },
+    {
+      "file": "scripts/lib/schema-validate.js",
+      "name": "validateClassification",
+      "kind": "function",
+      "exported": true,
+      "line": 222
+    },
+    {
+      "file": "scripts/lib/schema-validate.js",
+      "name": "validateDriftReport",
+      "kind": "function",
+      "exported": true,
+      "line": 227
+    },
+    {
+      "file": "scripts/lib/schema-validate.js",
+      "name": "validateBlastReport",
+      "kind": "function",
+      "exported": true,
+      "line": 232
+    },
+    {
+      "file": "scripts/lib/schema-validate.js",
+      "name": "validateImpactReport",
+      "kind": "function",
+      "exported": true,
+      "line": 237
+    },
+    {
+      "file": "scripts/lib/schema-validate.js",
+      "name": "SCHEMAS_DIR",
+      "kind": "named",
+      "exported": true,
+      "line": 245
+    },
+    {
+      "file": "scripts/lib/schema-validate.js",
+      "name": "HANDOFF_SCHEMA",
+      "kind": "named",
+      "exported": true,
+      "line": 245
+    },
+    {
+      "file": "scripts/lib/state-machine.js",
+      "name": "STATES",
+      "kind": "constant",
+      "exported": true,
+      "line": 28
+    },
+    {
+      "file": "scripts/lib/state-machine.js",
+      "name": "LINEAR",
+      "kind": "constant",
+      "exported": true,
+      "line": 43
+    },
+    {
+      "file": "scripts/lib/state-machine.js",
+      "name": "CLASSIFY_APPLY_SOURCE",
+      "kind": "constant",
+      "exported": true,
+      "line": 56
+    },
+    {
+      "file": "scripts/lib/state-machine.js",
+      "name": "nowIso",
+      "kind": "function",
+      "exported": false,
+      "line": 58
+    },
+    {
+      "file": "scripts/lib/state-machine.js",
+      "name": "exists",
+      "kind": "function",
+      "exported": false,
+      "line": 62
+    },
+    {
+      "file": "scripts/lib/state-machine.js",
+      "name": "sha256Digest",
+      "kind": "function",
+      "exported": false,
+      "line": 66
+    },
+    {
+      "file": "scripts/lib/state-machine.js",
+      "name": "stableStringify",
+      "kind": "function",
+      "exported": false,
+      "line": 70
+    },
+    {
+      "file": "scripts/lib/state-machine.js",
+      "name": "sealImpactArtifact",
+      "kind": "function",
+      "exported": true,
+      "line": 85
+    },
+    {
+      "file": "scripts/lib/state-machine.js",
+      "name": "sealGraphArtifact",
+      "kind": "function",
+      "exported": true,
+      "line": 99
+    },
+    {
+      "file": "scripts/lib/state-machine.js",
+      "name": "sealBlastArtifact",
+      "kind": "function",
+      "exported": true,
+      "line": 104
+    },
+    {
+      "file": "scripts/lib/state-machine.js",
+      "name": "verifySealedArtifact",
+      "kind": "function",
+      "exported": true,
+      "line": 108
+    },
+    {
+      "file": "scripts/lib/state-machine.js",
+      "name": "gitRevParse",
+      "kind": "function",
+      "exported": false,
+      "line": 116
+    },
+    {
+      "file": "scripts/lib/state-machine.js",
+      "name": "gitIsAncestor",
+      "kind": "function",
+      "exported": false,
+      "line": 126
+    },
+    {
+      "file": "scripts/lib/state-machine.js",
+      "name": "requiredEvidence",
+      "kind": "function",
+      "exported": true,
+      "line": 139
+    },
+    {
+      "file": "scripts/lib/state-machine.js",
+      "name": "sharedHandoffBindingErrors",
+      "kind": "function",
+      "exported": false,
+      "line": 163
+    },
+    {
+      "file": "scripts/lib/state-machine.js",
+      "name": "bindImplementerHandoffErrors",
+      "kind": "function",
+      "exported": true,
+      "line": 196
+    },
+    {
+      "file": "scripts/lib/state-machine.js",
+      "name": "bindReviewerHandoffErrors",
+      "kind": "function",
+      "exported": true,
+      "line": 239
+    },
+    {
+      "file": "scripts/lib/state-machine.js",
+      "name": "verificationPolicyExempt",
+      "kind": "function",
+      "exported": false,
+      "line": 264
+    },
+    {
+      "file": "scripts/lib/state-machine.js",
+      "name": "assertVerificationGates",
+      "kind": "function",
+      "exported": false,
+      "line": 269
+    },
+    {
+      "file": "scripts/lib/state-machine.js",
+      "name": "isProviderTrustedImpact",
+      "kind": "function",
+      "exported": false,
+      "line": 318
+    },
+    {
+      "file": "scripts/lib/state-machine.js",
+      "name": "revalidateTransitionEvidence",
+      "kind": "function",
+      "exported": true,
+      "line": 325
+    },
+    {
+      "file": "scripts/lib/state-machine.js",
+      "name": "canTransition",
+      "kind": "function",
+      "exported": true,
+      "line": 423
+    },
+    {
+      "file": "scripts/lib/state-machine.js",
+      "name": "canSelfApproveSafe",
+      "kind": "function",
+      "exported": false,
+      "line": 840
+    },
+    {
+      "file": "scripts/lib/state-machine.js",
+      "name": "unresolvedHighFromCtx",
+      "kind": "function",
+      "exported": false,
+      "line": 846
+    },
+    {
+      "file": "scripts/lib/state-machine.js",
+      "name": "transition",
+      "kind": "function",
+      "exported": true,
+      "line": 863
+    },
+    {
+      "file": "scripts/lib/state-machine.js",
+      "name": "effectivePolicy",
+      "kind": "named",
+      "exported": true,
+      "line": 1003
+    },
+    {
+      "file": "scripts/lib/state-machine.js",
+      "name": "maxReview",
+      "kind": "named",
+      "exported": true,
+      "line": 1003
+    },
+    {
+      "file": "scripts/nexus-run.js",
+      "name": "parseArgs",
+      "kind": "function",
+      "exported": false,
+      "line": 44
+    },
+    {
+      "file": "scripts/nexus-run.js",
+      "name": "worktree",
+      "kind": "function",
+      "exported": false,
+      "line": 63
+    },
+    {
+      "file": "scripts/nexus-run.js",
+      "name": "runIdForFlags",
+      "kind": "function",
+      "exported": false,
+      "line": 67
+    },
+    {
+      "file": "scripts/nexus-run.js",
+      "name": "redact",
+      "kind": "function",
+      "exported": false,
+      "line": 76
+    },
+    {
+      "file": "scripts/nexus-run.js",
+      "name": "trajectoryFile",
+      "kind": "function",
+      "exported": false,
+      "line": 92
+    },
+    {
+      "file": "scripts/nexus-run.js",
+      "name": "recordTrajectory",
+      "kind": "function",
+      "exported": false,
+      "line": 96
+    },
+    {
+      "file": "scripts/nexus-run.js",
+      "name": "failCli",
+      "kind": "function",
+      "exported": false,
+      "line": 116
+    },
+    {
+      "file": "scripts/nexus-run.js",
+      "name": "loadEvidence",
+      "kind": "function",
+      "exported": false,
+      "line": 126
+    },
+    {
+      "file": "scripts/nexus-run.js",
+      "name": "resolveRun",
+      "kind": "function",
+      "exported": false,
+      "line": 182
+    },
+    {
+      "file": "scripts/nexus-run.js",
+      "name": "defaultRunId",
+      "kind": "function",
+      "exported": false,
+      "line": 202
+    },
+    {
+      "file": "scripts/nexus-run.js",
+      "name": "cmdInit",
+      "kind": "function",
+      "exported": false,
+      "line": 211
+    },
+    {
+      "file": "scripts/nexus-run.js",
+      "name": "cmdClassify",
+      "kind": "function",
+      "exported": false,
+      "line": 240
+    },
+    {
+      "file": "scripts/nexus-run.js",
+      "name": "resolvedRunUnits",
+      "kind": "function",
+      "exported": false,
+      "line": 349
+    },
+    {
+      "file": "scripts/nexus-run.js",
+      "name": "cmdTransition",
+      "kind": "function",
+      "exported": false,
+      "line": 359
+    },
+    {
+      "file": "scripts/nexus-run.js",
+      "name": "cmdValidateHandoff",
+      "kind": "function",
+      "exported": false,
+      "line": 419
+    },
+    {
+      "file": "scripts/nexus-run.js",
+      "name": "cmdStatus",
+      "kind": "function",
+      "exported": false,
+      "line": 446
+    },
+    {
+      "file": "scripts/nexus-run.js",
+      "name": "cmdResume",
+      "kind": "function",
+      "exported": false,
+      "line": 458
+    },
+    {
+      "file": "scripts/nexus-run.js",
+      "name": "cmdDrift",
+      "kind": "function",
+      "exported": false,
+      "line": 499
+    },
+    {
+      "file": "scripts/nexus-run.js",
+      "name": "cmdCan",
+      "kind": "function",
+      "exported": false,
+      "line": 512
+    },
+    {
+      "file": "scripts/nexus-run.js",
+      "name": "main",
+      "kind": "function",
+      "exported": false,
+      "line": 527
+    },
+    {
+      "file": "tests/e2e/cli-flow.test.js",
+      "name": "makeTempRepo",
+      "kind": "function",
+      "exported": false,
+      "line": 13
+    },
+    {
+      "file": "tests/e2e/cli-flow.test.js",
+      "name": "git",
+      "kind": "function",
+      "exported": false,
+      "line": 31
+    },
+    {
+      "file": "tests/e2e/cli-flow.test.js",
+      "name": "invoke",
+      "kind": "function",
+      "exported": false,
+      "line": 37
+    },
+    {
+      "file": "tests/e2e/cli-flow.test.js",
+      "name": "json",
+      "kind": "function",
+      "exported": false,
+      "line": 64
+    },
+    {
+      "file": "tests/e2e/cli-flow.test.js",
+      "name": "nexus",
+      "kind": "function",
+      "exported": false,
+      "line": 469
+    },
+    {
+      "file": "tests/e2e/template-gate-contract.test.js",
+      "name": "read",
+      "kind": "function",
+      "exported": false,
+      "line": 14
+    },
+    {
+      "file": "tests/e2e/template-gate-contract.test.js",
+      "name": "handoffFromImplementerTemplate",
+      "kind": "function",
+      "exported": false,
+      "line": 22
+    },
+    {
+      "file": "tests/e2e/template-gate-contract.test.js",
+      "name": "handoffFromUnifiedTemplate",
+      "kind": "function",
+      "exported": false,
+      "line": 56
+    },
+    {
+      "file": "tests/helpers/gate-fixtures.js",
+      "name": "handoffEnvelope",
+      "kind": "function",
+      "exported": true,
+      "line": 11
+    },
+    {
+      "file": "tests/helpers/gate-fixtures.js",
+      "name": "goodImplementerHandoff",
+      "kind": "function",
+      "exported": true,
+      "line": 23
+    },
+    {
+      "file": "tests/helpers/gate-fixtures.js",
+      "name": "goodUnifiedHandoff",
+      "kind": "function",
+      "exported": true,
+      "line": 43
+    },
+    {
+      "file": "tests/helpers/gate-fixtures.js",
+      "name": "sealedImpact",
+      "kind": "function",
+      "exported": true,
+      "line": 54
+    },
+    {
+      "file": "tests/helpers/gate-fixtures.js",
+      "name": "sealedPreciseGraph",
+      "kind": "function",
+      "exported": true,
+      "line": 78
+    },
+    {
+      "file": "tests/helpers/gate-fixtures.js",
+      "name": "sealedLowBlast",
+      "kind": "function",
+      "exported": true,
+      "line": 93
+    },
+    {
+      "file": "tests/helpers/gate-fixtures.js",
+      "name": "mockTrustProviders",
+      "kind": "function",
+      "exported": true,
+      "line": 97
+    },
+    {
+      "file": "tests/helpers/gate-fixtures.js",
+      "name": "CLASSIFY_APPLY_SOURCE",
+      "kind": "named",
+      "exported": true,
+      "line": 159
+    },
+    {
+      "file": "tests/helpers/gate-fixtures.js",
+      "name": "sealImpactArtifact",
+      "kind": "named",
+      "exported": true,
+      "line": 159
+    },
+    {
+      "file": "tests/helpers/gate-fixtures.js",
+      "name": "sealBlastArtifact",
+      "kind": "named",
+      "exported": true,
+      "line": 159
+    },
+    {
+      "file": "tests/plugin/nexus.test.js",
+      "name": "tempDir",
+      "kind": "function",
+      "exported": false,
+      "line": 8
+    },
+    {
+      "file": "tests/plugin/nexus.test.js",
+      "name": "writeJson",
+      "kind": "function",
+      "exported": false,
+      "line": 12
+    },
+    {
+      "file": "tests/providers/providers.test.js",
+      "name": "tempDir",
+      "kind": "function",
+      "exported": false,
+      "line": 17
+    },
+    {
+      "file": "tests/providers/providers.test.js",
+      "name": "diffFor",
+      "kind": "function",
+      "exported": false,
+      "line": 21
+    },
+    {
+      "file": "tests/providers/providers.test.js",
+      "name": "makeGraphifyProviderFixture",
+      "kind": "function",
+      "exported": false,
+      "line": 316
+    },
+    {
+      "file": "tests/state-machine/gate-hardening.test.js",
+      "name": "sampleClassification",
+      "kind": "function",
+      "exported": false,
+      "line": 25
+    },
+    {
+      "file": "tests/state-machine/state-machine.test.js",
+      "name": "sampleClassification",
+      "kind": "function",
+      "exported": false,
+      "line": 26
+    },
+    {
+      "file": "tests/state-machine/state-machine.test.js",
+      "name": "providersFor",
+      "kind": "function",
+      "exported": false,
+      "line": 42
+    },
+    {
+      "file": "scripts/lib/impact/adapters.js",
+      "name": "languageForPath",
+      "kind": "function",
+      "exported": true,
+      "line": 18
+    },
+    {
+      "file": "scripts/lib/impact/adapters.js",
+      "name": "adapterSupports",
+      "kind": "function",
+      "exported": true,
+      "line": 29
+    },
+    {
+      "file": "scripts/lib/impact/adapters.js",
+      "name": "extractJsSymbols",
+      "kind": "function",
+      "exported": true,
+      "line": 36
+    },
+    {
+      "file": "scripts/lib/impact/adapters.js",
+      "name": "extractSymbols",
+      "kind": "function",
+      "exported": true,
+      "line": 93
+    },
+    {
+      "file": "scripts/lib/impact/adapters.js",
+      "name": "PARSER_VERSION",
+      "kind": "named",
+      "exported": true,
+      "line": 111
+    },
+    {
+      "file": "scripts/lib/impact/analyze.js",
+      "name": "analyzeImpact",
+      "kind": "function",
+      "exported": true,
+      "line": 12
+    },
+    {
+      "file": "scripts/lib/impact/analyze.js",
+      "name": "collectGitEvidence",
+      "kind": "named",
+      "exported": true,
+      "line": 121
+    },
+    {
+      "file": "scripts/lib/impact/boundaries.js",
+      "name": "normalizeAllowedFiles",
+      "kind": "function",
+      "exported": true,
+      "line": 4
+    },
+    {
+      "file": "scripts/lib/impact/boundaries.js",
+      "name": "scopeExpansionNeeded",
+      "kind": "function",
+      "exported": true,
+      "line": 12
+    },
+    {
+      "file": "scripts/lib/impact/confidence.js",
+      "name": "CONFIDENCE_THRESHOLDS",
+      "kind": "constant",
+      "exported": true,
+      "line": 7
+    },
+    {
+      "file": "scripts/lib/impact/confidence.js",
+      "name": "computeConfidence",
+      "kind": "function",
+      "exported": true,
+      "line": 12
+    },
+    {
+      "file": "scripts/lib/impact/confidence.js",
+      "name": "verificationModeForConfidence",
+      "kind": "function",
+      "exported": true,
+      "line": 31
+    },
+    {
+      "file": "scripts/lib/impact/git.js",
+      "name": "runGit",
+      "kind": "function",
+      "exported": false,
+      "line": 6
+    },
+    {
+      "file": "scripts/lib/impact/git.js",
+      "name": "resolveBaseCommit",
+      "kind": "function",
+      "exported": true,
+      "line": 19
+    },
+    {
+      "file": "scripts/lib/impact/git.js",
+      "name": "collectGitEvidence",
+      "kind": "function",
+      "exported": true,
+      "line": 50
+    },
+    {
+      "file": "scripts/lib/impact/imports.js",
+      "name": "walkSourceFiles",
+      "kind": "function",
+      "exported": false,
+      "line": 15
+    },
+    {
+      "file": "scripts/lib/impact/imports.js",
+      "name": "walk",
+      "kind": "function",
+      "exported": false,
+      "line": 27
+    },
+    {
+      "file": "scripts/lib/impact/imports.js",
+      "name": "resolveImportPath",
+      "kind": "function",
+      "exported": false,
+      "line": 51
+    },
+    {
+      "file": "scripts/lib/impact/imports.js",
+      "name": "buildImportIndex",
+      "kind": "function",
+      "exported": true,
+      "line": 75
+    },
+    {
+      "file": "scripts/lib/impact/imports.js",
+      "name": "findSymbolReferences",
+      "kind": "function",
+      "exported": true,
+      "line": 121
+    },
+    {
+      "file": "scripts/lib/impact/references.js",
+      "name": "collectChangedSymbols",
+      "kind": "function",
+      "exported": true,
+      "line": 6
+    },
+    {
+      "file": "scripts/lib/impact/references.js",
+      "name": "collectDependents",
+      "kind": "function",
+      "exported": true,
+      "line": 35
+    },
+    {
+      "file": "scripts/lib/impact/risk.js",
+      "name": "computeRisk",
+      "kind": "function",
+      "exported": true,
+      "line": 22
+    },
+    {
+      "file": "scripts/lib/impact/symbols.js",
+      "name": "cacheDir",
+      "kind": "function",
+      "exported": false,
+      "line": 9
+    },
+    {
+      "file": "scripts/lib/impact/symbols.js",
+      "name": "ensureCache",
+      "kind": "function",
+      "exported": false,
+      "line": 13
+    },
+    {
+      "file": "scripts/lib/impact/symbols.js",
+      "name": "fileHash",
+      "kind": "function",
+      "exported": true,
+      "line": 19
+    },
+    {
+      "file": "scripts/lib/impact/symbols.js",
+      "name": "loadCache",
+      "kind": "function",
+      "exported": true,
+      "line": 23
+    },
+    {
+      "file": "scripts/lib/impact/symbols.js",
+      "name": "saveCache",
+      "kind": "function",
+      "exported": true,
+      "line": 41
+    },
+    {
+      "file": "scripts/lib/impact/symbols.js",
+      "name": "getCachedSymbols",
+      "kind": "function",
+      "exported": true,
+      "line": 48
+    },
+    {
+      "file": "scripts/lib/impact/symbols.js",
+      "name": "putCachedSymbols",
+      "kind": "function",
+      "exported": true,
+      "line": 60
+    },
+    {
+      "file": "scripts/lib/impact/tests.js",
+      "name": "isTestPath",
+      "kind": "function",
+      "exported": false,
+      "line": 7
+    },
+    {
+      "file": "scripts/lib/impact/tests.js",
+      "name": "stem",
+      "kind": "function",
+      "exported": false,
+      "line": 16
+    },
+    {
+      "file": "scripts/lib/impact/tests.js",
+      "name": "discoverRelatedTests",
+      "kind": "function",
+      "exported": true,
+      "line": 21
+    },
+    {
+      "file": "scripts/lib/impact/tests.js",
+      "name": "walk",
+      "kind": "function",
+      "exported": false,
+      "line": 25
+    },
+    {
+      "file": "scripts/lib/impact/tests.js",
+      "name": "discoverAffectedPackages",
+      "kind": "function",
+      "exported": true,
+      "line": 75
+    },
+    {
+      "file": "scripts/lib/providers/impact-provider.js",
+      "name": "createNexusImpactProvider",
+      "kind": "function",
+      "exported": true,
+      "line": 9
+    },
+    {
+      "file": "scripts/lib/providers/impact-provider.js",
+      "name": "createLegacyGraphBlastImpactBridge",
+      "kind": "function",
+      "exported": true,
+      "line": 46
+    },
+    {
+      "file": "scripts/lib/providers/memory-provider.js",
+      "name": "createMemoryProvider",
+      "kind": "function",
+      "exported": true,
+      "line": 7
+    },
+    {
+      "file": "scripts/lib/providers/verification-provider.js",
+      "name": "createVerificationProvider",
+      "kind": "function",
+      "exported": true,
+      "line": 10
+    },
+    {
+      "file": "scripts/lib/review-protocol.js",
+      "name": "normalizeFinding",
+      "kind": "function",
+      "exported": true,
+      "line": 4
+    },
+    {
+      "file": "scripts/lib/review-protocol.js",
+      "name": "unresolvedHighFindings",
+      "kind": "function",
+      "exported": true,
+      "line": 15
+    },
+    {
+      "file": "scripts/lib/review-protocol.js",
+      "name": "canSelfApprove",
+      "kind": "function",
+      "exported": true,
+      "line": 21
+    },
+    {
+      "file": "scripts/lib/review-protocol.js",
+      "name": "fixLoopDecision",
+      "kind": "function",
+      "exported": true,
+      "line": 26
+    },
+    {
+      "file": "scripts/lib/scope-lock.js",
+      "name": "assertScopeLock",
+      "kind": "function",
+      "exported": true,
+      "line": 6
+    },
+    {
+      "file": "scripts/lib/scope-lock.js",
+      "name": "buildFreshImplementerContext",
+      "kind": "function",
+      "exported": true,
+      "line": 21
+    },
+    {
+      "file": "scripts/lib/task-dag.js",
+      "name": "buildTaskDag",
+      "kind": "function",
+      "exported": true,
+      "line": 5
+    },
+    {
+      "file": "scripts/lib/task-dag.js",
+      "name": "detectCycle",
+      "kind": "function",
+      "exported": true,
+      "line": 24
+    },
+    {
+      "file": "scripts/lib/task-dag.js",
+      "name": "visit",
+      "kind": "function",
+      "exported": false,
+      "line": 27
+    },
+    {
+      "file": "scripts/lib/task-dag.js",
+      "name": "sharesFiles",
+      "kind": "function",
+      "exported": false,
+      "line": 46
+    },
+    {
+      "file": "scripts/lib/task-dag.js",
+      "name": "readyTasks",
+      "kind": "function",
+      "exported": true,
+      "line": 55
+    },
+    {
+      "file": "scripts/lib/task-dag.js",
+      "name": "scheduleParallel",
+      "kind": "function",
+      "exported": true,
+      "line": 67
+    },
+    {
+      "file": "scripts/lib/verification/compare.js",
+      "name": "compareBaselines",
+      "kind": "function",
+      "exported": true,
+      "line": 4
+    },
+    {
+      "file": "scripts/lib/verification/compare.js",
+      "name": "verificationLadder",
+      "kind": "function",
+      "exported": true,
+      "line": 38
+    },
+    {
+      "file": "scripts/lib/verification/discover.js",
+      "name": "hasCmd",
+      "kind": "function",
+      "exported": false,
+      "line": 7
+    },
+    {
+      "file": "scripts/lib/verification/discover.js",
+      "name": "discoverVerification",
+      "kind": "function",
+      "exported": true,
+      "line": 12
+    },
+    {
+      "file": "scripts/lib/verification/generic.js",
+      "name": "genericSteps",
+      "kind": "function",
+      "exported": true,
+      "line": 1
+    },
+    {
+      "file": "scripts/lib/verification/go.js",
+      "name": "goSteps",
+      "kind": "function",
+      "exported": true,
+      "line": 1
+    },
+    {
+      "file": "scripts/lib/verification/node.js",
+      "name": "nodeSteps",
+      "kind": "function",
+      "exported": true,
+      "line": 2
+    },
+    {
+      "file": "scripts/lib/verification/python.js",
+      "name": "pythonSteps",
+      "kind": "function",
+      "exported": true,
+      "line": 1
+    },
+    {
+      "file": "scripts/lib/verification/rust.js",
+      "name": "rustSteps",
+      "kind": "function",
+      "exported": true,
+      "line": 1
+    },
+    {
+      "file": "scripts/lib/worktree.js",
+      "name": "run",
+      "kind": "function",
+      "exported": false,
+      "line": 8
+    },
+    {
+      "file": "scripts/lib/worktree.js",
+      "name": "worktreeRoot",
+      "kind": "function",
+      "exported": true,
+      "line": 12
+    },
+    {
+      "file": "scripts/lib/worktree.js",
+      "name": "createTaskWorktree",
+      "kind": "function",
+      "exported": true,
+      "line": 16
+    },
+    {
+      "file": "scripts/lib/worktree.js",
+      "name": "removeTaskWorktree",
+      "kind": "function",
+      "exported": true,
+      "line": 38
+    },
+    {
+      "file": "scripts/lib/worktree.js",
+      "name": "listTaskWorktrees",
+      "kind": "function",
+      "exported": true,
+      "line": 46
+    },
+    {
+      "file": "scripts/nexus-impact.js",
+      "name": "parseArgs",
+      "kind": "function",
+      "exported": false,
+      "line": 13
+    },
+    {
+      "file": "scripts/nexus-impact.js",
+      "name": "main",
+      "kind": "function",
+      "exported": false,
+      "line": 26
+    },
+    {
+      "file": "tests/helpers/v3-golden-flows.js",
+      "name": "V3_GOLDEN_CLI",
+      "kind": "constant",
+      "exported": true,
+      "line": 5
+    },
+    {
+      "file": "tests/impact/impact-engine.test.js",
+      "name": "tempRepo",
+      "kind": "function",
+      "exported": false,
+      "line": 13
+    }
+  ],
+  "direct_dependents": [
+    "scripts/lib/classify.js",
+    "scripts/lib/drift.js",
+    "scripts/lib/impact/analyze.js",
+    "scripts/lib/impact/git.js",
+    "scripts/lib/impact/imports.js",
+    "scripts/lib/impact/references.js",
+    "scripts/lib/impact/symbols.js",
+    "scripts/lib/migrate-artifacts.js",
+    "scripts/lib/policy.js",
+    "scripts/lib/providers.js",
+    "scripts/lib/providers/impact-provider.js",
+    "scripts/lib/providers/verification-provider.js",
+    "scripts/lib/scope-lock.js",
+    "scripts/lib/state-machine.js",
+    "scripts/nexus-classify.js",
+    "scripts/nexus-impact.js",
+    "scripts/nexus-run.js",
+    "tests/blast/blast-provenance.test.js",
+    "tests/classify/diff-evidence.test.js",
+    "tests/classify/hard-signal-bypass.test.js",
+    "tests/cli/nexus-bin.test.js",
+    "tests/e2e/template-gate-contract.test.js",
+    "tests/evals/seeded-bugs.test.js",
+    "tests/graphify/provenance.test.js",
+    "tests/impact/impact-engine.test.js",
+    "tests/state-machine/gate-hardening.test.js",
+    "tests/state-machine/state-machine.test.js",
+    "tests/verification/verification-and-dag.test.js"
+  ],
+  "transitive_dependents": [
+    "tests/migrate/recover-handoff.test.js"
+  ],
+  "affected_packages": [
+    "."
+  ],
+  "related_tests": [
+    "tests/blast/blast-output.test.js",
+    "tests/blast/blast-provenance.test.js",
+    "tests/classify/classify.test.js",
+    "tests/classify/diff-evidence.test.js",
+    "tests/classify/hard-signal-bypass.test.js",
+    "tests/classify/semantic-regression.test.js",
+    "tests/cli/ensure-cli-on-path.test.js",
+    "tests/cli/nexus-bin.test.js",
+    "tests/cli/run-init.test.js",
+    "tests/drift/drift.test.js",
+    "tests/e2e/cli-flow.test.js",
+    "tests/e2e/template-gate-contract.test.js",
+    "tests/e2e/trajectory-concurrency.test.js",
+    "tests/e2e/trajectory-replay.test.js",
+    "tests/estimator/calls.test.js",
+    "tests/evals/seeded-bugs.test.js",
+    "tests/graphify/graphify-adapter.test.js",
+    "tests/graphify/provenance.test.js",
+    "tests/helpers/gate-fixtures.js",
+    "tests/helpers/v3-golden-flows.js",
+    "tests/impact/impact-engine.test.js",
+    "tests/migrate/migrate-artifacts.test.js",
+    "tests/migrate/recover-handoff.test.js",
+    "tests/migrate/run-state-cas.test.js",
+    "tests/plugin/nexus.test.js",
+    "tests/plugin/router-once.test.js",
+    "tests/providers/providers.test.js",
+    "tests/schema/schema-validate.test.js",
+    "tests/state-machine/gate-hardening.test.js",
+    "tests/state-machine/state-machine.test.js",
+    "tests/state-machine/v3-baseline-freeze.test.js",
+    "tests/verification/verification-and-dag.test.js"
+  ],
+  "risk": "HIGH",
+  "level": "HIGH",
+  "computed_risk": "HIGH",
+  "risk_signals": [
+    "public_api_or_schema_path",
+    "exported_symbol_change",
+    "high_fan_in",
+    "cross_package_change",
+    "large_diff_weak"
+  ],
+  "confidence": 1,
+  "verification_mode": "targeted",
+  "trusted": true,
+  "analysis_quality": "PRECISE",
+  "graph_quality": "PRECISE",
+  "analysis_complete": true,
+  "graph_freshness": {
+    "valid": true,
+    "current_head": "70eff31cb6a6119d00f7d492a3ad21dbb920d474"
+  },
+  "uncertainties": [],
+  "dimensions": {
+    "symbols": 262,
+    "dependents": 28,
+    "tests": 32
+  },
+  "index_stats": {
+    "parsed": 0,
+    "cacheHits": 75,
+    "unsupported": 0,
+    "files": 75
+  },
+  "placeholder_fields": []
+}

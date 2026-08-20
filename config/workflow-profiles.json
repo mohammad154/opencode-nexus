@@ -1,17 +1,17 @@
 {
-  "_comment": "Profile matrix for Nexus V3. strict preserves legacy high-assurance behavior.",
+  "_comment": "Profile matrix for Nexus V4. Impact Engine replaces graph/blast policies.",
   "profiles": {
     "fast": {
-      "description": "Small low-risk changes: one implementer, scripts for graph/blast, optional unified review, one branch per request",
+      "description": "Small low-risk changes: one implementer, Impact Engine, optional unified review, one branch per request",
       "branchPolicy": "per-feature",
       "reviewPolicy": "unified-or-skip",
       "lessonPolicy": "noteworthy-only",
-      "graphPolicy": "cache-by-file-hash",
-      "blastPolicy": "per-execution-unit",
+      "impactPolicy": "cache-by-file-hash",
       "cleanupPolicy": "script",
       "batchTasks": true,
       "implementerPer": "execution-unit",
       "maxTasksPerBatch": 5,
+      "maxParallelTasks": 2,
       "requireDualReviewOn": [
         "security",
         "migration",
@@ -20,16 +20,16 @@
       ]
     },
     "balanced": {
-      "description": "Normal feature work: feature branch, batched implementer, risk-based review, LESSONS when noteworthy",
+      "description": "Normal feature work: feature branch, impact analysis, risk-based review, LESSONS when noteworthy",
       "branchPolicy": "per-feature",
       "reviewPolicy": "risk-based",
       "lessonPolicy": "noteworthy-only",
-      "graphPolicy": "cache-by-file-hash",
-      "blastPolicy": "per-execution-unit",
+      "impactPolicy": "cache-by-file-hash",
       "cleanupPolicy": "script",
       "batchTasks": true,
       "implementerPer": "execution-unit",
       "maxTasksPerBatch": 5,
+      "maxParallelTasks": 2,
       "requireDualReviewOn": [
         "security",
         "migration",
@@ -38,17 +38,19 @@
       ]
     },
     "strict": {
-      "description": "Legacy high-assurance: per-task branch, blast, dual review, LESSONS every task",
+      "description": "High-assurance: per-task worktree, impact rebuild, dual review, LESSONS every task",
       "branchPolicy": "per-task",
       "reviewPolicy": "always-dual",
       "lessonPolicy": "every-task",
-      "graphPolicy": "rebuild-each-task",
-      "blastPolicy": "per-task",
+      "impactPolicy": "rebuild-each-task",
       "cleanupPolicy": "script",
       "batchTasks": false,
       "implementerPer": "task",
       "maxTasksPerBatch": 1,
-      "requireDualReviewOn": ["*"]
+      "maxParallelTasks": 1,
+      "requireDualReviewOn": [
+        "*"
+      ]
     }
   },
   "reviewMatrix": {
@@ -57,7 +59,11 @@
       "code": "skip-or-lightweight",
       "unified": false
     },
-    "test-only": { "spec": "skip", "code": "unified", "unified": true },
+    "test-only": {
+      "spec": "skip",
+      "code": "unified",
+      "unified": true
+    },
     "small-internal-refactor": {
       "spec": "skip",
       "code": "required",
@@ -68,7 +74,11 @@
       "code": "unified",
       "unified": true
     },
-    "public-api": { "spec": "required", "code": "required", "unified": false },
+    "public-api": {
+      "spec": "required",
+      "code": "required",
+      "unified": false
+    },
     "authentication-security": {
       "spec": "required",
       "code": "required",
@@ -79,7 +89,11 @@
       "code": "required",
       "unified": false
     },
-    "high-blast": { "spec": "required", "code": "required", "unified": false }
+    "high-blast": {
+      "spec": "required",
+      "code": "required",
+      "unified": false
+    }
   },
   "classificationRules": {
     "version": 2,
@@ -136,7 +150,11 @@
       "require_focused_validation": true,
       "forbid_exported_symbol_change": true,
       "min_confidence": 0.85,
-      "allowed_classes": ["documentation", "formatting", "one_file_internal"]
+      "allowed_classes": [
+        "documentation",
+        "formatting",
+        "one_file_internal"
+      ]
     },
     "escalateToStrictOnHighBlast": false,
     "escalateReviewOnHighBlast": true,
@@ -151,29 +169,64 @@
         "notSecuritySensitive": true
       }
     },
-    "_deprecated_strictIf": ["securitySensitive", "databaseMigration", "publicApi", "blastRiskHigh"]
+    "_deprecated_strictIf": [
+      "securitySensitive",
+      "databaseMigration",
+      "publicApi",
+      "blastRiskHigh"
+    ]
   },
   "modelTiers": {
     "low": {
-      "orchestrator": { "variant": "low" },
-      "implementer": { "variant": "medium" },
-      "unified-reviewer": { "variant": "medium" },
-      "spec-reviewer": { "variant": "medium" },
-      "code-reviewer": { "variant": "medium" }
+      "orchestrator": {
+        "variant": "low"
+      },
+      "implementer": {
+        "variant": "medium"
+      },
+      "unified-reviewer": {
+        "variant": "medium"
+      },
+      "spec-reviewer": {
+        "variant": "medium"
+      },
+      "code-reviewer": {
+        "variant": "medium"
+      }
     },
     "medium": {
-      "orchestrator": { "variant": "medium" },
-      "implementer": { "variant": "high" },
-      "unified-reviewer": { "variant": "high" },
-      "spec-reviewer": { "variant": "high" },
-      "code-reviewer": { "variant": "high" }
+      "orchestrator": {
+        "variant": "medium"
+      },
+      "implementer": {
+        "variant": "high"
+      },
+      "unified-reviewer": {
+        "variant": "high"
+      },
+      "spec-reviewer": {
+        "variant": "high"
+      },
+      "code-reviewer": {
+        "variant": "high"
+      }
     },
     "high": {
-      "orchestrator": { "variant": "high" },
-      "implementer": { "variant": "high" },
-      "spec-reviewer": { "variant": "max" },
-      "code-reviewer": { "variant": "max" },
-      "reconciler": { "variant": "max" }
+      "orchestrator": {
+        "variant": "high"
+      },
+      "implementer": {
+        "variant": "high"
+      },
+      "spec-reviewer": {
+        "variant": "max"
+      },
+      "code-reviewer": {
+        "variant": "max"
+      },
+      "reconciler": {
+        "variant": "max"
+      }
     }
   }
 }

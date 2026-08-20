@@ -4,7 +4,6 @@
   "reviewPolicy": "risk-based",
   "branchPolicy": "per-feature",
   "lessonPolicy": "noteworthy-only",
-  "graphPolicy": "cache-by-file-hash",
-  "cleanupPolicy": "script",
-  "blastPolicy": "per-execution-unit"
+  "impactPolicy": "cache-by-file-hash",
+  "cleanupPolicy": "script"
 }

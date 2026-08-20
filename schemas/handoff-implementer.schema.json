@@ -35,6 +35,28 @@
     "files_changed": { "type": "array", "items": { "type": "string" } },
     "tests": { "type": "array", "items": { "type": ["string", "object"] } },
     "blast_verified": { "type": ["boolean", "null"] },
+    "impact_verified": { "type": ["boolean", "null"] },
+    "tdd_required": { "type": "boolean" },
+    "tdd": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "red": {
+          "type": "object",
+          "properties": {
+            "command": { "type": "string" },
+            "exit_code": { "type": "number" }
+          }
+        },
+        "green": {
+          "type": "object",
+          "properties": {
+            "command": { "type": "string" },
+            "exit_code": { "type": "number" }
+          }
+        }
+      }
+    },
     "tasks_completed": { "type": "array", "items": { "type": "string" } },
     "notes_for_reviewer": { "type": "string" },
     "scope_extras": { "type": "array", "items": { "type": "string" } },

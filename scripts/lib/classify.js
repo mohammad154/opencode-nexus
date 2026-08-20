@@ -63,7 +63,7 @@ const DEFAULT_V2 = {
     require_focused_validation: true,
     forbid_exported_symbol_change: true,
     min_confidence: 0.85,
-    allowed_classes: ["documentation", "formatting", "one_file_internal"],
+    allowed_classes: ["documentation", "formatting"],
   },
   allowExplicitOverride: true,
   escalateToStrictOnHighBlast: false,

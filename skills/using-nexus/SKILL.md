@@ -1,125 +1,44 @@
 ---
 name: using-nexus
-description: Use when starting any Nexus session - establishes automatic skill selection and workflow routing for orchestrator-driven development with graph, blast, and profile awareness
+description: Use when starting any Nexus session - establishes automatic skill selection and workflow routing for orchestrator-driven development with Impact Engine, TDD, and profile awareness
 compatibility: opencode
 ---
 
-# Using Nexus (V3 — executable workflow engine)
+# Using Nexus (V4 — evidence-driven workflow engine)
 
 <SUBAGENT-STOP>
-If you were dispatched as a subagent (implementer, spec-reviewer, code-reviewer, unified-reviewer, blast-analyzer, or reconciler), skip this skill.
+If you were dispatched as a subagent (implementer, diagnostician, spec-reviewer, code-reviewer, unified-reviewer, integration-reviewer, or reconciler), skip this skill.
 </SUBAGENT-STOP>
 
 ## The Rule
 
 **Invoke the relevant Nexus skill BEFORE responding or acting** when the task is non-trivial.
 
-For **narrowly gated direct-safe** work (docs/formatting/one-file internal with `direct_eligible` from the classifier), you may skip loading every skill — still run `nexus run classify` / `nexus run status` and verification.
+Direct mode is only for `documentation` / `formatting` with classifier `direct_eligible`.
 
-For everything else: if a Nexus skill clearly applies, load it with OpenCode's `skill` tool and announce it.
-
-Announce: "Using brainstorming to clarify requirements. (V3 engine: profiles + state machine + graph + blast + LESSONS)"
+Announce: "Using brainstorming to clarify requirements. (V4: Impact Engine + TDD + final verify)"
 
 ## Skill Router
 
 | Situation | Skill to load |
 |-----------|---------------|
-| New feature, unclear scope, design questions | `brainstorming` |
-| Requirements are clear, need a plan file | `writing-plans` |
-| Need map of codebase / hubs | Graphify: **run** `graphify query` / `graphify affected`; refresh with `graphify update .` |
-| Need safety check before editing | `blast-radius` skill docs; **run** `scripts/nexus-blast.js` |
-| Plan exists, start or continue implementation | `orchestrating` (reads `profiles.md` + `dispatch.md`) |
-| About to implement on a feature/task branch | `using-feature-branches` + blast script (skip blast only if `execution_mode: direct` and classifier `direct_eligible`) |
-| Execution stuck / BLOCKED / plan stale | `reconcile` |
-| All tasks reviewed and approved | `finishing-a-development-branch` + `outcome-memory` as needed |
-| Reflect on past tasks / LESSONS | `outcome-memory` |
-| Workflow complete / cleanup | `finishing-a-development-branch` + script cleanup |
+| New feature, unclear scope | `brainstorming` |
+| Need a plan file | `writing-plans` |
+| Need impact / affected tests | `impact-analysis` — run `nexus impact --json` |
+| Plan exists, start implementation | `orchestrating` |
+| Feature/task branch | `using-feature-branches` |
+| Execution stuck / BLOCKED | `reconcile` |
+| Reflect / LESSONS | `outcome-memory` (under `.opencode/memory`) |
+| Workflow complete | `finishing-a-development-branch` |
 
-## Workflow engine (required gates)
+## Workflow engine gates
 
-Durable machine state: `.opencode/runs/<run_id>/state.json`
-
-```bash
-nexus project-init
-nexus run init --run-id <id>
-nexus classify --files N --lines N --class <class> [--focused] [--docs]
-nexus run transition --to CLASSIFIED --json '{"classification":{...}}'
-nexus run transition --to PLANNED --plan-skip   # or ensure PLAN.md exists
-nexus run transition --to GRAPH_READY
-nexus run transition --to BLAST_READY --blast <path.json>
-nexus run transition --to IMPLEMENTING --branch <b> --acceptance 'c1|c2' ...
-nexus run validate-handoff --role implementer --file .opencode/handoffs/<id>-implementer.json
-nexus run status
-nexus run resume
+```text
+CREATED → CLASSIFIED → PLANNED → IMPACT_READY → IMPLEMENTING → VERIFYING → REVIEWING → FINAL_VERIFYING → COMPLETED
 ```
 
-Exit code `3` = illegal transition → STOP / reconcile. Exit `2` = validation failure.
-
-## Workflow profiles (V3)
-
-Default: **`balanced`**. Config: `config/default-workflow.json`, `config/workflow-profiles.json`. Details: `orchestrating/profiles.md`.
-
-Use the **scoring classifier** (`scripts/lib/classify.js` / `nexus-classify.js`) — do not interpret legacy `fastIf.or` as OR.
-
-| Profile | When | Shape |
-|---------|------|-------|
-| `fast` | Low risk_score + tiny-internal/docs evidence | 1 implementer; unified or skip; 1 branch; scripts |
-| `balanced` | Default / normal features | Batched units; risk-based review |
-| `strict` | Hard triggers (security, migration, public API, credentials) or high semantic/dependency impact | Per-task + dual review |
-
-Override: `--profile` or `workflow_profile` in CONTEXT.
-
-Before multi-task runs: `nexus estimate --tasks N --profile <p>`.
-
-## Adaptive direct path (narrow)
-
-Classifier may set `execution_mode: "direct"` only when **all** `direct_path` gates pass and `confidence >= 0.85`.
-
-Flow: classify → deterministic checks → optional lightweight/none review → finish.
-
-If Task/Agent **dispatch fails** AND classifier `direct_eligible` AND user did not set `execution_mode: delegated` → may use `DIRECT_IMPLEMENTING` with mandatory verification. Otherwise STOP and report (do not self-implement).
-
-Exact CONTEXT line `execution_mode: direct` still authorizes orchestrator self-coding for that session.
-
-## Skill order for new work
-
-1. `brainstorming` (if unclear)
-2. `writing-plans` (unless direct-safe docs)
-3. `nexus run init` + classify
-4. Graphify refresh (skip only for direct-eligible docs/formatting)
-5. Blast script per unit/task (skip only when direct path)
-6. Dispatch implementer (or direct path) → validate handoff → review per profile → script cleanup
-
-## Branch cleanup
-
-`scripts/nexus-branch-cleanup.sh` only. Never implementer branch delete.
-
-## Subagent dispatch
-
-Default roster: orchestrator, implementer, unified-reviewer, spec-reviewer, code-reviewer, reconciler.
-
-Blast **agent** is optional (`install.sh --with-optional-agents`); Graphify is the sole graph provider.
-
-Full gates: `skills/orchestrating/dispatch.md`.
-
-## Agent Selection
-
-- Primary: **orchestrator**
-- Graphify: `graphify query`, `graphify affected`, `graphify update`, `graphify hook install`
-- Scripts: `nexus-blast.js`, `nexus-branch-cleanup.sh`, `nexus-estimate-calls.js`, `nexus-run.js`, `nexus-classify.js`
-
-## Context Preservation
-
-- Machine state: `.opencode/runs/*/state.json`
-- Human context: `.opencode/CONTEXT.md`, plans, tasks, handoffs, `.opencode/reconcile/`
-- Handoffs: require `schema_version: "1.1"` with envelope (`run_id`, `unit_or_task`, `agent`, `base_commit`, `created_at`). Legacy `1.0`/`0.9` migrate as `legacy_unverified` and cannot satisfy completion gates.
-- Direct path (PR A): **existing-diff-only** — `classify --apply` with authoritative non-clean git diff. Two-stage `DIRECT_PREPARING`/`DIRECT_AUTHORIZED` is PR B.
-
-## Red Flags
-
-- "I'll just start coding" → classify + engine transitions + **dispatch implementer** (unless direct-eligible)
-- Dispatch failed → STOP unless `direct_eligible`; never unrestricted self-coding
-- Treating size-only change as `fast` without tiny-internal/docs evidence → use classifier
-- Treating UNKNOWN/stale Graphify or incomplete blast as low risk → never `fast`
-- Finishing without `nexus run` / jq APPROVED gates when review required
-- Dispatching LLM for graph/blast/cleanup/jq
+```bash
+nexus run init --run-id <id>
+nexus run transition --to IMPACT_READY
+nexus run inspect --run-id <id>
+```

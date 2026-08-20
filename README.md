@@ -10,19 +10,21 @@
   <a href="https://nodejs.org/"><img src="https://img.shields.io/badge/node-%E2%89%A520-3c873a?style=flat-square&logo=node.js&logoColor=white" alt="Node.js 20 or newer"></a>
 </p>
 
-<p align="center"><strong>Risk-aware, graph-backed multi-agent development for <a href="https://opencode.ai">OpenCode</a>.</strong></p>
+<p align="center"><strong>Evidence-driven multi-agent development for <a href="https://opencode.ai">OpenCode</a>.</strong></p>
 
-Nexus installs a small, inspectable team of agents into OpenCode. The **orchestrator** plans the work, the **implementer** writes production code, and reviewers check the result — with risk-based review, Graphify impact mapping, and durable run state under `.opencode/`.
+Nexus installs a small, inspectable team of agents into OpenCode. The **orchestrator** plans and gates the work, the **implementer** writes production code, and reviewers check the result — with the **Nexus Impact Engine**, TDD evidence, isolated worktrees, and durable run state under `.opencode/`.
 
 ```text
 you describe the work
         ↓
-orchestrator classifies → plans → maps impact
+orchestrator classifies → plans → impact analysis → baseline
         ↓
-implementer writes code (the only agent that edits production files)
+implementer (fresh, scoped, TDD) writes code
         ↓
-reviewer(s) approve  →  finish
+verify → spec/code review → integrate → final verify → finish
 ```
+
+**Principle:** LLM proposes. Scripts measure. Tests prove. Independent agents review. State machine decides.
 
 Package: [`@mohammad154/opencode-nexus`](https://www.npmjs.com/package/@mohammad154/opencode-nexus) · Node 20+ · MIT
 

@@ -2,6 +2,7 @@
  * Shared helpers for gate-integrity tests (schema 1.1 + sealed artifacts).
  */
 import {
+  sealImpactArtifact,
   sealGraphArtifact,
   sealBlastArtifact,
   CLASSIFY_APPLY_SOURCE,
@@ -32,6 +33,7 @@ export function goodImplementerHandoff(overrides = {}) {
       current_head: "impl222",
       pass: true,
     },
+    impact: { risk: "LOW", verified: true, callers_checked: [] },
     blast: { risk: "LOW", verified: true, callers_checked: [] },
     notes_for_reviewer: "",
     ...overrides,
@@ -43,9 +45,34 @@ export function goodUnifiedHandoff(overrides = {}) {
     ...handoffEnvelope({ agent: "unified-reviewer" }),
     verdict: "APPROVED",
     reviewed_commit: "impl222",
+    impact: { pass: true, risk: "LOW" },
     blast: { pass: true, risk: "LOW" },
     ...overrides,
   };
+}
+
+export function sealedImpact(overrides = {}) {
+  return sealImpactArtifact({
+    schema_version: "1.0",
+    ok: true,
+    provider: "nexus-impact",
+    graph_provider: "nexus-impact",
+    risk: "LOW",
+    level: "LOW",
+    confidence: 0.95,
+    trusted: true,
+    analysis_quality: "PRECISE",
+    graph_quality: "PRECISE",
+    analysis_complete: true,
+    graph_freshness: { valid: true },
+    uncertainties: [],
+    dimensions: {},
+    changed_files: [],
+    changed_symbols: [],
+    direct_dependents: [],
+    related_tests: [],
+    ...overrides,
+  });
 }
 
 export function sealedPreciseGraph(overrides = {}) {
@@ -56,35 +83,33 @@ export function sealedPreciseGraph(overrides = {}) {
     stale: false,
     fresh: true,
     freshness: { valid: true },
-    confidence: 0.75,
-    graph_provider: "graphify",
-    graph_path: "/tmp/graphify-out/graph.json",
-    graphify_out: "/tmp/graphify-out",
-    path: "/tmp/graphify-out/graph.json",
+    confidence: 0.95,
+    graph_provider: "nexus-impact",
+    graph_path: "/tmp/impact/latest.json",
     ...overrides,
   });
 }
 
 export function sealedLowBlast(overrides = {}) {
-  return sealBlastArtifact({
-    risk: "LOW",
-    trusted: true,
-    analysis_quality: "PRECISE",
-    graph_quality: "PRECISE",
-    graph_provider: "graphify",
-    graph_path: "/tmp/graphify-out/graph.json",
-    graph_freshness: { valid: true },
-    analysis_complete: true,
-    uncertainties: [],
-    dimensions: {},
-    ...overrides,
-  });
+  return sealedImpact(overrides);
 }
 
-export function mockTrustProviders({ graph, blast } = {}) {
+export function mockTrustProviders({ impact, graph, blast } = {}) {
+  const i = impact || blast || sealedImpact();
   const g = graph || sealedPreciseGraph();
-  const b = blast || sealedLowBlast();
   return {
+    impactProvider: {
+      analyze() {
+        return {
+          ok: true,
+          report: {
+            ...i,
+            provider_validated: undefined,
+            artifact_digest: undefined,
+          },
+        };
+      },
+    },
     graphProvider: {
       build() {
         return {
@@ -99,17 +124,28 @@ export function mockTrustProviders({ graph, blast } = {}) {
         return {
           ok: true,
           report: {
-            ...b,
+            ...i,
             provider_validated: undefined,
             artifact_digest: undefined,
           },
         };
       },
     },
+    verificationProvider: {
+      discover() {
+        return { ecosystem: "node", steps: [] };
+      },
+      run() {
+        return { ok: true, results: [] };
+      },
+    },
     telemetry: { emit() {} },
     memory: {
       retrieve() {
         return { entries: [] };
+      },
+      record() {
+        return { ok: true };
       },
     },
     editValidator: {
@@ -120,4 +156,4 @@ export function mockTrustProviders({ graph, blast } = {}) {
   };
 }
 
-export { CLASSIFY_APPLY_SOURCE };
+export { CLASSIFY_APPLY_SOURCE, sealImpactArtifact, sealBlastArtifact };

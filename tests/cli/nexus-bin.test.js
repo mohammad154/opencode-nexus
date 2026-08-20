@@ -37,6 +37,7 @@ test("nexus help lists workflow commands", () => {
     "version",
     "project-init",
     "run",
+    "impact",
     "blast",
     "classify",
     "estimate",
@@ -59,7 +60,7 @@ test("nexus rejects unknown commands", () => {
   assert.match(result.stderr, /unknown command: not-a-command/);
 });
 
-test("nexus doctor reports missing graphify without installing", () => {
+test("nexus doctor reports impact-engine without requiring graphify", () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "nexus-doctor-"));
   try {
     const result = invoke(
@@ -72,7 +73,8 @@ test("nexus doctor reports missing graphify without installing", () => {
       home,
     );
     assert.equal(result.status, 1);
-    assert.match(result.stdout, /graphify/);
+    assert.match(result.stdout, /impact-engine/);
+    assert.doesNotMatch(result.stdout, /\bok\s+graphify\b/);
     assert.match(result.stdout, /plugin not configured|no /);
     assert.match(result.stdout, /CLI path:/);
     assert.match(result.stdout, new RegExp(`Nexus ${pkg.version}`));

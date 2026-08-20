@@ -234,4 +234,12 @@ export function validateBlastReport(data) {
   return validate(schema, data, { document: schema });
 }
 
+export function validateImpactReport(data) {
+  const schema = loadSchema("impact-report.schema.json");
+  return validate(schema, data, {
+    document: schema,
+    rootSchemas: loadAllSchemas(),
+  });
+}
+
 export { SCHEMAS_DIR, HANDOFF_SCHEMA };

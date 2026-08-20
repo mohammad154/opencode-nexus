@@ -19,8 +19,9 @@ Commands:
   update         Same as install (idempotent)
   uninstall      Remove Nexus OpenCode agents and plugin config
   project-init   Bootstrap .opencode/ in the current project (external repos)
-  run            Workflow state machine (init, classify, transition, status, ...)
-  blast          Graphify-backed blast-radius analysis
+  run            Workflow state machine (init, classify, transition, status, inspect, ...)
+  impact         Nexus Impact Engine (git + AST + affected tests)
+  blast          Alias for impact (compatibility)
   classify       Risk classifier CLI
   estimate       Estimate minimum agent calls for a plan
   version        Print the package version
@@ -32,8 +33,9 @@ Examples:
   nexus project-init
   nexus run init --run-id demo
   nexus run status
+  nexus run inspect
   nexus classify --files 2 --lines 40 --class small-feature-with-tests --focused
-  nexus blast --files src/app.js --json
+  nexus impact --json
   nexus estimate --tasks 3 --profile balanced
   nexus doctor
 
@@ -56,6 +58,7 @@ Subcommands:
   resume            Resume from durable state
   drift             Assess plan drift
   can-transition    Check if a transition is legal
+  inspect           Trajectory + artifact digests + gate failures
 
 Exit codes: 0 ok, 2 validation failure, 3 illegal transition
 `;
@@ -236,6 +239,10 @@ function cmdBlast(args) {
   runNodeScript("nexus-blast.js", args);
 }
 
+function cmdImpact(args) {
+  runNodeScript("nexus-impact.js", args);
+}
+
 function cmdClassify(args) {
   runNodeScript("nexus-classify.js", args);
 }
@@ -251,13 +258,15 @@ function doctor() {
   const agentsDir = path.join(configDir, "agents");
   const worktree = process.cwd();
   const canonical = [
-    "orchestrator",
-    "implementer",
-    "unified-reviewer",
-    "spec-reviewer",
-    "code-reviewer",
-    "reconciler",
-  ];
+  "orchestrator",
+  "implementer",
+  "unified-reviewer",
+  "spec-reviewer",
+  "code-reviewer",
+  "reconciler",
+  "diagnostician",
+  "integration-reviewer",
+];
 
   const rows = [
     ["node", true, process.version],
@@ -265,9 +274,9 @@ function doctor() {
     ["jq", hasCommand("jq"), hasCommand("jq") ? "found" : "missing (required to install)"],
     ["git", hasCommand("git"), hasCommand("git") ? "found" : "missing"],
     [
-      "graphify",
-      hasCommand("graphify"),
-      hasCommand("graphify") ? "found" : "missing (required to install)",
+      "impact-engine",
+      fs.existsSync(scriptPath("nexus-impact.js")),
+      "scripts/nexus-impact.js (Nexus Impact Engine)",
     ],
     [
       "opencode",
@@ -393,6 +402,9 @@ switch (command) {
     break;
   case "blast":
     cmdBlast(args);
+    break;
+  case "impact":
+    cmdImpact(args);
     break;
   case "classify":
     cmdClassify(args);

@@ -11,6 +11,9 @@ import {
   resolveGraphifyGraphPath,
   resolveGraphifyOut,
 } from "./graphify.js";
+import { createNexusImpactProvider } from "./providers/impact-provider.js";
+import { createVerificationProvider } from "./providers/verification-provider.js";
+import { createMemoryProvider } from "./providers/memory-provider.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, "../..");
@@ -415,40 +418,8 @@ export function createMetricsTelemetry(options = {}) {
 }
 
 export function createLessonsMemory() {
-  return {
-    retrieve(worktree, _query = {}) {
-      const graphifyOut = resolveGraphifyOut(worktree);
-      const tailLen = 2500;
-      const entries = [];
-      const lessons = path.join(graphifyOut, "reflections", "LESSONS.md");
-      if (fs.existsSync(lessons)) {
-        const txt = fs.readFileSync(lessons, "utf8");
-        entries.push(txt.length > tailLen ? txt.slice(-tailLen) : txt);
-      }
-
-      const memoryDir = path.join(graphifyOut, "memory");
-      if (fs.existsSync(memoryDir)) {
-        const files = fs.readdirSync(memoryDir)
-          .filter((file) => file.endsWith(".md"))
-          .sort()
-          .reverse()
-          .slice(0, 3);
-        for (const file of files) {
-          const memory = path.join(memoryDir, file);
-          try {
-            const txt = fs.readFileSync(memory, "utf8");
-            entries.push(txt.length > tailLen ? txt.slice(-tailLen) : txt);
-          } catch {
-            // A concurrently-written Graphify memory file is optional context.
-          }
-        }
-      }
-      return {
-        entries,
-        source: entries.length > 0 ? "graphify-memory-and-reflections" : "none",
-      };
-    },
-  };
+  // V4: prefer .opencode memory; legacy graphify-out remains read-only fallback.
+  return createMemoryProvider();
 }
 
 function graphifyGraphResult(snapshot) {
@@ -1019,7 +990,11 @@ export function getEditValidator() {
 
 export function createDefaultProviders(options = {}) {
   const worktree = options.worktree || process.env.NEXUS_WORKTREE || process.cwd();
+  const impactProvider = createNexusImpactProvider();
   return {
+    impactProvider,
+    verificationProvider: createVerificationProvider(),
+    // Legacy aliases — graph/blast map to impact for V3 callers during migration.
     graphProvider: getGraphProvider(),
     blastProvider: getBlastProvider(),
     telemetry:
@@ -1040,3 +1015,9 @@ export function createDefaultProviders(options = {}) {
     editValidator: getEditValidator(),
   };
 }
+
+export {
+  createNexusImpactProvider,
+  createVerificationProvider,
+  createMemoryProvider,
+};

@@ -1,0 +1,28 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://opencode-nexus.local/schemas/handoff-integration-reviewer.schema.json",
+  "title": "IntegrationReviewerHandoff",
+  "type": "object",
+  "additionalProperties": true,
+  "allOf": [{ "$ref": "handoff-envelope.schema.json" }],
+  "required": [
+    "schema_version",
+    "run_id",
+    "unit_or_task",
+    "agent",
+    "base_commit",
+    "created_at",
+    "verdict",
+    "reviewed_commit"
+  ],
+  "properties": {
+    "schema_version": { "type": "string", "enum": ["1.1"] },
+    "agent": { "type": "string" },
+    "verdict": {
+      "type": "string",
+      "enum": ["APPROVED", "CHANGES_REQUESTED", "BLOCKED"]
+    },
+    "findings": { "type": "array" },
+    "reviewed_commit": { "type": ["string", "null"] }
+  }
+}

@@ -39,6 +39,7 @@ import { assessDrift } from "./lib/drift.js";
 import { assertValidRunId } from "./lib/policy.js";
 import {
   appendTrajectoryStep,
+  readTrajectory,
 } from "./lib/trajectory.js";
 
 function parseArgs(argv) {
@@ -168,6 +169,9 @@ function loadEvidence(flags) {
   }
   if (flags.blast) {
     evidence.blast = JSON.parse(fs.readFileSync(flags.blast, "utf8"));
+  }
+  if (flags.impact) {
+    evidence.impact = JSON.parse(fs.readFileSync(flags.impact, "utf8"));
   }
   if (flags.graph) {
     evidence.graph = JSON.parse(fs.readFileSync(flags.graph, "utf8"));
@@ -376,17 +380,20 @@ function cmdTransition(flags) {
   });
 
   // Provider revalidation happens inside transition(); do not pre-inject
-  // untrusted graph/blast objects as authoritative when providers will rebuild.
-  if (to === "GRAPH_READY" && evidence.graph && !evidence.graph.path) {
-    // Keep path hints only; strip fabricated trust labels before transition
-    if (evidence.graph.trusted === true && !evidence.graph.provider_validated) {
-      delete evidence.graph.trusted;
+  // untrusted impact objects as authoritative when providers will rebuild.
+  if (to === "IMPACT_READY" && evidence.impact && !evidence.impact_path) {
+    if (evidence.impact.trusted === true && !evidence.impact.provider_validated) {
+      delete evidence.impact.trusted;
     }
   }
-  if (to === "BLAST_READY" && evidence.blast && !flags.blast) {
+  if (to === "IMPACT_READY" && evidence.blast && !flags.blast && !flags.impact) {
     if (evidence.blast.trusted === true && !evidence.blast.provider_validated) {
       delete evidence.blast.trusted;
     }
+  }
+
+  if (flags.impact) {
+    evidence.impact = JSON.parse(fs.readFileSync(flags.impact, "utf8"));
   }
 
   const r = smTransition(state, to, evidence, providers);
@@ -518,6 +525,41 @@ function cmdCan(flags) {
   if (!r.ok) process.exit(3);
 }
 
+function cmdInspect(flags) {
+  const state = resolveRun(flags);
+  if (!state) {
+    console.error(JSON.stringify({ ok: false, error: "no run state" }));
+    process.exit(2);
+  }
+  const trajPath = trajectoryFile(state.run_id);
+  let trajectory = [];
+  if (fs.existsSync(trajPath)) {
+    trajectory = readTrajectory(trajPath);
+  }
+  const report = {
+    ok: true,
+    run_id: state.run_id,
+    state: state.state,
+    profile: state.profile,
+    review_level: state.review_level,
+    impact: state.impact
+      ? {
+          risk: state.impact.risk,
+          confidence: state.impact.confidence,
+          artifact_digest: state.impact.artifact_digest,
+          worktree_head: state.impact.worktree_head,
+        }
+      : null,
+    transitions: state.transitions || [],
+    trajectory_steps: trajectory.length,
+    trajectory_path: fs.existsSync(trajPath) ? trajPath : null,
+    gate_failures: trajectory
+      .filter((s) => s.observation?.ok === false)
+      .map((s) => ({ step: s.step, errors: s.observation?.errors })),
+  };
+  console.log(JSON.stringify(report, null, 2));
+}
+
 function main() {
   const args = parseArgs(process.argv.slice(2));
   const cmd = args._[0];
@@ -540,9 +582,11 @@ function main() {
         return cmdDrift(flags);
       case "can-transition":
         return cmdCan(flags);
+      case "inspect":
+        return cmdInspect(flags);
       default:
         console.error(
-          `Unknown or missing command. Use: init|classify|transition|validate-handoff|status|resume|drift|can-transition`,
+          `Unknown or missing command. Use: init|classify|transition|validate-handoff|status|resume|drift|can-transition|inspect`,
         );
         process.exit(2);
     }

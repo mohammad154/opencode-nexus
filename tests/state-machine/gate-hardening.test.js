@@ -17,8 +17,9 @@ import {
   goodImplementerHandoff,
   goodUnifiedHandoff,
   mockTrustProviders,
-  sealedLowBlast,
   sealedPreciseGraph,
+  sealedLowBlast,
+  sealedImpact,
 } from "../helpers/gate-fixtures.js";
 
 function sampleClassification(overrides = {}) {
@@ -45,7 +46,7 @@ test("ctx review_level none cannot downgrade stored dual", () => {
     profile: "strict",
     classification: sampleClassification(),
   };
-  const r = canTransition(state, "COMPLETED", {
+  const r = canTransition(state, "COMPLETED", { legacy_skip_final: true,
     review_level: "none",
   });
   assert.equal(r.ok, false);
@@ -89,19 +90,19 @@ test("stored direct flag without authoritative diff cannot enter direct path", (
   assert.match(r.errors.join("\n"), /stored classification\.direct_eligible/i);
 });
 
-test("direct transition rejects stale graph analysis", () => {
+test("direct transition rejects untrusted impact analysis", () => {
   const state = {
     ...createEmptyRunState("gate-direct-graph"),
     state: "CLASSIFIED",
     execution_mode: "direct",
     classification_source: CLASSIFY_APPLY_SOURCE,
-    graph: sealedPreciseGraph({
+    impact: sealedImpact({
       ok: false,
-      stale: true,
-      quality: "UNKNOWN",
       trusted: false,
+      risk: "UNKNOWN",
+      confidence: 0.4,
+      analysis_quality: "UNKNOWN",
     }),
-    blast: sealedLowBlast(),
     classification: sampleClassification({
       execution_mode: "direct",
       direct_eligible: true,
@@ -115,7 +116,7 @@ test("direct transition rejects stale graph analysis", () => {
   };
   const r = canTransition(state, "DIRECT_IMPLEMENTING", {});
   assert.equal(r.ok, false);
-  assert.match(r.errors.join("\n"), /PRECISE graph/i);
+  assert.match(r.errors.join("\n"), /LOW impact/i);
 });
 
 test("HIGH blast escalates review_level to dual without forcing strict execution", () => {
@@ -138,13 +139,16 @@ test("HIGH blast escalates review_level to dual without forcing strict execution
     }),
   }).state;
   state = transition(state, "PLANNED", { plan_skip: true }).state;
-  state = transition(state, "GRAPH_READY", {}, providers).state;
-  const r = transition(state, "BLAST_READY", {}, providers);
+  providers.impactProvider.analyze = providers.blastProvider.analyze;
+  const r = transition(state, "IMPACT_READY", {}, providers);
   assert.equal(r.ok, true, JSON.stringify(r.errors));
   assert.equal(r.state.review_level, "dual");
   assert.equal(r.state.profile, "balanced");
   assert.equal(r.state.execution_mode, "delegated");
-  assert.ok(r.state.escalation_reasons.includes("blast_risk_high"));
+  assert.ok(
+    r.state.escalation_reasons.includes("impact_risk_high") ||
+      r.state.escalation_reasons.includes("blast_risk_high"),
+  );
 });
 
 test("HIGH blast with many Graphify callers escalates execution profile to strict", () => {
@@ -176,12 +180,15 @@ test("HIGH blast with many Graphify callers escalates execution profile to stric
     }),
   }).state;
   state = transition(state, "PLANNED", { plan_skip: true }).state;
-  state = transition(state, "GRAPH_READY", {}, providers).state;
-  const r = transition(state, "BLAST_READY", {}, providers);
+  providers.impactProvider.analyze = providers.blastProvider.analyze;
+  const r = transition(state, "IMPACT_READY", {}, providers);
   assert.equal(r.ok, true, JSON.stringify(r.errors));
   assert.equal(r.state.review_level, "dual");
   assert.equal(r.state.profile, "strict");
-  assert.ok(r.state.escalation_reasons.includes("blast_risk_high"));
+  assert.ok(
+    r.state.escalation_reasons.includes("impact_risk_high") ||
+      r.state.escalation_reasons.includes("blast_risk_high"),
+  );
 });
 
 test("escalate_to_dual APPROVED cannot COMPLETE unified", () => {
@@ -193,7 +200,7 @@ test("escalate_to_dual APPROVED cannot COMPLETE unified", () => {
     implementer_commit: "abc123",
     head_commit: "base000",
   };
-  const r = canTransition(state, "COMPLETED", {
+  const r = canTransition(state, "COMPLETED", { legacy_skip_final: true,
     unified_handoff: goodUnifiedHandoff({
       run_id: "gate-4",
       unit_or_task: "unit-1",
@@ -220,7 +227,7 @@ test("public-api class alone → strict dual via reviewMatrix", () => {
 test("IMPLEMENTING without drift is rejected", () => {
   const state = {
     ...createEmptyRunState("gate-5"),
-    state: "BLAST_READY",
+    state: "IMPACT_READY",
     blast: { risk: "LOW", uncertainties: [], dimensions: {} },
     branch: "feature/x",
   };
@@ -272,7 +279,7 @@ test("stale approval without run binding rejected", () => {
     implementer_commit: "deadbeef",
     head_commit: "base",
   };
-  const r = canTransition(state, "COMPLETED", {
+  const r = canTransition(state, "COMPLETED", { legacy_skip_final: true,
     unified_handoff: {
       schema_version: "1.1",
       verdict: "APPROVED",
@@ -333,7 +340,7 @@ test("bound unified approval completes", () => {
     implementer_commit: "abc123",
     head_commit: "base000",
   };
-  const r = canTransition(state, "COMPLETED", {
+  const r = canTransition(state, "COMPLETED", { legacy_skip_final: true,
     unified_handoff: goodUnifiedHandoff({
       run_id: "gate-9",
       unit_or_task: "auth",

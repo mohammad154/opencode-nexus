@@ -1,0 +1,5937 @@
+{
+  "bin/nexus.js": {
+    "hash": "e163fd76331973d502e8bf8977960edab2ac38a5957c6df38df78524177a4991",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "bin/nexus.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [
+        {
+          "kind": "function",
+          "name": "fail",
+          "line": 63,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "scriptPath",
+          "line": 68,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "runNodeScript",
+          "line": 76,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "runNodeScriptSync",
+          "line": 95,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "runBash",
+          "line": 107,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "hasCommand",
+          "line": 128,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "pluginEntries",
+          "line": 144,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "isNexusPluginSpec",
+          "line": 148,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "isGitRepo",
+          "line": 157,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "readActiveRunSummary",
+          "line": 165,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "cmdProjectInit",
+          "line": 187,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "cmdRun",
+          "line": 227,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "cmdBlast",
+          "line": 235,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "cmdClassify",
+          "line": 239,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "cmdEstimate",
+          "line": 243,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "doctor",
+          "line": 247,
+          "exported": false
+        }
+      ],
+      "exports": [],
+      "imports": [
+        {
+          "source": "node:child_process",
+          "line": 2,
+          "kind": "esm"
+        },
+        {
+          "source": "node:fs",
+          "line": 3,
+          "kind": "esm"
+        },
+        {
+          "source": "node:os",
+          "line": 4,
+          "kind": "esm"
+        },
+        {
+          "source": "node:path",
+          "line": 5,
+          "kind": "esm"
+        },
+        {
+          "source": "node:url",
+          "line": 6,
+          "kind": "esm"
+        },
+        {
+          "source": "../scripts/lib/project-init.js",
+          "line": 7,
+          "kind": "esm"
+        }
+      ],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  },
+  "scripts/ensure-cli-on-path.js": {
+    "hash": "a30e378c80a002e1f139d99af8b9df69cdd7b96d617a0f9c0b9d9e5cd4288e27",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "scripts/ensure-cli-on-path.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [
+        {
+          "kind": "constant",
+          "name": "SHIM_MARKER",
+          "line": 25,
+          "exported": true
+        },
+        {
+          "kind": "constant",
+          "name": "BIN_NAMES",
+          "line": 26,
+          "exported": true
+        },
+        {
+          "kind": "constant",
+          "name": "RC_MARKER",
+          "line": 27,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "userBinDir",
+          "line": 38,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "isTruthy",
+          "line": 42,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "homeForSudoUser",
+          "line": 46,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "resolveInstallHome",
+          "line": 61,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "isGlobalInstall",
+          "line": 75,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "pathHasDir",
+          "line": 99,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "shimContents",
+          "line": 111,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "isOurShim",
+          "line": 118,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "shimPath",
+          "line": 135,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "writeShims",
+          "line": 141,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "removeShims",
+          "line": 171,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "ensureUserBinOnPath",
+          "line": 184,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "run",
+          "line": 211,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "invokedDirectly",
+          "line": 282,
+          "exported": false
+        }
+      ],
+      "exports": [
+        {
+          "name": "SHIM_MARKER",
+          "kind": "constant",
+          "line": 25
+        },
+        {
+          "name": "BIN_NAMES",
+          "kind": "constant",
+          "line": 26
+        },
+        {
+          "name": "RC_MARKER",
+          "kind": "constant",
+          "line": 27
+        },
+        {
+          "name": "userBinDir",
+          "kind": "function",
+          "line": 38
+        },
+        {
+          "name": "isTruthy",
+          "kind": "function",
+          "line": 42
+        },
+        {
+          "name": "homeForSudoUser",
+          "kind": "function",
+          "line": 46
+        },
+        {
+          "name": "resolveInstallHome",
+          "kind": "function",
+          "line": 61
+        },
+        {
+          "name": "isGlobalInstall",
+          "kind": "function",
+          "line": 75
+        },
+        {
+          "name": "pathHasDir",
+          "kind": "function",
+          "line": 99
+        },
+        {
+          "name": "shimContents",
+          "kind": "function",
+          "line": 111
+        },
+        {
+          "name": "isOurShim",
+          "kind": "function",
+          "line": 118
+        },
+        {
+          "name": "writeShims",
+          "kind": "function",
+          "line": 141
+        },
+        {
+          "name": "removeShims",
+          "kind": "function",
+          "line": 171
+        },
+        {
+          "name": "ensureUserBinOnPath",
+          "kind": "function",
+          "line": 184
+        },
+        {
+          "name": "run",
+          "kind": "function",
+          "line": 211
+        }
+      ],
+      "imports": [
+        {
+          "source": "node:child_process",
+          "line": 11,
+          "kind": "esm"
+        },
+        {
+          "source": "node:fs",
+          "line": 12,
+          "kind": "esm"
+        },
+        {
+          "source": "node:os",
+          "line": 13,
+          "kind": "esm"
+        },
+        {
+          "source": "node:path",
+          "line": 14,
+          "kind": "esm"
+        },
+        {
+          "source": "node:url",
+          "line": 15,
+          "kind": "esm"
+        }
+      ],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  },
+  "scripts/lib/classify.js": {
+    "hash": "7f8921332de1649448a05db50bc4e2bf18ef5cf48ca90931573a63377fb4f9b6",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "scripts/lib/classify.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [
+        {
+          "kind": "function",
+          "name": "migrateV1RulesToV2",
+          "line": 144,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "loadClassificationRules",
+          "line": 175,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "loadWorkflowConfig",
+          "line": 182,
+          "exported": true
+        },
+        {
+          "kind": "constant",
+          "name": "CLASS_FLAGS",
+          "line": 225,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "maxByRank",
+          "line": 243,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "maxProfile",
+          "line": 250,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "maxReview",
+          "line": 254,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "maxExecution",
+          "line": 258,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "reviewLevelFor",
+          "line": 262,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "profileOverrideFor",
+          "line": 284,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "nonNegativeNumber",
+          "line": 295,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "stringArray",
+          "line": 300,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "asObject",
+          "line": 304,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "evidenceForInput",
+          "line": 310,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "allFilesAreTestsOrDocs",
+          "line": 336,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "applyPathSignalRules",
+          "line": 343,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "inferPathSignals",
+          "line": 353,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "blastRiskOf",
+          "line": 375,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "isUnknownBlastEvidence",
+          "line": 381,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "isUnknownGraphEvidence",
+          "line": 398,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "graphifySignalsFrom",
+          "line": 423,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "collectFlags",
+          "line": 457,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "describeEvidenceSource",
+          "line": 541,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "assessEvidenceQuality",
+          "line": 582,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "addWeighted",
+          "line": 636,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "scoreSemanticRisk",
+          "line": 643,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "tinyInternalEvidence",
+          "line": 808,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "applyConfidenceGates",
+          "line": 826,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "classifyStage",
+          "line": 860,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "classify",
+          "line": 869,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "uniqueReasons",
+          "line": 1042,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "finalize",
+          "line": 1054,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "priorInputFrom",
+          "line": 1216,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "reclassifyAfterBlast",
+          "line": 1250,
+          "exported": true
+        }
+      ],
+      "exports": [
+        {
+          "name": "migrateV1RulesToV2",
+          "kind": "function",
+          "line": 144
+        },
+        {
+          "name": "loadClassificationRules",
+          "kind": "function",
+          "line": 175
+        },
+        {
+          "name": "loadWorkflowConfig",
+          "kind": "function",
+          "line": 182
+        },
+        {
+          "name": "CLASS_FLAGS",
+          "kind": "constant",
+          "line": 225
+        },
+        {
+          "name": "classify",
+          "kind": "function",
+          "line": 869
+        },
+        {
+          "name": "reclassifyAfterBlast",
+          "kind": "function",
+          "line": 1250
+        },
+        {
+          "name": "DEFAULT_V2",
+          "kind": "named",
+          "line": 1319
+        },
+        {
+          "name": "DEFAULT_PROFILES",
+          "kind": "named",
+          "line": 1319
+        },
+        {
+          "name": "PROFILE_RANK",
+          "kind": "named",
+          "line": 1319
+        },
+        {
+          "name": "REVIEW_RANK",
+          "kind": "named",
+          "line": 1319
+        }
+      ],
+      "imports": [
+        {
+          "source": "fs",
+          "line": 1,
+          "kind": "esm"
+        },
+        {
+          "source": "path",
+          "line": 2,
+          "kind": "esm"
+        },
+        {
+          "source": "url",
+          "line": 3,
+          "kind": "esm"
+        }
+      ],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  },
+  "scripts/lib/diff-evidence.js": {
+    "hash": "b686bc578b13bda92211bcc7a47ee20920779449c62ed23081938ca0281b1970",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "scripts/lib/diff-evidence.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [
+        {
+          "kind": "function",
+          "name": "runGit",
+          "line": 18,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "normalizePath",
+          "line": 37,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "relativePath",
+          "line": 41,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "parseGitPath",
+          "line": 46,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "patchPath",
+          "line": 55,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "extractExportedSymbols",
+          "line": 60,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "ensurePatchFile",
+          "line": 85,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "parsePatch",
+          "line": 97,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "lineCount",
+          "line": 129,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "exportedSymbolsFromText",
+          "line": 136,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "readJson",
+          "line": 144,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "nearestPackage",
+          "line": 152,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "workspacePatterns",
+          "line": 171,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "workspaceDirectories",
+          "line": 179,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "boundaryForFile",
+          "line": 201,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "uniqueSorted",
+          "line": 208,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "diffCommandSets",
+          "line": 212,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "withNameOnly",
+          "line": 222,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "withUntracked",
+          "line": 226,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "collectGitDiffEvidence",
+          "line": 260,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "mergeGitDiffEvidence",
+          "line": 375,
+          "exported": true
+        }
+      ],
+      "exports": [
+        {
+          "name": "collectGitDiffEvidence",
+          "kind": "function",
+          "line": 260
+        },
+        {
+          "name": "mergeGitDiffEvidence",
+          "kind": "function",
+          "line": 375
+        }
+      ],
+      "imports": [
+        {
+          "source": "fs",
+          "line": 1,
+          "kind": "esm"
+        },
+        {
+          "source": "path",
+          "line": 2,
+          "kind": "esm"
+        },
+        {
+          "source": "child_process",
+          "line": 3,
+          "kind": "esm"
+        }
+      ],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  },
+  "scripts/lib/drift.js": {
+    "hash": "9d69fa04943ccc50a620c27ed1b38e667592528ffce4c61d58143bca5497b82c",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "scripts/lib/drift.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [
+        {
+          "kind": "function",
+          "name": "fileHash",
+          "line": 6,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "assessDrift",
+          "line": 29,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "isPlanCommitAcceptable",
+          "line": 161,
+          "exported": true
+        }
+      ],
+      "exports": [
+        {
+          "name": "assessDrift",
+          "kind": "function",
+          "line": 29
+        },
+        {
+          "name": "isPlanCommitAcceptable",
+          "kind": "function",
+          "line": 161
+        },
+        {
+          "name": "fileHash",
+          "kind": "named",
+          "line": 167
+        }
+      ],
+      "imports": [
+        {
+          "source": "fs",
+          "line": 1,
+          "kind": "esm"
+        },
+        {
+          "source": "path",
+          "line": 2,
+          "kind": "esm"
+        },
+        {
+          "source": "crypto",
+          "line": 3,
+          "kind": "esm"
+        },
+        {
+          "source": "./schema-validate.js",
+          "line": 4,
+          "kind": "esm"
+        }
+      ],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  },
+  "scripts/lib/graphify.js": {
+    "hash": "690ec776385fca15b7c3be3d2ce3c724049b81748da43cdc899493bd3fc4ccda",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "scripts/lib/graphify.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [
+        {
+          "kind": "constant",
+          "name": "GRAPHIFY_RELATIONS",
+          "line": 13,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "asObject",
+          "line": 32,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "slashPath",
+          "line": 38,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "normalizeGraphifyFile",
+          "line": 43,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "resolveGraphifyOut",
+          "line": 67,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "resolveGraphifyGraphPath",
+          "line": 74,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "isCanonicalGraphifyGraphPath",
+          "line": 84,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "currentHead",
+          "line": 93,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "parseJsonFile",
+          "line": 103,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "graphRootFromOutput",
+          "line": 111,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "manifestSourcePath",
+          "line": 122,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "validateGraphifyFreshness",
+          "line": 138,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "nodeId",
+          "line": 233,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "edgeEndpoint",
+          "line": 241,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "normalizeNode",
+          "line": 248,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "normalizeEdge",
+          "line": 257,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "parseGraphifyGraph",
+          "line": 271,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "readGraphifyGraph",
+          "line": 358,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "refreshGraphifyGraph",
+          "line": 452,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "prepareGraphifyGraph",
+          "line": 491,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "mapFilesToGraphifyNodes",
+          "line": 526,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "reverseTraverseGraphify",
+          "line": 540,
+          "exported": true
+        }
+      ],
+      "exports": [
+        {
+          "name": "GRAPHIFY_RELATIONS",
+          "kind": "constant",
+          "line": 13
+        },
+        {
+          "name": "normalizeGraphifyFile",
+          "kind": "function",
+          "line": 43
+        },
+        {
+          "name": "resolveGraphifyOut",
+          "kind": "function",
+          "line": 67
+        },
+        {
+          "name": "resolveGraphifyGraphPath",
+          "kind": "function",
+          "line": 74
+        },
+        {
+          "name": "isCanonicalGraphifyGraphPath",
+          "kind": "function",
+          "line": 84
+        },
+        {
+          "name": "validateGraphifyFreshness",
+          "kind": "function",
+          "line": 138
+        },
+        {
+          "name": "parseGraphifyGraph",
+          "kind": "function",
+          "line": 271
+        },
+        {
+          "name": "readGraphifyGraph",
+          "kind": "function",
+          "line": 358
+        },
+        {
+          "name": "refreshGraphifyGraph",
+          "kind": "function",
+          "line": 452
+        },
+        {
+          "name": "prepareGraphifyGraph",
+          "kind": "function",
+          "line": 491
+        },
+        {
+          "name": "mapFilesToGraphifyNodes",
+          "kind": "function",
+          "line": 526
+        },
+        {
+          "name": "reverseTraverseGraphify",
+          "kind": "function",
+          "line": 540
+        }
+      ],
+      "imports": [
+        {
+          "source": "node:fs",
+          "line": 9,
+          "kind": "esm"
+        },
+        {
+          "source": "node:path",
+          "line": 10,
+          "kind": "esm"
+        },
+        {
+          "source": "node:child_process",
+          "line": 11,
+          "kind": "esm"
+        }
+      ],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  },
+  "scripts/lib/impact/adapters.js": {
+    "hash": "a7c08bb3b1ac4104068ce3774f9c61665bd491f233fad2ee755b74ebfbdb6625",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "scripts/lib/impact/adapters.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [
+        {
+          "kind": "function",
+          "name": "languageForPath",
+          "line": 18,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "adapterSupports",
+          "line": 29,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "extractJsSymbols",
+          "line": 36,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "extractSymbols",
+          "line": 93,
+          "exported": true
+        }
+      ],
+      "exports": [
+        {
+          "name": "languageForPath",
+          "kind": "function",
+          "line": 18
+        },
+        {
+          "name": "adapterSupports",
+          "kind": "function",
+          "line": 29
+        },
+        {
+          "name": "extractJsSymbols",
+          "kind": "function",
+          "line": 36
+        },
+        {
+          "name": "extractSymbols",
+          "kind": "function",
+          "line": 93
+        },
+        {
+          "name": "PARSER_VERSION",
+          "kind": "named",
+          "line": 111
+        }
+      ],
+      "imports": [],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  },
+  "scripts/lib/impact/analyze.js": {
+    "hash": "2c2b2a181820bed3ebc65c3242b1db755e1c9a9df3c21c006dba6de276e7e78f",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "scripts/lib/impact/analyze.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [
+        {
+          "kind": "function",
+          "name": "analyzeImpact",
+          "line": 12,
+          "exported": true
+        }
+      ],
+      "exports": [
+        {
+          "name": "analyzeImpact",
+          "kind": "function",
+          "line": 12
+        },
+        {
+          "name": "collectGitEvidence",
+          "kind": "named",
+          "line": 121
+        }
+      ],
+      "imports": [
+        {
+          "source": "./git.js",
+          "line": 4,
+          "kind": "esm"
+        },
+        {
+          "source": "./imports.js",
+          "line": 5,
+          "kind": "esm"
+        },
+        {
+          "source": "./references.js",
+          "line": 6,
+          "kind": "esm"
+        },
+        {
+          "source": "./tests.js",
+          "line": 7,
+          "kind": "esm"
+        },
+        {
+          "source": "./confidence.js",
+          "line": 8,
+          "kind": "esm"
+        },
+        {
+          "source": "./risk.js",
+          "line": 9,
+          "kind": "esm"
+        },
+        {
+          "source": "./adapters.js",
+          "line": 10,
+          "kind": "esm"
+        }
+      ],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  },
+  "scripts/lib/impact/boundaries.js": {
+    "hash": "9ab707ac97a3c60545f2306354dde139f4cf5137efd471fcee16a757d55baf5f",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "scripts/lib/impact/boundaries.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [
+        {
+          "kind": "function",
+          "name": "normalizeAllowedFiles",
+          "line": 4,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "scopeExpansionNeeded",
+          "line": 12,
+          "exported": true
+        }
+      ],
+      "exports": [
+        {
+          "name": "normalizeAllowedFiles",
+          "kind": "function",
+          "line": 4
+        },
+        {
+          "name": "scopeExpansionNeeded",
+          "kind": "function",
+          "line": 12
+        }
+      ],
+      "imports": [],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  },
+  "scripts/lib/impact/confidence.js": {
+    "hash": "8699a38449659e1c28cd65495592075ad93b9861822e20a46aaf1d529009351d",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "scripts/lib/impact/confidence.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [
+        {
+          "kind": "constant",
+          "name": "CONFIDENCE_THRESHOLDS",
+          "line": 7,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "computeConfidence",
+          "line": 12,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "verificationModeForConfidence",
+          "line": 31,
+          "exported": true
+        }
+      ],
+      "exports": [
+        {
+          "name": "CONFIDENCE_THRESHOLDS",
+          "kind": "constant",
+          "line": 7
+        },
+        {
+          "name": "computeConfidence",
+          "kind": "function",
+          "line": 12
+        },
+        {
+          "name": "verificationModeForConfidence",
+          "kind": "function",
+          "line": 31
+        }
+      ],
+      "imports": [],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  },
+  "scripts/lib/impact/git.js": {
+    "hash": "5e8760698a91df3c071db5779215921fbd7c9fb0ccf69b205f281e6554724b03",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "scripts/lib/impact/git.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [
+        {
+          "kind": "function",
+          "name": "runGit",
+          "line": 6,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "resolveBaseCommit",
+          "line": 19,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "collectGitEvidence",
+          "line": 50,
+          "exported": true
+        }
+      ],
+      "exports": [
+        {
+          "name": "resolveBaseCommit",
+          "kind": "function",
+          "line": 19
+        },
+        {
+          "name": "collectGitEvidence",
+          "kind": "function",
+          "line": 50
+        }
+      ],
+      "imports": [
+        {
+          "source": "node:child_process",
+          "line": 4,
+          "kind": "esm"
+        }
+      ],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  },
+  "scripts/lib/impact/imports.js": {
+    "hash": "71de57ab4ac6a678b7300a8bcc972be787bf214fd731c642b0b3d03c1385031b",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "scripts/lib/impact/imports.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [
+        {
+          "kind": "function",
+          "name": "walkSourceFiles",
+          "line": 15,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "walk",
+          "line": 27,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "resolveImportPath",
+          "line": 51,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "buildImportIndex",
+          "line": 75,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "findSymbolReferences",
+          "line": 121,
+          "exported": true
+        }
+      ],
+      "exports": [
+        {
+          "name": "buildImportIndex",
+          "kind": "function",
+          "line": 75
+        },
+        {
+          "name": "findSymbolReferences",
+          "kind": "function",
+          "line": 121
+        },
+        {
+          "name": "walkSourceFiles",
+          "kind": "named",
+          "line": 145
+        },
+        {
+          "name": "resolveImportPath",
+          "kind": "named",
+          "line": 145
+        }
+      ],
+      "imports": [
+        {
+          "source": "fs",
+          "line": 4,
+          "kind": "esm"
+        },
+        {
+          "source": "path",
+          "line": 5,
+          "kind": "esm"
+        },
+        {
+          "source": "./adapters.js",
+          "line": 6,
+          "kind": "esm"
+        }
+      ],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  },
+  "scripts/lib/impact/references.js": {
+    "hash": "126e6914d566d2c2ba8d827de9ab4e8027ae5e3bc505e7f9e28cfe320fef22d6",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "scripts/lib/impact/references.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [
+        {
+          "kind": "function",
+          "name": "collectChangedSymbols",
+          "line": 6,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "collectDependents",
+          "line": 35,
+          "exported": true
+        }
+      ],
+      "exports": [
+        {
+          "name": "collectChangedSymbols",
+          "kind": "function",
+          "line": 6
+        },
+        {
+          "name": "collectDependents",
+          "kind": "function",
+          "line": 35
+        }
+      ],
+      "imports": [
+        {
+          "source": "./imports.js",
+          "line": 4,
+          "kind": "esm"
+        }
+      ],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  },
+  "scripts/lib/impact/risk.js": {
+    "hash": "0b4767d695d5106448cf37dd79db7518b6dd2aba520c53583c493316945d8edd",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "scripts/lib/impact/risk.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [
+        {
+          "kind": "function",
+          "name": "computeRisk",
+          "line": 22,
+          "exported": true
+        }
+      ],
+      "exports": [
+        {
+          "name": "computeRisk",
+          "kind": "function",
+          "line": 22
+        }
+      ],
+      "imports": [],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  },
+  "scripts/lib/impact/symbols.js": {
+    "hash": "eb5dcc191bf1327bcef4c985b8ef5d3e536774053e8e2fdb87259d493b94b69c",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "scripts/lib/impact/symbols.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [
+        {
+          "kind": "function",
+          "name": "cacheDir",
+          "line": 9,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "ensureCache",
+          "line": 13,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "fileHash",
+          "line": 19,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "loadCache",
+          "line": 23,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "saveCache",
+          "line": 41,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "getCachedSymbols",
+          "line": 48,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "putCachedSymbols",
+          "line": 60,
+          "exported": true
+        }
+      ],
+      "exports": [
+        {
+          "name": "fileHash",
+          "kind": "function",
+          "line": 19
+        },
+        {
+          "name": "loadCache",
+          "kind": "function",
+          "line": 23
+        },
+        {
+          "name": "saveCache",
+          "kind": "function",
+          "line": 41
+        },
+        {
+          "name": "getCachedSymbols",
+          "kind": "function",
+          "line": 48
+        },
+        {
+          "name": "putCachedSymbols",
+          "kind": "function",
+          "line": 60
+        }
+      ],
+      "imports": [
+        {
+          "source": "fs",
+          "line": 4,
+          "kind": "esm"
+        },
+        {
+          "source": "path",
+          "line": 5,
+          "kind": "esm"
+        },
+        {
+          "source": "node:crypto",
+          "line": 6,
+          "kind": "esm"
+        },
+        {
+          "source": "./adapters.js",
+          "line": 7,
+          "kind": "esm"
+        }
+      ],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  },
+  "scripts/lib/impact/tests.js": {
+    "hash": "e70fa211cd7408cdc59aca052121fff6e3b95671aa9505e45ba88676817dbb19",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "scripts/lib/impact/tests.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [
+        {
+          "kind": "function",
+          "name": "isTestPath",
+          "line": 7,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "stem",
+          "line": 16,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "discoverRelatedTests",
+          "line": 21,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "walk",
+          "line": 25,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "discoverAffectedPackages",
+          "line": 75,
+          "exported": true
+        }
+      ],
+      "exports": [
+        {
+          "name": "discoverRelatedTests",
+          "kind": "function",
+          "line": 21
+        },
+        {
+          "name": "discoverAffectedPackages",
+          "kind": "function",
+          "line": 75
+        }
+      ],
+      "imports": [
+        {
+          "source": "fs",
+          "line": 4,
+          "kind": "esm"
+        },
+        {
+          "source": "path",
+          "line": 5,
+          "kind": "esm"
+        }
+      ],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  },
+  "scripts/lib/migrate-artifacts.js": {
+    "hash": "7549011f78ddf97f8aed350176a74e3e174e68041accc95c3b9a41278f334f16",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "scripts/lib/migrate-artifacts.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [
+        {
+          "kind": "function",
+          "name": "nowIso",
+          "line": 11,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "deepClone",
+          "line": 15,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "isLegacyHandoffVersion",
+          "line": 19,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "normalizeHandoff",
+          "line": 30,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "normalizeAndValidateHandoff",
+          "line": 112,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "runsDir",
+          "line": 118,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "runStatePath",
+          "line": 122,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "createEmptyRunState",
+          "line": 142,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "readRunState",
+          "line": 172,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "writeRunState",
+          "line": 187,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "parseContextYamlish",
+          "line": 240,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "inferRunFromContext",
+          "line": 254,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "listRunIds",
+          "line": 394,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "latestRunState",
+          "line": 404,
+          "exported": true
+        }
+      ],
+      "exports": [
+        {
+          "name": "normalizeHandoff",
+          "kind": "function",
+          "line": 30
+        },
+        {
+          "name": "normalizeAndValidateHandoff",
+          "kind": "function",
+          "line": 112
+        },
+        {
+          "name": "runsDir",
+          "kind": "function",
+          "line": 118
+        },
+        {
+          "name": "runStatePath",
+          "kind": "function",
+          "line": 122
+        },
+        {
+          "name": "createEmptyRunState",
+          "kind": "function",
+          "line": 142
+        },
+        {
+          "name": "readRunState",
+          "kind": "function",
+          "line": 172
+        },
+        {
+          "name": "writeRunState",
+          "kind": "function",
+          "line": 187
+        },
+        {
+          "name": "inferRunFromContext",
+          "kind": "function",
+          "line": 254
+        },
+        {
+          "name": "listRunIds",
+          "kind": "function",
+          "line": 394
+        },
+        {
+          "name": "latestRunState",
+          "kind": "function",
+          "line": 404
+        }
+      ],
+      "imports": [
+        {
+          "source": "fs",
+          "line": 1,
+          "kind": "esm"
+        },
+        {
+          "source": "path",
+          "line": 2,
+          "kind": "esm"
+        },
+        {
+          "source": "./schema-validate.js",
+          "line": 3,
+          "kind": "esm"
+        },
+        {
+          "source": "./policy.js",
+          "line": 4,
+          "kind": "esm"
+        }
+      ],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  },
+  "scripts/lib/policy.js": {
+    "hash": "15d6622ae79e9b600ea3a459b2adc376301e3181921081d82f44a374a91ee47a",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "scripts/lib/policy.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [
+        {
+          "kind": "constant",
+          "name": "REVIEW_RANK",
+          "line": 8,
+          "exported": true
+        },
+        {
+          "kind": "constant",
+          "name": "PROFILE_RANK",
+          "line": 9,
+          "exported": true
+        },
+        {
+          "kind": "constant",
+          "name": "EXEC_RANK",
+          "line": 10,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "blastRisk",
+          "line": 12,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "isUnknownBlast",
+          "line": 16,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "isUnknownGraph",
+          "line": 35,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "isTrustedLowRiskBlast",
+          "line": 67,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "hasExplicitBlastVerification",
+          "line": 78,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "maxReview",
+          "line": 84,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "maxProfile",
+          "line": 90,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "maxExecution",
+          "line": 96,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "effectivePolicy",
+          "line": 106,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "applyBlastEscalation",
+          "line": 158,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "applyImpactEscalation",
+          "line": 162,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "isUnknownImpact",
+          "line": 222,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "isTrustedLowRiskImpact",
+          "line": 230,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "hasExplicitImpactVerification",
+          "line": 248,
+          "exported": true
+        },
+        {
+          "kind": "constant",
+          "name": "RUN_ID_RE",
+          "line": 252,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "assertValidRunId",
+          "line": 254,
+          "exported": true
+        }
+      ],
+      "exports": [
+        {
+          "name": "REVIEW_RANK",
+          "kind": "constant",
+          "line": 8
+        },
+        {
+          "name": "PROFILE_RANK",
+          "kind": "constant",
+          "line": 9
+        },
+        {
+          "name": "EXEC_RANK",
+          "kind": "constant",
+          "line": 10
+        },
+        {
+          "name": "blastRisk",
+          "kind": "function",
+          "line": 12
+        },
+        {
+          "name": "isUnknownBlast",
+          "kind": "function",
+          "line": 16
+        },
+        {
+          "name": "isUnknownGraph",
+          "kind": "function",
+          "line": 35
+        },
+        {
+          "name": "isTrustedLowRiskBlast",
+          "kind": "function",
+          "line": 67
+        },
+        {
+          "name": "hasExplicitBlastVerification",
+          "kind": "function",
+          "line": 78
+        },
+        {
+          "name": "maxReview",
+          "kind": "function",
+          "line": 84
+        },
+        {
+          "name": "maxProfile",
+          "kind": "function",
+          "line": 90
+        },
+        {
+          "name": "maxExecution",
+          "kind": "function",
+          "line": 96
+        },
+        {
+          "name": "effectivePolicy",
+          "kind": "function",
+          "line": 106
+        },
+        {
+          "name": "applyBlastEscalation",
+          "kind": "function",
+          "line": 158
+        },
+        {
+          "name": "applyImpactEscalation",
+          "kind": "function",
+          "line": 162
+        },
+        {
+          "name": "isUnknownImpact",
+          "kind": "function",
+          "line": 222
+        },
+        {
+          "name": "isTrustedLowRiskImpact",
+          "kind": "function",
+          "line": 230
+        },
+        {
+          "name": "hasExplicitImpactVerification",
+          "kind": "function",
+          "line": 248
+        },
+        {
+          "name": "RUN_ID_RE",
+          "kind": "constant",
+          "line": 252
+        },
+        {
+          "name": "assertValidRunId",
+          "kind": "function",
+          "line": 254
+        }
+      ],
+      "imports": [
+        {
+          "source": "./classify.js",
+          "line": 1,
+          "kind": "esm"
+        }
+      ],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  },
+  "scripts/lib/project-init.js": {
+    "hash": "3c33068ee8885a6bcb4c4507f624fd9fd7a46a928bc8c23b213eed2c62e53b80",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "scripts/lib/project-init.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [
+        {
+          "kind": "function",
+          "name": "projectInit",
+          "line": 25,
+          "exported": true
+        }
+      ],
+      "exports": [
+        {
+          "name": "projectInit",
+          "kind": "function",
+          "line": 25
+        },
+        {
+          "name": "PROJECT_DIRS",
+          "kind": "named",
+          "line": 75
+        },
+        {
+          "name": "DEFAULT_CONTEXT",
+          "kind": "named",
+          "line": 75
+        }
+      ],
+      "imports": [
+        {
+          "source": "node:fs",
+          "line": 1,
+          "kind": "esm"
+        },
+        {
+          "source": "node:path",
+          "line": 2,
+          "kind": "esm"
+        }
+      ],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  },
+  "scripts/lib/providers/impact-provider.js": {
+    "hash": "cc611a0b29f4a26a44685fd950f05125f08caaf8c112113a5684b720c50bde96",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "scripts/lib/providers/impact-provider.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [
+        {
+          "kind": "function",
+          "name": "createNexusImpactProvider",
+          "line": 9,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "createLegacyGraphBlastImpactBridge",
+          "line": 46,
+          "exported": true
+        }
+      ],
+      "exports": [
+        {
+          "name": "createNexusImpactProvider",
+          "kind": "function",
+          "line": 9
+        },
+        {
+          "name": "createLegacyGraphBlastImpactBridge",
+          "kind": "function",
+          "line": 46
+        }
+      ],
+      "imports": [
+        {
+          "source": "fs",
+          "line": 5,
+          "kind": "esm"
+        },
+        {
+          "source": "path",
+          "line": 6,
+          "kind": "esm"
+        },
+        {
+          "source": "../impact/analyze.js",
+          "line": 7,
+          "kind": "esm"
+        }
+      ],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  },
+  "scripts/lib/providers/memory-provider.js": {
+    "hash": "96a346a9ea2cb67c01d586b8c5f44cb24079edd8fbc9ac7e2abf4eb37479bc2b",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "scripts/lib/providers/memory-provider.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [
+        {
+          "kind": "function",
+          "name": "createMemoryProvider",
+          "line": 7,
+          "exported": true
+        }
+      ],
+      "exports": [
+        {
+          "name": "createMemoryProvider",
+          "kind": "function",
+          "line": 7
+        }
+      ],
+      "imports": [
+        {
+          "source": "fs",
+          "line": 4,
+          "kind": "esm"
+        },
+        {
+          "source": "path",
+          "line": 5,
+          "kind": "esm"
+        }
+      ],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  },
+  "scripts/lib/providers/verification-provider.js": {
+    "hash": "64a6c18fc0920b395c0934e0731a60f4325ec2ec96d1e1f2c0daa6cdae975d35",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "scripts/lib/providers/verification-provider.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [
+        {
+          "kind": "function",
+          "name": "createVerificationProvider",
+          "line": 10,
+          "exported": true
+        }
+      ],
+      "exports": [
+        {
+          "name": "createVerificationProvider",
+          "kind": "function",
+          "line": 10
+        }
+      ],
+      "imports": [
+        {
+          "source": "fs",
+          "line": 4,
+          "kind": "esm"
+        },
+        {
+          "source": "path",
+          "line": 5,
+          "kind": "esm"
+        },
+        {
+          "source": "node:child_process",
+          "line": 6,
+          "kind": "esm"
+        },
+        {
+          "source": "../verification/discover.js",
+          "line": 7,
+          "kind": "esm"
+        },
+        {
+          "source": "../verification/compare.js",
+          "line": 8,
+          "kind": "esm"
+        }
+      ],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  },
+  "scripts/lib/providers.js": {
+    "hash": "887b4a27a5a7f6c062a0cbd1b609f6ea2f1cbcad01bb46480655891fb635a38f",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "scripts/lib/providers.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [
+        {
+          "kind": "function",
+          "name": "normalizeMode",
+          "line": 55,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "getAgentCallBudget",
+          "line": 68,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "unsupportedProviderResult",
+          "line": 102,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "createUnsupportedProvider",
+          "line": 116,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "providerResultMetadata",
+          "line": 128,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "annotateGraphifyBlastReport",
+          "line": 139,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "createNoopTelemetry",
+          "line": 167,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "finiteNonNegative",
+          "line": 177,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "safeMetricLabel",
+          "line": 181,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "safeMetricRunId",
+          "line": 188,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "numericMetric",
+          "line": 192,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "normalizeTokens",
+          "line": 196,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "tokenDataFromEvent",
+          "line": 206,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "sanitizeMetricEvent",
+          "line": 220,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "metricsPathFor",
+          "line": 255,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "addMetricTotals",
+          "line": 269,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "createMetricsTelemetry",
+          "line": 292,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "emit",
+          "line": 305,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "createLessonsMemory",
+          "line": 420,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "graphifyGraphResult",
+          "line": 425,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "createGraphifyGraphProvider",
+          "line": 452,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "createLiteGraphProvider",
+          "line": 506,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "readBlastReport",
+          "line": 510,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "currentGitHead",
+          "line": 518,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "trustedGraphifyBlastReport",
+          "line": 530,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "normalizeUntrustedBlastReport",
+          "line": 556,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "createGraphifyBlastProvider",
+          "line": 578,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "createLiteBlastProvider",
+          "line": 724,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "normalizePathValue",
+          "line": 728,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "collectFileValues",
+          "line": 743,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "collectRawFileValues",
+          "line": 759,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "normalizedFileValues",
+          "line": 774,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "filesFromDiff",
+          "line": 782,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "scopeMatches",
+          "line": 803,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "unsafeAddedLines",
+          "line": 833,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "declaredScopeValue",
+          "line": 849,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "createEditValidator",
+          "line": 867,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "getGraphProvider",
+          "line": 967,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "getBlastProvider",
+          "line": 977,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "getEditValidator",
+          "line": 987,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "createDefaultProviders",
+          "line": 991,
+          "exported": true
+        }
+      ],
+      "exports": [
+        {
+          "name": "getAgentCallBudget",
+          "kind": "function",
+          "line": 68
+        },
+        {
+          "name": "createUnsupportedProvider",
+          "kind": "function",
+          "line": 116
+        },
+        {
+          "name": "createNoopTelemetry",
+          "kind": "function",
+          "line": 167
+        },
+        {
+          "name": "createMetricsTelemetry",
+          "kind": "function",
+          "line": 292
+        },
+        {
+          "name": "createLessonsMemory",
+          "kind": "function",
+          "line": 420
+        },
+        {
+          "name": "createGraphifyGraphProvider",
+          "kind": "function",
+          "line": 452
+        },
+        {
+          "name": "createLiteGraphProvider",
+          "kind": "function",
+          "line": 506
+        },
+        {
+          "name": "createGraphifyBlastProvider",
+          "kind": "function",
+          "line": 578
+        },
+        {
+          "name": "createLiteBlastProvider",
+          "kind": "function",
+          "line": 724
+        },
+        {
+          "name": "createEditValidator",
+          "kind": "function",
+          "line": 867
+        },
+        {
+          "name": "getGraphProvider",
+          "kind": "function",
+          "line": 967
+        },
+        {
+          "name": "getBlastProvider",
+          "kind": "function",
+          "line": 977
+        },
+        {
+          "name": "getEditValidator",
+          "kind": "function",
+          "line": 987
+        },
+        {
+          "name": "createDefaultProviders",
+          "kind": "function",
+          "line": 991
+        }
+      ],
+      "imports": [
+        {
+          "source": "fs",
+          "line": 5,
+          "kind": "esm"
+        },
+        {
+          "source": "path",
+          "line": 6,
+          "kind": "esm"
+        },
+        {
+          "source": "url",
+          "line": 7,
+          "kind": "esm"
+        },
+        {
+          "source": "child_process",
+          "line": 8,
+          "kind": "esm"
+        },
+        {
+          "source": "./providers/impact-provider.js",
+          "line": 14,
+          "kind": "esm"
+        },
+        {
+          "source": "./providers/verification-provider.js",
+          "line": 15,
+          "kind": "esm"
+        },
+        {
+          "source": "./providers/memory-provider.js",
+          "line": 16,
+          "kind": "esm"
+        }
+      ],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  },
+  "scripts/lib/review-protocol.js": {
+    "hash": "2fe500baf90818497f7a06711c961959698e1b60b71a9cc6cd357d131804d9f5",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "scripts/lib/review-protocol.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [
+        {
+          "kind": "function",
+          "name": "normalizeFinding",
+          "line": 4,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "unresolvedHighFindings",
+          "line": 15,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "canSelfApprove",
+          "line": 21,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "fixLoopDecision",
+          "line": 26,
+          "exported": true
+        }
+      ],
+      "exports": [
+        {
+          "name": "normalizeFinding",
+          "kind": "function",
+          "line": 4
+        },
+        {
+          "name": "unresolvedHighFindings",
+          "kind": "function",
+          "line": 15
+        },
+        {
+          "name": "canSelfApprove",
+          "kind": "function",
+          "line": 21
+        },
+        {
+          "name": "fixLoopDecision",
+          "kind": "function",
+          "line": 26
+        }
+      ],
+      "imports": [],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  },
+  "scripts/lib/run-gate.js": {
+    "hash": "41e08c403de5bf6dc2a0c541cf4d06f4e57a23f5769248131fcb89dbe203bee2",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "scripts/lib/run-gate.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [
+        {
+          "kind": "function",
+          "name": "resolveState",
+          "line": 17,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "buildRunGateReminder",
+          "line": 31,
+          "exported": true
+        }
+      ],
+      "exports": [
+        {
+          "name": "buildRunGateReminder",
+          "kind": "function",
+          "line": 31
+        },
+        {
+          "name": "TERMINAL_RUN_STATES",
+          "kind": "named",
+          "line": 79
+        },
+        {
+          "name": "PRE_IMPLEMENTING",
+          "kind": "named",
+          "line": 79
+        },
+        {
+          "name": "IMPLEMENTING_STATES",
+          "kind": "named",
+          "line": 79
+        }
+      ],
+      "imports": [],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  },
+  "scripts/lib/schema-validate.js": {
+    "hash": "4387201f628b8c3aef0cbaf23c1b9f2560d6a35eac1e567a7b0c193c8b94e66d",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "scripts/lib/schema-validate.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [
+        {
+          "kind": "function",
+          "name": "isObject",
+          "line": 17,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "typeOf",
+          "line": 21,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "matchesType",
+          "line": 27,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "validate",
+          "line": 42,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "fail",
+          "line": 47,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "resolveRef",
+          "line": 51,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "check",
+          "line": 71,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "loadSchema",
+          "line": 179,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "loadAllSchemas",
+          "line": 189,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "validateHandoff",
+          "line": 199,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "validateRunState",
+          "line": 214,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "validateClassification",
+          "line": 222,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "validateDriftReport",
+          "line": 227,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "validateBlastReport",
+          "line": 232,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "validateImpactReport",
+          "line": 237,
+          "exported": true
+        }
+      ],
+      "exports": [
+        {
+          "name": "validate",
+          "kind": "function",
+          "line": 42
+        },
+        {
+          "name": "loadSchema",
+          "kind": "function",
+          "line": 179
+        },
+        {
+          "name": "loadAllSchemas",
+          "kind": "function",
+          "line": 189
+        },
+        {
+          "name": "validateHandoff",
+          "kind": "function",
+          "line": 199
+        },
+        {
+          "name": "validateRunState",
+          "kind": "function",
+          "line": 214
+        },
+        {
+          "name": "validateClassification",
+          "kind": "function",
+          "line": 222
+        },
+        {
+          "name": "validateDriftReport",
+          "kind": "function",
+          "line": 227
+        },
+        {
+          "name": "validateBlastReport",
+          "kind": "function",
+          "line": 232
+        },
+        {
+          "name": "validateImpactReport",
+          "kind": "function",
+          "line": 237
+        },
+        {
+          "name": "SCHEMAS_DIR",
+          "kind": "named",
+          "line": 245
+        },
+        {
+          "name": "HANDOFF_SCHEMA",
+          "kind": "named",
+          "line": 245
+        }
+      ],
+      "imports": [
+        {
+          "source": "fs",
+          "line": 1,
+          "kind": "esm"
+        },
+        {
+          "source": "path",
+          "line": 2,
+          "kind": "esm"
+        },
+        {
+          "source": "url",
+          "line": 3,
+          "kind": "esm"
+        }
+      ],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  },
+  "scripts/lib/scope-lock.js": {
+    "hash": "97c10283497f1b9508213c3f86f70b18909b65a29264fb9395a7f22cf464d285",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "scripts/lib/scope-lock.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [
+        {
+          "kind": "function",
+          "name": "assertScopeLock",
+          "line": 6,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "buildFreshImplementerContext",
+          "line": 21,
+          "exported": true
+        }
+      ],
+      "exports": [
+        {
+          "name": "assertScopeLock",
+          "kind": "function",
+          "line": 6
+        },
+        {
+          "name": "buildFreshImplementerContext",
+          "kind": "function",
+          "line": 21
+        }
+      ],
+      "imports": [
+        {
+          "source": "./impact/boundaries.js",
+          "line": 4,
+          "kind": "esm"
+        }
+      ],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  },
+  "scripts/lib/state-machine.js": {
+    "hash": "c0c6a9220172f18554f3898439ef5c019e7a3ccedbd592bfbf7b42bcb50d839c",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "scripts/lib/state-machine.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [
+        {
+          "kind": "constant",
+          "name": "STATES",
+          "line": 28,
+          "exported": true
+        },
+        {
+          "kind": "constant",
+          "name": "LINEAR",
+          "line": 43,
+          "exported": true
+        },
+        {
+          "kind": "constant",
+          "name": "CLASSIFY_APPLY_SOURCE",
+          "line": 56,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "nowIso",
+          "line": 58,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "exists",
+          "line": 62,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "sha256Digest",
+          "line": 66,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "stableStringify",
+          "line": 70,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "sealImpactArtifact",
+          "line": 85,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "sealGraphArtifact",
+          "line": 99,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "sealBlastArtifact",
+          "line": 104,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "verifySealedArtifact",
+          "line": 108,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "gitRevParse",
+          "line": 116,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "gitIsAncestor",
+          "line": 126,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "requiredEvidence",
+          "line": 139,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "sharedHandoffBindingErrors",
+          "line": 163,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "bindImplementerHandoffErrors",
+          "line": 196,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "bindReviewerHandoffErrors",
+          "line": 239,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "verificationPolicyExempt",
+          "line": 264,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "assertVerificationGates",
+          "line": 269,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "isProviderTrustedImpact",
+          "line": 318,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "revalidateTransitionEvidence",
+          "line": 325,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "canTransition",
+          "line": 423,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "canSelfApproveSafe",
+          "line": 840,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "unresolvedHighFromCtx",
+          "line": 846,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "transition",
+          "line": 863,
+          "exported": true
+        }
+      ],
+      "exports": [
+        {
+          "name": "STATES",
+          "kind": "constant",
+          "line": 28
+        },
+        {
+          "name": "LINEAR",
+          "kind": "constant",
+          "line": 43
+        },
+        {
+          "name": "CLASSIFY_APPLY_SOURCE",
+          "kind": "constant",
+          "line": 56
+        },
+        {
+          "name": "sealImpactArtifact",
+          "kind": "function",
+          "line": 85
+        },
+        {
+          "name": "sealGraphArtifact",
+          "kind": "function",
+          "line": 99
+        },
+        {
+          "name": "sealBlastArtifact",
+          "kind": "function",
+          "line": 104
+        },
+        {
+          "name": "verifySealedArtifact",
+          "kind": "function",
+          "line": 108
+        },
+        {
+          "name": "requiredEvidence",
+          "kind": "function",
+          "line": 139
+        },
+        {
+          "name": "bindImplementerHandoffErrors",
+          "kind": "function",
+          "line": 196
+        },
+        {
+          "name": "bindReviewerHandoffErrors",
+          "kind": "function",
+          "line": 239
+        },
+        {
+          "name": "revalidateTransitionEvidence",
+          "kind": "function",
+          "line": 325
+        },
+        {
+          "name": "canTransition",
+          "kind": "function",
+          "line": 423
+        },
+        {
+          "name": "transition",
+          "kind": "function",
+          "line": 863
+        },
+        {
+          "name": "effectivePolicy",
+          "kind": "named",
+          "line": 1003
+        },
+        {
+          "name": "maxReview",
+          "kind": "named",
+          "line": 1003
+        }
+      ],
+      "imports": [
+        {
+          "source": "fs",
+          "line": 1,
+          "kind": "esm"
+        },
+        {
+          "source": "path",
+          "line": 2,
+          "kind": "esm"
+        },
+        {
+          "source": "node:child_process",
+          "line": 3,
+          "kind": "esm"
+        },
+        {
+          "source": "node:crypto",
+          "line": 4,
+          "kind": "esm"
+        },
+        {
+          "source": "./migrate-artifacts.js",
+          "line": 5,
+          "kind": "esm"
+        },
+        {
+          "source": "./drift.js",
+          "line": 12,
+          "kind": "esm"
+        },
+        {
+          "source": "./providers.js",
+          "line": 13,
+          "kind": "esm"
+        }
+      ],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  },
+  "scripts/lib/task-dag.js": {
+    "hash": "ede58fac62f7550768688cb9360e9bdc3a5a318b913537f7d961c0aeb0826784",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "scripts/lib/task-dag.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [
+        {
+          "kind": "function",
+          "name": "buildTaskDag",
+          "line": 5,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "detectCycle",
+          "line": 24,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "visit",
+          "line": 27,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "sharesFiles",
+          "line": 46,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "readyTasks",
+          "line": 55,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "scheduleParallel",
+          "line": 67,
+          "exported": true
+        }
+      ],
+      "exports": [
+        {
+          "name": "buildTaskDag",
+          "kind": "function",
+          "line": 5
+        },
+        {
+          "name": "detectCycle",
+          "kind": "function",
+          "line": 24
+        },
+        {
+          "name": "readyTasks",
+          "kind": "function",
+          "line": 55
+        },
+        {
+          "name": "scheduleParallel",
+          "kind": "function",
+          "line": 67
+        }
+      ],
+      "imports": [],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  },
+  "scripts/lib/trajectory.js": {
+    "hash": "653cf590ed98ffeb24e3a5e8d1e311eb377db10396e23525a5720691bf970ed8",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "scripts/lib/trajectory.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [
+        {
+          "kind": "function",
+          "name": "withLock",
+          "line": 11,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "assertStep",
+          "line": 53,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "appendTrajectoryStep",
+          "line": 73,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "readTrajectory",
+          "line": 103,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "replayTrajectory",
+          "line": 131,
+          "exported": true
+        }
+      ],
+      "exports": [
+        {
+          "name": "appendTrajectoryStep",
+          "kind": "function",
+          "line": 73
+        },
+        {
+          "name": "readTrajectory",
+          "kind": "function",
+          "line": 103
+        },
+        {
+          "name": "replayTrajectory",
+          "kind": "function",
+          "line": 131
+        }
+      ],
+      "imports": [
+        {
+          "source": "fs",
+          "line": 1,
+          "kind": "esm"
+        },
+        {
+          "source": "path",
+          "line": 2,
+          "kind": "esm"
+        }
+      ],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  },
+  "scripts/lib/verification/compare.js": {
+    "hash": "889c640b2fa9e0cb2ccad0a48587f21ab7cccfcda32ce0a587737b6292b8304b",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "scripts/lib/verification/compare.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [
+        {
+          "kind": "function",
+          "name": "compareBaselines",
+          "line": 4,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "verificationLadder",
+          "line": 38,
+          "exported": true
+        }
+      ],
+      "exports": [
+        {
+          "name": "compareBaselines",
+          "kind": "function",
+          "line": 4
+        },
+        {
+          "name": "verificationLadder",
+          "kind": "function",
+          "line": 38
+        }
+      ],
+      "imports": [],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  },
+  "scripts/lib/verification/discover.js": {
+    "hash": "848e73d7bd45ad5a717c3cd29c27aa5a4a44fdc763700e8b08b75a49f9c11979",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "scripts/lib/verification/discover.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [
+        {
+          "kind": "function",
+          "name": "hasCmd",
+          "line": 7,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "discoverVerification",
+          "line": 12,
+          "exported": true
+        }
+      ],
+      "exports": [
+        {
+          "name": "discoverVerification",
+          "kind": "function",
+          "line": 12
+        },
+        {
+          "name": "hasCmd",
+          "kind": "named",
+          "line": 70
+        }
+      ],
+      "imports": [
+        {
+          "source": "fs",
+          "line": 4,
+          "kind": "esm"
+        },
+        {
+          "source": "path",
+          "line": 5,
+          "kind": "esm"
+        }
+      ],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  },
+  "scripts/lib/verification/generic.js": {
+    "hash": "788b94dc6ae0517c2406dee7a1945c0d8a33b61666c50a51f6bf45151cdb8d4a",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "scripts/lib/verification/generic.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [
+        {
+          "kind": "function",
+          "name": "genericSteps",
+          "line": 1,
+          "exported": true
+        }
+      ],
+      "exports": [
+        {
+          "name": "genericSteps",
+          "kind": "function",
+          "line": 1
+        }
+      ],
+      "imports": [],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  },
+  "scripts/lib/verification/go.js": {
+    "hash": "2e033106bcbdaa03499358847988410a15fd703efe71a02b940ea74acb4f8e52",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "scripts/lib/verification/go.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [
+        {
+          "kind": "function",
+          "name": "goSteps",
+          "line": 1,
+          "exported": true
+        }
+      ],
+      "exports": [
+        {
+          "name": "goSteps",
+          "kind": "function",
+          "line": 1
+        }
+      ],
+      "imports": [],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  },
+  "scripts/lib/verification/node.js": {
+    "hash": "38b60b548cad0fdeb58b8585b4665d24bece2b7368e9791887f88b0f40178dac",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "scripts/lib/verification/node.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [
+        {
+          "kind": "function",
+          "name": "nodeSteps",
+          "line": 2,
+          "exported": true
+        }
+      ],
+      "exports": [
+        {
+          "name": "nodeSteps",
+          "kind": "function",
+          "line": 2
+        }
+      ],
+      "imports": [],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  },
+  "scripts/lib/verification/python.js": {
+    "hash": "eb44dc314248e357f897cb2fea97e12ef402a2d819722e9b8c04fde9cecafba8",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "scripts/lib/verification/python.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [
+        {
+          "kind": "function",
+          "name": "pythonSteps",
+          "line": 1,
+          "exported": true
+        }
+      ],
+      "exports": [
+        {
+          "name": "pythonSteps",
+          "kind": "function",
+          "line": 1
+        }
+      ],
+      "imports": [],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  },
+  "scripts/lib/verification/rust.js": {
+    "hash": "724685b1188b157d14e04148926799812779dbde163fd75b168d901be731d4e7",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "scripts/lib/verification/rust.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [
+        {
+          "kind": "function",
+          "name": "rustSteps",
+          "line": 1,
+          "exported": true
+        }
+      ],
+      "exports": [
+        {
+          "name": "rustSteps",
+          "kind": "function",
+          "line": 1
+        }
+      ],
+      "imports": [],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  },
+  "scripts/lib/worktree.js": {
+    "hash": "cb4cedf3d98380c653e737ca2db14f9274c3c6403a803cb03b47216cb1b48042",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "scripts/lib/worktree.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [
+        {
+          "kind": "function",
+          "name": "run",
+          "line": 8,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "worktreeRoot",
+          "line": 12,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "createTaskWorktree",
+          "line": 16,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "removeTaskWorktree",
+          "line": 38,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "listTaskWorktrees",
+          "line": 46,
+          "exported": true
+        }
+      ],
+      "exports": [
+        {
+          "name": "worktreeRoot",
+          "kind": "function",
+          "line": 12
+        },
+        {
+          "name": "createTaskWorktree",
+          "kind": "function",
+          "line": 16
+        },
+        {
+          "name": "removeTaskWorktree",
+          "kind": "function",
+          "line": 38
+        },
+        {
+          "name": "listTaskWorktrees",
+          "kind": "function",
+          "line": 46
+        }
+      ],
+      "imports": [
+        {
+          "source": "fs",
+          "line": 4,
+          "kind": "esm"
+        },
+        {
+          "source": "path",
+          "line": 5,
+          "kind": "esm"
+        },
+        {
+          "source": "node:child_process",
+          "line": 6,
+          "kind": "esm"
+        }
+      ],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  },
+  "scripts/nexus-blast.js": {
+    "hash": "8a5dd729b3d212e86413d829ade6cd32c4cbc4a0b5c256f783f75aa04cfd51c8",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "scripts/nexus-blast.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [],
+      "exports": [],
+      "imports": [
+        {
+          "source": "node:child_process",
+          "line": 6,
+          "kind": "esm"
+        },
+        {
+          "source": "path",
+          "line": 7,
+          "kind": "esm"
+        },
+        {
+          "source": "url",
+          "line": 8,
+          "kind": "esm"
+        }
+      ],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  },
+  "scripts/nexus-classify.js": {
+    "hash": "2459e4f9a7a5260e99965f34ec2272aa706768105a9079448ea267c52e61556a",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "scripts/nexus-classify.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [
+        {
+          "kind": "function",
+          "name": "parseArgs",
+          "line": 14,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "classifyFromArgs",
+          "line": 58,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "main",
+          "line": 104,
+          "exported": true
+        }
+      ],
+      "exports": [
+        {
+          "name": "classifyFromArgs",
+          "kind": "function",
+          "line": 58
+        },
+        {
+          "name": "main",
+          "kind": "function",
+          "line": 104
+        }
+      ],
+      "imports": [
+        {
+          "source": "fs",
+          "line": 5,
+          "kind": "esm"
+        },
+        {
+          "source": "path",
+          "line": 6,
+          "kind": "esm"
+        },
+        {
+          "source": "url",
+          "line": 7,
+          "kind": "esm"
+        },
+        {
+          "source": "./lib/classify.js",
+          "line": 8,
+          "kind": "esm"
+        }
+      ],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  },
+  "scripts/nexus-estimate-calls.js": {
+    "hash": "9864d4720106fe807763314d1992ab0ab407d3c5c306e131c7879a8492a0f09b",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "scripts/nexus-estimate-calls.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [
+        {
+          "kind": "function",
+          "name": "flag",
+          "line": 13,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "callsForUnit",
+          "line": 45,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "breakdownFor",
+          "line": 50,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "estimate",
+          "line": 67,
+          "exported": false
+        }
+      ],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  },
+  "scripts/nexus-impact.js": {
+    "hash": "6040934322dfbdd0614f1538a216acae24d3e493fa970409927ae594908815cd",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "scripts/nexus-impact.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [
+        {
+          "kind": "function",
+          "name": "parseArgs",
+          "line": 13,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "main",
+          "line": 26,
+          "exported": false
+        }
+      ],
+      "exports": [],
+      "imports": [
+        {
+          "source": "fs",
+          "line": 6,
+          "kind": "esm"
+        },
+        {
+          "source": "path",
+          "line": 7,
+          "kind": "esm"
+        },
+        {
+          "source": "url",
+          "line": 8,
+          "kind": "esm"
+        },
+        {
+          "source": "./lib/impact/analyze.js",
+          "line": 9,
+          "kind": "esm"
+        }
+      ],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  },
+  "scripts/nexus-run.js": {
+    "hash": "13b99b4838ca2fe4862671e0b50765d3a7b88632f5eea8d56a4e97818f7d565b",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "scripts/nexus-run.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [
+        {
+          "kind": "function",
+          "name": "parseArgs",
+          "line": 44,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "worktree",
+          "line": 63,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "runIdForFlags",
+          "line": 67,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "redact",
+          "line": 76,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "trajectoryFile",
+          "line": 92,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "recordTrajectory",
+          "line": 96,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "failCli",
+          "line": 116,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "loadEvidence",
+          "line": 126,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "resolveRun",
+          "line": 182,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "defaultRunId",
+          "line": 202,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "cmdInit",
+          "line": 211,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "cmdClassify",
+          "line": 240,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "resolvedRunUnits",
+          "line": 349,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "cmdTransition",
+          "line": 359,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "cmdValidateHandoff",
+          "line": 419,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "cmdStatus",
+          "line": 446,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "cmdResume",
+          "line": 458,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "cmdDrift",
+          "line": 499,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "cmdCan",
+          "line": 512,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "main",
+          "line": 527,
+          "exported": false
+        }
+      ],
+      "exports": [],
+      "imports": [
+        {
+          "source": "fs",
+          "line": 15,
+          "kind": "esm"
+        },
+        {
+          "source": "path",
+          "line": 16,
+          "kind": "esm"
+        },
+        {
+          "source": "node:crypto",
+          "line": 17,
+          "kind": "esm"
+        },
+        {
+          "source": "node:child_process",
+          "line": 18,
+          "kind": "esm"
+        },
+        {
+          "source": "./lib/classify.js",
+          "line": 27,
+          "kind": "esm"
+        },
+        {
+          "source": "./lib/providers.js",
+          "line": 37,
+          "kind": "esm"
+        },
+        {
+          "source": "./lib/drift.js",
+          "line": 38,
+          "kind": "esm"
+        },
+        {
+          "source": "./lib/policy.js",
+          "line": 39,
+          "kind": "esm"
+        }
+      ],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  },
+  "tests/blast/blast-output.test.js": {
+    "hash": "d225612041da7a808a61efb75fdb7e27ae2c7ca93d30c27c4337cdad819d4cc8",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "tests/blast/blast-output.test.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [],
+      "exports": [],
+      "imports": [
+        {
+          "source": "node:test",
+          "line": 4,
+          "kind": "esm"
+        },
+        {
+          "source": "node:assert/strict",
+          "line": 5,
+          "kind": "esm"
+        },
+        {
+          "source": "node:fs",
+          "line": 6,
+          "kind": "esm"
+        },
+        {
+          "source": "os",
+          "line": 7,
+          "kind": "esm"
+        },
+        {
+          "source": "path",
+          "line": 8,
+          "kind": "esm"
+        },
+        {
+          "source": "node:child_process",
+          "line": 9,
+          "kind": "esm"
+        },
+        {
+          "source": "node:url",
+          "line": 10,
+          "kind": "esm"
+        }
+      ],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  },
+  "tests/blast/blast-provenance.test.js": {
+    "hash": "e57348377a763ef1fef2d55ba74ddd2d41e9b9c72c08b8c06d2294b9ffc60868",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "tests/blast/blast-provenance.test.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [
+        {
+          "kind": "function",
+          "name": "tempDir",
+          "line": 9,
+          "exported": false
+        }
+      ],
+      "exports": [],
+      "imports": [
+        {
+          "source": "node:test",
+          "line": 1,
+          "kind": "esm"
+        },
+        {
+          "source": "node:assert/strict",
+          "line": 2,
+          "kind": "esm"
+        },
+        {
+          "source": "node:fs",
+          "line": 3,
+          "kind": "esm"
+        },
+        {
+          "source": "node:os",
+          "line": 4,
+          "kind": "esm"
+        },
+        {
+          "source": "node:path",
+          "line": 5,
+          "kind": "esm"
+        },
+        {
+          "source": "node:child_process",
+          "line": 6,
+          "kind": "esm"
+        },
+        {
+          "source": "../../scripts/lib/providers.js",
+          "line": 7,
+          "kind": "esm"
+        }
+      ],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  },
+  "tests/classify/classify.test.js": {
+    "hash": "da9b819d881cc7a26c2c396f2ae6139676f3865441a2dddfe1b7a41028a04b24",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "tests/classify/classify.test.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [],
+      "exports": [],
+      "imports": [
+        {
+          "source": "node:test",
+          "line": 1,
+          "kind": "esm"
+        },
+        {
+          "source": "node:assert/strict",
+          "line": 2,
+          "kind": "esm"
+        }
+      ],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  },
+  "tests/classify/diff-evidence.test.js": {
+    "hash": "6a60f644c0e1805420d7b9f5d3d7bf10a02498e1724e348d2b96e267eac58acb",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "tests/classify/diff-evidence.test.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [
+        {
+          "kind": "function",
+          "name": "git",
+          "line": 14,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "writeFile",
+          "line": 22,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "createGitRepo",
+          "line": 28,
+          "exported": false
+        }
+      ],
+      "exports": [],
+      "imports": [
+        {
+          "source": "node:test",
+          "line": 1,
+          "kind": "esm"
+        },
+        {
+          "source": "node:assert/strict",
+          "line": 2,
+          "kind": "esm"
+        },
+        {
+          "source": "fs",
+          "line": 3,
+          "kind": "esm"
+        },
+        {
+          "source": "os",
+          "line": 4,
+          "kind": "esm"
+        },
+        {
+          "source": "path",
+          "line": 5,
+          "kind": "esm"
+        },
+        {
+          "source": "child_process",
+          "line": 6,
+          "kind": "esm"
+        },
+        {
+          "source": "../../scripts/lib/classify.js",
+          "line": 7,
+          "kind": "esm"
+        },
+        {
+          "source": "../../scripts/nexus-classify.js",
+          "line": 8,
+          "kind": "esm"
+        }
+      ],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  },
+  "tests/classify/hard-signal-bypass.test.js": {
+    "hash": "0337888de4c575aafaefece18fb23b5e4ebb50666c150222b06edc4077f7929d",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "tests/classify/hard-signal-bypass.test.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [],
+      "exports": [],
+      "imports": [
+        {
+          "source": "node:test",
+          "line": 1,
+          "kind": "esm"
+        },
+        {
+          "source": "node:assert/strict",
+          "line": 2,
+          "kind": "esm"
+        },
+        {
+          "source": "../../scripts/lib/classify.js",
+          "line": 3,
+          "kind": "esm"
+        }
+      ],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  },
+  "tests/classify/semantic-regression.test.js": {
+    "hash": "be4a881ad3649719494009cc497d30137029e6d3b2e832f4bdeacca122db8bd6",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "tests/classify/semantic-regression.test.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [
+        {
+          "kind": "function",
+          "name": "expectDecision",
+          "line": 9,
+          "exported": false
+        }
+      ],
+      "exports": [],
+      "imports": [
+        {
+          "source": "node:test",
+          "line": 1,
+          "kind": "esm"
+        },
+        {
+          "source": "node:assert/strict",
+          "line": 2,
+          "kind": "esm"
+        }
+      ],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  },
+  "tests/cli/ensure-cli-on-path.test.js": {
+    "hash": "7725eef47a92024956d8eecf54824343402368bc241dfc67686d0c658c1b4312",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "tests/cli/ensure-cli-on-path.test.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [
+        {
+          "kind": "function",
+          "name": "tempHome",
+          "line": 28,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "silentLog",
+          "line": 32,
+          "exported": false
+        }
+      ],
+      "exports": [],
+      "imports": [
+        {
+          "source": "node:test",
+          "line": 1,
+          "kind": "esm"
+        },
+        {
+          "source": "node:assert/strict",
+          "line": 2,
+          "kind": "esm"
+        },
+        {
+          "source": "node:fs",
+          "line": 3,
+          "kind": "esm"
+        },
+        {
+          "source": "node:os",
+          "line": 4,
+          "kind": "esm"
+        },
+        {
+          "source": "node:path",
+          "line": 5,
+          "kind": "esm"
+        },
+        {
+          "source": "node:url",
+          "line": 6,
+          "kind": "esm"
+        }
+      ],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  },
+  "tests/cli/nexus-bin.test.js": {
+    "hash": "3ed55a59504d71a3cc33b9e58f63a66ddef6b7d3f049c58b1cf3fb34e512f9ed",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "tests/cli/nexus-bin.test.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [
+        {
+          "kind": "function",
+          "name": "invoke",
+          "line": 15,
+          "exported": false
+        }
+      ],
+      "exports": [],
+      "imports": [
+        {
+          "source": "node:test",
+          "line": 1,
+          "kind": "esm"
+        },
+        {
+          "source": "node:assert/strict",
+          "line": 2,
+          "kind": "esm"
+        },
+        {
+          "source": "node:fs",
+          "line": 3,
+          "kind": "esm"
+        },
+        {
+          "source": "node:os",
+          "line": 4,
+          "kind": "esm"
+        },
+        {
+          "source": "node:path",
+          "line": 5,
+          "kind": "esm"
+        },
+        {
+          "source": "node:child_process",
+          "line": 6,
+          "kind": "esm"
+        },
+        {
+          "source": "node:url",
+          "line": 7,
+          "kind": "esm"
+        },
+        {
+          "source": "../../scripts/lib/project-init.js",
+          "line": 8,
+          "kind": "esm"
+        },
+        {
+          "source": "../../scripts/lib/run-gate.js",
+          "line": 9,
+          "kind": "esm"
+        }
+      ],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  },
+  "tests/cli/run-init.test.js": {
+    "hash": "c5d9fcbea0f4c7da5b64d8c8bb1ec4b464da2eb08fe9795f3cc5a4a65d0af0a3",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "tests/cli/run-init.test.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [
+        {
+          "kind": "function",
+          "name": "makeRepo",
+          "line": 12,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "invoke",
+          "line": 18,
+          "exported": false
+        }
+      ],
+      "exports": [],
+      "imports": [
+        {
+          "source": "node:test",
+          "line": 1,
+          "kind": "esm"
+        },
+        {
+          "source": "node:assert/strict",
+          "line": 2,
+          "kind": "esm"
+        },
+        {
+          "source": "node:fs",
+          "line": 3,
+          "kind": "esm"
+        },
+        {
+          "source": "node:os",
+          "line": 4,
+          "kind": "esm"
+        },
+        {
+          "source": "node:path",
+          "line": 5,
+          "kind": "esm"
+        },
+        {
+          "source": "node:child_process",
+          "line": 6,
+          "kind": "esm"
+        },
+        {
+          "source": "node:url",
+          "line": 7,
+          "kind": "esm"
+        }
+      ],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  },
+  "tests/drift/drift.test.js": {
+    "hash": "fc38b17da38b720452a9bd29419dbe4e0bebfa713e2991269d8391059ca39ae9",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "tests/drift/drift.test.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [],
+      "exports": [],
+      "imports": [
+        {
+          "source": "node:test",
+          "line": 1,
+          "kind": "esm"
+        },
+        {
+          "source": "node:assert/strict",
+          "line": 2,
+          "kind": "esm"
+        },
+        {
+          "source": "fs",
+          "line": 3,
+          "kind": "esm"
+        },
+        {
+          "source": "os",
+          "line": 4,
+          "kind": "esm"
+        },
+        {
+          "source": "path",
+          "line": 5,
+          "kind": "esm"
+        }
+      ],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  },
+  "tests/e2e/cli-flow.test.js": {
+    "hash": "184c45eb60883e974377140641134dfe6ca1d46700824670226417f0b4cbf372",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "tests/e2e/cli-flow.test.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [
+        {
+          "kind": "function",
+          "name": "makeTempRepo",
+          "line": 13,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "git",
+          "line": 31,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "invoke",
+          "line": 37,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "json",
+          "line": 64,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "nexus",
+          "line": 469,
+          "exported": false
+        }
+      ],
+      "exports": [],
+      "imports": [
+        {
+          "source": "node:test",
+          "line": 1,
+          "kind": "esm"
+        },
+        {
+          "source": "node:assert/strict",
+          "line": 2,
+          "kind": "esm"
+        },
+        {
+          "source": "node:fs",
+          "line": 3,
+          "kind": "esm"
+        },
+        {
+          "source": "node:os",
+          "line": 4,
+          "kind": "esm"
+        },
+        {
+          "source": "node:path",
+          "line": 5,
+          "kind": "esm"
+        },
+        {
+          "source": "node:child_process",
+          "line": 6,
+          "kind": "esm"
+        },
+        {
+          "source": "node:url",
+          "line": 7,
+          "kind": "esm"
+        }
+      ],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  },
+  "tests/e2e/template-gate-contract.test.js": {
+    "hash": "1c6ad3bbaa90cce34b9eb572e7b24e1ca38e13d63e2b4c5d35a8510d6ae75256",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "tests/e2e/template-gate-contract.test.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [
+        {
+          "kind": "function",
+          "name": "read",
+          "line": 14,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "handoffFromImplementerTemplate",
+          "line": 22,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "handoffFromUnifiedTemplate",
+          "line": 56,
+          "exported": false
+        }
+      ],
+      "exports": [],
+      "imports": [
+        {
+          "source": "node:test",
+          "line": 1,
+          "kind": "esm"
+        },
+        {
+          "source": "node:assert/strict",
+          "line": 2,
+          "kind": "esm"
+        },
+        {
+          "source": "node:fs",
+          "line": 3,
+          "kind": "esm"
+        },
+        {
+          "source": "node:path",
+          "line": 4,
+          "kind": "esm"
+        },
+        {
+          "source": "node:url",
+          "line": 5,
+          "kind": "esm"
+        },
+        {
+          "source": "../../scripts/lib/state-machine.js",
+          "line": 10,
+          "kind": "esm"
+        }
+      ],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  },
+  "tests/e2e/trajectory-concurrency.test.js": {
+    "hash": "e42d6c61b6ad01bf9a56e03ebc8e78070c5145feeeff33e2a07827d55fecb888",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "tests/e2e/trajectory-concurrency.test.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [],
+      "exports": [],
+      "imports": [
+        {
+          "source": "node:test",
+          "line": 1,
+          "kind": "esm"
+        },
+        {
+          "source": "node:assert/strict",
+          "line": 2,
+          "kind": "esm"
+        },
+        {
+          "source": "node:fs",
+          "line": 3,
+          "kind": "esm"
+        },
+        {
+          "source": "node:os",
+          "line": 4,
+          "kind": "esm"
+        },
+        {
+          "source": "node:path",
+          "line": 5,
+          "kind": "esm"
+        }
+      ],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  },
+  "tests/e2e/trajectory-replay.test.js": {
+    "hash": "ce397632dbbb4c480a9d22b0b050f329438e6626f4fb2c965508d1943b78af16",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "tests/e2e/trajectory-replay.test.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [
+        {
+          "kind": "function",
+          "name": "makeTempRepo",
+          "line": 14,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "invoke",
+          "line": 26,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "invokeFailure",
+          "line": 41,
+          "exported": false
+        }
+      ],
+      "exports": [],
+      "imports": [
+        {
+          "source": "node:test",
+          "line": 1,
+          "kind": "esm"
+        },
+        {
+          "source": "node:assert/strict",
+          "line": 2,
+          "kind": "esm"
+        },
+        {
+          "source": "node:fs",
+          "line": 3,
+          "kind": "esm"
+        },
+        {
+          "source": "node:os",
+          "line": 4,
+          "kind": "esm"
+        },
+        {
+          "source": "node:path",
+          "line": 5,
+          "kind": "esm"
+        },
+        {
+          "source": "node:child_process",
+          "line": 6,
+          "kind": "esm"
+        },
+        {
+          "source": "node:url",
+          "line": 7,
+          "kind": "esm"
+        },
+        {
+          "source": "../../scripts/lib/trajectory.js",
+          "line": 8,
+          "kind": "esm"
+        }
+      ],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  },
+  "tests/estimator/calls.test.js": {
+    "hash": "9fe5ca59dd2d6a8b566e639dfe434ee5fffa301cbe7b332cb5c53b5495c8eedf",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "tests/estimator/calls.test.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [
+        {
+          "kind": "function",
+          "name": "estimate",
+          "line": 10,
+          "exported": false
+        }
+      ],
+      "exports": [],
+      "imports": [
+        {
+          "source": "node:test",
+          "line": 1,
+          "kind": "esm"
+        },
+        {
+          "source": "node:assert/strict",
+          "line": 2,
+          "kind": "esm"
+        },
+        {
+          "source": "node:child_process",
+          "line": 3,
+          "kind": "esm"
+        },
+        {
+          "source": "node:path",
+          "line": 4,
+          "kind": "esm"
+        },
+        {
+          "source": "node:url",
+          "line": 5,
+          "kind": "esm"
+        }
+      ],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  },
+  "tests/graphify/graphify-adapter.test.js": {
+    "hash": "0db0d3ede49e2bdf4ee4663397ca5871dda4fd4f7f4189e075c6bb663c4e3ee6",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "tests/graphify/graphify-adapter.test.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [
+        {
+          "kind": "function",
+          "name": "digest",
+          "line": 20,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "makeFixture",
+          "line": 24,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "cleanup",
+          "line": 64,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "fakeGraphify",
+          "line": 68,
+          "exported": false
+        }
+      ],
+      "exports": [],
+      "imports": [
+        {
+          "source": "node:test",
+          "line": 1,
+          "kind": "esm"
+        },
+        {
+          "source": "node:assert/strict",
+          "line": 2,
+          "kind": "esm"
+        },
+        {
+          "source": "node:fs",
+          "line": 3,
+          "kind": "esm"
+        },
+        {
+          "source": "node:os",
+          "line": 4,
+          "kind": "esm"
+        },
+        {
+          "source": "node:path",
+          "line": 5,
+          "kind": "esm"
+        },
+        {
+          "source": "node:child_process",
+          "line": 6,
+          "kind": "esm"
+        },
+        {
+          "source": "node:url",
+          "line": 7,
+          "kind": "esm"
+        }
+      ],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  },
+  "tests/graphify/provenance.test.js": {
+    "hash": "b6a25e6edf5b26d8f0a4385ee02c627d98b85b49d7f892943ed34cc93b7b1879",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "tests/graphify/provenance.test.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [
+        {
+          "kind": "function",
+          "name": "makeRepo",
+          "line": 14,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "writeCanonicalGraph",
+          "line": 29,
+          "exported": false
+        }
+      ],
+      "exports": [],
+      "imports": [
+        {
+          "source": "node:test",
+          "line": 1,
+          "kind": "esm"
+        },
+        {
+          "source": "node:assert/strict",
+          "line": 2,
+          "kind": "esm"
+        },
+        {
+          "source": "node:fs",
+          "line": 3,
+          "kind": "esm"
+        },
+        {
+          "source": "node:os",
+          "line": 4,
+          "kind": "esm"
+        },
+        {
+          "source": "node:path",
+          "line": 5,
+          "kind": "esm"
+        },
+        {
+          "source": "node:child_process",
+          "line": 6,
+          "kind": "esm"
+        },
+        {
+          "source": "../../scripts/lib/providers.js",
+          "line": 12,
+          "kind": "esm"
+        }
+      ],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  },
+  "tests/helpers/gate-fixtures.js": {
+    "hash": "78a9587088436487f1c957355daba45a203022e7a5e8daec3eb497e88ee0544e",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "tests/helpers/gate-fixtures.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [
+        {
+          "kind": "function",
+          "name": "handoffEnvelope",
+          "line": 11,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "goodImplementerHandoff",
+          "line": 23,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "goodUnifiedHandoff",
+          "line": 43,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "sealedImpact",
+          "line": 54,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "sealedPreciseGraph",
+          "line": 78,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "sealedLowBlast",
+          "line": 93,
+          "exported": true
+        },
+        {
+          "kind": "function",
+          "name": "mockTrustProviders",
+          "line": 97,
+          "exported": true
+        }
+      ],
+      "exports": [
+        {
+          "name": "handoffEnvelope",
+          "kind": "function",
+          "line": 11
+        },
+        {
+          "name": "goodImplementerHandoff",
+          "kind": "function",
+          "line": 23
+        },
+        {
+          "name": "goodUnifiedHandoff",
+          "kind": "function",
+          "line": 43
+        },
+        {
+          "name": "sealedImpact",
+          "kind": "function",
+          "line": 54
+        },
+        {
+          "name": "sealedPreciseGraph",
+          "kind": "function",
+          "line": 78
+        },
+        {
+          "name": "sealedLowBlast",
+          "kind": "function",
+          "line": 93
+        },
+        {
+          "name": "mockTrustProviders",
+          "kind": "function",
+          "line": 97
+        },
+        {
+          "name": "CLASSIFY_APPLY_SOURCE",
+          "kind": "named",
+          "line": 159
+        },
+        {
+          "name": "sealImpactArtifact",
+          "kind": "named",
+          "line": 159
+        },
+        {
+          "name": "sealBlastArtifact",
+          "kind": "named",
+          "line": 159
+        }
+      ],
+      "imports": [],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  },
+  "tests/helpers/v3-golden-flows.js": {
+    "hash": "6f914ad005c4c00ffaa552de31c9d34a6424b36c3e5ab90b7a6c2bede1360a07",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "tests/helpers/v3-golden-flows.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [
+        {
+          "kind": "constant",
+          "name": "V3_GOLDEN_CLI",
+          "line": 5,
+          "exported": true
+        }
+      ],
+      "exports": [
+        {
+          "name": "V3_GOLDEN_CLI",
+          "kind": "constant",
+          "line": 5
+        }
+      ],
+      "imports": [],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  },
+  "tests/migrate/migrate-artifacts.test.js": {
+    "hash": "50099c269b65b65b6b250dcb5d0314e11fb8f8062adbc67db9a27b20b85900d2",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "tests/migrate/migrate-artifacts.test.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [
+        {
+          "kind": "function",
+          "name": "tmpWorktree",
+          "line": 14,
+          "exported": false
+        }
+      ],
+      "exports": [],
+      "imports": [
+        {
+          "source": "node:test",
+          "line": 1,
+          "kind": "esm"
+        },
+        {
+          "source": "node:assert/strict",
+          "line": 2,
+          "kind": "esm"
+        },
+        {
+          "source": "fs",
+          "line": 3,
+          "kind": "esm"
+        },
+        {
+          "source": "os",
+          "line": 4,
+          "kind": "esm"
+        },
+        {
+          "source": "path",
+          "line": 5,
+          "kind": "esm"
+        }
+      ],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  },
+  "tests/migrate/recover-handoff.test.js": {
+    "hash": "652c4bdb37b6def73a8d282e61244919fb5dfcc2837ccda3a472c58f52ade66e",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "tests/migrate/recover-handoff.test.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [
+        {
+          "kind": "function",
+          "name": "makeWorktree",
+          "line": 8,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "writeContext",
+          "line": 14,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "writeHandoff",
+          "line": 21,
+          "exported": false
+        }
+      ],
+      "exports": [],
+      "imports": [
+        {
+          "source": "node:test",
+          "line": 1,
+          "kind": "esm"
+        },
+        {
+          "source": "node:assert/strict",
+          "line": 2,
+          "kind": "esm"
+        },
+        {
+          "source": "node:fs",
+          "line": 3,
+          "kind": "esm"
+        },
+        {
+          "source": "node:os",
+          "line": 4,
+          "kind": "esm"
+        },
+        {
+          "source": "node:path",
+          "line": 5,
+          "kind": "esm"
+        },
+        {
+          "source": "../../scripts/lib/migrate-artifacts.js",
+          "line": 6,
+          "kind": "esm"
+        }
+      ],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  },
+  "tests/migrate/run-state-cas.test.js": {
+    "hash": "b6c57576459862bbd9933cf0c5b6727a7c9d756845671fdbd9ff755106abf2cc",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "tests/migrate/run-state-cas.test.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [],
+      "exports": [],
+      "imports": [
+        {
+          "source": "node:test",
+          "line": 1,
+          "kind": "esm"
+        },
+        {
+          "source": "node:assert/strict",
+          "line": 2,
+          "kind": "esm"
+        },
+        {
+          "source": "node:fs",
+          "line": 3,
+          "kind": "esm"
+        },
+        {
+          "source": "node:os",
+          "line": 4,
+          "kind": "esm"
+        },
+        {
+          "source": "node:path",
+          "line": 5,
+          "kind": "esm"
+        }
+      ],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  },
+  "tests/plugin/nexus.test.js": {
+    "hash": "79767f9b3554b63511e9397b4bee1654eb8bb1b812e13be72dbb38974391be50",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "tests/plugin/nexus.test.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [
+        {
+          "kind": "function",
+          "name": "tempDir",
+          "line": 8,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "writeJson",
+          "line": 12,
+          "exported": false
+        }
+      ],
+      "exports": [],
+      "imports": [
+        {
+          "source": "node:test",
+          "line": 1,
+          "kind": "esm"
+        },
+        {
+          "source": "node:assert/strict",
+          "line": 2,
+          "kind": "esm"
+        },
+        {
+          "source": "fs",
+          "line": 3,
+          "kind": "esm"
+        },
+        {
+          "source": "os",
+          "line": 4,
+          "kind": "esm"
+        },
+        {
+          "source": "path",
+          "line": 5,
+          "kind": "esm"
+        },
+        {
+          "source": "../../.opencode/plugins/nexus.js",
+          "line": 6,
+          "kind": "esm"
+        }
+      ],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  },
+  "tests/plugin/router-once.test.js": {
+    "hash": "4178729026bed246040a1dbacde4aa0682f2d13533185f91633604f03e8d7d55",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "tests/plugin/router-once.test.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [
+        {
+          "kind": "function",
+          "name": "tempDir",
+          "line": 8,
+          "exported": false
+        }
+      ],
+      "exports": [],
+      "imports": [
+        {
+          "source": "node:test",
+          "line": 1,
+          "kind": "esm"
+        },
+        {
+          "source": "node:assert/strict",
+          "line": 2,
+          "kind": "esm"
+        },
+        {
+          "source": "../../.opencode/plugins/nexus.js",
+          "line": 3,
+          "kind": "esm"
+        },
+        {
+          "source": "fs",
+          "line": 4,
+          "kind": "esm"
+        },
+        {
+          "source": "os",
+          "line": 5,
+          "kind": "esm"
+        },
+        {
+          "source": "path",
+          "line": 6,
+          "kind": "esm"
+        }
+      ],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  },
+  "tests/providers/providers.test.js": {
+    "hash": "ae7651f7f932413ba5536c3af4bbaed96b1c8ddf5646d941618ddd1fb6b0e56b",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "tests/providers/providers.test.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [
+        {
+          "kind": "function",
+          "name": "tempDir",
+          "line": 17,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "diffFor",
+          "line": 21,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "makeGraphifyProviderFixture",
+          "line": 316,
+          "exported": false
+        }
+      ],
+      "exports": [],
+      "imports": [
+        {
+          "source": "node:test",
+          "line": 1,
+          "kind": "esm"
+        },
+        {
+          "source": "node:assert/strict",
+          "line": 2,
+          "kind": "esm"
+        },
+        {
+          "source": "node:child_process",
+          "line": 3,
+          "kind": "esm"
+        },
+        {
+          "source": "fs",
+          "line": 4,
+          "kind": "esm"
+        },
+        {
+          "source": "os",
+          "line": 5,
+          "kind": "esm"
+        },
+        {
+          "source": "path",
+          "line": 6,
+          "kind": "esm"
+        }
+      ],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  },
+  "tests/schema/schema-validate.test.js": {
+    "hash": "a6bd76a84b3a96dc57cc1de50cfd639c21b0f946b8f940fa719a7f5225ba5e56",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "tests/schema/schema-validate.test.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [],
+      "exports": [],
+      "imports": [
+        {
+          "source": "node:test",
+          "line": 1,
+          "kind": "esm"
+        },
+        {
+          "source": "node:assert/strict",
+          "line": 2,
+          "kind": "esm"
+        }
+      ],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  },
+  "tests/state-machine/gate-hardening.test.js": {
+    "hash": "bf7053c7f32f5be51d39471e7e425544811b729420f62c6ffca91c3846d1993a",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "tests/state-machine/gate-hardening.test.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [
+        {
+          "kind": "function",
+          "name": "sampleClassification",
+          "line": 25,
+          "exported": false
+        }
+      ],
+      "exports": [],
+      "imports": [
+        {
+          "source": "node:test",
+          "line": 1,
+          "kind": "esm"
+        },
+        {
+          "source": "node:assert/strict",
+          "line": 2,
+          "kind": "esm"
+        },
+        {
+          "source": "../../scripts/lib/migrate-artifacts.js",
+          "line": 3,
+          "kind": "esm"
+        },
+        {
+          "source": "../../scripts/lib/classify.js",
+          "line": 9,
+          "kind": "esm"
+        },
+        {
+          "source": "../../scripts/lib/policy.js",
+          "line": 14,
+          "kind": "esm"
+        },
+        {
+          "source": "../../scripts/lib/migrate-artifacts.js",
+          "line": 15,
+          "kind": "esm"
+        }
+      ],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  },
+  "tests/state-machine/state-machine.test.js": {
+    "hash": "9eea0a644172c6f869a0348eb0ae87b2bab33e335072f1240198a646bf7bf0d9",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "tests/state-machine/state-machine.test.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [
+        {
+          "kind": "function",
+          "name": "sampleClassification",
+          "line": 26,
+          "exported": false
+        },
+        {
+          "kind": "function",
+          "name": "providersFor",
+          "line": 42,
+          "exported": false
+        }
+      ],
+      "exports": [],
+      "imports": [
+        {
+          "source": "node:test",
+          "line": 1,
+          "kind": "esm"
+        },
+        {
+          "source": "node:assert/strict",
+          "line": 2,
+          "kind": "esm"
+        },
+        {
+          "source": "fs",
+          "line": 3,
+          "kind": "esm"
+        },
+        {
+          "source": "os",
+          "line": 4,
+          "kind": "esm"
+        },
+        {
+          "source": "path",
+          "line": 5,
+          "kind": "esm"
+        },
+        {
+          "source": "../../scripts/lib/classify.js",
+          "line": 16,
+          "kind": "esm"
+        }
+      ],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  },
+  "tests/state-machine/v3-baseline-freeze.test.js": {
+    "hash": "1353463d407af2282b944b6f6da2317cbc32cd4f6d712b1639d29e4a4d13008b",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "tests/state-machine/v3-baseline-freeze.test.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [],
+      "exports": [],
+      "imports": [
+        {
+          "source": "node:test",
+          "line": 4,
+          "kind": "esm"
+        },
+        {
+          "source": "node:assert/strict",
+          "line": 5,
+          "kind": "esm"
+        }
+      ],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  },
+  "tests/evals/seeded-bugs.test.js": {
+    "hash": "e906edfe7e8ce362201f007eeca83611e2e42e4b1bbc5ac96e84fc0068a968a7",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "tests/evals/seeded-bugs.test.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [],
+      "exports": [],
+      "imports": [
+        {
+          "source": "node:test",
+          "line": 4,
+          "kind": "esm"
+        },
+        {
+          "source": "node:assert/strict",
+          "line": 5,
+          "kind": "esm"
+        },
+        {
+          "source": "../../scripts/lib/impact/risk.js",
+          "line": 6,
+          "kind": "esm"
+        },
+        {
+          "source": "../../scripts/lib/impact/confidence.js",
+          "line": 7,
+          "kind": "esm"
+        },
+        {
+          "source": "../../scripts/lib/review-protocol.js",
+          "line": 8,
+          "kind": "esm"
+        },
+        {
+          "source": "../../scripts/lib/scope-lock.js",
+          "line": 9,
+          "kind": "esm"
+        }
+      ],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  },
+  "tests/impact/impact-engine.test.js": {
+    "hash": "aa3d4cc979947a1f172cc9e8c3bb80d0ab5ccdd71e6455a8d7aef96e3826b5c1",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "tests/impact/impact-engine.test.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [
+        {
+          "kind": "function",
+          "name": "tempRepo",
+          "line": 13,
+          "exported": false
+        }
+      ],
+      "exports": [],
+      "imports": [
+        {
+          "source": "node:test",
+          "line": 1,
+          "kind": "esm"
+        },
+        {
+          "source": "node:assert/strict",
+          "line": 2,
+          "kind": "esm"
+        },
+        {
+          "source": "fs",
+          "line": 3,
+          "kind": "esm"
+        },
+        {
+          "source": "os",
+          "line": 4,
+          "kind": "esm"
+        },
+        {
+          "source": "path",
+          "line": 5,
+          "kind": "esm"
+        },
+        {
+          "source": "node:child_process",
+          "line": 6,
+          "kind": "esm"
+        },
+        {
+          "source": "node:url",
+          "line": 7,
+          "kind": "esm"
+        },
+        {
+          "source": "../../scripts/lib/impact/analyze.js",
+          "line": 8,
+          "kind": "esm"
+        }
+      ],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  },
+  "tests/verification/verification-and-dag.test.js": {
+    "hash": "fe31e17a632612753bf243411afdc8789d826c263691d97c36cc2a7f871ce7fa",
+    "parser_version": "nexus-js-symbols-1.0",
+    "language": "javascript",
+    "symbols": {
+      "file": "tests/verification/verification-and-dag.test.js",
+      "language": "javascript",
+      "parser_version": "nexus-js-symbols-1.0",
+      "definitions": [],
+      "exports": [],
+      "imports": [
+        {
+          "source": "node:test",
+          "line": 1,
+          "kind": "esm"
+        },
+        {
+          "source": "node:assert/strict",
+          "line": 2,
+          "kind": "esm"
+        },
+        {
+          "source": "../../scripts/lib/scope-lock.js",
+          "line": 9,
+          "kind": "esm"
+        },
+        {
+          "source": "../../scripts/lib/verification/compare.js",
+          "line": 15,
+          "kind": "esm"
+        },
+        {
+          "source": "../../scripts/lib/verification/discover.js",
+          "line": 16,
+          "kind": "esm"
+        }
+      ],
+      "references": [],
+      "supported": true,
+      "coverage": 1
+    }
+  }
+}

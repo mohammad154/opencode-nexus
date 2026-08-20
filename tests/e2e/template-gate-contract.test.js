@@ -128,7 +128,7 @@ test("documented unified template produces a gate-valid approval", () => {
     head_commit: "baseaaa",
     implementer_commit: "commitbb",
   };
-  const completed = canTransition(state, "COMPLETED", {
+  const completed = canTransition(state, "COMPLETED", { legacy_skip_final: true,
     unified_handoff: handoff,
   });
   assert.equal(completed.ok, true, JSON.stringify(completed.errors));

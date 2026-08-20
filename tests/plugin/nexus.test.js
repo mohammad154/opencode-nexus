@@ -144,7 +144,7 @@ test("compaction includes delegation gate for active run", async () => {
   const worktree = tempDir("nexus-plugin-compact-gate-");
   writeJson(path.join(worktree, ".opencode", "runs", "active", "state.json"), {
     run_id: "active",
-    state: "BLAST_READY",
+    state: "IMPACT_READY",
     profile: "balanced",
     updated_at: "2026-07-30T12:00:00.000Z",
   });

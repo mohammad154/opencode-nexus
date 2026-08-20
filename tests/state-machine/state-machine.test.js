@@ -20,6 +20,7 @@ import {
   mockTrustProviders,
   sealedPreciseGraph,
   sealedLowBlast,
+  sealedImpact,
 } from "../helpers/gate-fixtures.js";
 
 function sampleClassification(overrides = {}) {
@@ -131,7 +132,7 @@ test("transition classification cannot authorize direct_eligible", () => {
   assert.match(r.errors.join("\n"), /classify --apply/i);
 });
 
-test("direct path rejects a fresh conservative graph even when provider says ok", () => {
+test("direct path rejects a conservative impact even when labeled LOW", () => {
   const state = {
     ...createEmptyRunState("t5-conservative-graph"),
     state: "CLASSIFIED",
@@ -147,23 +148,22 @@ test("direct path rejects a fresh conservative graph even when provider says ok"
       diff_clean: false,
       classification_source: CLASSIFY_APPLY_SOURCE,
     }),
-    graph: sealedPreciseGraph({
+    impact: sealedImpact({
       trusted: false,
-      quality: "CONSERVATIVE",
+      analysis_quality: "CONSERVATIVE",
+      graph_quality: "CONSERVATIVE",
+      confidence: 0.6,
     }),
-    blast: sealedLowBlast(),
+    blast: sealedImpact({
+      trusted: false,
+      analysis_quality: "CONSERVATIVE",
+      graph_quality: "CONSERVATIVE",
+      confidence: 0.6,
+    }),
   };
-  // Re-seal after overriding trusted/quality
-  state.graph = sealedPreciseGraph({
-    ok: true,
-    trusted: false,
-    quality: "CONSERVATIVE",
-    stale: false,
-    freshness: { valid: true },
-  });
   const result = canTransition(state, "DIRECT_IMPLEMENTING");
   assert.equal(result.ok, false);
-  assert.match(result.errors.join("\n"), /sealed PRECISE graph|PRECISE graph/i);
+  assert.match(result.errors.join("\n"), /LOW impact/i);
 });
 
 test("direct path rejects a low-risk heuristic blast", () => {
@@ -182,19 +182,25 @@ test("direct path rejects a low-risk heuristic blast", () => {
       diff_clean: false,
       classification_source: CLASSIFY_APPLY_SOURCE,
     }),
-    graph: sealedPreciseGraph(),
-    blast: sealedLowBlast({
+    impact: sealedImpact({
       analysis_quality: "lite-heuristic",
       analysis_complete: false,
       trusted: false,
+      confidence: 0.5,
+    }),
+    blast: sealedImpact({
+      analysis_quality: "lite-heuristic",
+      analysis_complete: false,
+      trusted: false,
+      confidence: 0.5,
     }),
   };
   const result = canTransition(state, "DIRECT_IMPLEMENTING");
   assert.equal(result.ok, false);
-  assert.match(result.errors.join("\n"), /sealed LOW blast|LOW blast/i);
+  assert.match(result.errors.join("\n"), /LOW (blast|impact)/i);
 });
 
-test("direct path rejects missing graph or blast evidence", () => {
+test("direct path rejects missing impact evidence", () => {
   const state = {
     ...createEmptyRunState("t5-missing-analysis"),
     state: "CLASSIFIED",
@@ -213,8 +219,7 @@ test("direct path rejects missing graph or blast evidence", () => {
   };
   const result = canTransition(state, "DIRECT_IMPLEMENTING");
   assert.equal(result.ok, false);
-  assert.match(result.errors.join("\n"), /LOW blast/i);
-  assert.match(result.errors.join("\n"), /PRECISE graph/i);
+  assert.match(result.errors.join("\n"), /LOW (blast|impact)/i);
 });
 
 test("fabricated trusted graph labels are rejected", () => {
@@ -223,13 +228,13 @@ test("fabricated trusted graph labels are rejected", () => {
     classification: sampleClassification(),
   }).state;
   state = transition(state, "PLANNED", { plan_skip: true }).state;
-  const r = canTransition(state, "GRAPH_READY", {
+  const r = canTransition(state, "IMPACT_READY", {
     graph: { ok: true, trusted: true, quality: "PRECISE", confidence: 0.9 },
   });
   assert.equal(r.ok, false);
   assert.match(
     r.errors.join("\n"),
-    /unsealed trusted graph|provider revalidation/i,
+    /impact|unsealed|provider revalidation|IMPACT_READY/i,
   );
 });
 
@@ -266,10 +271,10 @@ test("delegated low-risk transition remains allowed with conservative analysis",
     classification: sampleClassification(),
   }).state;
   state = transition(state, "PLANNED", { plan_skip: true }).state;
-  state = transition(state, "GRAPH_READY", {}, providers).state;
+  state = transition(state, "IMPACT_READY", {}, providers).state;
   state = transition(
     state,
-    "BLAST_READY",
+    "IMPACT_READY",
     {
       blast_verification: { verified: true, method: "test" },
     },
@@ -314,7 +319,7 @@ test("REVIEWING → COMPLETED needs APPROVED unified bound to run", () => {
     implementer_commit: "abc123",
     head_commit: "base000",
   };
-  const bad = canTransition(state, "COMPLETED", {
+  const bad = canTransition(state, "COMPLETED", { legacy_skip_final: true,
     unified_handoff: goodUnifiedHandoff({
       run_id: "t6",
       unit_or_task: "unit-a",
@@ -325,7 +330,7 @@ test("REVIEWING → COMPLETED needs APPROVED unified bound to run", () => {
   });
   assert.equal(bad.ok, false);
 
-  const unbound = canTransition(state, "COMPLETED", {
+  const unbound = canTransition(state, "COMPLETED", { legacy_skip_final: true,
     unified_handoff: goodUnifiedHandoff({
       run_id: undefined,
       unit_or_task: "unit-a",
@@ -335,7 +340,7 @@ test("REVIEWING → COMPLETED needs APPROVED unified bound to run", () => {
   });
   assert.equal(unbound.ok, false);
 
-  const good = canTransition(state, "COMPLETED", {
+  const good = canTransition(state, "COMPLETED", { legacy_skip_final: true,
     unified_handoff: goodUnifiedHandoff({
       run_id: "t6",
       unit_or_task: "unit-a",
@@ -346,15 +351,14 @@ test("REVIEWING → COMPLETED needs APPROVED unified bound to run", () => {
   assert.equal(good.ok, true, JSON.stringify(good.errors));
 });
 
-test("full delegated happy path through BLAST_READY", () => {
+test("full delegated happy path through IMPACT_READY", () => {
   const providers = providersFor();
   let state = createEmptyRunState("happy");
   const classification = sampleClassification();
   state = transition(state, "CLASSIFIED", { classification }).state;
   state = transition(state, "PLANNED", { plan_skip: true }).state;
-  state = transition(state, "GRAPH_READY", {}, providers).state;
-  state = transition(state, "BLAST_READY", {}, providers).state;
-  assert.equal(state.state, "BLAST_READY");
+  state = transition(state, "IMPACT_READY", {}, providers).state;
+  assert.equal(state.state, "IMPACT_READY");
 
   const toImpl = canTransition(state, "IMPLEMENTING", {
     branch: "feature/x",
@@ -374,21 +378,27 @@ test("full delegated happy path through BLAST_READY", () => {
   assert.equal(toImpl.ok, true, JSON.stringify(toImpl.errors));
 });
 
-test("unknown blast cannot pass BLAST_READY without persisted verification", () => {
+test("unknown impact cannot pass IMPACT_READY without persisted verification", () => {
+  const unknownReport = {
+    schema_version: "1.0",
+    risk: "UNKNOWN",
+    level: "UNKNOWN",
+    confidence: 0.4,
+    analysis_quality: "CONSERVATIVE",
+    graph_quality: "CONSERVATIVE",
+    uncertainties: ["coverage incomplete"],
+    score: 0,
+  };
   const providers = {
     ...mockTrustProviders(),
+    impactProvider: {
+      analyze() {
+        return { ok: true, report: unknownReport };
+      },
+    },
     blastProvider: {
       analyze() {
-        return {
-          ok: true,
-          report: {
-            risk: "UNKNOWN",
-            level: "UNKNOWN",
-            analysis_quality: "CONSERVATIVE",
-            uncertainties: ["graph is stale"],
-            score: 0,
-          },
-        };
+        return { ok: true, report: unknownReport };
       },
     },
   };
@@ -397,17 +407,16 @@ test("unknown blast cannot pass BLAST_READY without persisted verification", () 
     classification: sampleClassification(),
   }).state;
   state = transition(state, "PLANNED", { plan_skip: true }).state;
-  state = transition(state, "GRAPH_READY", {}, providers).state;
 
-  const denied = transition(state, "BLAST_READY", {}, providers);
+  const denied = transition(state, "IMPACT_READY", {}, providers);
   assert.equal(denied.ok, false);
-  assert.match(denied.errors.join("\n"), /blast_verification/i);
+  assert.match(denied.errors.join("\n"), /impact_verification|blast_verification/i);
 
   const verified = transition(
     state,
-    "BLAST_READY",
+    "IMPACT_READY",
     {
-      blast_verification: {
+      impact_verification: {
         verified: true,
         method: "human-review",
         reason: "reviewed affected callers manually",
@@ -419,6 +428,7 @@ test("unknown blast cannot pass BLAST_READY without persisted verification", () 
 
   const implementingEvidence = {
     branch: "feature/unknown-blast",
+    impact: verified.state.impact || verified.state.blast,
     blast: verified.state.blast,
     acceptance_criteria: ["verification is explicit"],
     drift: {
@@ -434,6 +444,7 @@ test("unknown blast cannot pass BLAST_READY without persisted verification", () 
   };
   const withoutPersistedVerification = {
     ...verified.state,
+    impact_verification: null,
     blast_verification: null,
   };
   const implementingDenied = canTransition(
@@ -442,7 +453,7 @@ test("unknown blast cannot pass BLAST_READY without persisted verification", () 
     implementingEvidence,
   );
   assert.equal(implementingDenied.ok, false);
-  assert.match(implementingDenied.errors.join("\n"), /persisted blast_verification/i);
+  assert.match(implementingDenied.errors.join("\n"), /persisted (blast|impact)_verification/i);
 
   const implementingAllowed = canTransition(
     verified.state,
@@ -474,7 +485,7 @@ test("direct transition cannot bypass an unverified unknown blast", () => {
   };
   const r = canTransition(state, "DIRECT_IMPLEMENTING", {});
   assert.equal(r.ok, false);
-  assert.match(r.errors.join("\n"), /LOW blast/i);
+  assert.match(r.errors.join("\n"), /LOW (blast|impact)/i);
 });
 
 test("implementer commit binding uses base_commit vs new commit", () => {
@@ -516,7 +527,7 @@ test("reviewer binds to implementer_commit not head_commit", () => {
     head_commit: "base111",
     implementer_commit: "impl222",
   };
-  const wrong = canTransition(state, "COMPLETED", {
+  const wrong = canTransition(state, "COMPLETED", { legacy_skip_final: true,
     unified_handoff: goodUnifiedHandoff({
       run_id: "bind-rev",
       unit_or_task: "unit-1",
@@ -526,7 +537,7 @@ test("reviewer binds to implementer_commit not head_commit", () => {
   });
   assert.equal(wrong.ok, false);
 
-  const good = canTransition(state, "COMPLETED", {
+  const good = canTransition(state, "COMPLETED", { legacy_skip_final: true,
     unified_handoff: goodUnifiedHandoff({
       run_id: "bind-rev",
       unit_or_task: "unit-1",

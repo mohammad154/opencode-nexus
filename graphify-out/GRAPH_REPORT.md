@@ -1,39 +1,39 @@
-# Graph Report - opencode-nexus  (2026-08-18)
+# Graph Report - opencode-nexus  (2026-08-20)
 
 ## Corpus Check
-- 87 files · ~57,933 words
+- 136 files · ~83,266 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 1376 nodes · 1954 edges · 121 communities (111 shown, 10 thin omitted)
-- Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS · INFERRED: 6 edges (avg confidence: 0.55)
+- 1653 nodes · 2369 edges · 147 communities (126 shown, 21 thin omitted)
+- Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS · INFERRED: 8 edges (avg confidence: 0.54)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `c0539c0c`
+- Built from commit: `70eff31c`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
 ## Community Hubs (Navigation)
-- nexus-blast.js
+- graphify.js
 - providers.js
 - classify.js
 - package.json
 - properties
 - properties
 - Orchestrating (V3 — profiles)
-- diff-evidence.js
+- analyze.js
 - state-machine.js
 - ensure-cli-on-path.js
 - schema_version
 - properties
-- hard_triggers
+- required
 - null
 - properties
 - properties
-- unit_or_task
+- verification-and-dag.test.js
 - required
-- created_at
+- properties
 - bin/nexus.js
 - OpenCode Nexus
 - enum
@@ -41,34 +41,35 @@
 - Blast Radius (CodeLookup-inspired pre-implementation safety check)
 - properties
 - type
-- null
+- properties
 - nexus-estimate-calls.js
 - Procedure
 - type
-- run_id
+- properties
 - classification-evidence.schema.json
 - run-state.schema.json
-- trajectory-replay.test.js
-- Using Nexus (V3 — executable workflow engine)
+- nexus-run.js
+- graphify-adapter.test.js
 - properties
 - properties
 - properties
 - Finishing a Development Branch (V3 – profiles + script cleanup)
 - Outcome Memory — LESSONS.md (V3)
 - Using Feature Branches (V3)
+- providers.test.js
 - properties
 - enum
 - null
-- object
-- Nexus V3 workflow
-- Installing OpenCode Nexus V3
+- tdd
+- impact-report.schema.json
+- enum
 - properties
 - required
 - items
 - properties
 - required
 - required
-- properties
+- run_id
 - test-adapter-contract.sh
 - Writing Plans (improve-grade)
 - items
@@ -83,7 +84,9 @@
 - cli-flow.test.js
 - enum
 - reasons
+- type
 - enum
+- handoff-code-reviewer.schema.json
 - enum
 - handoff-unified-reviewer.schema.json
 - blast
@@ -99,12 +102,15 @@
 - enum
 - test-optional-agents.sh
 - install.sh
-- Install
+- handoff-implementer.schema.json
 - drift_check
 - stage
 - enum
 - enum
+- handoff-spec-reviewer.schema.json
 - nexus-branch-cleanup.sh
+- Integration Reviewer
+- enum
 - unsupported_fields
 - schema_version
 - schema_version
@@ -112,13 +118,16 @@
 - schema_version
 - schema_version
 - calls.test.js
-- Prerequisites
+- worktree.js
 - dimensions
-- created_at
+- nexus-blast.js
+- run-init.test.js
+- Diagnostician
 - run_id
 - agent
 - created_at
 - run_id
+- confidence
 - Branch Cleanup (V3 — script-first)
 - Unified Reviewer Dispatch Template (V3 — combined spec + quality)
 - uninstall.sh
@@ -126,21 +135,35 @@
 - nexus-blast.sh script
 - brainstorming/SKILL.md
 - code-reviewer-prompt.md
-- implementer-prompt.md
+- Implementer Dispatch Template (V4 — TDD + scope lock + impact)
 - spec-reviewer-prompt.md
+- blast-analyzer.md
 - orchestrator.md
+- test-uninstall-lifecycle.sh
+- reasons
+- agent
+- unit_or_task
+- analysis_quality
+- changed_symbols
+- ok
+- provider_validated
+- schema_version
+- trusted
+- updated_at
+- impact-analysis/SKILL.md
+- v3-golden-flows.js
 
 ## God Nodes (most connected - your core abstractions)
-1. `classify()` - 26 edges
-2. `canTransition()` - 22 edges
+1. `classify()` - 27 edges
+2. `canTransition()` - 25 edges
 3. `reclassifyAfterBlast()` - 17 edges
 4. `collectGitDiffEvidence()` - 17 edges
-5. `transition()` - 14 edges
-6. `OpenCode Nexus` - 14 edges
-7. `NexusPlugin()` - 13 edges
-8. `enum` - 13 edges
-9. `cmdClassify()` - 13 edges
-10. `files` - 12 edges
+5. `analyzeImpact()` - 16 edges
+6. `NexusPlugin()` - 14 edges
+7. `createDefaultProviders()` - 14 edges
+8. `transition()` - 14 edges
+9. `OpenCode Nexus` - 14 edges
+10. `enum` - 13 edges
 
 ## Surprising Connections (you probably didn't know these)
 - `buildGateInjection()` --calls--> `buildRunGateReminder()`  [EXTRACTED]
@@ -151,25 +174,25 @@
   bin/nexus.js → scripts/lib/project-init.js
 - `collectFlags()` --indirect_call--> `flag()`  [INFERRED]
   scripts/lib/classify.js → scripts/nexus-estimate-calls.js
-- `sealedPreciseGraph()` --calls--> `sealGraphArtifact()`  [EXTRACTED]
+- `sealedImpact()` --calls--> `sealImpactArtifact()`  [EXTRACTED]
   tests/helpers/gate-fixtures.js → scripts/lib/state-machine.js
 
 ## Import Cycles
 - None detected.
 
-## Communities (121 total, 10 thin omitted)
+## Communities (147 total, 21 thin omitted)
 
-### Community 0 - "nexus-blast.js"
-Cohesion: 0.07
-Nodes (43): asObject(), currentHead(), edgeEndpoint(), GRAPHIFY_RELATION_SET, GRAPHIFY_RELATIONS, graphRootFromOutput(), manifestSourcePath(), mapFilesToGraphifyNodes() (+35 more)
+### Community 0 - "graphify.js"
+Cohesion: 0.22
+Nodes (17): asObject(), currentHead(), edgeEndpoint(), GRAPHIFY_RELATION_SET, GRAPHIFY_RELATIONS, graphRootFromOutput(), manifestSourcePath(), mapFilesToGraphifyNodes() (+9 more)
 
 ### Community 1 - "providers.js"
-Cohesion: 0.07
-Nodes (42): addMetricTotals(), annotateGraphifyBlastReport(), BLAST_PROVIDER_METADATA, collectFileValues(), collectRawFileValues(), createEditValidator(), createGraphifyBlastProvider(), createGraphifyGraphProvider() (+34 more)
+Cohesion: 0.08
+Nodes (32): addMetricTotals(), annotateGraphifyBlastReport(), BLAST_PROVIDER_METADATA, collectFileValues(), collectRawFileValues(), createLessonsMemory(), createMetricsTelemetry(), currentGitHead() (+24 more)
 
 ### Community 2 - "classify.js"
-Cohesion: 0.09
-Nodes (45): addWeighted(), allFilesAreTestsOrDocs(), applyConfidenceGates(), asObject(), assessEvidenceQuality(), blastRiskOf(), CLASS_FLAGS, classify() (+37 more)
+Cohesion: 0.05
+Nodes (77): addWeighted(), allFilesAreTestsOrDocs(), applyConfidenceGates(), applyPathSignalRules(), asObject(), assessEvidenceQuality(), blastRiskOf(), CLASS_FLAGS (+69 more)
 
 ### Community 3 - "package.json"
 Cohesion: 0.04
@@ -187,13 +210,13 @@ Nodes (38): additionalProperties, minLength, type, type, minLength, type, descri
 Cohesion: 0.06
 Nodes (31): Anti-patterns, Dual review (strict, or high-risk under any profile), Fix loops, Resolve the local agent name, Review gates by profile, Skip review (documentation-only under fast), Subagent Dispatch (OpenCode) — V3 profiles, Unified review (fast/balanced, low–medium risk) (+23 more)
 
-### Community 7 - "diff-evidence.js"
-Cohesion: 0.15
-Nodes (28): boundaryForFile(), collectGitDiffEvidence(), diffCommandSets(), ensurePatchFile(), exportedSymbolsFromText(), extractExportedSymbols(), lineCount(), mergeGitDiffEvidence() (+20 more)
+### Community 7 - "analyze.js"
+Cohesion: 0.09
+Nodes (38): adapterSupports(), extractJsSymbols(), extractSymbols(), JS_EXTS, languageForPath(), analyzeImpact(), computeConfidence(), CONFIDENCE_THRESHOLDS (+30 more)
 
 ### Community 8 - "state-machine.js"
-Cohesion: 0.05
-Nodes (102): assessDrift(), fileHash(), isPlanCommitAcceptable(), createEmptyRunState(), deepClone(), inferRunFromContext(), isLegacyHandoffVersion(), latestRunState() (+94 more)
+Cohesion: 0.06
+Nodes (78): assessDrift(), fileHash(), isPlanCommitAcceptable(), normalizeAndValidateHandoff(), applyBlastEscalation(), applyImpactEscalation(), blastRisk(), effectivePolicy() (+70 more)
 
 ### Community 9 - "ensure-cli-on-path.js"
 Cohesion: 0.17
@@ -207,65 +230,65 @@ Nodes (4): 1.0, schema_version, enum, type
 Cohesion: 0.09
 Nodes (23): type, type, type, type, type, type, type, properties (+15 more)
 
-### Community 12 - "hard_triggers"
-Cohesion: 0.67
-Nodes (3): items, type, hard_triggers
+### Community 12 - "required"
+Cohesion: 0.06
+Nodes (34): CHANGES_REQUESTED, additionalProperties, type, allOf, type, $id, 1.1, agent (+26 more)
 
 ### Community 13 - "null"
-Cohesion: 0.14
-Nodes (20): type, type, type, type, properties, boolean, null, string (+12 more)
+Cohesion: 0.13
+Nodes (22): type, type, type, type, properties, type, boolean, null (+14 more)
 
 ### Community 14 - "properties"
-Cohesion: 0.11
-Nodes (19): minLength, type, minLength, type, type, type, properties, agent (+11 more)
+Cohesion: 0.10
+Nodes (21): minLength, type, minLength, type, type, type, properties, agent (+13 more)
 
 ### Community 15 - "properties"
-Cohesion: 0.15
-Nodes (13): minLength, type, type, properties, agent, legacy_unverified, role, task_id (+5 more)
+Cohesion: 0.11
+Nodes (19): minLength, type, minLength, type, type, properties, agent, created_at (+11 more)
 
-### Community 16 - "unit_or_task"
-Cohesion: 0.67
-Nodes (3): unit_or_task, minLength, type
+### Community 16 - "verification-and-dag.test.js"
+Cohesion: 0.14
+Nodes (19): normalizeAllowedFiles(), scopeExpansionNeeded(), createVerificationProvider(), canSelfApprove(), fixLoopDecision(), normalizeFinding(), unresolvedHighFindings(), assertScopeLock() (+11 more)
 
 ### Community 17 - "required"
-Cohesion: 0.11
-Nodes (17): commit, drift_check, status, verification_gates, additionalProperties, allOf, $id, agent (+9 more)
+Cohesion: 0.18
+Nodes (11): commit, drift_check, status, verification_gates, agent, base_commit, created_at, run_id (+3 more)
 
-### Community 18 - "created_at"
-Cohesion: 0.67
-Nodes (3): minLength, type, created_at
+### Community 18 - "properties"
+Cohesion: 0.08
+Nodes (25): results, additionalProperties, type, type, type, type, $id, null (+17 more)
 
 ### Community 19 - "bin/nexus.js"
 Cohesion: 0.06
-Nodes (45): cmdBlast(), cmdClassify(), cmdEstimate(), cmdProjectInit(), cmdRun(), [command, ...args], doctor(), fail() (+37 more)
+Nodes (46): cmdBlast(), cmdClassify(), cmdEstimate(), cmdImpact(), cmdProjectInit(), cmdRun(), [command, ...args], doctor() (+38 more)
 
 ### Community 20 - "OpenCode Nexus"
-Cohesion: 0.12
-Nodes (16): At a glance, Contents, Customize models, First graph in a repo, Further reading, How the workflow works, Installed agents, License (+8 more)
+Cohesion: 0.04
+Nodes (44): Agent roster, Impact Engine (replaces Graphify/blast), Inspect, Isolation, Lifecycle, Nexus V4 workflow, Review, TDD (+36 more)
 
 ### Community 21 - "enum"
 Cohesion: 0.13
-Nodes (15): BLAST_READY, CLASSIFIED, COMPLETED, CREATED, DIRECT_IMPLEMENTING, FAILED, GRAPH_READY, IMPLEMENTING (+7 more)
+Nodes (15): CLASSIFIED, COMPLETED, CREATED, DIRECT_IMPLEMENTING, FAILED, FINAL_VERIFYING, IMPACT_READY, IMPLEMENTING (+7 more)
 
 ### Community 22 - "properties"
-Cohesion: 0.11
-Nodes (18): type, type, type, type, type, properties, blast_risk, change_class (+10 more)
+Cohesion: 0.13
+Nodes (15): type, type, type, type, type, properties, blast_risk, change_class (+7 more)
 
 ### Community 23 - "Blast Radius (CodeLookup-inspired pre-implementation safety check)"
 Cohesion: 0.13
 Nodes (14): Artifacts (when --task N), Blast Radius (CodeLookup-inspired pre-implementation safety check), Commands, Hard rules, How Graphify improves blast, Human markdown (default), Integration points, JSON (via --json or after markdown separated by ---JSON--- marker) (+6 more)
 
 ### Community 24 - "properties"
-Cohesion: 0.14
-Nodes (14): minLength, type, type, type, properties, agent, legacy_unverified, lessons_checked (+6 more)
+Cohesion: 0.12
+Nodes (17): minLength, type, type, type, properties, created_at, legacy_unverified, lessons_checked (+9 more)
 
 ### Community 25 - "type"
 Cohesion: 0.14
 Nodes (14): items, type, type, object, files_changed, scope_extras, tasks_completed, tests (+6 more)
 
-### Community 26 - "null"
-Cohesion: 0.20
-Nodes (14): type, type, type, type, type, null, string, type (+6 more)
+### Community 26 - "properties"
+Cohesion: 0.11
+Nodes (29): additionalProperties, type, type, type, type, additionalProperties, type, type (+21 more)
 
 ### Community 27 - "nexus-estimate-calls.js"
 Cohesion: 0.16
@@ -277,27 +300,27 @@ Nodes (13): Pre-requisites, Procedure, Reconcile, Reference: shadcn/improve reco
 
 ### Community 29 - "type"
 Cohesion: 0.15
-Nodes (13): items, type, type, affected_packages, reasons, semantic_signals, uncertainty_factors, items (+5 more)
+Nodes (13): items, type, items, type, type, affected_packages, hard_triggers, semantic_signals (+5 more)
 
-### Community 30 - "run_id"
-Cohesion: 0.67
-Nodes (3): run_id, minLength, type
+### Community 30 - "properties"
+Cohesion: 0.11
+Nodes (19): type, type, type, type, type, properties, affected_packages, analysis_complete (+11 more)
 
 ### Community 31 - "classification-evidence.schema.json"
 Cohesion: 0.17
-Nodes (11): confidence, risk_score, additionalProperties, $id, profile, reasons, schema_version, required (+3 more)
+Nodes (11): risk_score, additionalProperties, $id, confidence, profile, reasons, schema_version, required (+3 more)
 
 ### Community 32 - "run-state.schema.json"
 Cohesion: 0.17
 Nodes (11): state, transitions, additionalProperties, $id, profile, run_id, schema_version, required (+3 more)
 
-### Community 33 - "trajectory-replay.test.js"
-Cohesion: 0.24
-Nodes (7): appendTrajectoryStep(), assertStep(), readTrajectory(), replayTrajectory(), repoRoot, runCli, temporaryRoots
+### Community 33 - "nexus-run.js"
+Cohesion: 0.09
+Nodes (45): createEmptyRunState(), deepClone(), inferRunFromContext(), isLegacyHandoffVersion(), latestRunState(), LEGACY_HANDOFF_VERSIONS, listRunIds(), normalizeHandoff() (+37 more)
 
-### Community 34 - "Using Nexus (V3 — executable workflow engine)"
-Cohesion: 0.17
-Nodes (12): Adaptive direct path (narrow), Agent Selection, Branch cleanup, Context Preservation, Red Flags, Skill order for new work, Skill Router, Subagent dispatch (+4 more)
+### Community 34 - "graphify-adapter.test.js"
+Cohesion: 0.20
+Nodes (7): isCanonicalGraphifyGraphPath(), prepareGraphifyGraph(), readGraphifyGraph(), refreshGraphifyGraph(), resolveGraphifyGraphPath(), resolveGraphifyOut(), __dirname
 
 ### Community 35 - "properties"
 Cohesion: 0.18
@@ -323,6 +346,10 @@ Nodes (10): Entry template, Hard rules, Integration, lessonPolicy, Noteworthy-on
 Cohesion: 0.18
 Nodes (10): Branch policy (profile-aware), Cleanup, Detect the base branch, `isolated` (default for strict), Isolation recovery, Merge policy (project default), `per-feature` (default for balanced/fast), Prerequisites (+2 more)
 
+### Community 41 - "providers.test.js"
+Cohesion: 0.17
+Nodes (13): createEditValidator(), createGraphifyBlastProvider(), createGraphifyGraphProvider(), createLiteBlastProvider(), createLiteGraphProvider(), createUnsupportedProvider(), getBlastProvider(), getEditValidator() (+5 more)
+
 ### Community 42 - "properties"
 Cohesion: 0.24
 Nodes (10): number, type, additionalProperties, properties, type, null, direct_callers, graphify (+2 more)
@@ -335,25 +362,25 @@ Nodes (10): enum, type, HIGH, LOW, MEDIUM, UNKNOWN, computed_risk, risk (+2 more
 Cohesion: 0.24
 Nodes (10): type, boolean, null, string, type, type, base_commit, plan_commit (+2 more)
 
-### Community 45 - "object"
+### Community 45 - "tdd"
+Cohesion: 0.16
+Nodes (14): type, type, properties, type, command, exit_code, green, red (+6 more)
+
+### Community 46 - "impact-report.schema.json"
 Cohesion: 0.20
-Nodes (10): additionalProperties, type, additionalProperties, type, additionalProperties, type, object, blast (+2 more)
+Nodes (9): additionalProperties, $id, confidence, risk, schema_version, required, $schema, title (+1 more)
 
-### Community 46 - "Nexus V3 workflow"
-Cohesion: 0.22
-Nodes (9): Agent roster and dispatch names, Artifacts, Deterministic gates, Execution units and review, Graph and blast, Lifecycle, Nexus V3 workflow, Profiles (+1 more)
-
-### Community 47 - "Installing OpenCode Nexus V3"
-Cohesion: 0.22
-Nodes (9): Customize models, Install, Installing OpenCode Nexus V3, OpenCode outputs, Prerequisites, Uninstall, V3 workflow and profiles, Verify graph and blast evidence (+1 more)
+### Community 47 - "enum"
+Cohesion: 0.25
+Nodes (8): CRITICAL, HIGH, LOW, MEDIUM, UNKNOWN, risk, enum, type
 
 ### Community 48 - "properties"
 Cohesion: 0.22
 Nodes (9): type, type, type, properties, change_class, confidence, direct_eligible, risk_score (+1 more)
 
 ### Community 49 - "required"
-Cohesion: 0.12
-Nodes (15): additionalProperties, allOf, $id, agent, base_commit, created_at, reviewed_commit, run_id (+7 more)
+Cohesion: 0.22
+Nodes (9): agent, base_commit, created_at, reviewed_commit, run_id, schema_version, unit_or_task, verdict (+1 more)
 
 ### Community 50 - "items"
 Cohesion: 0.25
@@ -364,16 +391,16 @@ Cohesion: 0.22
 Nodes (9): additionalProperties, properties, type, type, blast, callers_reviewed, pass, risk (+1 more)
 
 ### Community 52 - "required"
-Cohesion: 0.12
-Nodes (15): additionalProperties, allOf, $id, agent, base_commit, created_at, reviewed_commit, run_id (+7 more)
+Cohesion: 0.22
+Nodes (9): agent, base_commit, created_at, reviewed_commit, run_id, schema_version, unit_or_task, verdict (+1 more)
 
 ### Community 53 - "required"
 Cohesion: 0.22
 Nodes (9): agent, base_commit, created_at, reviewed_commit, run_id, schema_version, unit_or_task, verdict (+1 more)
 
-### Community 54 - "properties"
-Cohesion: 0.20
-Nodes (10): type, properties, created_at, run_id, updated_at, maxLength, minLength, pattern (+2 more)
+### Community 54 - "run_id"
+Cohesion: 0.40
+Nodes (5): run_id, maxLength, minLength, pattern, type
 
 ### Community 55 - "test-adapter-contract.sh"
 Cohesion: 0.33
@@ -389,7 +416,7 @@ Nodes (8): from, to, additionalProperties, required, type, transitions, items, t
 
 ### Community 58 - "blast-report.schema.json"
 Cohesion: 0.25
-Nodes (7): risk, additionalProperties, $id, required, $schema, title, type
+Nodes (7): additionalProperties, $id, risk, required, $schema, title, type
 
 ### Community 59 - "properties"
 Cohesion: 0.25
@@ -431,9 +458,17 @@ Nodes (7): DONE, DONE_WITH_CONCERNS, NEEDS_CONTEXT, BLOCKED, status, enum, type
 Cohesion: 0.29
 Nodes (7): type, reasons, uncertainties, items, type, items, type
 
+### Community 69 - "type"
+Cohesion: 0.32
+Nodes (8): type, type, null, string, base_commit, head_commit, worktree_head, type
+
 ### Community 70 - "enum"
 Cohesion: 0.29
 Nodes (7): APPROVED, BLOCKED, ISOLATION_VIOLATION, REQUEST_CHANGES, verdict, enum, type
+
+### Community 71 - "handoff-code-reviewer.schema.json"
+Cohesion: 0.29
+Nodes (6): additionalProperties, allOf, $id, $schema, title, type
 
 ### Community 72 - "enum"
 Cohesion: 0.29
@@ -452,16 +487,12 @@ Cohesion: 0.29
 Nodes (7): APPROVED, BLOCKED, ISOLATION_VIOLATION, REQUEST_CHANGES, verdict, enum, type
 
 ### Community 76 - "properties"
-Cohesion: 0.29
-Nodes (7): type, type, properties, at, from, to, type
+Cohesion: 0.25
+Nodes (8): type, type, properties, at, evidence, from, to, type
 
 ### Community 77 - "test-install-only.sh"
 Cohesion: 0.33
 Nodes (5): GRAPHIFY_LOG, HOME, PATH, run_install(), test-install-only.sh script
-
-### Community 78 - "blast-output.test.js"
-Cohesion: 0.29
-Nodes (3): blast, __dirname, root
 
 ### Community 79 - "enum"
 Cohesion: 0.33
@@ -492,12 +523,12 @@ Cohesion: 0.33
 Nodes (4): GRAPHIFY_LOG, HOME, PATH, test-optional-agents.sh script
 
 ### Community 86 - "install.sh"
-Cohesion: 0.60
-Nodes (3): bak(), prune_optional_from_dir(), install.sh script
+Cohesion: 0.53
+Nodes (4): bak(), manifest_record_original(), prune_optional_from_dir(), install.sh script
 
-### Community 87 - "Install"
-Cohesion: 0.40
-Nodes (5): From a local clone, Global CLI (recommended), Install, Optional compatibility agent, What gets written
+### Community 87 - "handoff-implementer.schema.json"
+Cohesion: 0.29
+Nodes (6): additionalProperties, allOf, $id, $schema, title, type
 
 ### Community 88 - "drift_check"
 Cohesion: 0.40
@@ -515,9 +546,21 @@ Nodes (5): enum, type, delegated, direct, execution_mode
 Cohesion: 0.40
 Nodes (5): enum, type, delegated, direct, execution_mode
 
+### Community 92 - "handoff-spec-reviewer.schema.json"
+Cohesion: 0.29
+Nodes (6): additionalProperties, allOf, $id, $schema, title, type
+
 ### Community 93 - "nexus-branch-cleanup.sh"
 Cohesion: 0.60
 Nodes (3): is_protected(), nexus-branch-cleanup.sh script, usage()
+
+### Community 94 - "Integration Reviewer"
+Cohesion: 0.33
+Nodes (5): Checks, Handoff, Integration Reviewer, Role, Rules
+
+### Community 95 - "enum"
+Cohesion: 0.33
+Nodes (6): targeted, wider, strict, verification_mode, enum, type
 
 ### Community 96 - "unsupported_fields"
 Cohesion: 0.50
@@ -543,17 +586,21 @@ Nodes (4): 1.1, schema_version, enum, type
 Cohesion: 0.50
 Nodes (4): 1.1, schema_version, enum, type
 
-### Community 103 - "Prerequisites"
+### Community 103 - "worktree.js"
 Cohesion: 0.67
-Nodes (3): Optional (recommended), Prerequisites, Required
+Nodes (5): createTaskWorktree(), listTaskWorktrees(), removeTaskWorktree(), run(), worktreeRoot()
 
 ### Community 104 - "dimensions"
 Cohesion: 0.67
 Nodes (3): additionalProperties, type, dimensions
 
-### Community 107 - "created_at"
-Cohesion: 0.67
-Nodes (3): minLength, type, created_at
+### Community 105 - "nexus-blast.js"
+Cohesion: 0.40
+Nodes (4): args, __dirname, impact, r
+
+### Community 107 - "Diagnostician"
+Cohesion: 0.50
+Nodes (3): Diagnostician, Output, Role
 
 ### Community 108 - "run_id"
 Cohesion: 0.67
@@ -571,29 +618,53 @@ Nodes (3): minLength, type, created_at
 Cohesion: 0.67
 Nodes (3): run_id, minLength, type
 
+### Community 112 - "confidence"
+Cohesion: 0.50
+Nodes (4): maximum, minimum, type, confidence
+
+### Community 120 - "Implementer Dispatch Template (V4 — TDD + scope lock + impact)"
+Cohesion: 0.50
+Nodes (3): Handoff fields (schema_version 1.1 — required envelope), Implementer Dispatch Template (V4 — TDD + scope lock + impact), Report
+
 ### Community 125 - "orchestrator.md"
 Cohesion: 0.50
-Nodes (3): Implementer dispatch (after gate 6), Portable CLI (use in any repo — do NOT assume repo-local scripts/), PRE-FLIGHT (all must pass before production edits)
+Nodes (3): Dispatch rules, Lifecycle, Portable CLI
+
+### Community 129 - "test-uninstall-lifecycle.sh"
+Cohesion: 0.83
+Nodes (3): fail(), pass(), test-uninstall-lifecycle.sh script
+
+### Community 130 - "reasons"
+Cohesion: 0.67
+Nodes (3): reasons, items, type
+
+### Community 131 - "agent"
+Cohesion: 0.67
+Nodes (3): minLength, type, agent
+
+### Community 132 - "unit_or_task"
+Cohesion: 0.67
+Nodes (3): unit_or_task, minLength, type
 
 ## Knowledge Gaps
-- **617 isolated node(s):** `__dirname`, `skillsDir`, `TERMINAL_RUN_STATES`, `KNOWLEDGE_RELEVANT_STATES`, `pkgRoot` (+612 more)
+- **712 isolated node(s):** `__dirname`, `skillsDir`, `TERMINAL_RUN_STATES`, `KNOWLEDGE_RELEVANT_STATES`, `pkgRoot` (+707 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **10 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **21 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `properties` connect `properties` to `schema_version`, `properties`, `enum`, `properties`, `null`, `required`, `drift_check`, `type`?**
-  _High betweenness centrality (0.008) - this node is a cross-community bridge._
-- **Why does `classify()` connect `classify.js` to `state-machine.js`, `diff-evidence.js`?**
-  _High betweenness centrality (0.004) - this node is a cross-community bridge._
-- **Why does `properties` connect `properties` to `schema_version`, `properties`, `hard_triggers`, `enum`, `enum`, `enum`, `stage`, `enum`, `type`, `classification-evidence.schema.json`?**
-  _High betweenness centrality (0.004) - this node is a cross-community bridge._
+- **Why does `properties` connect `properties` to `schema_version`, `properties`, `enum`, `properties`, `null`, `tdd`, `handoff-implementer.schema.json`, `drift_check`, `type`?**
+  _High betweenness centrality (0.006) - this node is a cross-community bridge._
 - **What connects `__dirname`, `skillsDir`, `TERMINAL_RUN_STATES` to the rest of the system?**
-  _617 weakly-connected nodes found - possible documentation gaps or missing edges._
-- **Should `nexus-blast.js` be split into smaller, more focused modules?**
-  _Cohesion score 0.07390648567119155 - nodes in this community are weakly interconnected._
+  _712 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `providers.js` be split into smaller, more focused modules?**
-  _Cohesion score 0.06823529411764706 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.08097165991902834 - nodes in this community are weakly interconnected._
 - **Should `classify.js` be split into smaller, more focused modules?**
-  _Cohesion score 0.08843537414965986 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.052941176470588235 - nodes in this community are weakly interconnected._
+- **Should `package.json` be split into smaller, more focused modules?**
+  _Cohesion score 0.043478260869565216 - nodes in this community are weakly interconnected._
+- **Should `properties` be split into smaller, more focused modules?**
+  _Cohesion score 0.0553306342780027 - nodes in this community are weakly interconnected._
+- **Should `properties` be split into smaller, more focused modules?**
+  _Cohesion score 0.05128205128205128 - nodes in this community are weakly interconnected._

@@ -1,42 +1,32 @@
-# Implementer Dispatch Template (V3 — reference-first + batches)
+# Implementer Dispatch Template (V4 — TDD + scope lock + impact)
 
-Use when dispatching `implementer` for a single task (`strict`) or an execution unit (`fast`/`balanced`). Prefer **paths** over pasting large artifacts.
+Use when dispatching `implementer` for a single task. Prefer **paths** over pasting large artifacts. Fresh agent per task.
 
 ```text
-You are implementing: [TASK_ID or EXECUTION_UNIT_ID] [TITLE]
-> Profile: [fast|balanced|strict] | Effort: [...] | Blast risk: [LOW|MEDIUM|HIGH]
+You are implementing: [TASK_ID] [TITLE]
+> Profile: [fast|balanced|strict] | Impact risk: [LOW|MEDIUM|HIGH|CRITICAL] | Confidence: [0–1]
 > Plan commit: [short-sha] – drift check required before editing
-> Branch: [feature/...] | Base: [base] | Mode: [checkpoint|continuous]
+> Branch/worktree: [path] | Allowed files: [list]
+> Baseline: .opencode/runs/<id>/baseline.json
 
 ## STEP 0 — Reference-first reading
-1. Read: [path to task-N.md AND/OR execution-unit-<id>.json]
-2. Read: .opencode/CONTEXT.md
-3. Read blast: [path] (do not expect full paste)
-4. Read the top matching entries in graphify-out/reflections/LESSONS.md (or a transient `.opencode/LESSONS-excerpt.md`) for Scope paths
-5. Confirm branch: `git branch --show-current` == [feature/...]
+1. Read task file / acceptance criteria
+2. Read impact report (risk, related tests, dependents)
+3. Read baseline verification
+4. Confirm scope lock — do NOT edit outside allowed_files (request expansion + re-impact instead)
 
-Optional compact payload (if present): .opencode/tasks/execution-unit-<id>.json
-(goal, scope_in/out, acceptance_criteria, blast summary, verification)
-
-## STEP 0.5 — Drift check
-- git rev-parse --short HEAD vs plan_commit
-- Verify Evidence file:line symbols still exist
-- Honor STOP conditions in task/unit file → BLOCKED with evidence
-
-## Acceptance criteria (concise)
-- [criterion 1]
-- [criterion 2]
-
-## Scope
-- In: [files or "see unit JSON"]
-- Out: [files]
+## TDD (mandatory for behavioral changes / bug fixes)
+1. Write failing test (RED) — record command + exit_code ≠ 0
+2. Implement minimum fix
+3. GREEN — same command exit_code 0
+4. Run related/affected tests from impact report
+5. Put tdd.red / tdd.green in handoff JSON
 
 ## Instructions
-1. Implement ONLY listed task(s) in this dispatch. For batches: complete all tasks in the unit before handoff.
-2. Respect blast callers; if HIGH risk, add caller-covering tests.
-3. Run verification gates exactly (commands from task/unit file).
-4. If you edit files outside declared scope: note it and recommend blast recompute.
-5. Write handoff JSON to: .opencode/handoffs/[id]-implementer.json
+1. Implement ONLY this task in this dispatch
+2. Run verification gates; do not claim pass without commands
+3. Write handoff: .opencode/handoffs/[id]-implementer.json
+```
 
 ## Handoff fields (schema_version 1.1 — required envelope)
 Write JSON including ALL of:

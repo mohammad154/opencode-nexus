@@ -156,32 +156,54 @@ export function effectivePolicy(state, ctx = {}) {
 }
 
 export function applyBlastEscalation(state, blastReport) {
+  return applyImpactEscalation(state, blastReport);
+}
+
+export function applyImpactEscalation(state, impactReport) {
   const previous = state?.classification || {
     profile: state?.profile,
     review_level: state?.review_level,
     execution_mode: state?.execution_mode,
     change_class: state?.change_class,
   };
-  const reclassified = reclassifyAfterBlast(previous, blastReport, {
+  const reclassified = reclassifyAfterBlast(previous, impactReport, {
     graph: state?.graph,
   });
-  const risk = blastRisk(blastReport);
+  const risk = blastRisk(impactReport);
   const reasons = [...(state.escalation_reasons || [])];
-  if (risk === "HIGH" && !reasons.includes("blast_risk_high")) {
-    reasons.push("blast_risk_high");
+  if (
+    (risk === "HIGH" || risk === "CRITICAL") &&
+    !reasons.includes("impact_risk_high")
+  ) {
+    reasons.push("impact_risk_high");
   }
-  if (isUnknownBlast(blastReport) && !reasons.includes("unknown_blast")) {
-    reasons.push("unknown_blast");
+  if (isUnknownImpact(impactReport) && !reasons.includes("unknown_impact")) {
+    reasons.push("unknown_impact");
   }
-  const profile = maxProfile(state?.profile, reclassified.profile);
-  const review_level = maxReview(state?.review_level, reclassified.review_level);
+  if (
+    typeof impactReport?.confidence === "number" &&
+    impactReport.confidence < 0.75 &&
+    !reasons.includes("low_impact_confidence")
+  ) {
+    reasons.push("low_impact_confidence");
+  }
+  let profile = maxProfile(state?.profile, reclassified.profile);
+  let review_level = maxReview(state?.review_level, reclassified.review_level);
+  if (
+    typeof impactReport?.confidence === "number" &&
+    impactReport.confidence < 0.75
+  ) {
+    review_level = maxReview(review_level, "dual");
+    profile = maxProfile(profile, "strict");
+  }
   const execution_mode = maxExecution(
     state?.execution_mode,
     reclassified.execution_mode,
   );
   return {
     ...state,
-    blast: blastReport,
+    impact: impactReport,
+    blast: impactReport,
     classification: {
       ...previous,
       ...reclassified,
@@ -195,6 +217,36 @@ export function applyBlastEscalation(state, blastReport) {
     execution_mode,
     escalation_reasons: reasons,
   };
+}
+
+export function isUnknownImpact(report) {
+  if (!report || typeof report !== "object") return true;
+  if (typeof report.confidence === "number" && report.confidence < 0.5) {
+    return true;
+  }
+  return isUnknownBlast(report);
+}
+
+export function isTrustedLowRiskImpact(report) {
+  if (!report || typeof report !== "object") return false;
+  const risk = blastRisk(report);
+  if (risk !== "LOW") return false;
+  if (typeof report.confidence === "number" && report.confidence < 0.85) {
+    return false;
+  }
+  // Prefer explicit impact trust markers; fall back to blast-shaped trust.
+  if (report.provider === "nexus-impact" || report.graph_provider === "nexus-impact") {
+    return (
+      report.trusted === true &&
+      report.analysis_complete !== false &&
+      (report.graph_freshness?.valid === true || report.analysis_quality === "PRECISE")
+    );
+  }
+  return isTrustedLowRiskBlast(report);
+}
+
+export function hasExplicitImpactVerification(value) {
+  return hasExplicitBlastVerification(value);
 }
 
 export const RUN_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;

@@ -123,7 +123,7 @@ test("lessons memory reads Graphify memory and reflected lessons paths", (t) => 
   );
 
   const result = createLessonsMemory().retrieve(worktree);
-  assert.equal(result.source, "graphify-memory-and-reflections");
+  assert.equal(result.source, "opencode-memory");
   assert.equal(result.entries.length, 2);
   assert.ok(result.entries.some((entry) => entry.includes("native memory entry")));
   assert.ok(result.entries.some((entry) => entry.includes("reflected lesson")));

@@ -1,0 +1,17 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://opencode-nexus.local/schemas/verification-report.schema.json",
+  "title": "NexusVerificationReport",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schema_version", "results"],
+  "properties": {
+    "schema_version": { "type": "string" },
+    "captured_at": { "type": "string" },
+    "commit": { "type": ["string", "null"] },
+    "results": { "type": "array" },
+    "comparison": { "type": "object" },
+    "artifact_digest": { "type": "string" },
+    "provider_validated": { "type": "boolean" }
+  }
+}
