@@ -2,6 +2,8 @@
 description: Implements a single scoped task with Impact Engine awareness, TDD evidence, drift checking, and verification gates. Writes code, tests, and commits in an isolated worktree/branch.
 mode: subagent
 permission:
+  external_directory:
+    "/usr/local/lib/node_modules/@mohammad154/opencode-nexus/**": allow
   edit: allow
   bash: allow
   task:

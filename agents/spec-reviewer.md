@@ -2,6 +2,8 @@
 description: Verifies implementer output matches task spec exactly, with file:line evidence, blast scope fidelity, drift awareness, and STOP handling. Returns APPROVED or REQUEST_CHANGES with file:line.
 mode: subagent
 permission:
+  external_directory:
+    "/usr/local/lib/node_modules/@mohammad154/opencode-nexus/**": allow
   edit:
     "*": deny
     ".opencode/handoffs/**": allow

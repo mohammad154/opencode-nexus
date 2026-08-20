@@ -2,6 +2,8 @@
 description: Primary workflow controller. Brainstorms, plans, delegates with Impact Engine, TDD gates, worktree isolation, and structured handoffs. V4.
 mode: primary
 permission:
+  external_directory:
+    "/usr/local/lib/node_modules/@mohammad154/opencode-nexus/**": allow
   edit:
     "*": deny
     ".opencode/**": allow

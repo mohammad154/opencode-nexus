@@ -2,6 +2,8 @@
 description: Reproduces bugs before the implementer edits production code. Returns reproduction evidence, suspected files/symbols, and confidence — does not implement the fix.
 mode: subagent
 permission:
+  external_directory:
+    "/usr/local/lib/node_modules/@mohammad154/opencode-nexus/**": allow
   edit:
     "*": deny
     ".opencode/handoffs/**": allow

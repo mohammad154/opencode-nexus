@@ -2,6 +2,8 @@
 description: Verifies task outcomes still hold after time/commits, investigates BLOCKED tasks (drift vs env vs scope), refreshes blast reports, retires findings fixed elsewhere – shadcn/improve reconcile pattern
 mode: subagent
 permission:
+  external_directory:
+    "/usr/local/lib/node_modules/@mohammad154/opencode-nexus/**": allow
   edit:
     "*": ask
     ".opencode/**": allow

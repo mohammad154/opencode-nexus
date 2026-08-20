@@ -2,6 +2,8 @@
 description: Performs code quality review after spec compliance is approved – with blast regression check, LESSONS anti-pattern check, security, file:line findings, severity prioritization.
 mode: subagent
 permission:
+  external_directory:
+    "/usr/local/lib/node_modules/@mohammad154/opencode-nexus/**": allow
   edit:
     "*": deny
     ".opencode/handoffs/**": allow

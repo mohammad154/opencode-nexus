@@ -2,6 +2,8 @@
 description: Read-only whole-branch review after task worktrees are integrated. Checks cross-task regressions and shared API consistency. Returns APPROVED or REQUEST_CHANGES with severity-tagged findings.
 mode: subagent
 permission:
+  external_directory:
+    "/usr/local/lib/node_modules/@mohammad154/opencode-nexus/**": allow
   edit:
     "*": deny
     ".opencode/handoffs/**": allow
