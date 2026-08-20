@@ -8,6 +8,7 @@ export function buildTaskDag(tasks = []) {
   const byId = new Map();
   for (const t of tasks) {
     if (!t?.id) throw new Error("task missing id");
+    if (byId.has(t.id)) throw new Error(`duplicate task id ${t.id}`);
     byId.set(t.id, {
       id: t.id,
       depends_on: [...(t.depends_on || t.deps || [])],
@@ -80,7 +81,17 @@ export function scheduleParallel(dag, { maxConcurrency = 2, completed = new Set(
     return { ok: false, error: `dependency cycle: ${cycle.join(" → ")}` };
   }
   const waves = [];
-  const done = new Set(completed);
+  const completedIterable = completed
+    ? typeof completed[Symbol.iterator] === "function"
+      ? completed
+      : Object.keys(completed)
+    : [];
+  const done = new Set();
+  for (const id of completedIterable) {
+    if (dag.byId.has(id)) {
+      done.add(id);
+    }
+  }
   let guard = 0;
   while (done.size < dag.tasks.length && guard < dag.tasks.length + 2) {
     guard += 1;
