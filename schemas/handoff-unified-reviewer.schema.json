@@ -17,7 +17,7 @@
   ],
   "properties": {
     "schema_version": { "type": "string", "enum": ["1.1"] },
-    "agent": { "type": "string", "minLength": 1 },
+    "agent": { "type": "string", "enum": ["unified-reviewer"] },
     "run_id": { "type": "string", "minLength": 1 },
     "unit_or_task": { "type": "string", "minLength": 1 },
     "task_id": { "type": "string" },

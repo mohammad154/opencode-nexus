@@ -17,7 +17,7 @@
   ],
   "properties": {
     "schema_version": { "type": "string", "enum": ["1.1"] },
-    "agent": { "type": "string" },
+    "agent": { "type": "string", "enum": ["integration-reviewer"] },
     "verdict": {
       "type": "string",
       "enum": ["APPROVED", "CHANGES_REQUESTED", "BLOCKED"]

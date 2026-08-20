@@ -265,6 +265,11 @@ export function bindImplementerHandoffErrors(data, state, ctx = {}) {
  */
 export function bindReviewerHandoffErrors(data, state, role) {
   const errors = sharedHandoffBindingErrors(data, state, role);
+  if (role && data?.agent && data.agent !== role) {
+    errors.push(
+      `${role} handoff agent mismatch (got ${data.agent}, want ${role})`,
+    );
+  }
   const expected = state.implementer_commit;
   if (expected) {
     if (!data.reviewed_commit) {
@@ -935,10 +940,16 @@ export function canTransition(state, to, ctx = {}) {
         errors.push(
           `FINAL_VERIFYING requires unified APPROVED: ${(he || []).map((e) => e.message).join("; ") || data?.verdict}`,
         );
-      } else if (canSelfApproveSafe(state, data)) {
-        errors.push("no self-approval: reviewer agent matches implementer");
       } else {
         errors.push(...bindReviewerHandoffErrors(data, state, "unified-reviewer"));
+      }
+      if (data?.agent !== "unified-reviewer") {
+        errors.push(
+          `unified review requires agent "unified-reviewer", got "${data?.agent}"`,
+        );
+      }
+      if (canSelfApproveSafe(state, data, ctx)) {
+        errors.push("no self-approval: reviewer agent matches implementer");
       }
     } else if (level === "dual") {
       const spec = normalizeAndValidateHandoff(
@@ -954,10 +965,37 @@ export function canTransition(state, to, ctx = {}) {
       } else {
         errors.push(...bindReviewerHandoffErrors(spec.data, state, "spec-reviewer"));
       }
+      if (spec.data?.agent !== "spec-reviewer") {
+        errors.push(
+          `spec-reviewer agent must be "spec-reviewer", got "${spec.data?.agent}"`,
+        );
+      }
+      if (canSelfApproveSafe(state, spec.data, ctx)) {
+        errors.push("no self-approval: spec-reviewer agent matches implementer");
+      }
+
       if (!code.ok || code.data.verdict !== "APPROVED") {
         errors.push("FINAL_VERIFYING requires code-reviewer APPROVED");
       } else {
         errors.push(...bindReviewerHandoffErrors(code.data, state, "code-reviewer"));
+      }
+      if (code.data?.agent !== "code-reviewer") {
+        errors.push(
+          `code-reviewer agent must be "code-reviewer", got "${code.data?.agent}"`,
+        );
+      }
+      if (canSelfApproveSafe(state, code.data, ctx)) {
+        errors.push("no self-approval: code-reviewer agent matches implementer");
+      }
+
+      if (
+        spec.data?.agent &&
+        code.data?.agent &&
+        spec.data.agent === code.data.agent
+      ) {
+        errors.push(
+          `dual review requires distinct agents: spec-reviewer and code-reviewer cannot be the same agent ("${spec.data.agent}")`,
+        );
       }
     }
     if (isMultiTaskRun(state) && !verificationPolicyExempt(state)) {
@@ -976,6 +1014,16 @@ export function canTransition(state, to, ctx = {}) {
             state,
             "integration-reviewer",
           ),
+        );
+      }
+      if (integration.data?.agent !== "integration-reviewer") {
+        errors.push(
+          `integration-reviewer agent must be "integration-reviewer", got "${integration.data?.agent}"`,
+        );
+      }
+      if (canSelfApproveSafe(state, integration.data, ctx)) {
+        errors.push(
+          "no self-approval: integration-reviewer agent matches implementer",
         );
       }
     }
@@ -1038,7 +1086,7 @@ export function canTransition(state, to, ctx = {}) {
       from === "REVIEWING" &&
       allowsLegacySkipFinal(state, ctx)
     ) {
-      const h = ctx.unified_handoff || ctx.review_handoff;
+      const h = ctx.unified_handoff || ctx.review_handoff || state.last_review_handoff;
       const {
         ok,
         data,
@@ -1059,6 +1107,14 @@ export function canTransition(state, to, ctx = {}) {
           ...bindReviewerHandoffErrors(data, state, "unified-reviewer"),
         );
       }
+      if (data?.agent !== "unified-reviewer") {
+        errors.push(
+          `unified review requires agent "unified-reviewer", got "${data?.agent}"`,
+        );
+      }
+      if (canSelfApproveSafe(state, data, ctx)) {
+        errors.push("no self-approval: reviewer agent matches implementer");
+      }
     } else if (
       level === "dual" &&
       from === "REVIEWING" &&
@@ -1066,11 +1122,11 @@ export function canTransition(state, to, ctx = {}) {
     ) {
       const spec = normalizeAndValidateHandoff(
         "spec-reviewer",
-        ctx.spec_handoff || {},
+        ctx.spec_handoff || state.last_spec_handoff || {},
       );
       const code = normalizeAndValidateHandoff(
         "code-reviewer",
-        ctx.code_handoff || {},
+        ctx.code_handoff || state.last_code_handoff || {},
       );
       if (!spec.ok || spec.data.verdict !== "APPROVED") {
         errors.push("dual review requires spec-reviewer APPROVED");
@@ -1079,11 +1135,38 @@ export function canTransition(state, to, ctx = {}) {
           ...bindReviewerHandoffErrors(spec.data, state, "spec-reviewer"),
         );
       }
+      if (spec.data?.agent !== "spec-reviewer") {
+        errors.push(
+          `spec-reviewer agent must be "spec-reviewer", got "${spec.data?.agent}"`,
+        );
+      }
+      if (canSelfApproveSafe(state, spec.data, ctx)) {
+        errors.push("no self-approval: spec-reviewer agent matches implementer");
+      }
+
       if (!code.ok || code.data.verdict !== "APPROVED") {
         errors.push("dual review requires code-reviewer APPROVED");
       } else {
         errors.push(
           ...bindReviewerHandoffErrors(code.data, state, "code-reviewer"),
+        );
+      }
+      if (code.data?.agent !== "code-reviewer") {
+        errors.push(
+          `code-reviewer agent must be "code-reviewer", got "${code.data?.agent}"`,
+        );
+      }
+      if (canSelfApproveSafe(state, code.data, ctx)) {
+        errors.push("no self-approval: code-reviewer agent matches implementer");
+      }
+
+      if (
+        spec.data?.agent &&
+        code.data?.agent &&
+        spec.data.agent === code.data.agent
+      ) {
+        errors.push(
+          `dual review requires distinct agents: spec-reviewer and code-reviewer cannot be the same agent ("${spec.data.agent}")`,
         );
       }
     }
@@ -1092,10 +1175,20 @@ export function canTransition(state, to, ctx = {}) {
   return { ok: errors.length === 0, errors };
 }
 
-function canSelfApproveSafe(state, reviewData) {
-  const impl = state.last_implementer_handoff?.agent;
+function getImplementerAgent(state, ctx = {}) {
+  return (
+    ctx.implementer_handoff?.agent ||
+    ctx.last_implementer_handoff?.agent ||
+    state?.last_implementer_handoff?.agent ||
+    state?.implementer_agent ||
+    "implementer"
+  );
+}
+
+function canSelfApproveSafe(state, reviewData, ctx = {}) {
+  const impl = getImplementerAgent(state, ctx);
   const rev = reviewData?.agent;
-  return impl && rev && impl === rev;
+  return Boolean(impl && rev && impl === rev);
 }
 
 function unresolvedHighFromCtx(ctx, state) {

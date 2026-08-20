@@ -20,7 +20,7 @@
     "run_id": { "type": "string", "minLength": 1 },
     "task_id": { "type": "string" },
     "unit_or_task": { "type": "string", "minLength": 1 },
-    "agent": { "type": "string", "minLength": 1 },
+    "agent": { "type": "string", "enum": ["spec-reviewer"] },
     "reviewed_commit": { "type": ["string", "null"] },
     "base_commit": { "type": ["string", "null"] },
     "created_at": { "type": "string", "minLength": 1 },
