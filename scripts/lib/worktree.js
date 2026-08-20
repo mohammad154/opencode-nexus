@@ -13,12 +13,38 @@ export function worktreeRoot(repoRoot) {
   return path.join(repoRoot, ".opencode", "worktrees");
 }
 
-export function createTaskWorktree(repoRoot, taskId, { branch } = {}) {
+export function createTaskWorktree(repoRoot, taskId, { branch, baseCommit } = {}) {
   const safe = String(taskId).replace(/[^A-Za-z0-9._-]/g, "-");
   const dir = path.join(worktreeRoot(repoRoot), safe);
   fs.mkdirSync(path.dirname(dir), { recursive: true });
   if (fs.existsSync(dir)) {
-    return { ok: true, path: dir, reused: true };
+    const head = run(repoRoot, ["rev-parse", "HEAD"]);
+    const wtHead = run(dir, ["rev-parse", "HEAD"]);
+    const status = run(dir, ["status", "--porcelain"]);
+    if (status.stdout.trim()) {
+      return {
+        ok: false,
+        error: "existing worktree is dirty — remove or clean before reuse",
+        path: dir,
+      };
+    }
+    if (baseCommit && wtHead.stdout && wtHead.stdout !== baseCommit) {
+      return {
+        ok: false,
+        error: `worktree HEAD ${wtHead.stdout} != expected base ${baseCommit}`,
+        path: dir,
+      };
+    }
+    if (head.stdout && wtHead.stdout && head.stdout !== wtHead.stdout) {
+      return {
+        ok: true,
+        path: dir,
+        reused: true,
+        diverged: true,
+        head: wtHead.stdout,
+      };
+    }
+    return { ok: true, path: dir, reused: true, head: wtHead.stdout || null };
   }
   const branchName = branch || `nexus/${safe}`;
   const r = run(repoRoot, ["worktree", "add", "-b", branchName, dir, "HEAD"]);

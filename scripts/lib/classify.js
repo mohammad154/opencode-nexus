@@ -238,6 +238,12 @@ export const CLASS_FLAGS = {
   credential_handling: ["credential_handling"],
   "high-blast": ["blast_risk_high"],
   blast_risk_high: ["blast_risk_high"],
+  "bug-fix": ["bug_fix"],
+  bug_fix: ["bug_fix"],
+  "behavioral-change": ["behavioral_change"],
+  behavioral_change: ["behavioral_change"],
+  "regression-fix": ["regression_fix"],
+  regression_fix: ["regression_fix"],
 };
 
 function maxByRank(rank, a, b, fallback) {

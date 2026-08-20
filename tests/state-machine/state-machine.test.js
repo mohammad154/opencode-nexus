@@ -21,6 +21,7 @@ import {
   sealedPreciseGraph,
   sealedLowBlast,
   sealedImpact,
+  sealedVerification,
 } from "../helpers/gate-fixtures.js";
 
 function sampleClassification(overrides = {}) {
@@ -497,7 +498,10 @@ test("implementer commit binding uses base_commit vs new commit", () => {
     review_level: "unified",
     execution_mode: "delegated",
   };
+  const providers = mockTrustProviders();
   const r = canTransition(state, "VERIFYING", {
+    provider_verification: sealedVerification(),
+    post_impact: sealedImpact({ phase: "post" }),
     implementer_handoff: goodImplementerHandoff({
       run_id: "bind-impl",
       unit_or_task: "unit-1",
@@ -506,16 +510,23 @@ test("implementer commit binding uses base_commit vs new commit", () => {
     }),
   });
   assert.equal(r.ok, true, JSON.stringify(r.errors));
-  const applied = transition(state, "VERIFYING", {
-    implementer_handoff: goodImplementerHandoff({
-      run_id: "bind-impl",
-      unit_or_task: "unit-1",
-      base_commit: "base111",
-      commit: "impl222",
-    }),
-  });
+  const applied = transition(
+    state,
+    "VERIFYING",
+    {
+      implementer_handoff: goodImplementerHandoff({
+        run_id: "bind-impl",
+        unit_or_task: "unit-1",
+        base_commit: "base111",
+        commit: "impl222",
+      }),
+    },
+    providers,
+  );
+  assert.equal(applied.ok, true, JSON.stringify(applied.errors));
   assert.equal(applied.state.implementer_commit, "impl222");
   assert.equal(applied.state.head_commit, "base111");
+  assert.equal(applied.state.provider_verification?.ok, true);
 });
 
 test("reviewer binds to implementer_commit not head_commit", () => {
@@ -570,5 +581,5 @@ test("implementer cannot self-exempt verification", () => {
     },
   });
   assert.equal(r.ok, false);
-  assert.match(r.errors.join("\n"), /verification gate/i);
+  assert.match(r.errors.join("\n"), /provider|verification/i);
 });

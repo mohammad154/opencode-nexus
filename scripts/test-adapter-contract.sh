@@ -107,7 +107,7 @@ if find "$home" "$project" -type f \( \
 fi
 
 grep -q '^install --platform opencode$' "$GRAPHIFY_LOG" \
-  || fail "OpenCode installer did not invoke Graphify global skill installation"
+  || fail "OpenCode installer did not invoke Graphify global skill installation when Graphify is on PATH"
 # `graphify opencode install` is a PROJECT-level mutation; a global `nexus
 # install` must NOT perform it (it now runs in `nexus project-init`).
 ! grep -q '^opencode install$' "$GRAPHIFY_LOG" \

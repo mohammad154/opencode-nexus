@@ -1,7 +1,6 @@
 import fs from "fs";
 import path from "path";
 import { spawnSync } from "node:child_process";
-import { createHash } from "node:crypto";
 import { normalizeAndValidateHandoff } from "./migrate-artifacts.js";
 import {
   validateClassification,
@@ -11,6 +10,10 @@ import {
 } from "./schema-validate.js";
 import { isPlanCommitAcceptable } from "./drift.js";
 import { createDefaultProviders } from "./providers.js";
+import {
+  sealProviderArtifact,
+  verifySealedArtifact,
+} from "./artifact-seal.js";
 import {
   effectivePolicy,
   applyBlastEscalation,
@@ -23,6 +26,8 @@ import {
   isTrustedLowRiskBlast,
   isTrustedLowRiskImpact,
   maxReview,
+  requiresTdd,
+  isMultiTaskRun,
 } from "./policy.js";
 
 export const STATES = [
@@ -63,37 +68,16 @@ function exists(p) {
   return !!p && fs.existsSync(p);
 }
 
-function sha256Digest(value) {
-  return `sha256:${createHash("sha256").update(value).digest("hex")}`;
-}
-
-function stableStringify(value) {
-  if (value === null || typeof value !== "object") {
-    return JSON.stringify(value);
-  }
-  if (Array.isArray(value)) {
-    return `[${value.map((item) => stableStringify(item)).join(",")}]`;
-  }
-  const keys = Object.keys(value)
-    .filter((key) => value[key] !== undefined)
-    .sort();
-  return `{${keys
-    .map((key) => `${JSON.stringify(key)}:${stableStringify(value[key])}`)
-    .join(",")}}`;
-}
-
 export function sealImpactArtifact(report, worktreeHead = null) {
-  if (!report || typeof report !== "object") return null;
-  const sealed = {
-    ...report,
-    worktree_head: worktreeHead || report.worktree_head || null,
-    provider_validated: true,
-    validated_at: nowIso(),
-  };
-  delete sealed.artifact_digest;
-  sealed.artifact_digest = sha256Digest(stableStringify(sealed));
-  return sealed;
+  return sealProviderArtifact(report, worktreeHead);
 }
+
+/** Seal provider-run verification evidence bound to worktree HEAD. */
+export function sealVerificationReport(report, worktreeHead = null) {
+  return sealProviderArtifact(report, worktreeHead);
+}
+
+export { verifySealedArtifact };
 
 /** @deprecated Use sealImpactArtifact */
 export function sealGraphArtifact(graph, worktreeHead = null) {
@@ -105,12 +89,42 @@ export function sealBlastArtifact(report, worktreeHead = null) {
   return sealImpactArtifact(report, worktreeHead);
 }
 
-export function verifySealedArtifact(artifact) {
-  if (!artifact || typeof artifact !== "object") return false;
-  if (artifact.provider_validated !== true) return false;
-  if (typeof artifact.artifact_digest !== "string") return false;
-  const { artifact_digest, ...canonical } = artifact;
-  return artifact_digest === sha256Digest(stableStringify(canonical));
+function assertProviderVerification(ctx, state, errors, { phase = "implementer" } = {}) {
+  const field = phase === "final" ? "final_verification" : "provider_verification";
+  const candidate = ctx[field] || (phase === "final" ? state.final_verification : state.provider_verification);
+  if (ctx[field] && !verifySealedArtifact(ctx[field])) {
+    errors.push(`caller-supplied ${field} rejected — must be provider-sealed`);
+    return;
+  }
+  if (!verifySealedArtifact(candidate)) {
+    errors.push(`${phase === "final" ? "FINAL_VERIFYING" : "VERIFYING"} requires provider-run sealed verification`);
+    return;
+  }
+  if (candidate.ok !== true) {
+    errors.push("provider verification failed");
+  }
+  const worktree = ctx.worktree;
+  if (worktree && candidate.worktree_head) {
+    const head = gitRevParse(worktree, "HEAD");
+    if (head && candidate.worktree_head !== head) {
+      errors.push(`${field} worktree_head mismatch with current HEAD`);
+    }
+  }
+}
+
+function assertPostImpactEvidence(ctx, state, errors) {
+  const post = ctx.post_impact || state.post_impact;
+  if (!verifySealedArtifact(post)) {
+    errors.push("VERIFYING requires sealed post-impact analysis");
+    return;
+  }
+  const worktree = ctx.worktree;
+  if (worktree && post.worktree_head) {
+    const head = gitRevParse(worktree, "HEAD");
+    if (head && post.worktree_head !== head) {
+      errors.push("post-impact worktree_head mismatch with current HEAD");
+    }
+  }
 }
 
 function gitRevParse(worktree, rev = "HEAD") {
@@ -151,7 +165,7 @@ export function requiredEvidence(from, to) {
     "PLANNED->DIRECT_IMPLEMENTING": ["direct_eligible"],
     "IMPLEMENTING->VERIFYING": ["implementer_handoff"],
     "DIRECT_IMPLEMENTING->VERIFYING": ["implementer_handoff"],
-    "VERIFYING->REVIEWING": ["verification_gates|skip_review_prep"],
+    "VERIFYING->REVIEWING": ["provider_verification"],
     "REVIEWING->FINAL_VERIFYING": ["review_approval"],
     "FINAL_VERIFYING->COMPLETED": ["final_verification"],
     "REVIEWING->COMPLETED": ["review_approval|legacy_skip_final"],
@@ -266,22 +280,27 @@ function verificationPolicyExempt(state) {
   return policy && policy.exempt === true;
 }
 
-function assertVerificationGates(data, state, errors) {
+function assertVerificationGates(data, state, errors, ctx = {}) {
   if (data.legacy_unverified === true) {
     errors.push("implementer handoff is legacy_unverified");
     return;
   }
-  // Implementer-controlled verification_exempt is never honored.
   const exempt = verificationPolicyExempt(state);
 
-  const gates = data.verification_gates;
   if (!exempt) {
-    if (!Array.isArray(gates) || gates.length === 0) {
-      errors.push(
-        "VERIFYING requires at least one verification gate (or run verification_policy.exempt)",
-      );
-    } else if (!gates.every((g) => g && g.pass === true)) {
-      errors.push("all verification_gates must have pass === true");
+    assertProviderVerification(ctx, state, errors, { phase: "implementer" });
+    const impactRequired =
+      state.review_level !== "none" && state.execution_mode !== "direct";
+    if (impactRequired) {
+      assertPostImpactEvidence(ctx, state, errors);
+      const impactOk =
+        (data.impact && data.impact.verified === true) ||
+        (data.blast && data.blast.verified === true);
+      if (!impactOk) {
+        errors.push(
+          "impact.verified (or legacy blast.verified) must be true when impact verification is required",
+        );
+      }
     }
     if (!data.drift_check || typeof data.drift_check !== "object") {
       errors.push("VERIFYING requires drift_check");
@@ -289,23 +308,9 @@ function assertVerificationGates(data, state, errors) {
       errors.push("drift_check.pass must be true");
     }
   }
-  const impactRequired =
-    !exempt &&
-    state.review_level !== "none" &&
-    state.execution_mode !== "direct";
-  if (impactRequired) {
-    const impactOk =
-      (data.impact && data.impact.verified === true) ||
-      (data.blast && data.blast.verified === true);
-    if (!impactOk) {
-      errors.push(
-        "impact.verified (or legacy blast.verified) must be true when impact verification is required",
-      );
-    }
-  }
 
-  // TDD evidence required for non-exempt behavioral changes
-  if (!exempt && data.tdd_required === true) {
+  const tddRequired = requiresTdd(state) && !exempt;
+  if (tddRequired) {
     if (!data.tdd?.red || data.tdd.red.exit_code === 0) {
       errors.push("TDD requires red evidence with non-zero exit_code before fix");
     }
@@ -322,7 +327,7 @@ function isProviderTrustedImpact(impact) {
 /**
  * Revalidate impact via providers. Caller-supplied trusted labels are ignored.
  */
-export function revalidateTransitionEvidence(to, ctx, providers) {
+export function revalidateTransitionEvidence(to, ctx, providers, state = {}) {
   const worktree = ctx.worktree || process.cwd();
   const head = gitRevParse(worktree, "HEAD");
   const next = { ...ctx };
@@ -334,7 +339,8 @@ export function revalidateTransitionEvidence(to, ctx, providers) {
         worktree,
         reportPath: ctx.impact_path || ctx["impact-path"] || ctx.blast_path,
         base: ctx.base,
-        change_class: ctx.change_class || ctx.classification?.change_class,
+        change_class: ctx.change_class || ctx.classification?.change_class || state.classification?.change_class,
+        planned_targets: ctx.planned_targets || ctx.targets || ctx.allowed_files || ctx.files,
         report: verifySealedArtifact(ctx.impact?.report || ctx.impact || ctx.blast)
           ? ctx.impact?.report || ctx.impact || ctx.blast
           : undefined,
@@ -407,6 +413,60 @@ export function revalidateTransitionEvidence(to, ctx, providers) {
           trusted: false,
           fabricated: true,
         };
+      }
+    }
+  }
+
+  if (to === "VERIFYING" || (to === "COMPLETED" && state.state === "FINAL_VERIFYING")) {
+    const exempt = verificationPolicyExempt(state);
+    if (!exempt && providers?.impactProvider?.analyze && to === "VERIFYING") {
+      const analyzed = providers.impactProvider.analyze({
+        worktree,
+        base: ctx.base || state.head_commit || state.plan_commit,
+        change_class: state.classification?.change_class,
+        phase: "post",
+        post_impact: true,
+      });
+      const report = analyzed?.report || analyzed;
+      if (report && typeof report === "object") {
+        next.post_impact = sealImpactArtifact(report, head);
+      } else {
+        errors.push(
+          `post-impact provider rejected artifact: ${analyzed?.error || "not ok"}`,
+        );
+      }
+    }
+    if (!exempt && providers?.verificationProvider?.run) {
+      const field = to === "COMPLETED" ? "final_verification" : "provider_verification";
+      const related =
+        next.post_impact?.related_tests ||
+        state.post_impact?.related_tests ||
+        state.impact?.related_tests ||
+        [];
+      const run = providers.verificationProvider.run({
+        worktree,
+        related_tests: related,
+        plan: providers.verificationProvider.discover?.({
+          worktree,
+          related_tests: related,
+        }),
+      });
+      const sealed = sealVerificationReport(
+        {
+          ok: run?.ok === true,
+          results: run?.results || [],
+          plan: run?.plan,
+          source: "verification-provider",
+        },
+        head,
+      );
+      next[field] = sealed;
+    } else if (!exempt && to === "COMPLETED") {
+      if (ctx.skip_final_verification === true) {
+        errors.push("skip_final_verification is not allowed");
+      }
+      if (ctx.final_verification && !verifySealedArtifact(ctx.final_verification)) {
+        errors.push("caller-supplied final_verification rejected — must be provider-sealed");
       }
     }
   }
@@ -668,27 +728,21 @@ export function canTransition(state, to, ctx = {}) {
             require_new_commit: ctx.require_new_commit === true,
           }),
         );
-        assertVerificationGates(data, { ...state, ...policy }, errors);
+        assertVerificationGates(data, { ...state, ...policy }, errors, ctx);
       }
     }
   }
 
   if (from === "VERIFYING" && to === "REVIEWING") {
-    const skip = ctx.skip_review_prep === true;
     const docsSkip = policy.review_level === "none";
-    const raw =
-      ctx.implementer_handoff || ctx.handoff || state.last_implementer_handoff;
-    const gates =
-      ctx.verification_gates ||
-      raw?.verification_gates ||
-      state.last_implementer_handoff?.verification_gates;
-    if (!skip && !docsSkip) {
-      if (!Array.isArray(gates) || gates.length === 0) {
+    if (!docsSkip && !verificationPolicyExempt(state)) {
+      if (
+        !verifySealedArtifact(state.provider_verification) ||
+        state.provider_verification.ok !== true
+      ) {
         errors.push(
-          "REVIEWING requires non-empty verification_gates (or skip_review_prep)",
+          "REVIEWING requires sealed provider_verification from VERIFYING",
         );
-      } else if (!gates.every((g) => g && g.pass === true)) {
-        errors.push("verification_gates must all pass before REVIEWING");
       }
     }
   }
@@ -734,6 +788,25 @@ export function canTransition(state, to, ctx = {}) {
         errors.push(...bindReviewerHandoffErrors(code.data, state, "code-reviewer"));
       }
     }
+    if (isMultiTaskRun(state) && !verificationPolicyExempt(state)) {
+      const integration = normalizeAndValidateHandoff(
+        "integration-reviewer",
+        ctx.integration_handoff || state.last_integration_handoff || {},
+      );
+      if (!integration.ok || integration.data.verdict !== "APPROVED") {
+        errors.push(
+          "multi-task FINAL_VERIFYING requires integration-reviewer APPROVED",
+        );
+      } else {
+        errors.push(
+          ...bindReviewerHandoffErrors(
+            integration.data,
+            state,
+            "integration-reviewer",
+          ),
+        );
+      }
+    }
     const high = unresolvedHighFromCtx(ctx, state);
     if (high.length > 0) {
       errors.push(
@@ -745,13 +818,15 @@ export function canTransition(state, to, ctx = {}) {
   if (to === "COMPLETED") {
     const level = policy.review_level;
     if (from === "FINAL_VERIFYING") {
+      if (ctx.skip_final_verification === true) {
+        errors.push("skip_final_verification is not allowed");
+      }
       const finalOk =
-        ctx.final_verification?.ok === true ||
-        ctx.skip_final_verification === true ||
-        state.final_verification?.ok === true;
+        verifySealedArtifact(ctx.final_verification) &&
+        ctx.final_verification.ok === true;
       if (!finalOk) {
         errors.push(
-          "FINAL_VERIFYING → COMPLETED requires final_verification.ok (script-gated)",
+          "FINAL_VERIFYING → COMPLETED requires provider-sealed final_verification.ok",
         );
       }
       // Stale artifact check
@@ -866,9 +941,11 @@ export function transition(state, to, evidence = {}, providers = null) {
 
   if (
     to === "IMPACT_READY" ||
-    to === "DIRECT_IMPLEMENTING"
+    to === "DIRECT_IMPLEMENTING" ||
+    to === "VERIFYING" ||
+    to === "COMPLETED"
   ) {
-    const revalidated = revalidateTransitionEvidence(to, ctx, prov);
+    const revalidated = revalidateTransitionEvidence(to, ctx, prov, state);
     ctx = revalidated.ctx;
     if (revalidated.errors.length) {
       return { ok: false, state, errors: revalidated.errors };
@@ -938,6 +1015,10 @@ export function transition(state, to, evidence = {}, providers = null) {
     next.profile = classification.profile || next.profile;
     next.review_level = classification.review_level || next.review_level;
     next.execution_mode = classification.execution_mode || next.execution_mode;
+    next.tdd_required = requiresTdd(next);
+    if (ctx.units != null) next.units = ctx.units;
+    if (ctx.execution_units != null) next.execution_units = ctx.execution_units;
+    if (ctx.tasks != null) next.tasks = ctx.tasks;
   }
   if (to === "IMPACT_READY") {
     const impact = ctx.impact?.report || ctx.impact || evidence.impact || ctx.blast;
@@ -972,6 +1053,9 @@ export function transition(state, to, evidence = {}, providers = null) {
     }
     if (ctx.spec_handoff) next.last_spec_handoff = ctx.spec_handoff;
     if (ctx.code_handoff) next.last_code_handoff = ctx.code_handoff;
+    if (ctx.integration_handoff) {
+      next.last_integration_handoff = ctx.integration_handoff;
+    }
   }
   if (to === "VERIFYING") {
     const raw = ctx.implementer_handoff || ctx.handoff;
@@ -980,6 +1064,13 @@ export function transition(state, to, evidence = {}, providers = null) {
       next.last_implementer_handoff = data;
       if (data.commit) next.implementer_commit = data.commit;
     }
+    if (ctx.provider_verification) {
+      next.provider_verification = ctx.provider_verification;
+    }
+    if (ctx.post_impact) next.post_impact = ctx.post_impact;
+  }
+  if (to === "COMPLETED" && ctx.final_verification) {
+    next.final_verification = ctx.final_verification;
   }
   if (to === "BLOCKED") {
     next.block_reason = ctx.block_reason || ctx.reason || null;

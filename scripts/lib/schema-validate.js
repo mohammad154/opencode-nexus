@@ -10,6 +10,7 @@ const HANDOFF_SCHEMA = {
   "unified-reviewer": "handoff-unified-reviewer.schema.json",
   "spec-reviewer": "handoff-spec-reviewer.schema.json",
   "code-reviewer": "handoff-code-reviewer.schema.json",
+  "integration-reviewer": "handoff-integration-reviewer.schema.json",
 };
 
 const cache = new Map();

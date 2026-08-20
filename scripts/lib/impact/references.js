@@ -1,7 +1,7 @@
 /**
  * Reference / dependent discovery (Nx-style affected at file/symbol level).
  */
-import { findSymbolReferences } from "./imports.js";
+import { findSymbolReferences, resolveImportPath } from "./imports.js";
 
 export function collectChangedSymbols(gitEvidence, index) {
   const changed_symbols = [];
@@ -32,12 +32,29 @@ export function collectChangedSymbols(gitEvidence, index) {
   return changed_symbols;
 }
 
-export function collectDependents(gitEvidence, index, changed_symbols) {
+export function collectDependents(gitEvidence, index, changed_symbols, worktree = null) {
   const direct = new Set();
   const transitive = new Set();
 
   for (const file of gitEvidence.changed_files || []) {
-    for (const imp of index.importers?.[file.path] || []) {
+    const path = file.path;
+    const deleted =
+      String(file.status || "").startsWith("D") ||
+      (worktree && file.status === "D");
+
+    if (deleted) {
+      for (const [fromFile, symbols] of Object.entries(index.byFile || {})) {
+        for (const imp of symbols.imports || []) {
+        const resolved = resolveImportPath(fromFile, imp.source, worktree || "", {
+          allowMissing: true,
+        });
+          if (resolved === path) direct.add(fromFile);
+        }
+      }
+      continue;
+    }
+
+    for (const imp of index.importers?.[path] || []) {
       direct.add(imp.from);
     }
   }

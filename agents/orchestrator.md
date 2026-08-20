@@ -34,8 +34,9 @@ nexus impact --json
 nexus run transition --to IMPACT_READY
 nexus run transition --to IMPLEMENTING --branch <b> --acceptance 'c1|c2'
 nexus run validate-handoff --role implementer --file .opencode/handoffs/<id>-implementer.json
-nexus run transition --to FINAL_VERIFYING ...
-nexus run transition --to COMPLETED --json '{"final_verification":{"ok":true},...}'
+nexus run transition --to FINAL_VERIFYING --json '{"unified_handoff":{...}}'
+# COMPLETED re-runs verificationProvider — never pass final_verification.ok / skip_final_verification
+nexus run transition --to COMPLETED
 nexus run inspect --run-id <id>
 nexus run status
 nexus run resume

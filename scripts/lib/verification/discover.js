@@ -26,10 +26,23 @@ export function discoverVerification(worktree, options = {}) {
       steps.push({ id: "typecheck", command: "npm run typecheck", kind: "typecheck" });
     }
     if (scripts.build) steps.push({ id: "build", command: "npm run build", kind: "build" });
+    const related = options.related_tests || [];
+    for (const rt of related) {
+      const rel = typeof rt === "string" ? rt : rt.path || rt.file;
+      if (!rel) continue;
+      const abs = path.join(worktree, rel);
+      if (fs.existsSync(abs)) {
+        steps.push({
+          id: `related:${rel}`,
+          command: `npm test -- ${rel}`,
+          kind: "targeted-test",
+        });
+      }
+    }
     return {
       ecosystem: "node",
       steps,
-      related_tests: options.related_tests || [],
+      related_tests: related,
     };
   }
 

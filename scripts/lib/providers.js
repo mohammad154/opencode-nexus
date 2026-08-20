@@ -17,7 +17,8 @@ import { createMemoryProvider } from "./providers/memory-provider.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, "../..");
-const SUPPORTED_PROVIDER_MODE = "graphify";
+const SUPPORTED_PROVIDER_MODE = "nexus-impact";
+const LEGACY_GRAPHIFY_MODE = "graphify";
 const COMPAT_PROVIDER_MODE = "lite";
 const SAFE_RUN_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 
@@ -965,20 +966,29 @@ export function createEditValidator() {
 }
 
 export function getGraphProvider(
-  mode = process.env.NEXUS_GRAPH_MODE || SUPPORTED_PROVIDER_MODE,
+  mode = process.env.NEXUS_GRAPH_MODE || LEGACY_GRAPHIFY_MODE,
 ) {
   const normalizedMode = normalizeMode(mode);
-  if ([SUPPORTED_PROVIDER_MODE, COMPAT_PROVIDER_MODE].includes(normalizedMode)) {
+  if (
+    [LEGACY_GRAPHIFY_MODE, COMPAT_PROVIDER_MODE, SUPPORTED_PROVIDER_MODE].includes(
+      normalizedMode,
+    )
+  ) {
+    // V4 default evidence is impact; graphify remains available for legacy callers/tests.
     return createGraphifyGraphProvider();
   }
   return createUnsupportedProvider("graph", normalizedMode);
 }
 
 export function getBlastProvider(
-  mode = process.env.NEXUS_BLAST_MODE || SUPPORTED_PROVIDER_MODE,
+  mode = process.env.NEXUS_BLAST_MODE || LEGACY_GRAPHIFY_MODE,
 ) {
   const normalizedMode = normalizeMode(mode);
-  if ([SUPPORTED_PROVIDER_MODE, COMPAT_PROVIDER_MODE].includes(normalizedMode)) {
+  if (
+    [LEGACY_GRAPHIFY_MODE, COMPAT_PROVIDER_MODE, SUPPORTED_PROVIDER_MODE].includes(
+      normalizedMode,
+    )
+  ) {
     return createGraphifyBlastProvider();
   }
   return createUnsupportedProvider("blast", normalizedMode);

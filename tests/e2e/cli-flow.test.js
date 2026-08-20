@@ -258,7 +258,7 @@ test("nexus-run completes a full CLI workflow in a temporary repository", () => 
     "--to",
     "REVIEWING",
     "--json",
-    json({ skip_review_prep: true }),
+    json({}),
   ]);
 
   let statusBeforeComplete = invoke(root, home, ["status", "--run-id", runId]).state;
@@ -319,8 +319,6 @@ test("nexus-run completes a full CLI workflow in a temporary repository", () => 
     "COMPLETED",
     "--json",
     json({
-      skip_final_verification: true,
-      legacy_skip_final: true,
       ...(reviewLevel === "dual"
         ? {
             spec_handoff: {

@@ -51,6 +51,16 @@ export function goodUnifiedHandoff(overrides = {}) {
   };
 }
 
+export function goodIntegrationHandoff(overrides = {}) {
+  return {
+    ...handoffEnvelope({ agent: "integration-reviewer" }),
+    verdict: "APPROVED",
+    reviewed_commit: "impl222",
+    findings: [],
+    ...overrides,
+  };
+}
+
 export function sealedImpact(overrides = {}) {
   return sealImpactArtifact({
     schema_version: "1.0",
@@ -73,6 +83,23 @@ export function sealedImpact(overrides = {}) {
     related_tests: [],
     ...overrides,
   });
+}
+
+export function sealedVerification(overrides = {}) {
+  return sealImpactArtifact({
+    ok: true,
+    source: "verification-provider",
+    results: [{ id: "noop", command: "true", exit_code: 0, pass: true }],
+    ...overrides,
+  });
+}
+
+export function verifyingEvidence(overrides = {}) {
+  return {
+    provider_verification: sealedVerification(),
+    post_impact: sealedImpact({ phase: "post", pre_impact: false }),
+    ...overrides,
+  };
 }
 
 export function sealedPreciseGraph(overrides = {}) {
@@ -99,15 +126,15 @@ export function mockTrustProviders({ impact, graph, blast } = {}) {
   const g = graph || sealedPreciseGraph();
   return {
     impactProvider: {
-      analyze() {
-        return {
-          ok: true,
-          report: {
-            ...i,
-            provider_validated: undefined,
-            artifact_digest: undefined,
-          },
+      analyze(ctx = {}) {
+        const report = {
+          ...i,
+          provider_validated: undefined,
+          artifact_digest: undefined,
+          phase: ctx.phase || ctx.post_impact ? "post" : i.phase || "pre",
+          related_tests: i.related_tests || [],
         };
+        return { ok: true, report };
       },
     },
     graphProvider: {
@@ -133,10 +160,17 @@ export function mockTrustProviders({ impact, graph, blast } = {}) {
     },
     verificationProvider: {
       discover() {
-        return { ecosystem: "node", steps: [] };
+        return {
+          ecosystem: "node",
+          steps: [{ id: "noop", command: "true", kind: "generic" }],
+        };
       },
       run() {
-        return { ok: true, results: [] };
+        return {
+          ok: true,
+          results: [{ id: "noop", command: "true", exit_code: 0, pass: true }],
+          plan: { ecosystem: "node", steps: [] },
+        };
       },
     },
     telemetry: { emit() {} },

@@ -260,3 +260,51 @@ export function assertValidRunId(runId) {
   }
   return runId;
 }
+
+/** TDD is policy-driven — implementer cannot opt out. */
+const TDD_CHANGE_CLASSES = new Set([
+  "bug-fix",
+  "bug_fix",
+  "behavioral-change",
+  "behavioral_change",
+  "regression-fix",
+  "regression_fix",
+]);
+
+export function resolvedRunUnits(state = {}) {
+  const candidate =
+    state.units ??
+    state.execution_units ??
+    state.classification?.units ??
+    state.task_count;
+  const units = Number(candidate);
+  return Number.isFinite(units) && units > 0 ? Math.floor(units) : 1;
+}
+
+export function isMultiTaskRun(state = {}) {
+  if (resolvedRunUnits(state) > 1) return true;
+  if (Array.isArray(state.tasks) && state.tasks.length > 1) return true;
+  if (Array.isArray(state.execution_units) && state.execution_units.length > 1) {
+    return true;
+  }
+  const planTasks = state.plan?.tasks ?? state.plan?.task_count;
+  if (typeof planTasks === "number" && planTasks > 1) return true;
+  if (Array.isArray(planTasks) && planTasks.length > 1) return true;
+  return false;
+}
+
+export function requiresTdd(state = {}, classification = null) {
+  const cls = classification || state.classification || {};
+  const changeClass = cls.change_class || state.change_class;
+  if (changeClass && TDD_CHANGE_CLASSES.has(String(changeClass))) return true;
+  const triggers = cls.hard_triggers || state.hard_triggers || [];
+  if (
+    triggers.some((t) =>
+      ["bug_fix", "behavioral_change", "regression_fix"].includes(String(t)),
+    )
+  ) {
+    return true;
+  }
+  if (cls.semantic_signals?.includes("behavioral_change")) return true;
+  return false;
+}

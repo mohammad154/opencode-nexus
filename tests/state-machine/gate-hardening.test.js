@@ -20,6 +20,7 @@ import {
   sealedPreciseGraph,
   sealedLowBlast,
   sealedImpact,
+  sealedVerification,
 } from "../helpers/gate-fixtures.js";
 
 function sampleClassification(overrides = {}) {
@@ -245,7 +246,7 @@ test("empty drift object is not acceptable", () => {
   assert.equal(isPlanCommitAcceptable(null), false);
 });
 
-test("VERIFYING rejects empty verification_gates", () => {
+test("VERIFYING rejects missing provider verification", () => {
   const state = {
     ...createEmptyRunState("gate-6"),
     state: "IMPLEMENTING",
@@ -267,7 +268,7 @@ test("VERIFYING rejects empty verification_gates", () => {
     }),
   });
   assert.equal(r.ok, false);
-  assert.ok(r.errors.some((e) => /verification gate/i.test(e)));
+  assert.ok(r.errors.some((e) => /provider|verification/i.test(e)));
 });
 
 test("stale approval without run binding rejected", () => {
@@ -331,23 +332,66 @@ test("legacy handoff marked legacy_unverified", () => {
   assert.equal(data.legacy_unverified, true);
 });
 
-test("bound unified approval completes", () => {
+test("FINAL_VERIFYING rejects caller-supplied final_verification.ok", () => {
   const state = {
-    ...createEmptyRunState("gate-9"),
-    state: "REVIEWING",
+    ...createEmptyRunState("gate-final-fake"),
+    state: "FINAL_VERIFYING",
     review_level: "unified",
     current_unit: "auth",
     implementer_commit: "abc123",
-    head_commit: "base000",
+    head_commit: "base",
   };
-  const r = canTransition(state, "COMPLETED", { legacy_skip_final: true,
-    unified_handoff: goodUnifiedHandoff({
-      run_id: "gate-9",
-      unit_or_task: "auth",
-      reviewed_commit: "abc123",
-      base_commit: "base000",
-      escalate_to_dual: false,
+  const r = canTransition(state, "COMPLETED", {
+    final_verification: { ok: true },
+    skip_final_verification: true,
+  });
+  assert.equal(r.ok, false);
+  assert.ok(r.errors.some((e) => /skip_final|provider-sealed|final_verification/i.test(e)));
+});
+
+test("policy-driven TDD cannot be omitted by implementer", () => {
+  const state = {
+    ...createEmptyRunState("gate-tdd"),
+    state: "IMPLEMENTING",
+    review_level: "unified",
+    execution_mode: "delegated",
+    current_unit: "u1",
+    head_commit: "base111",
+    classification: sampleClassification({ change_class: "bug-fix" }),
+    tdd_required: true,
+  };
+  const r = canTransition(state, "VERIFYING", {
+    provider_verification: sealedVerification(),
+    post_impact: sealedImpact({ phase: "post" }),
+    implementer_handoff: goodImplementerHandoff({
+      run_id: "gate-tdd",
+      unit_or_task: "u1",
+      base_commit: "base111",
+      commit: "c1",
     }),
   });
-  assert.equal(r.ok, true, JSON.stringify(r.errors));
+  assert.equal(r.ok, false);
+  assert.ok(r.errors.some((e) => /TDD/i.test(e)));
+});
+
+test("multi-task FINAL_VERIFYING requires integration-reviewer", () => {
+  const state = {
+    ...createEmptyRunState("gate-int"),
+    state: "REVIEWING",
+    review_level: "unified",
+    current_unit: "auth",
+    implementer_commit: "deadbeef",
+    head_commit: "base",
+    units: 2,
+  };
+  const r = canTransition(state, "FINAL_VERIFYING", {
+    unified_handoff: goodUnifiedHandoff({
+      run_id: "gate-int",
+      unit_or_task: "auth",
+      reviewed_commit: "deadbeef",
+      base_commit: "base",
+    }),
+  });
+  assert.equal(r.ok, false);
+  assert.ok(r.errors.some((e) => /integration-reviewer/i.test(e)));
 });

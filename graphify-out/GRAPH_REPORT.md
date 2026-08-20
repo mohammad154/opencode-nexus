@@ -1,16 +1,16 @@
 # Graph Report - opencode-nexus  (2026-08-20)
 
 ## Corpus Check
-- 136 files · ~83,266 words
+- 133 files · ~68,778 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 1653 nodes · 2369 edges · 147 communities (126 shown, 21 thin omitted)
+- 1674 nodes · 2436 edges · 154 communities (133 shown, 21 thin omitted)
 - Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS · INFERRED: 8 edges (avg confidence: 0.54)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `70eff31c`
+- Built from commit: `844fcfbd`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -21,7 +21,7 @@
 - package.json
 - properties
 - properties
-- Orchestrating (V3 — profiles)
+- Orchestrating (V4 — evidence-driven)
 - analyze.js
 - state-machine.js
 - ensure-cli-on-path.js
@@ -56,7 +56,7 @@
 - Finishing a Development Branch (V3 – profiles + script cleanup)
 - Outcome Memory — LESSONS.md (V3)
 - Using Feature Branches (V3)
-- providers.test.js
+- createDefaultProviders
 - properties
 - enum
 - null
@@ -102,7 +102,7 @@
 - enum
 - test-optional-agents.sh
 - install.sh
-- handoff-implementer.schema.json
+- policy.js
 - drift_check
 - stage
 - enum
@@ -123,7 +123,7 @@
 - nexus-blast.js
 - run-init.test.js
 - Diagnostician
-- run_id
+- gate-hardening.test.js
 - agent
 - created_at
 - run_id
@@ -152,47 +152,54 @@
 - updated_at
 - impact-analysis/SKILL.md
 - v3-golden-flows.js
+- schema-validate.js
+- verifySealedArtifact
+- createMetricsTelemetry
+- boolean
+- drift.js
+- template-gate-contract.test.js
+- created_at
 
 ## God Nodes (most connected - your core abstractions)
 1. `classify()` - 27 edges
-2. `canTransition()` - 25 edges
+2. `canTransition()` - 27 edges
 3. `reclassifyAfterBlast()` - 17 edges
 4. `collectGitDiffEvidence()` - 17 edges
-5. `analyzeImpact()` - 16 edges
-6. `NexusPlugin()` - 14 edges
-7. `createDefaultProviders()` - 14 edges
-8. `transition()` - 14 edges
+5. `analyzeImpact()` - 17 edges
+6. `transition()` - 15 edges
+7. `NexusPlugin()` - 14 edges
+8. `createDefaultProviders()` - 14 edges
 9. `OpenCode Nexus` - 14 edges
 10. `enum` - 13 edges
 
 ## Surprising Connections (you probably didn't know these)
+- `collectFlags()` --indirect_call--> `flag()`  [INFERRED]
+  scripts/lib/classify.js → scripts/nexus-estimate-calls.js
 - `buildGateInjection()` --calls--> `buildRunGateReminder()`  [EXTRACTED]
   .opencode/plugins/nexus.js → scripts/lib/run-gate.js
 - `NexusPlugin()` --calls--> `buildRunGateReminder()`  [EXTRACTED]
   .opencode/plugins/nexus.js → scripts/lib/run-gate.js
 - `cmdProjectInit()` --calls--> `projectInit()`  [EXTRACTED]
   bin/nexus.js → scripts/lib/project-init.js
-- `collectFlags()` --indirect_call--> `flag()`  [INFERRED]
-  scripts/lib/classify.js → scripts/nexus-estimate-calls.js
 - `sealedImpact()` --calls--> `sealImpactArtifact()`  [EXTRACTED]
   tests/helpers/gate-fixtures.js → scripts/lib/state-machine.js
 
 ## Import Cycles
 - None detected.
 
-## Communities (147 total, 21 thin omitted)
+## Communities (154 total, 21 thin omitted)
 
 ### Community 0 - "graphify.js"
 Cohesion: 0.22
 Nodes (17): asObject(), currentHead(), edgeEndpoint(), GRAPHIFY_RELATION_SET, GRAPHIFY_RELATIONS, graphRootFromOutput(), manifestSourcePath(), mapFilesToGraphifyNodes() (+9 more)
 
 ### Community 1 - "providers.js"
-Cohesion: 0.08
-Nodes (32): addMetricTotals(), annotateGraphifyBlastReport(), BLAST_PROVIDER_METADATA, collectFileValues(), collectRawFileValues(), createLessonsMemory(), createMetricsTelemetry(), currentGitHead() (+24 more)
+Cohesion: 0.09
+Nodes (23): annotateGraphifyBlastReport(), BLAST_PROVIDER_METADATA, collectFileValues(), collectRawFileValues(), createGraphifyBlastProvider(), createGraphifyGraphProvider(), createLiteBlastProvider(), createLiteGraphProvider() (+15 more)
 
 ### Community 2 - "classify.js"
 Cohesion: 0.05
-Nodes (77): addWeighted(), allFilesAreTestsOrDocs(), applyConfidenceGates(), applyPathSignalRules(), asObject(), assessEvidenceQuality(), blastRiskOf(), CLASS_FLAGS (+69 more)
+Nodes (76): addWeighted(), allFilesAreTestsOrDocs(), applyConfidenceGates(), applyPathSignalRules(), asObject(), assessEvidenceQuality(), blastRiskOf(), CLASS_FLAGS (+68 more)
 
 ### Community 3 - "package.json"
 Cohesion: 0.04
@@ -206,17 +213,17 @@ Nodes (38): drift, additionalProperties, items, type, type, type, enum, type (+3
 Cohesion: 0.05
 Nodes (38): additionalProperties, minLength, type, type, minLength, type, description, $id (+30 more)
 
-### Community 6 - "Orchestrating (V3 — profiles)"
+### Community 6 - "Orchestrating (V4 — evidence-driven)"
 Cohesion: 0.06
-Nodes (31): Anti-patterns, Dual review (strict, or high-risk under any profile), Fix loops, Resolve the local agent name, Review gates by profile, Skip review (documentation-only under fast), Subagent Dispatch (OpenCode) — V3 profiles, Unified review (fast/balanced, low–medium risk) (+23 more)
+Nodes (33): Anti-patterns, Dual review (strict, or high-risk under any profile), Fix loops, Resolve the local agent name, Review gates by profile, Skip review (documentation-only under fast), Subagent Dispatch (OpenCode) — V3 profiles, Unified review (fast/balanced, low–medium risk) (+25 more)
 
 ### Community 7 - "analyze.js"
 Cohesion: 0.09
-Nodes (38): adapterSupports(), extractJsSymbols(), extractSymbols(), JS_EXTS, languageForPath(), analyzeImpact(), computeConfidence(), CONFIDENCE_THRESHOLDS (+30 more)
+Nodes (40): adapterSupports(), extractJsSymbols(), extractSymbols(), JS_EXTS, languageForPath(), analyzeImpact(), normalizePlannedTargets(), computeConfidence() (+32 more)
 
 ### Community 8 - "state-machine.js"
-Cohesion: 0.06
-Nodes (78): assessDrift(), fileHash(), isPlanCommitAcceptable(), normalizeAndValidateHandoff(), applyBlastEscalation(), applyImpactEscalation(), blastRisk(), effectivePolicy() (+70 more)
+Cohesion: 0.15
+Nodes (26): hasExplicitBlastVerification(), hasExplicitImpactVerification(), requiresTdd(), assertPostImpactEvidence(), assertProviderVerification(), assertVerificationGates(), bindImplementerHandoffErrors(), bindReviewerHandoffErrors() (+18 more)
 
 ### Community 9 - "ensure-cli-on-path.js"
 Cohesion: 0.17
@@ -235,8 +242,8 @@ Cohesion: 0.06
 Nodes (34): CHANGES_REQUESTED, additionalProperties, type, allOf, type, $id, 1.1, agent (+26 more)
 
 ### Community 13 - "null"
-Cohesion: 0.13
-Nodes (22): type, type, type, type, properties, type, boolean, null (+14 more)
+Cohesion: 0.19
+Nodes (15): type, type, type, properties, null, string, type, type (+7 more)
 
 ### Community 14 - "properties"
 Cohesion: 0.10
@@ -247,12 +254,12 @@ Cohesion: 0.11
 Nodes (19): minLength, type, minLength, type, type, properties, agent, created_at (+11 more)
 
 ### Community 16 - "verification-and-dag.test.js"
-Cohesion: 0.14
-Nodes (19): normalizeAllowedFiles(), scopeExpansionNeeded(), createVerificationProvider(), canSelfApprove(), fixLoopDecision(), normalizeFinding(), unresolvedHighFindings(), assertScopeLock() (+11 more)
+Cohesion: 0.16
+Nodes (19): globsOverlap(), globToRegExp(), normalizeAllowedFiles(), pathMatchesGlob(), scopeExpansionNeeded(), canSelfApprove(), fixLoopDecision(), normalizeFinding() (+11 more)
 
 ### Community 17 - "required"
-Cohesion: 0.18
-Nodes (11): commit, drift_check, status, verification_gates, agent, base_commit, created_at, run_id (+3 more)
+Cohesion: 0.11
+Nodes (17): commit, drift_check, status, verification_gates, additionalProperties, allOf, $id, agent (+9 more)
 
 ### Community 18 - "properties"
 Cohesion: 0.08
@@ -280,7 +287,7 @@ Nodes (14): Artifacts (when --task N), Blast Radius (CodeLookup-inspired pre-imp
 
 ### Community 24 - "properties"
 Cohesion: 0.12
-Nodes (17): minLength, type, type, type, properties, created_at, legacy_unverified, lessons_checked (+9 more)
+Nodes (17): type, type, properties, legacy_unverified, lessons_checked, role, run_id, task_id (+9 more)
 
 ### Community 25 - "type"
 Cohesion: 0.14
@@ -291,8 +298,8 @@ Cohesion: 0.11
 Nodes (29): additionalProperties, type, type, type, type, additionalProperties, type, type (+21 more)
 
 ### Community 27 - "nexus-estimate-calls.js"
-Cohesion: 0.16
-Nodes (13): args, breakdownFor(), callsForUnit(), changeClass, chosen, DUAL_REVIEW_CLASSES, estimate(), executionMode (+5 more)
+Cohesion: 0.15
+Nodes (14): args, breakdownFor(), callsForUnit(), changeClass, chosen, DUAL_REVIEW_CLASSES, estimate(), executionMode (+6 more)
 
 ### Community 28 - "Procedure"
 Cohesion: 0.14
@@ -316,7 +323,7 @@ Nodes (11): state, transitions, additionalProperties, $id, profile, run_id, sche
 
 ### Community 33 - "nexus-run.js"
 Cohesion: 0.09
-Nodes (45): createEmptyRunState(), deepClone(), inferRunFromContext(), isLegacyHandoffVersion(), latestRunState(), LEGACY_HANDOFF_VERSIONS, listRunIds(), normalizeHandoff() (+37 more)
+Nodes (44): createEmptyRunState(), deepClone(), inferRunFromContext(), isLegacyHandoffVersion(), latestRunState(), LEGACY_HANDOFF_VERSIONS, listRunIds(), normalizeHandoff() (+36 more)
 
 ### Community 34 - "graphify-adapter.test.js"
 Cohesion: 0.20
@@ -346,9 +353,9 @@ Nodes (10): Entry template, Hard rules, Integration, lessonPolicy, Noteworthy-on
 Cohesion: 0.18
 Nodes (10): Branch policy (profile-aware), Cleanup, Detect the base branch, `isolated` (default for strict), Isolation recovery, Merge policy (project default), `per-feature` (default for balanced/fast), Prerequisites (+2 more)
 
-### Community 41 - "providers.test.js"
-Cohesion: 0.17
-Nodes (13): createEditValidator(), createGraphifyBlastProvider(), createGraphifyGraphProvider(), createLiteBlastProvider(), createLiteGraphProvider(), createUnsupportedProvider(), getBlastProvider(), getEditValidator() (+5 more)
+### Community 41 - "createDefaultProviders"
+Cohesion: 0.19
+Nodes (13): createDefaultProviders(), createEditValidator(), createLessonsMemory(), createUnsupportedProvider(), getBlastProvider(), getEditValidator(), getGraphProvider(), createMemoryProvider() (+5 more)
 
 ### Community 42 - "properties"
 Cohesion: 0.24
@@ -526,9 +533,9 @@ Nodes (4): GRAPHIFY_LOG, HOME, PATH, test-optional-agents.sh script
 Cohesion: 0.53
 Nodes (4): bak(), manifest_record_original(), prune_optional_from_dir(), install.sh script
 
-### Community 87 - "handoff-implementer.schema.json"
-Cohesion: 0.29
-Nodes (6): additionalProperties, allOf, $id, $schema, title, type
+### Community 87 - "policy.js"
+Cohesion: 0.17
+Nodes (20): applyBlastEscalation(), applyImpactEscalation(), blastRisk(), effectivePolicy(), EXEC_RANK, isMultiTaskRun(), isTrustedLowRiskBlast(), isTrustedLowRiskImpact() (+12 more)
 
 ### Community 88 - "drift_check"
 Cohesion: 0.40
@@ -602,9 +609,9 @@ Nodes (4): args, __dirname, impact, r
 Cohesion: 0.50
 Nodes (3): Diagnostician, Output, Role
 
-### Community 108 - "run_id"
-Cohesion: 0.67
-Nodes (3): run_id, minLength, type
+### Community 108 - "gate-hardening.test.js"
+Cohesion: 0.24
+Nodes (15): CLASSIFY_APPLY_SOURCE, sealBlastArtifact(), sealGraphArtifact(), sealImpactArtifact(), goodImplementerHandoff(), goodIntegrationHandoff(), goodUnifiedHandoff(), handoffEnvelope() (+7 more)
 
 ### Community 109 - "agent"
 Cohesion: 0.67
@@ -646,25 +653,53 @@ Nodes (3): minLength, type, agent
 Cohesion: 0.67
 Nodes (3): unit_or_task, minLength, type
 
+### Community 147 - "schema-validate.js"
+Cohesion: 0.27
+Nodes (16): normalizeAndValidateHandoff(), cache, __dirname, HANDOFF_SCHEMA, isObject(), loadAllSchemas(), loadSchema(), matchesType() (+8 more)
+
+### Community 148 - "verifySealedArtifact"
+Cohesion: 0.30
+Nodes (7): nowIso(), sealProviderArtifact(), sha256Digest(), stableStringify(), verifySealedArtifact(), createNexusImpactProvider(), validateCachedReport()
+
+### Community 149 - "createMetricsTelemetry"
+Cohesion: 0.24
+Nodes (11): addMetricTotals(), createMetricsTelemetry(), finiteNonNegative(), getAgentCallBudget(), metricsPathFor(), normalizeTokens(), numericMetric(), safeMetricLabel() (+3 more)
+
+### Community 150 - "boolean"
+Cohesion: 0.29
+Nodes (7): type, type, boolean, blast_verified, impact_verified, verified, type
+
+### Community 151 - "drift.js"
+Cohesion: 0.60
+Nodes (4): assessDrift(), fileHash(), isPlanCommitAcceptable(), validateDriftReport()
+
+### Community 152 - "template-gate-contract.test.js"
+Cohesion: 0.60
+Nodes (4): handoffFromImplementerTemplate(), handoffFromUnifiedTemplate(), read(), root
+
+### Community 153 - "created_at"
+Cohesion: 0.67
+Nodes (3): minLength, type, created_at
+
 ## Knowledge Gaps
-- **712 isolated node(s):** `__dirname`, `skillsDir`, `TERMINAL_RUN_STATES`, `KNOWLEDGE_RELEVANT_STATES`, `pkgRoot` (+707 more)
+- **715 isolated node(s):** `__dirname`, `skillsDir`, `TERMINAL_RUN_STATES`, `KNOWLEDGE_RELEVANT_STATES`, `pkgRoot` (+710 more)
   These have ≤1 connection - possible missing edges or undocumented components.
 - **21 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `properties` connect `properties` to `schema_version`, `properties`, `enum`, `properties`, `null`, `tdd`, `handoff-implementer.schema.json`, `drift_check`, `type`?**
-  _High betweenness centrality (0.006) - this node is a cross-community bridge._
+- **Why does `collectFlags()` connect `classify.js` to `nexus-estimate-calls.js`?**
+  _High betweenness centrality (0.012) - this node is a cross-community bridge._
+- **Why does `flag()` connect `nexus-estimate-calls.js` to `classify.js`?**
+  _High betweenness centrality (0.009) - this node is a cross-community bridge._
+- **Why does `classify()` connect `classify.js` to `nexus-run.js`, `gate-hardening.test.js`?**
+  _High betweenness centrality (0.007) - this node is a cross-community bridge._
 - **What connects `__dirname`, `skillsDir`, `TERMINAL_RUN_STATES` to the rest of the system?**
-  _712 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _715 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `providers.js` be split into smaller, more focused modules?**
-  _Cohesion score 0.08097165991902834 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.09113300492610837 - nodes in this community are weakly interconnected._
 - **Should `classify.js` be split into smaller, more focused modules?**
-  _Cohesion score 0.052941176470588235 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.05393000573723465 - nodes in this community are weakly interconnected._
 - **Should `package.json` be split into smaller, more focused modules?**
   _Cohesion score 0.043478260869565216 - nodes in this community are weakly interconnected._
-- **Should `properties` be split into smaller, more focused modules?**
-  _Cohesion score 0.0553306342780027 - nodes in this community are weakly interconnected._
-- **Should `properties` be split into smaller, more focused modules?**
-  _Cohesion score 0.05128205128205128 - nodes in this community are weakly interconnected._

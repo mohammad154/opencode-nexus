@@ -21,5 +21,13 @@
   "reconciler": {
     "model": "opencode-go/deepseek-v4-pro",
     "variant": "max"
+  },
+  "diagnostician": {
+    "model": "opencode/deepseek-v4-flash-free",
+    "variant": "high"
+  },
+  "integration-reviewer": {
+    "model": "opencode-go/deepseek-v4-pro",
+    "variant": "high"
   }
 }

@@ -48,7 +48,7 @@ function walkSourceFiles(root, { maxFiles = 5000 } = {}) {
   return out;
 }
 
-function resolveImportPath(fromFile, spec, worktree) {
+function resolveImportPath(fromFile, spec, worktree, options = {}) {
   if (!spec || spec.startsWith("node:") || (!spec.startsWith(".") && !spec.startsWith("/"))) {
     return null; // external package
   }
@@ -68,6 +68,10 @@ function resolveImportPath(fromFile, spec, worktree) {
     if (fs.existsSync(c) && fs.statSync(c).isFile()) {
       return path.relative(worktree, c).replace(/\\/g, "/");
     }
+  }
+  if (options.allowMissing) {
+    const rel = path.relative(worktree, path.extname(base) ? base : `${base}.js`);
+    return rel.replace(/\\/g, "/");
   }
   return null;
 }

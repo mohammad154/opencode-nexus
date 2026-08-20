@@ -195,20 +195,23 @@ function cmdProjectInit() {
     pkgRoot,
   });
 
-  // Project-level Graphify wiring (instructions + plugin) belongs here, scoped
-  // to the current project — NOT in the global `nexus install`, which may run
-  // from an arbitrary directory and must not mutate an unrelated project.
-  let graphify = { attempted: false, ok: null, detail: "graphify not found on PATH" };
+  // Graphify is optional V3 compatibility. Prefer Nexus Impact Engine.
+  let graphify = {
+    attempted: false,
+    ok: null,
+    optional: true,
+    detail: "graphify not on PATH (optional)",
+  };
   if (hasCommand("graphify")) {
-    graphify = { attempted: true, ok: false, detail: null };
+    graphify = { attempted: true, ok: false, optional: true, detail: null };
     const r = spawnSync("graphify", ["opencode", "install"], {
       cwd: worktree,
       encoding: "utf8",
     });
     graphify.ok = r.status === 0;
     graphify.detail = graphify.ok
-      ? "graphify opencode install completed"
-      : `graphify opencode install failed (exit ${r.status ?? "unknown"}): ${
+      ? "optional graphify opencode install completed"
+      : `optional graphify install failed (exit ${r.status ?? "unknown"}): ${
           (r.stderr || r.stdout || "").trim() || "no output"
         }`;
   }
@@ -219,6 +222,7 @@ function cmdProjectInit() {
         ok: true,
         message: "Nexus project bootstrap complete",
         ...result,
+        impact_engine: "nexus-impact",
         graphify,
       },
       null,
@@ -330,15 +334,23 @@ function doctor() {
         : "missing — run: nexus project-init",
     ]);
 
-    const graphPath = path.join(worktree, "graphify-out", "graph.json");
-    const graphOk = fs.existsSync(graphPath);
+    const impactDir = path.join(worktree, ".opencode", "impact");
+    const impactOk = fs.existsSync(impactDir);
     rows.push([
-      "project-graph",
-      graphOk,
-      graphOk
-        ? "graphify-out/graph.json present"
-        : "missing — run: graphify extract . --code-only --directed --no-viz",
+      "project-impact",
+      true,
+      impactOk
+        ? ".opencode/impact/ present"
+        : "optional — run: nexus impact --json",
     ]);
+    const graphPath = path.join(worktree, "graphify-out", "graph.json");
+    if (fs.existsSync(graphPath)) {
+      rows.push([
+        "project-graphify",
+        true,
+        "optional graphify-out/graph.json present",
+      ]);
+    }
 
     const activeRun = readActiveRunSummary(worktree);
     if (activeRun) {

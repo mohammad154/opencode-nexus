@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# OpenCode Nexus installer — V3 workflow for OpenCode
+# OpenCode Nexus installer — V4 evidence-driven workflow for OpenCode
 # Usage: ./install.sh [--with-optional-agents] [--prune-optional-agents] [--uninstall] [-h]
-# Deps: bash, jq, graphify; git optional
+# Deps: bash, jq; git optional. Graphify is NOT a runtime prerequisite.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -9,7 +9,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WITH_OPTIONAL_AGENTS=0
 PRUNE_OPTIONAL_AGENTS=0
 # Canonical roster. OpenCode uses these names natively.
-CANONICAL_AGENTS=(orchestrator implementer unified-reviewer spec-reviewer code-reviewer reconciler)
+CANONICAL_AGENTS=(orchestrator implementer unified-reviewer spec-reviewer code-reviewer reconciler diagnostician integration-reviewer)
 OPTIONAL_AGENTS=(blast-analyzer)
 if [[ "${NEXUS_OPTIONAL_AGENTS:-}" == "1" ]]; then WITH_OPTIONAL_AGENTS=1; fi
 
@@ -25,8 +25,8 @@ Usage: ./install.sh [--with-optional-agents] [--prune-optional-agents]
   --prune-optional-agents remove optional agents from the OpenCode install dir on upgrade
   --uninstall             delegate to uninstall.sh
 
-Canonical agents: orchestrator implementer unified-reviewer spec-reviewer code-reviewer reconciler
-Optional (not installed by default): blast-analyzer — Graphify is the sole graph provider
+Canonical agents: orchestrator implementer diagnostician unified-reviewer spec-reviewer code-reviewer integration-reviewer reconciler
+Optional (not installed by default): blast-analyzer — Graphify is optional compatibility only
 USAGE
       exit 0 ;;
     *)
@@ -111,11 +111,6 @@ fi
 echo ""
 
 echo "[opencode] Installing..."
-if ! command -v graphify >/dev/null 2>&1; then
-  echo "  Error: Graphify is required for OpenCode installation but the 'graphify' executable was not found." >&2
-  echo "  Install Graphify with OpenCode, then rerun this installer. Nexus does not install Python packages or access the network." >&2
-  exit 1
-fi
 if ! command -v jq >/dev/null 2>&1; then
   echo "  Error: jq required for OpenCode configuration merging (install jq, then rerun this installer)." >&2
   exit 1
@@ -139,7 +134,7 @@ fi
 # Always strip underscore meta-keys and nested _comment so jq agent merge stays object+object
 MJ="$(jq 'def strip: with_entries(select(.key|startswith("_")|not));
   strip | with_entries(.value = (if (.value|type)=="object" then (.value|strip) else .value end))' <<<"$MJ")"
-for spec in "orchestrator:NEXUS_ORCHESTRATOR_MODEL" "implementer:NEXUS_IMPLEMENTER_MODEL" "spec-reviewer:NEXUS_SPEC_REVIEWER_MODEL" "code-reviewer:NEXUS_CODE_REVIEWER_MODEL" "unified-reviewer:NEXUS_UNIFIED_REVIEWER_MODEL"; do
+for spec in "orchestrator:NEXUS_ORCHESTRATOR_MODEL" "implementer:NEXUS_IMPLEMENTER_MODEL" "spec-reviewer:NEXUS_SPEC_REVIEWER_MODEL" "code-reviewer:NEXUS_CODE_REVIEWER_MODEL" "unified-reviewer:NEXUS_UNIFIED_REVIEWER_MODEL" "diagnostician:NEXUS_DIAGNOSTICIAN_MODEL" "integration-reviewer:NEXUS_INTEGRATION_REVIEWER_MODEL"; do
   IFS=: read -r ag envv <<<"$spec"; v="${!envv:-}"; [[ -n "$v" ]] && MJ="$(jq --arg a "$ag" --arg m "$v" '.[$a].model=$m' <<<"$MJ")"
 done
 for spec in "implementer:NEXUS_IMPLEMENTER_VARIANT:NEXUS_IMPLEMENTER_REASONING_EFFORT" "spec-reviewer:NEXUS_SPEC_REVIEWER_VARIANT:NEXUS_SPEC_REVIEWER_REASONING_EFFORT" "code-reviewer:NEXUS_CODE_REVIEWER_VARIANT:NEXUS_CODE_REVIEWER_REASONING_EFFORT" "unified-reviewer:NEXUS_UNIFIED_REVIEWER_VARIANT:NEXUS_UNIFIED_REVIEWER_REASONING_EFFORT"; do
@@ -192,10 +187,14 @@ if (( WITH_OPTIONAL_AGENTS )); then
 else
   echo "  [opencode] Optional agent skipped (use --with-optional-agents)"
 fi
-echo "  [opencode] Installing Graphify global skill..."
-if ! graphify install --platform opencode; then
-  echo "  Error: Graphify global OpenCode skill installation failed; install Graphify separately and retry." >&2
-  exit 1
+echo "  [opencode] Graphify is optional (Impact Engine is the default evidence provider)."
+if command -v graphify >/dev/null 2>&1; then
+  echo "  [opencode] Graphify found — installing optional global skill..."
+  if ! graphify install --platform opencode; then
+    echo "  Warning: Graphify skill install failed; Nexus V4 does not require it." >&2
+  fi
+else
+  echo "  [opencode] Graphify not on PATH — skipped (not required for V4)."
 fi
 # NOTE: `graphify opencode install` is a PROJECT-level mutation and must not run
 # from a global `nexus install` invoked in an arbitrary directory. It now runs
@@ -204,23 +203,21 @@ fi
 echo "  [opencode] Done → $CONFIG_FILE agents: $AGENTS_DIR/"
 
 echo ""; echo "[scripts] Checking:"
-for s in nexus-blast.sh nexus-blast.js nexus-branch-cleanup.sh nexus-estimate-calls.js nexus-run.js nexus-classify.js install-git-hook.sh; do if [[ -f "$SCRIPT_DIR/scripts/$s" ]]; then echo "  ✓ scripts/$s"; else echo "  ✗ missing $s"; fi; done
+for s in nexus-impact.js nexus-blast.sh nexus-blast.js nexus-branch-cleanup.sh nexus-estimate-calls.js nexus-run.js nexus-classify.js install-git-hook.sh; do if [[ -f "$SCRIPT_DIR/scripts/$s" ]]; then echo "  ✓ scripts/$s"; else echo "  ✗ missing $s"; fi; done
 chmod +x "$SCRIPT_DIR/scripts/nexus-blast.sh" "$SCRIPT_DIR/scripts/nexus-branch-cleanup.sh" "$SCRIPT_DIR/scripts/install-git-hook.sh" 2>/dev/null || true
 chmod a+r "$SCRIPT_DIR/scripts/nexus-blast.js" "$SCRIPT_DIR/scripts/nexus-estimate-calls.js" "$SCRIPT_DIR/scripts/nexus-run.js" "$SCRIPT_DIR/scripts/nexus-classify.js" 2>/dev/null || true
 
 cat <<END
 
-Installation complete (Nexus V3 engine — profiles: fast|balanced|strict, default balanced).
-Canonical agents: orchestrator, implementer, unified-reviewer, spec-reviewer, code-reviewer, reconciler.
-Optional agent: blast-analyzer (install with --with-optional-agents). Graphify is the sole graph provider.
+Installation complete (Nexus V4 engine — profiles: fast|balanced|strict, default balanced).
+Canonical agents: orchestrator, implementer, diagnostician, unified-reviewer, spec-reviewer, code-reviewer, integration-reviewer, reconciler.
+Optional agent: blast-analyzer (install with --with-optional-agents). Graphify is optional; Impact Engine is the default evidence provider.
 OpenCode → ~/.config/opencode/ (plugin + canonical agents)
 Next:
-  - graphify query "<architecture question>"
-  - graphify affected "<node-or-file>" --depth 2
   - nexus project-init
   - nexus run init --run-id demo
   - nexus estimate --tasks 3 --profile balanced
-  - nexus blast --files <path>   # JSON default; --mermaid on demand
+  - nexus impact --json --targets <path>
   - bash ./scripts/nexus-branch-cleanup.sh --base <base> <feature-branch>
   - restart OpenCode and select orchestrator
   - Customize: edit $CONFIG_DIR/nexus.models.json && re-run install

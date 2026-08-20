@@ -8,6 +8,11 @@ import {
   createEmptyRunState,
 } from "../../scripts/lib/migrate-artifacts.js";
 import { canTransition, transition } from "../../scripts/lib/state-machine.js";
+import {
+  mockTrustProviders,
+  sealedVerification,
+  sealedImpact,
+} from "../helpers/gate-fixtures.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 
@@ -102,13 +107,19 @@ test("documented implementer template produces a gate-valid handoff", () => {
     execution_mode: "delegated",
   };
   const verifying = canTransition(state, "VERIFYING", {
+    provider_verification: sealedVerification(),
+    post_impact: sealedImpact({ phase: "post" }),
     implementer_handoff: handoff,
   });
   assert.equal(verifying.ok, true, JSON.stringify(verifying.errors));
 
-  const applied = transition(state, "VERIFYING", {
-    implementer_handoff: handoff,
-  });
+  const applied = transition(
+    state,
+    "VERIFYING",
+    { implementer_handoff: handoff },
+    mockTrustProviders(),
+  );
+  assert.equal(applied.ok, true, JSON.stringify(applied.errors));
   assert.equal(applied.state.implementer_commit, "commitbb");
 });
 

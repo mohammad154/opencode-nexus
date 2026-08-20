@@ -79,3 +79,72 @@ test("unresolved HIGH findings block completion path via fix loop", () => {
   });
   assert.equal(d.action, "block");
 });
+
+test("empty allowed_files fails closed", () => {
+  const r = assertScopeLock({ allowed_files: [], changed_files: ["a.js"] });
+  assert.equal(r.ok, false);
+  assert.equal(r.code, "SCOPE_UNBOUND");
+});
+
+test("caller-shaped final_verification is not trusted without seal", async () => {
+  const { canTransition } = await import("../../scripts/lib/state-machine.js");
+  const { createEmptyRunState } = await import("../../scripts/lib/migrate-artifacts.js");
+  const state = {
+    ...createEmptyRunState("eval-fake-final"),
+    state: "FINAL_VERIFYING",
+    review_level: "unified",
+  };
+  const r = canTransition(state, "COMPLETED", {
+    final_verification: { ok: true },
+    skip_final_verification: true,
+  });
+  assert.equal(r.ok, false);
+});
+
+test("omitted tdd_required still enforces policy for bug-fix", async () => {
+  const { canTransition } = await import("../../scripts/lib/state-machine.js");
+  const { createEmptyRunState } = await import("../../scripts/lib/migrate-artifacts.js");
+  const { goodImplementerHandoff, sealedVerification, sealedImpact } = await import(
+    "../helpers/gate-fixtures.js"
+  );
+  const state = {
+    ...createEmptyRunState("eval-tdd"),
+    state: "IMPLEMENTING",
+    review_level: "unified",
+    execution_mode: "delegated",
+    current_unit: "u1",
+    head_commit: "base",
+    classification: { change_class: "bug-fix", review_level: "unified" },
+  };
+  const r = canTransition(state, "VERIFYING", {
+    provider_verification: sealedVerification(),
+    post_impact: sealedImpact({ phase: "post" }),
+    implementer_handoff: goodImplementerHandoff({
+      run_id: "eval-tdd",
+      unit_or_task: "u1",
+      base_commit: "base",
+      commit: "c1",
+    }),
+  });
+  assert.equal(r.ok, false);
+  assert.ok(r.errors.some((e) => /TDD/i.test(e)));
+});
+
+test("DAG treats glob overlap as file conflict", async () => {
+  const { buildTaskDag, readyTasks } = await import("../../scripts/lib/task-dag.js");
+  const dag = buildTaskDag([
+    { id: "a", files: ["src/*"] },
+    { id: "b", files: ["src/foo.js"] },
+  ]);
+  const ready = readyTasks(dag, {
+    completed: new Set(),
+    running: [{ id: "a", files: ["src/*"] }],
+  });
+  assert.equal(ready.some((t) => t.id === "b"), false);
+});
+
+test("pre-impact without diff does not claim high trust", async () => {
+  const { computeConfidence } = await import("../../scripts/lib/impact/confidence.js");
+  const c = computeConfidence({ hasDiff: false, preImpact: true, gitOk: true });
+  assert.ok(c < 0.75);
+});

@@ -16,10 +16,12 @@ export function computeConfidence({
   cacheComplete = true,
   parseErrors = 0,
   hasDiff = true,
+  preImpact = false,
 } = {}) {
   let score = 1;
   if (!gitOk) score -= 0.5;
-  if (!hasDiff) score -= 0.1;
+  if (!hasDiff) score -= preImpact ? 0.35 : 0.1;
+  if (preImpact) score -= 0.15;
   if (totalFiles > 0 && unsupportedFiles > 0) {
     score -= Math.min(0.4, (unsupportedFiles / totalFiles) * 0.5);
   }

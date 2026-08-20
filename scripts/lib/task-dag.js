@@ -2,6 +2,8 @@
  * Task dependency DAG + parallel scheduler.
  * Only independent tasks (no shared unresolved deps / file conflicts) run together.
  */
+import { globsOverlap } from "./impact/boundaries.js";
+
 export function buildTaskDag(tasks = []) {
   const byId = new Map();
   for (const t of tasks) {
@@ -44,8 +46,16 @@ export function detectCycle(dag) {
 }
 
 function sharesFiles(a, b) {
-  const setB = new Set(b.files || []);
-  return (a.files || []).some((f) => setB.has(f) || setB.has("*") || f === "*");
+  const filesA = a.files || [];
+  const filesB = b.files || [];
+  if (filesA.length === 0 || filesB.length === 0) return false;
+  for (const fa of filesA) {
+    for (const fb of filesB) {
+      if (fa === fb || fa === "*" || fb === "*") return true;
+      if (globsOverlap(fa, fb)) return true;
+    }
+  }
+  return false;
 }
 
 /**

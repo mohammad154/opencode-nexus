@@ -4,7 +4,44 @@
  */
 import fs from "fs";
 import path from "path";
+import { spawnSync } from "node:child_process";
 import { analyzeImpact } from "../impact/analyze.js";
+import { verifySealedArtifact } from "../artifact-seal.js";
+
+function gitHead(worktree) {
+  const r = spawnSync("git", ["rev-parse", "HEAD"], {
+    cwd: worktree,
+    encoding: "utf8",
+  });
+  if (r.status !== 0) return null;
+  return String(r.stdout || "").trim() || null;
+}
+
+function validateCachedReport(cached, fresh, head) {
+  if (!cached || typeof cached !== "object") return fresh;
+  if (cached.worktree_head && head && cached.worktree_head !== head) {
+    return { ...fresh, cache_rejected: "stale_head", trusted: false };
+  }
+  if (
+    cached.provider_validated === true &&
+    cached.artifact_digest &&
+    !verifySealedArtifact(cached)
+  ) {
+    return { ...fresh, cache_rejected: "bad_digest", trusted: false };
+  }
+  const merged = { ...fresh };
+  if (cached.phase === "pre" && fresh.phase === "post") {
+    merged.pre_impact_resolved = true;
+  }
+  if (cached.risk && fresh.risk && cached.risk !== fresh.risk) {
+    merged.risk_drift = { from: cached.risk, to: fresh.risk };
+    if (String(fresh.risk).toUpperCase() > String(cached.risk).toUpperCase()) {
+      merged.trusted = false;
+    }
+  }
+  merged.cache_hint_used = true;
+  return merged;
+}
 
 export function createNexusImpactProvider() {
   return {
@@ -14,21 +51,46 @@ export function createNexusImpactProvider() {
     quality: "nexus-impact",
     analyze(ctx = {}) {
       const worktree = ctx.worktree || process.cwd();
-      if (ctx.report && typeof ctx.report === "object" && ctx.report.provider_validated === true) {
+      const head = gitHead(worktree);
+      if (
+        ctx.report &&
+        typeof ctx.report === "object" &&
+        ctx.report.provider_validated === true &&
+        verifySealedArtifact(ctx.report)
+      ) {
+        if (head && ctx.report.worktree_head && ctx.report.worktree_head !== head) {
+          return {
+            ok: false,
+            error: "sealed impact stale — worktree HEAD moved",
+            report: { ...ctx.report, stale: true, trusted: false },
+          };
+        }
         return { ok: true, report: ctx.report, cache_hit: true };
       }
+
+      const analyzeOpts = {
+        base: ctx.base || "HEAD",
+        change_class: ctx.change_class || ctx.changeClass,
+        planned_targets:
+          ctx.planned_targets ||
+          ctx.targets ||
+          ctx.allowed_files ||
+          ctx.files,
+        phase: ctx.phase || (ctx.post_impact ? "post" : undefined),
+        post_impact: ctx.post_impact === true,
+      };
+
+      let cached = null;
       if (ctx.reportPath && fs.existsSync(ctx.reportPath)) {
         try {
-          const report = JSON.parse(fs.readFileSync(ctx.reportPath, "utf8"));
-          return { ok: !!report.ok, report, path: ctx.reportPath };
+          cached = JSON.parse(fs.readFileSync(ctx.reportPath, "utf8"));
         } catch (error) {
           return { ok: false, error: String(error.message || error) };
         }
       }
-      const report = analyzeImpact(worktree, {
-        base: ctx.base || "HEAD",
-        change_class: ctx.change_class || ctx.changeClass,
-      });
+
+      const fresh = analyzeImpact(worktree, analyzeOpts);
+      const report = validateCachedReport(cached, fresh, head);
       const outPath =
         ctx.outPath || path.join(worktree, ".opencode", "impact", "latest.json");
       try {
@@ -37,7 +99,13 @@ export function createNexusImpactProvider() {
       } catch {
         // optional persist
       }
-      return { ok: !!report.ok, report, path: outPath };
+      return {
+        ok: !!report.ok,
+        report,
+        path: outPath,
+        cache_hit: !!cached,
+        recomputed: true,
+      };
     },
   };
 }

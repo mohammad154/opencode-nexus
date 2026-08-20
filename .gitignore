@@ -1,10 +1,7 @@
 # Generated / local install artifacts (not part of the package)
-# Graphify's native graph and reports are durable project artifacts. Ignore
-# only its local caches, interpreter marker, and cost ledger.
-graphify-out/cache/
-graphify-out/.graphify_python
-graphify-out/cost.json
 .opencode/blast/
+.opencode/impact/
+.opencode/cache/impact/
 .opencode/reconcile/
 .opencode/CONTEXT.md
 .opencode/plans/
@@ -12,6 +9,12 @@ graphify-out/cost.json
 .opencode/handoffs/
 .opencode/runs/
 .opencode/trajectories/
+.opencode/worktrees/
+
+# Graphify leftovers (optional compatibility; not a Nexus runtime prerequisite)
+graphify-out/cache/
+graphify-out/.graphify_python
+graphify-out/cost.json
 
 # Editor / OS
 *.bak.*

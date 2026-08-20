@@ -77,8 +77,15 @@ export function collectGitEvidence(worktree, options = {}) {
       if (!line.trim()) continue;
       const parts = line.split(/\t/);
       const status = parts[0];
-      const file = parts[parts.length - 1];
-      if (file) changed_files.push({ status, path: file.replace(/\\/g, "/") });
+      if (status.startsWith("R") || status.startsWith("C")) {
+        const oldPath = (parts[1] || "").replace(/\\/g, "/");
+        const newPath = (parts[2] || parts[parts.length - 1] || "").replace(/\\/g, "/");
+        if (oldPath) changed_files.push({ status: "D", path: oldPath, renamed_to: newPath });
+        if (newPath) changed_files.push({ status: "A", path: newPath, renamed_from: oldPath });
+      } else {
+        const file = parts[parts.length - 1];
+        if (file) changed_files.push({ status, path: file.replace(/\\/g, "/") });
+      }
     }
   }
 

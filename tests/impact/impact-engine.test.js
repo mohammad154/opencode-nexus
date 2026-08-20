@@ -60,3 +60,56 @@ test("unsupported language lowers confidence rather than silent success", () => 
   assert.ok(report.confidence < 1);
   fs.rmSync(root, { recursive: true, force: true });
 });
+
+test("pre-impact with planned targets on clean tree does not trust HIGH confidence", () => {
+  const root = tempRepo();
+  const report = analyzeImpact(root, {
+    base: "HEAD",
+    planned_targets: ["src/a.js"],
+  });
+  assert.equal(report.ok, true);
+  assert.equal(report.pre_impact, true);
+  assert.ok(report.confidence < 0.75);
+  assert.notEqual(report.trusted, true);
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test("deleted module still surfaces importers as dependents", () => {
+  const root = tempRepo();
+  fs.unlinkSync(path.join(root, "src", "a.js"));
+  spawnSync("git", ["add", "-A"], { cwd: root });
+  // Keep as working-tree deletion vs HEAD
+  const report = analyzeImpact(root, { base: "HEAD" });
+  assert.equal(report.ok, true);
+  assert.ok(
+    report.direct_dependents.includes("src/b.js") ||
+      report.changed_files.some((f) => f.path === "src/a.js"),
+  );
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test("impact provider recomputes instead of trusting fabricated reportPath", async () => {
+  const { createNexusImpactProvider } = await import(
+    "../../scripts/lib/providers/impact-provider.js"
+  );
+  const root = tempRepo();
+  fs.writeFileSync(path.join(root, "src", "a.js"), "export function a() { return 9; }\n");
+  const fakePath = path.join(root, ".opencode", "impact", "fake.json");
+  fs.mkdirSync(path.dirname(fakePath), { recursive: true });
+  fs.writeFileSync(
+    fakePath,
+    JSON.stringify({
+      ok: true,
+      trusted: true,
+      risk: "LOW",
+      confidence: 0.99,
+      worktree_head: "deadbeef",
+    }),
+  );
+  const provider = createNexusImpactProvider();
+  const result = provider.analyze({ worktree: root, reportPath: fakePath });
+  assert.equal(result.recomputed, true);
+  assert.notEqual(result.report.worktree_head, "deadbeef");
+  assert.ok(result.report.changed_files?.some((f) => f.path === "src/a.js"));
+  fs.rmSync(root, { recursive: true, force: true });
+});
