@@ -30,6 +30,10 @@ import {
   isMultiTaskRun,
   isAcceptablePreImpact,
 } from "./policy.js";
+import {
+  assertScopeLock,
+  assertTransitionScopeLock,
+} from "./scope-lock.js";
 
 export const STATES = [
   "CREATED",
@@ -801,6 +805,16 @@ export function canTransition(state, to, ctx = {}) {
           }),
         );
         assertVerificationGates(data, { ...state, ...policy }, errors, ctx);
+        const scopeLock = assertTransitionScopeLock({
+          state,
+          ctx,
+          handoffData: data,
+        });
+        if (!scopeLock.ok) {
+          errors.push(
+            `scope lock check failed: ${scopeLock.code} (extras: ${(scopeLock.extras || []).join(", ")}) — ${scopeLock.message}`,
+          );
+        }
       }
     }
   }
@@ -1134,6 +1148,13 @@ export function transition(state, to, evidence = {}, providers = null) {
     if (ctx.blast) next.blast = ctx.blast?.report || ctx.blast;
     if (ctx.graph) next.graph = ctx.graph;
     if (!next.impact && next.blast) next.impact = next.blast;
+    if (ctx.allowed_files || evidence.allowed_files) {
+      next.allowed_files = ctx.allowed_files || evidence.allowed_files;
+    }
+    if (ctx.implementer_context || evidence.implementer_context) {
+      next.implementer_context =
+        ctx.implementer_context || evidence.implementer_context;
+    }
   }
   if (to === "FINAL_VERIFYING") {
     if (ctx.unified_handoff || ctx.review_handoff) {
@@ -1198,4 +1219,4 @@ export function transition(state, to, evidence = {}, providers = null) {
   return { ok: true, state: next, errors: [] };
 }
 
-export { effectivePolicy, maxReview };
+export { effectivePolicy, maxReview, assertScopeLock, assertTransitionScopeLock };
