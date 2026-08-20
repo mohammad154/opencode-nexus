@@ -5,6 +5,7 @@ Portable CLI:
 ```bash
 nexus project-init
 nexus run init --run-id <id>
+nexus next
 nexus impact --json --targets <files>
 nexus estimate --tasks N
 ```
@@ -20,10 +21,13 @@ Deterministic ops (do **not** dispatch an agent):
 
 | Op        | Command |
 |-----------|---------|
+| Next step | `nexus next` / `nexus next --json` |
 | Run / gates | `nexus run <init\|transition\|validate-handoff\|status\|resume\|drift>` |
 | Impact    | `nexus impact --json --targets …` |
 | Cleanup   | `bash scripts/nexus-branch-cleanup.sh --base <base> --out <json> <branches...>` |
 | Call est. | `nexus estimate --tasks N` |
+
+Obey `REQUIRED_DISPATCH` from `nexus next` (or the injected **Nexus Next Action** block) before inventing other work.
 
 ## Review gate (always)
 

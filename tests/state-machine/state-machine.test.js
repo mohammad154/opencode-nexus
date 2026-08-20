@@ -34,9 +34,21 @@ function driftOk(head = "base111") {
   };
 }
 
-function advanceToPlanned(state) {
+function writePlan(worktree) {
+  const dir = path.join(worktree, ".opencode", "plans");
+  fs.mkdirSync(dir, { recursive: true });
+  const p = path.join(dir, "PLAN.md");
+  fs.writeFileSync(p, "# Plan\n\n## Goal\ntest\n");
+  return p;
+}
+
+function advanceToPlanned(state, worktree = null) {
   let s = transition(state, "BRAINSTORMING", {}).state;
-  s = transition(s, "PLANNED", { plan_skip: true }).state;
+  const plan_path = worktree ? writePlan(worktree) : null;
+  s = transition(s, "PLANNED", {
+    plan_exists: true,
+    ...(plan_path ? { plan_path, worktree } : {}),
+  }).state;
   return s;
 }
 
@@ -61,13 +73,25 @@ test("illegal transition CREATED → IMPLEMENTING rejected", () => {
   assert.equal(r.ok, false);
 });
 
-test("CREATED → BRAINSTORMING → PLANNED without classify", () => {
+test("CREATED → BRAINSTORMING → PLANNED without classify requires PLAN.md", () => {
   let state = createEmptyRunState("t2");
   let r = transition(state, "BRAINSTORMING", {});
   assert.equal(r.ok, true, JSON.stringify(r.errors));
-  r = transition(r.state, "PLANNED", { plan_skip: true });
+  r = transition(r.state, "PLANNED", {});
+  assert.equal(r.ok, false);
+  r = transition(r.state || state, "PLANNED", { plan_exists: true });
+  // state may still be BRAINSTORMING from failed transition
+  state = transition(createEmptyRunState("t2b"), "BRAINSTORMING", {}).state;
+  r = transition(state, "PLANNED", { plan_exists: true });
   assert.equal(r.ok, true, JSON.stringify(r.errors));
   assert.equal(r.state.state, "PLANNED");
+});
+
+test("plan_skip rejected without admin compatibility mode", () => {
+  let state = transition(createEmptyRunState("t2c"), "BRAINSTORMING", {}).state;
+  const r = transition(state, "PLANNED", { plan_skip: true });
+  assert.equal(r.ok, false);
+  assert.match(r.errors.join(" "), /PLAN\.md/);
 });
 
 test("WAITING_FOR_USER requires a question then returns to BRAINSTORMING", () => {

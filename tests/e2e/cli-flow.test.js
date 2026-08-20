@@ -106,13 +106,14 @@ test("nexus-run completes a full CLI workflow in a temporary repository", () => 
     "--to",
     "BRAINSTORMING",
   ]);
+  fs.mkdirSync(path.join(root, ".opencode", "plans"), { recursive: true });
+  fs.writeFileSync(path.join(root, ".opencode", "plans", "PLAN.md"), "# Plan\n\n## Goal\ne2e\n");
   invoke(root, home, [
     "transition",
     "--run-id",
     runId,
     "--to",
     "PLANNED",
-    "--plan-skip",
   ]);
 
   const impactReady = invoke(root, home, [
@@ -335,7 +336,9 @@ test("nexus CLI run forwards workflow in an external temporary repository", () =
   assert.equal(initialized.state.state, "CREATED");
 
   nexus(["transition", "--run-id", runId, "--to", "BRAINSTORMING"]);
-  nexus(["transition", "--run-id", runId, "--to", "PLANNED", "--plan-skip"]);
+  fs.mkdirSync(path.join(root, ".opencode", "plans"), { recursive: true });
+  fs.writeFileSync(path.join(root, ".opencode", "plans", "PLAN.md"), "# Plan\n\n## Goal\ne2e\n");
+  nexus(["transition", "--run-id", runId, "--to", "PLANNED"]);
   const impactReady = nexus([
     "transition",
     "--run-id",

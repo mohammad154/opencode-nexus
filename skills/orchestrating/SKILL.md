@@ -35,7 +35,8 @@ CREATED → BRAINSTORMING ↔ WAITING_FOR_USER → PLANNED
 ```bash
 nexus run init --run-id <id>
 nexus run transition --to BRAINSTORMING
-nexus run transition --to PLANNED --plan-skip
+# writing-plans must create .opencode/plans/PLAN.md first:
+nexus run transition --to PLANNED
 nexus impact --json --targets <planned files>
 nexus run transition --to TASK_IMPACT_READY --json '{"planned_targets":["src/foo.js"]}'
 nexus run transition --to IMPLEMENTING --branch <b> --acceptance 'c1|c2'
@@ -52,6 +53,18 @@ nexus run transition --to COMPLETED
 3. At `IMPLEMENTING` → only dispatch **implementer** via Task tool.
 4. After VERIFYING → always dispatch **reviewer** (see [`reviewer-prompt.md`](reviewer-prompt.md)).
 5. On `REQUEST_CHANGES` → extract findings → fresh pre-impact → implementer → verify → reviewer. Do not ask the user to "fix review issues".
+
+## Next action (deterministic)
+
+Every turn the plugin injects a **Nexus Next Action** block (also available via CLI):
+
+```bash
+nexus next
+nexus next --json
+nexus next --run-id <id>
+```
+
+When `REQUIRED_DISPATCH` is set (`implementer` or `reviewer`), Task-dispatch that agent before doing anything else. Do not invent a different next step.
 
 ## Per-task loop
 

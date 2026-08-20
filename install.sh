@@ -123,6 +123,8 @@ else
   cp "$MODELS_EXAMPLE" "$CONFIG_DIR/nexus.models.example.json"
   echo "  Created $CONFIG_DIR/nexus.models.example.json"
 fi
+OPTIONAL_JSON="$(printf '%s\n' "${OPTIONAL_AGENTS[@]}" | jq -R . | jq -s .)"
+RETIRED_JSON="$(printf '%s\n' "${RETIRED_AGENTS[@]}" | jq -R . | jq -s .)"
 # Always strip underscore meta-keys and nested _comment so jq agent merge stays object+object
 MJ="$(jq 'def strip: with_entries(select(.key|startswith("_")|not));
   strip | with_entries(.value = (if (.value|type)=="object" then (.value|strip) else .value end))' <<<"$MJ")"
@@ -132,19 +134,10 @@ done
 for spec in "implementer:NEXUS_IMPLEMENTER_VARIANT:NEXUS_IMPLEMENTER_REASONING_EFFORT" "reviewer:NEXUS_REVIEWER_VARIANT:NEXUS_REVIEWER_REASONING_EFFORT"; do
   IFS=: read -r ag envv legacy_envv <<<"$spec"; v="${!envv:-${!legacy_envv:-}}"; [[ -n "$v" ]] && MJ="$(jq --arg a "$ag" --arg e "$v" '.[$a].variant=$e' <<<"$MJ")"
 done
-# Always prune retired V4 agent model keys from the merge payload
-RETIRED_JSON="$(printf '%s\n' "${RETIRED_AGENTS[@]}" | jq -R . | jq -s .)"
+# Drop retired V4 agents from the merge payload
 MJ="$(jq --argjson skip "$RETIRED_JSON" 'reduce $skip[] as $k (.; del(.[$k]))' <<<"$MJ")"
-OPTIONAL_JSON="$(printf '%s\n' "${OPTIONAL_AGENTS[@]}" | jq -R . | jq -s .)"
-# Default install must not register optional agents in opencode.json — only copy/merge them with --with-optional-agents.
-if ! (( WITH_OPTIONAL_AGENTS )); then
-  MJ="$(jq --argjson skip "$OPTIONAL_JSON" 'reduce $skip[] as $k (.; del(.[$k]))' <<<"$MJ")"
-fi
-# Always drop leftover optional-agent config unless this run opted in.
-PRUNE_JSON='[]'
-if (( PRUNE_OPTIONAL_AGENTS )) || ! (( WITH_OPTIONAL_AGENTS )); then
-  PRUNE_JSON="$OPTIONAL_JSON"
-fi
+# Always prune retired V4 agent config keys from existing opencode.json on upgrade
+PRUNE_JSON="$RETIRED_JSON"
 TMP="$(mktemp)"
 # Keep object context: `.plugin=(...)` would pipe the array and break later merges
 # Only merge object-valued agent entries (skip any leftover non-objects)
@@ -161,8 +154,7 @@ if ! jq --arg p "$PLUGIN_SPEC" --arg name "$PKG_NAME" --arg legacy "$LEGACY_GIT_
       .agent[$e.key] = ((.agent[$e.key] // {}) + $e.value))
   | reduce $prune[] as $k (.;
       if .agent[$k] then
-        .agent[$k] |= del(.model, .variant, .reasoningEffort)
-        | if .agent[$k] == {} then .agent |= del(.[$k]) else . end
+        .agent |= del(.[$k])
       else . end)
 ' "$CONFIG_FILE" >"$TMP"; then
   echo "  Error: failed to merge plugin/models into $CONFIG_FILE"
@@ -182,10 +174,10 @@ echo "  [opencode] Graphify is optional (Impact Engine is the default evidence p
 if command -v graphify >/dev/null 2>&1; then
   echo "  [opencode] Graphify found — installing optional global skill..."
   if ! graphify install --platform opencode; then
-    echo "  Warning: Graphify skill install failed; Nexus V4 does not require it." >&2
+    echo "  Warning: Graphify skill install failed; Nexus V5 does not require it." >&2
   fi
 else
-  echo "  [opencode] Graphify not on PATH — skipped (not required for V4)."
+  echo "  [opencode] Graphify not on PATH — skipped (not required for V5)."
 fi
 # NOTE: `graphify opencode install` is a PROJECT-level mutation and must not run
 # from a global `nexus install` invoked in an arbitrary directory. It now runs

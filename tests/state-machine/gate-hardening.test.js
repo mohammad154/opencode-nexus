@@ -31,7 +31,7 @@ function driftOk(head = "base111") {
 function toPlanned(runId = "gate") {
   let s = createEmptyRunState(runId);
   s = transition(s, "BRAINSTORMING", {}).state;
-  s = transition(s, "PLANNED", { plan_skip: true }).state;
+  s = transition(s, "PLANNED", { plan_exists: true }).state;
   return s;
 }
 
@@ -136,6 +136,19 @@ test("VERIFYING requires sealed provider verification path via gates", () => {
   });
   // May fail on provider verification / post-impact — must not silently pass
   assert.equal(r.ok, false);
+});
+
+test("force_reimpact cannot bypass missing review_handoff on REVIEWING→TASK_IMPACT_READY", () => {
+  let state = createEmptyRunState("g-force");
+  state.state = "REVIEWING";
+  state.implementer_commit = "impl222";
+  state.current_unit = "unit-1";
+  const r = canTransition(state, "TASK_IMPACT_READY", {
+    force_reimpact: true,
+    impact: sealedImpact({ phase: "pre", pre_impact: true, trusted: false }),
+  });
+  assert.equal(r.ok, false);
+  assert.ok(r.errors.some((e) => /review_handoff/i.test(e)));
 });
 
 test("fabricated trusted impact rejected at TASK_IMPACT_READY without provider", () => {

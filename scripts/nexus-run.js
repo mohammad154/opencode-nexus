@@ -166,7 +166,16 @@ function loadEvidence(flags) {
     );
   }
   if (flags.branch) evidence.branch = flags.branch;
-  if (flags["plan-skip"]) evidence.plan_skip = true;
+  if (flags["plan-skip"]) {
+    // Admin-only escape hatch — happy path must write PLAN.md
+    evidence.plan_skip = true;
+    evidence.admin_plan_skip = flags["admin-plan-skip"] === true;
+    if (!evidence.admin_plan_skip) {
+      evidence.compatibility_mode = evidence.compatibility_mode || "v3-admin";
+      // Still require explicit admin flag in V5; bare --plan-skip alone fails gate
+      delete evidence.plan_skip;
+    }
+  }
   if (flags["acceptance"]) {
     evidence.acceptance_criteria = String(flags.acceptance)
       .split("|")

@@ -4,6 +4,7 @@ mode: subagent
 permission:
   external_directory:
     "/usr/local/lib/node_modules/@mohammad154/opencode-nexus/**": allow
+    "~/.cache/opencode/packages/@mohammad154/**": allow
   edit:
     "*": deny
     ".opencode/handoffs/**": allow

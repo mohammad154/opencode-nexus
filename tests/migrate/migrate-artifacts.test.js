@@ -17,25 +17,28 @@ function tmpWorktree() {
 
 test("writeRunState atomic roundtrip", () => {
   const wt = tmpWorktree();
-  const state = createEmptyRunState("run-a", { profile: "balanced" });
+  const state = createEmptyRunState("run-a");
   writeRunState(wt, state);
   const loaded = readRunState(wt, "run-a");
   assert.equal(loaded.run_id, "run-a");
   assert.equal(loaded.state, "CREATED");
+  assert.equal(loaded.workflow, "default");
   assert.deepEqual(listRunIds(wt), ["run-a"]);
 });
 
-test("inferRunFromContext never invents APPROVED", () => {
+test("inferRunFromContext maps plan evidence to PLANNED never CLASSIFIED", () => {
   const wt = tmpWorktree();
-  fs.mkdirSync(path.join(wt, ".opencode"), { recursive: true });
+  fs.mkdirSync(path.join(wt, ".opencode", "plans"), { recursive: true });
   fs.writeFileSync(
     path.join(wt, ".opencode", "CONTEXT.md"),
-    "workflow_profile: balanced\nplan_commit: abc123\n",
+    "workflow: default\nplan_commit: abc123\n",
     "utf8",
   );
+  fs.writeFileSync(path.join(wt, ".opencode", "plans", "PLAN.md"), "# Plan\n");
   const inferred = inferRunFromContext(wt);
-  assert.equal(inferred.profile, "balanced");
-  assert.equal(inferred.state, "CLASSIFIED");
+  assert.equal(inferred.workflow, "default");
+  assert.equal(inferred.state, "PLANNED");
+  assert.equal(inferred.profile, undefined);
   assert.ok(inferred._inferred);
   assert.ok(!inferred.transitions.some((t) => t.to === "COMPLETED"));
 });
@@ -45,7 +48,7 @@ test("inferRunFromContext sees implementer DONE as VERIFYING", () => {
   fs.mkdirSync(path.join(wt, ".opencode", "handoffs"), { recursive: true });
   fs.writeFileSync(
     path.join(wt, ".opencode", "CONTEXT.md"),
-    "workflow_profile: fast\n",
+    "workflow: default\n",
     "utf8",
   );
   fs.writeFileSync(

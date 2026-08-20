@@ -44,6 +44,7 @@ CREATED → BRAINSTORMING ↔ WAITING_FOR_USER → PLANNED
 
 ```bash
 nexus run init --run-id <id>
+nexus next                         # what to do right now (also injected every turn)
 nexus run transition --to BRAINSTORMING
 nexus run transition --to TASK_IMPACT_READY
 nexus run inspect --run-id <id>

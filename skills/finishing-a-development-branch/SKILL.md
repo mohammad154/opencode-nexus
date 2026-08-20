@@ -16,7 +16,7 @@ When `execution_mode: checkpoint` in `.opencode/CONTEXT.md`, run this skill afte
 Scope to the **current feature branch** named in `.opencode/CONTEXT.md`.
 
 Read `merge_policy` (default `always_to_base`) and `branch_cleanup_policy` (default `always`).
-Read `workflow_profile` and `lessonPolicy`.
+Read `workflow` and optional `lessonPolicy` from `.opencode/CONTEXT.md` (V5 has a single default workflow).
 
 ### `merge_policy: always_to_base` (default)
 
@@ -51,7 +51,7 @@ Present: merge locally / push PR / keep / discard. Map to dispositions below. Th
 ## Track branches in CONTEXT.md
 
 ```yaml
-workflow_profile: balanced
+workflow: default
 task_branches:
   - task: 1
     branch: feature/oauth-refresh   # or feature/task-1-auth under strict

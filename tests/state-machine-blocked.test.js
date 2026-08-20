@@ -56,7 +56,7 @@ test("BLOCKED cannot resume to PLANNED when blocked_from is VERIFYING", () => {
     resume_state: "VERIFYING",
     block_code: "REPLAN_NEEDED",
   };
-  const fail = transition(state, "PLANNED", { plan_skip: true });
+  const fail = transition(state, "PLANNED", { plan_exists: true });
   assert.strictEqual(fail.ok, false);
   assert.ok(fail.errors.some((e) => /illegal transition/i.test(e)));
 
@@ -201,7 +201,7 @@ test("BLOCKED ignores stale forged resume_state field; only blocked_from is allo
     resume_state: "PLANNED",
     block_code: "REPLAN_NEEDED",
   };
-  const forged = transition(state, "PLANNED", { plan_skip: true });
+  const forged = transition(state, "PLANNED", { plan_exists: true });
   assert.strictEqual(forged.ok, false);
   assert.ok(forged.errors.some((e) => /illegal transition/i.test(e)));
 });

@@ -68,9 +68,45 @@ if ! (
   echo "FAIL: OpenCode install should succeed without Graphify in V4" >&2
   exit 1
 fi
-grep -qi 'Graphify not on PATH\|Graphify is optional\|V4' "$MISSING_HOME/missing-graphify.log"
-test -f "$MISSING_HOME/.config/opencode/agents/diagnostician.md"
-test -f "$MISSING_HOME/.config/opencode/agents/integration-reviewer.md"
-echo "PASS: install without Graphify succeeds and installs V4 agents"
+grep -qi 'Graphify not on PATH\|Graphify is optional\|V5' "$MISSING_HOME/missing-graphify.log"
+test -f "$MISSING_HOME/.config/opencode/agents/orchestrator.md"
+test -f "$MISSING_HOME/.config/opencode/agents/implementer.md"
+test -f "$MISSING_HOME/.config/opencode/agents/reviewer.md"
+test ! -f "$MISSING_HOME/.config/opencode/agents/diagnostician.md"
+test ! -f "$MISSING_HOME/.config/opencode/agents/integration-reviewer.md"
+test ! -f "$MISSING_HOME/.config/opencode/agents/unified-reviewer.md"
+echo "PASS: install without Graphify succeeds and installs V5 agents only"
 
 bash "$ROOT/scripts/test-adapter-contract.sh"
+
+echo "== upgrade-from-V4 prunes retired agent config =="
+UPG_HOME="$(mktemp -d)"
+mkdir -p "$UPG_HOME/.config/opencode/agents" "$UPG_HOME/project" "$UPG_HOME/bin"
+git init -q "$UPG_HOME/project"
+printf '#!/bin/sh\nexit 0\n' >"$UPG_HOME/bin/opencode"; chmod +x "$UPG_HOME/bin/opencode"
+cat >"$UPG_HOME/.config/opencode/opencode.json" <<'JSON'
+{
+  "plugin": [],
+  "agent": {
+    "orchestrator": { "model": "x" },
+    "implementer": { "model": "x" },
+    "unified-reviewer": { "model": "old" },
+    "spec-reviewer": { "model": "old" },
+    "diagnostician": { "model": "old" }
+  }
+}
+JSON
+printf '# leftover\n' >"$UPG_HOME/.config/opencode/agents/unified-reviewer.md"
+(
+  export HOME="$UPG_HOME" PATH="$UPG_HOME/bin:/usr/bin:/bin"
+  cd "$UPG_HOME/project"
+  "$ROOT/install.sh"
+) >/tmp/nexus-upgrade-v4.log 2>&1 || { cat /tmp/nexus-upgrade-v4.log; rm -rf "$UPG_HOME"; exit 1; }
+jq -e '(.agent | has("unified-reviewer")) | not' "$UPG_HOME/.config/opencode/opencode.json" >/dev/null
+jq -e '(.agent | has("spec-reviewer")) | not' "$UPG_HOME/.config/opencode/opencode.json" >/dev/null
+jq -e '(.agent | has("diagnostician")) | not' "$UPG_HOME/.config/opencode/opencode.json" >/dev/null
+jq -e '.agent | has("reviewer")' "$UPG_HOME/.config/opencode/opencode.json" >/dev/null
+test ! -f "$UPG_HOME/.config/opencode/agents/unified-reviewer.md"
+test -f "$UPG_HOME/.config/opencode/agents/reviewer.md"
+rm -rf "$UPG_HOME"
+echo "PASS: V4→V5 upgrade prunes retired agent config and files"

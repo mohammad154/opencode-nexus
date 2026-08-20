@@ -41,9 +41,13 @@ implementer
 reviewer
 ```
 
-## Inspect
+## Inspect / next step
 
 ```bash
+nexus next                 # deterministic next orchestrator action
+nexus next --json
 nexus run inspect --run-id <id>
 nexus estimate --tasks 3
 ```
+
+`nexus next` (and the plugin’s injected **Nexus Next Action** block) tells the orchestrator what to do now — including `REQUIRED_DISPATCH: implementer|reviewer` when a Task dispatch is mandatory.

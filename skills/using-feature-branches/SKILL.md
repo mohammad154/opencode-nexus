@@ -37,7 +37,7 @@ When `merge_policy: always_to_base` (default):
 
 ## Branch policy (profile-aware)
 
-Read `workflow_profile` and `branch_policy` from `.opencode/CONTEXT.md`.
+Read `workflow` / `branch_policy` from `.opencode/CONTEXT.md` (V5 default workflow; ignore legacy `workflow_profile`).
 
 | Profile / policy | Branch naming | Cadence |
 |------------------|---------------|---------|

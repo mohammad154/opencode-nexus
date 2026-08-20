@@ -7,17 +7,18 @@ import { buildRunGateReminder } from "../../scripts/lib/run-gate.js";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const skillsDir = path.resolve(__dirname, "../../skills");
 
-const BOOTSTRAP_MARKER = "NEXUS_ROUTER_V3";
+const BOOTSTRAP_MARKER = "NEXUS_ROUTER_V5";
 const GATE_MARKER = "NEXUS_DELEGATION_GATE";
 const TERMINAL_RUN_STATES = new Set(["COMPLETED", "FAILED"]);
 const KNOWLEDGE_RELEVANT_STATES = new Set([
+  "BRAINSTORMING",
+  "WAITING_FOR_USER",
   "PLANNED",
-  "GRAPH_READY",
-  "BLAST_READY",
+  "TASK_IMPACT_READY",
   "IMPLEMENTING",
-  "DIRECT_IMPLEMENTING",
   "VERIFYING",
   "REVIEWING",
+  "FINAL_VERIFYING",
   "BLOCKED",
 ]);
 
@@ -25,12 +26,13 @@ function buildCompactRouter() {
   return [
     "<EXTREMELY_IMPORTANT>",
     BOOTSTRAP_MARKER,
-    "OpenCode Nexus is installed. Keep this routing pointer compact and load detailed instructions only with the native skill tool when the phase requires them.",
-    "Route: start or orient a Nexus session → using-nexus; unclear requirements → brainstorming; write a plan → writing-plans; map the codebase → Graphify query/affected/update; before edits → blast-radius; execute an approved plan → orchestrating; isolate work → using-feature-branches; finish/reconcile → finishing-a-development-branch or reconcile.",
-    "Portable commands (work from any repo): nexus project-init | nexus run ... | nexus blast ... | nexus classify ... | nexus estimate ...",
-    "Use nexus run for state machine gates — do NOT assume repo-local scripts/ exists. Clone-dev fallback only when working inside the Nexus package itself.",
-    "Orchestrator must dispatch implementer for production code. Never self-implement unless execution_mode: direct or narrow direct_eligible exception.",
-    "Use scripts for state, graph, blast, call estimates, and cleanup. Canonical artifacts live under .opencode/. Review policy is profile-aware; never lower a stored safety gate. Automatic skill routing remains available through the configured skills path.",
+    "OpenCode Nexus V5 is installed. Keep this routing pointer compact and load detailed instructions only with the native skill tool when the phase requires them.",
+    "Route: start/orient → using-nexus; clarify only if ambiguous → brainstorming; always write a plan → writing-plans; before every implementer → impact-analysis (nexus impact); execute the plan → orchestrating; isolate work → using-feature-branches; finish → finishing-a-development-branch; stuck/BLOCKED → reconcile.",
+    "Three invariants: (1) brainstorm then PLAN.md for every request (2) fresh pre-impact before every implementer dispatch including REQUEST_CHANGES fix loops (3) every task needs independent reviewer APPROVED.",
+    "Portable commands: nexus project-init | nexus next | nexus run ... | nexus impact ... | nexus estimate ...",
+    "Use nexus run for state machine gates. Use nexus next (or the injected Nexus Next Action block) for the deterministic next step — including REQUIRED_DISPATCH agent. Do NOT assume repo-local scripts/ exists.",
+    "Agents only: orchestrator, implementer, reviewer. Orchestrator must Task-dispatch implementer for production code and reviewer after VERIFYING. Never self-implement. Never skip reviewer. Do not use legacy classify/blast/Graphify workflow routing, profile matrices, or dual review agents.",
+    "Lifecycle: CREATED → BRAINSTORMING ↔ WAITING_FOR_USER → PLANNED → TASK_IMPACT_READY → IMPLEMENTING → VERIFYING → REVIEWING → (REQUEST_CHANGES → TASK_IMPACT_READY) → FINAL_VERIFYING → COMPLETED.",
     "</EXTREMELY_IMPORTANT>",
   ].join("\n");
 }
@@ -73,9 +75,7 @@ function readRunStateSummary(worktree) {
       "## Nexus Run State",
       `- run_id: ${best.run_id}`,
       `- state: ${best.state}`,
-      `- profile: ${best.profile}`,
-      `- review_level: ${best.review_level || "n/a"}`,
-      `- execution_mode: ${best.execution_mode || "n/a"}`,
+      `- workflow: ${best.workflow || "default"}`,
       `- current_unit: ${best.current_unit || "n/a"}`,
       `- transitions: ${(best.transitions || []).length}`,
     ];
@@ -85,50 +85,22 @@ function readRunStateSummary(worktree) {
   }
 }
 
-function readGraphifySummary(worktree) {
-  const configuredOut = process.env.GRAPHIFY_OUT || "graphify-out";
-  const graphifyOut = path.isAbsolute(configuredOut)
-    ? path.resolve(configuredOut)
-    : path.resolve(worktree, configuredOut);
-  const graphReport = path.join(graphifyOut, "GRAPH_REPORT.md");
-  const lessons = path.join(graphifyOut, "reflections", "LESSONS.md");
+function readReconcileSummary(worktree) {
   const reconcileDir = path.join(worktree, ".opencode", "reconcile");
-  const parts = [];
-
-  if (fs.existsSync(graphReport)) {
-    try {
-      const txt = fs.readFileSync(graphReport, "utf8").trim();
-      parts.push("## Graphify Knowledge Graph\n" + txt.slice(0, 800));
-    } catch {}
-  }
-
-  if (fs.existsSync(lessons)) {
-    try {
-      const txt = fs.readFileSync(lessons, "utf8").trim();
-      if (txt.length > 0) {
-        const tailLen = 800;
-        const slice = txt.length > tailLen ? txt.slice(-tailLen) : txt;
-        parts.push("## Graphify Outcome Memory (LESSONS.md tail)\n" + slice);
-      }
-    } catch {}
-  }
-
   try {
-    if (fs.existsSync(reconcileDir)) {
-      const files = fs
-        .readdirSync(reconcileDir)
-        .filter((f) => f.startsWith("reconcile-") && f.endsWith(".md"))
-        .sort()
-        .reverse();
-      if (files.length > 0) {
-        const latest = path.join(reconcileDir, files[0]);
-        const txt = fs.readFileSync(latest, "utf8").trim();
-        parts.push("## Nexus Last Reconcile\n" + txt.slice(0, 600));
-      }
-    }
-  } catch {}
-
-  return parts.length > 0 ? parts.join("\n\n") : null;
+    if (!fs.existsSync(reconcileDir)) return null;
+    const files = fs
+      .readdirSync(reconcileDir)
+      .filter((f) => f.startsWith("reconcile-") && f.endsWith(".md"))
+      .sort()
+      .reverse();
+    if (files.length === 0) return null;
+    const latest = path.join(reconcileDir, files[0]);
+    const txt = fs.readFileSync(latest, "utf8").trim();
+    return "## Nexus Last Reconcile\n" + txt.slice(0, 600);
+  } catch {
+    return null;
+  }
 }
 
 function summarizePlan(planText) {
@@ -152,7 +124,7 @@ function summarizePlan(planText) {
 
 function buildGateInjection(worktree) {
   const activeRun = readRunStateSummary(worktree);
-  const gate = buildRunGateReminder(activeRun?.state ?? null);
+  const gate = buildRunGateReminder(activeRun?.state ?? null, { worktree });
   if (!gate) return null;
   return `<EXTREMELY_IMPORTANT>\n${GATE_MARKER}\n${gate}\n</EXTREMELY_IMPORTANT>`;
 }
@@ -225,12 +197,9 @@ export const NexusPlugin = async ({ worktree }) => {
         "NEXUS_BOOTSTRAP_V1",
         "NEXUS_BOOTSTRAP_V2",
         "NEXUS_BOOTSTRAP_V3",
+        "NEXUS_ROUTER_V3",
+        "NEXUS_ROUTER_V5",
       ];
-      // The router bootstrap is session-once: if ANY message in the session
-      // (not just the latest user turn) already carries the marker, do not
-      // re-inject it. Checking only the latest message re-injected the router
-      // on every new user turn, wasting context and repeatedly biasing the
-      // orchestrator.
       const sessionHasBootstrap = output.messages.some(
         (message) =>
           Array.isArray(message?.parts) &&
@@ -273,7 +242,7 @@ export const NexusPlugin = async ({ worktree }) => {
 
       chunks.push(activeRun.text);
 
-      const gate = buildRunGateReminder(activeRun.state);
+      const gate = buildRunGateReminder(activeRun.state, { worktree });
       if (gate) {
         chunks.push(gate);
       }
@@ -282,11 +251,11 @@ export const NexusPlugin = async ({ worktree }) => {
         [
           "## Nexus Active Artifact Pointers",
           "- plan: .opencode/plans/PLAN.md",
-          "- graphify: graphify-out/",
+          "- impact: nexus impact --json",
           "- metrics: .opencode/runs/" +
             activeRun.state.run_id +
             "/metrics.jsonl",
-          "- commands: nexus run | nexus blast | nexus classify | nexus estimate",
+          "- commands: nexus next | nexus run | nexus impact | nexus estimate",
         ].join("\n"),
       );
 
@@ -296,9 +265,9 @@ export const NexusPlugin = async ({ worktree }) => {
           chunks.push("## Nexus Plan Snapshot\n" + summarizePlan(plan));
         }
 
-        const graphify = readGraphifySummary(worktree);
-        if (graphify) {
-          chunks.push(graphify);
+        const reconcile = readReconcileSummary(worktree);
+        if (reconcile) {
+          chunks.push(reconcile);
         }
       }
 

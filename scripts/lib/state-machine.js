@@ -169,7 +169,7 @@ export function requiredEvidence(from, to) {
     "CREATED->BRAINSTORMING": [],
     "BRAINSTORMING->WAITING_FOR_USER": ["question"],
     "WAITING_FOR_USER->BRAINSTORMING": [],
-    "BRAINSTORMING->PLANNED": ["plan_path|plan_skip"],
+    "BRAINSTORMING->PLANNED": ["plan_path"],
     "PLANNED->TASK_IMPACT_READY": ["impact"],
     "TASK_IMPACT_READY->IMPLEMENTING": [
       "branch",
@@ -705,14 +705,22 @@ export function canTransition(state, to, ctx = {}) {
   }
 
   if (to === "PLANNED") {
-    const skip = ctx.plan_skip === true || ctx.planSkip === true;
+    const adminSkip =
+      (ctx.plan_skip === true || ctx.planSkip === true) &&
+      (state.compatibility_mode === "v3-admin" ||
+        ctx.compatibility_mode === "v3-admin" ||
+        ctx.admin_plan_skip === true);
     const planOk =
-      skip ||
+      adminSkip ||
       ctx.plan_exists === true ||
       exists(ctx.plan_path) ||
       (ctx.worktree &&
         exists(path.join(ctx.worktree, ".opencode", "plans", "PLAN.md")));
-    if (!planOk) errors.push("PLANNED requires PLAN.md or plan_skip");
+    if (!planOk) {
+      errors.push(
+        "PLANNED requires .opencode/plans/PLAN.md (plan_skip only with admin/compatibility mode)",
+      );
+    }
   }
 
   if (to === "TASK_IMPACT_READY") {
@@ -737,7 +745,11 @@ export function canTransition(state, to, ctx = {}) {
         ctx.unified_handoff ||
         ctx.request_changes_handoff ||
         state.last_review_handoff;
-      if (reviewRaw) {
+      if (!reviewRaw) {
+        errors.push(
+          "REVIEWING → TASK_IMPACT_READY requires review_handoff (REQUEST_CHANGES or next-task APPROVED)",
+        );
+      } else {
         const {
           ok,
           data,
@@ -765,10 +777,6 @@ export function canTransition(state, to, ctx = {}) {
             "APPROVED review returning to TASK_IMPACT_READY requires next_task/more_tasks or a new current_unit",
           );
         }
-      } else if (ctx.force_reimpact !== true) {
-        errors.push(
-          "REVIEWING → TASK_IMPACT_READY requires review_handoff (REQUEST_CHANGES or next-task APPROVED)",
-        );
       }
     }
     if (report?.fabricated === true) {

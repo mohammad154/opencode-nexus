@@ -261,7 +261,7 @@ function parseContextYamlish(text) {
 
 /**
  * Build a synthetic run state from CONTEXT.md + handoffs when .opencode/runs/ is missing.
- * Never invents APPROVED verdicts.
+ * Never invents APPROVED verdicts. V5: never emits CLASSIFIED or profile routing.
  */
 export function inferRunFromContext(worktree) {
   const contextPath = path.join(worktree, ".opencode", "CONTEXT.md");
@@ -275,14 +275,14 @@ export function inferRunFromContext(worktree) {
   } catch {
     runId = `inferred-${Date.now()}`;
   }
-  const profile = ["fast", "balanced", "strict"].includes(
-    fields.workflow_profile,
-  )
-    ? fields.workflow_profile
-    : "balanced";
 
   let state = "CREATED";
-  if (fields.workflow_profile || fields.change_class) state = "CLASSIFIED";
+  const planPath = path.join(worktree, ".opencode", "plans", "PLAN.md");
+  if (fs.existsSync(planPath) || fields.plan_commit) {
+    state = "PLANNED";
+  } else if (fields.goal || fields.brainstorm || ctxText.trim().length > 0) {
+    state = "BRAINSTORMING";
+  }
 
   const handoffsDir = path.join(worktree, ".opencode", "handoffs");
   let latestImplementer = null;
@@ -290,7 +290,7 @@ export function inferRunFromContext(worktree) {
   let ambiguousImplementer = false;
   let ambiguousReview = false;
   if (fs.existsSync(handoffsDir)) {
-    const runId = fields.run_id || null;
+    const runIdFilter = fields.run_id || null;
     const currentUnit = fields.current_unit || null;
 
     const candidates = [];
@@ -303,11 +303,9 @@ export function inferRunFromContext(worktree) {
       } catch {
         continue; // ignore corrupt
       }
-      // Filter to this run and execution unit when the CONTEXT provides them.
-      // A handoff that declares a different run_id/unit must never be selected.
       const handoffRun = raw.run_id ?? null;
       const handoffUnit = raw.unit_or_task ?? raw.task_id ?? null;
-      if (runId && handoffRun && handoffRun !== runId) continue;
+      if (runIdFilter && handoffRun && handoffRun !== runIdFilter) continue;
       if (currentUnit && handoffUnit && handoffUnit !== currentUnit) continue;
 
       let mtimeMs = 0;
@@ -331,7 +329,6 @@ export function inferRunFromContext(worktree) {
       });
     }
 
-    // Sort by created_at (ISO) when available, else mtime; newest last.
     const byRecency = (a, b) => {
       if (a.created_at && b.created_at && a.created_at !== b.created_at) {
         return a.created_at < b.created_at ? -1 : 1;
@@ -343,8 +340,6 @@ export function inferRunFromContext(worktree) {
       const list = candidates.filter((c) => c.kind === kind).sort(byRecency);
       if (list.length === 0) return { value: null, ambiguous: false };
       const newest = list[list.length - 1];
-      // Ambiguous when the two most recent are indistinguishable in ordering
-      // evidence (same/absent created_at AND same mtime) — do not guess.
       let ambiguous = false;
       if (list.length >= 2) {
         const prev = list[list.length - 2];
@@ -370,17 +365,16 @@ export function inferRunFromContext(worktree) {
     state = "VERIFYING";
   }
   if (latestReview && latestReview.verdict) {
-    state = latestReview.verdict === "APPROVED" ? "REVIEWING" : "REVIEWING";
+    state = "REVIEWING";
   }
 
-  // Ambiguous latest handoff must block rather than silently guess.
   if (ambiguousImplementer || ambiguousReview) {
     state = "BLOCKED";
   }
 
   return createEmptyRunState(runId, {
     state,
-    profile,
+    workflow: "default",
     plan_commit: fields.plan_commit || null,
     branch: fields.feature_branch || fields.branch || null,
     current_unit: fields.current_unit || null,
@@ -389,16 +383,6 @@ export function inferRunFromContext(worktree) {
         ? "ambiguous latest handoff: multiple candidates with indistinguishable recency"
         : null,
     block_code: state === "BLOCKED" ? "AMBIGUOUS_HANDOFF" : null,
-    classification: fields.workflow_profile
-      ? {
-          schema_version: "1.0",
-          profile,
-          risk_score: 0,
-          confidence: 0.5,
-          reasons: ["inferred from CONTEXT.md"],
-          inferred: true,
-        }
-      : null,
     _inferred: true,
   });
 }

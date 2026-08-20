@@ -1,43 +1,30 @@
 /**
- * Documented V3 golden CLI flows (from docs/workflow.md).
- * Used by freeze tests and as a migration checklist for V4.
+ * @deprecated V5 fixed pipeline — retained only for historical reference.
+ * Do not use in new tests. Prefer tests/helpers/gate-fixtures.js + V5 states.
  */
-export const V3_GOLDEN_CLI = Object.freeze({
-  init: ["nexus", "run", "init", "--run-id", "<id>"],
-  classify: [
-    "nexus",
-    "classify",
-    "--files",
-    "<count>",
-    "--lines",
-    "<count>",
-    "--class",
-    "<change-class>",
-  ],
-  transitions: [
-    ["transition", "--to", "CLASSIFIED"],
-    ["transition", "--to", "PLANNED", "--plan-skip"],
-    ["transition", "--to", "GRAPH_READY"],
-    ["transition", "--to", "BLAST_READY", "--blast", "<path>"],
-  ],
-  validateHandoff: [
-    "nexus",
-    "run",
-    "validate-handoff",
-    "--role",
-    "implementer",
-    "--file",
-    ".opencode/handoffs/<id>-implementer.json",
-  ],
-  lifecycle: [
-    "CREATED",
-    "CLASSIFIED",
-    "PLANNED",
-    "GRAPH_READY",
-    "BLAST_READY",
-    "IMPLEMENTING",
-    "VERIFYING",
-    "REVIEWING",
-    "COMPLETED",
-  ],
-});
+export const V3_GOLDEN_DEPRECATED = true;
+
+export const V5_HAPPY_PATH = [
+  ["init", "--run-id", "demo"],
+  ["transition", "--to", "BRAINSTORMING"],
+  ["transition", "--to", "PLANNED"], // requires .opencode/plans/PLAN.md
+  ["transition", "--to", "TASK_IMPACT_READY"],
+  ["transition", "--to", "IMPLEMENTING"],
+  ["transition", "--to", "VERIFYING"],
+  ["transition", "--to", "REVIEWING"],
+  ["transition", "--to", "FINAL_VERIFYING"],
+  ["transition", "--to", "COMPLETED"],
+];
+
+export const V5_STATES = [
+  "CREATED",
+  "BRAINSTORMING",
+  "WAITING_FOR_USER",
+  "PLANNED",
+  "TASK_IMPACT_READY",
+  "IMPLEMENTING",
+  "VERIFYING",
+  "REVIEWING",
+  "FINAL_VERIFYING",
+  "COMPLETED",
+];

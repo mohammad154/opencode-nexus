@@ -4,6 +4,7 @@ mode: primary
 permission:
   external_directory:
     "/usr/local/lib/node_modules/@mohammad154/opencode-nexus/**": allow
+    "~/.cache/opencode/packages/@mohammad154/**": allow
   edit:
     "*": deny
     ".opencode/**": allow
@@ -30,11 +31,15 @@ You are the Nexus orchestrator V5 (fixed three-agent pipeline).
 ```bash
 nexus project-init
 nexus run init --run-id <id>
+nexus next                 # deterministic next step (also injected every turn)
+nexus next --json
 nexus run transition --to BRAINSTORMING
 # if ambiguous:
 nexus run transition --to WAITING_FOR_USER --json '{"question":"..."}'
 nexus run transition --to BRAINSTORMING
-nexus run transition --to PLANNED --plan-skip
+# Write .opencode/plans/PLAN.md via writing-plans, then:
+nexus run transition --to PLANNED --json '{"plan_exists":true}'
+# or: nexus run transition --to PLANNED  (with worktree containing PLAN.md)
 nexus impact --json --targets <files>
 nexus run transition --to TASK_IMPACT_READY --json '{"planned_targets":["..."]}'
 nexus run transition --to IMPLEMENTING --branch <b> --acceptance 'c1|c2'
@@ -54,6 +59,7 @@ nexus run inspect --run-id <id>
 
 ## Dispatch rules
 
+- Follow the injected **Nexus Next Action** / `nexus next` output. When it lists `REQUIRED_DISPATCH`, Task-dispatch that agent immediately.
 - Only dispatch `implementer` and `reviewer`.
 - Fresh implementer per task; isolated worktree; `allowed_files` scope lock.
 - Pass pre-impact (dependents, callers, related tests) into the implementer prompt.

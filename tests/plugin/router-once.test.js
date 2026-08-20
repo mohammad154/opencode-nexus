@@ -21,7 +21,7 @@ test("router bootstrap is injected once per session across multiple user turns",
   };
   await plugin["experimental.chat.messages.transform"]({}, output);
   const firstJoined = output.messages[0].parts.map((p) => p.text || "").join("\n");
-  assert.match(firstJoined, /NEXUS_ROUTER_V3/);
+  assert.match(firstJoined, /NEXUS_ROUTER_V5/);
 
   // Turn 2: assistant reply + a brand-new user message that does NOT contain
   // the marker. The bootstrap must NOT be injected again into the new message.
@@ -35,7 +35,7 @@ test("router bootstrap is injected once per session across multiple user turns",
   const secondUser = output.messages[output.messages.length - 1];
   const secondJoined = secondUser.parts.map((p) => p.text || "").join("\n");
   assert.equal(
-    secondJoined.includes("NEXUS_ROUTER_V3"),
+    secondJoined.includes("NEXUS_ROUTER_V5"),
     false,
     "router bootstrap must not be re-injected on a later user turn",
   );
@@ -43,7 +43,7 @@ test("router bootstrap is injected once per session across multiple user turns",
   // The marker should exist exactly once across the whole session.
   const totalMarkers = output.messages
     .flatMap((m) => m.parts || [])
-    .filter((p) => typeof p.text === "string" && p.text.includes("NEXUS_ROUTER_V3"))
+    .filter((p) => typeof p.text === "string" && p.text.includes("NEXUS_ROUTER_V5"))
     .length;
   assert.equal(totalMarkers, 1);
 });

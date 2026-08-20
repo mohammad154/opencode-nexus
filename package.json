@@ -1,7 +1,7 @@
 {
   "name": "@mohammad154/opencode-nexus",
-  "version": "5.0.0",
-  "description": "Fixed three-agent development workflow for OpenCode (orchestrator, implementer, reviewer + Impact Engine)",
+  "version": "4.2.0",
+  "description": "Three-agent development workflow for OpenCode (orchestrator, implementer, reviewer + Impact Engine)",
   "type": "module",
   "main": ".opencode/plugins/nexus.js",
   "exports": "./.opencode/plugins/nexus.js",
@@ -12,6 +12,7 @@
   "files": [
     "bin/",
     ".opencode/plugins/",
+    ".opencode/package.json",
     ".opencode/INSTALL.md",
     "agents/",
     "skills/",

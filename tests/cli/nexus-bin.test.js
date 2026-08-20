@@ -36,6 +36,7 @@ test("nexus help lists workflow commands", () => {
     "doctor",
     "version",
     "project-init",
+    "next",
     "run",
     "impact",
     "blast",
@@ -51,6 +52,7 @@ test("nexus run help documents subcommands", () => {
   const result = invoke(["run", "help"]);
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /init/);
+  assert.match(result.stdout, /next/);
   assert.match(result.stdout, /transition/);
   assert.match(result.stdout, /validate-handoff/);
 });

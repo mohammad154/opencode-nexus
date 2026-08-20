@@ -20,6 +20,7 @@ Commands:
   update         Same as install (idempotent)
   uninstall      Remove Nexus OpenCode agents and plugin config
   project-init   Bootstrap .opencode/ in the current project (external repos)
+  next           Deterministic next orchestrator action (dispatch / transition / skill)
   run            Workflow state machine (init, classify, transition, status, inspect, ...)
   impact         Nexus Impact Engine (git + AST + affected tests)
   blast          Alias for impact (compatibility)
@@ -36,6 +37,8 @@ Examples:
   npx ${pkg.name}@latest install
   nexus project-init
   nexus run init --run-id demo
+  nexus next
+  nexus next --json
   nexus run status
   nexus run inspect
   nexus classify --files 2 --lines 40 --class small-feature-with-tests --focused
@@ -58,6 +61,7 @@ const RUN_HELP = `Usage: nexus run <subcommand> [flags]
 
 Subcommands:
   init              Create a run (--run-id <id>)
+  next              Deterministic next action (alias of nexus next)
   classify          Classify and optionally apply (--apply)
   transition        Transition state (--to STATE)
   validate-handoff  Validate a handoff JSON (--role ROLE --file path)
@@ -246,6 +250,10 @@ function cmdRun(args) {
     console.log(RUN_HELP.trimEnd());
     return;
   }
+  if (args[0] === "next") {
+    cmdNext(args.slice(1));
+    return;
+  }
   runNodeScript("nexus-run.js", args);
 }
 
@@ -275,6 +283,10 @@ function cmdBaseline(args) {
 
 function cmdVerify(args) {
   runNodeScript("nexus-run.js", ["verify", ...args]);
+}
+
+function cmdNext(args) {
+  runNodeScript("nexus-next.js", args);
 }
 
 function doctor() {
@@ -421,6 +433,9 @@ switch (command) {
     break;
   case "project-init":
     cmdProjectInit();
+    break;
+  case "next":
+    cmdNext(args);
     break;
   case "run":
     cmdRun(args);
