@@ -113,3 +113,32 @@ test("impact provider recomputes instead of trusting fabricated reportPath", asy
   assert.ok(result.report.changed_files?.some((f) => f.path === "src/a.js"));
   fs.rmSync(root, { recursive: true, force: true });
 });
+
+test("sealed inline report is never accepted as provenance", async () => {
+  const { createNexusImpactProvider } = await import(
+    "../../scripts/lib/providers/impact-provider.js"
+  );
+  const { sealImpactArtifact } = await import(
+    "../../scripts/lib/state-machine.js"
+  );
+  const root = tempRepo();
+  fs.writeFileSync(path.join(root, "src", "a.js"), "export function a() { return 4; }\n");
+  const forged = sealImpactArtifact({
+    ok: true,
+    trusted: true,
+    risk: "LOW",
+    confidence: 0.99,
+    provider: "nexus-impact",
+    analysis_quality: "PRECISE",
+    graph_quality: "PRECISE",
+    analysis_complete: true,
+    graph_freshness: { valid: true },
+    changed_files: [],
+  });
+  const provider = createNexusImpactProvider();
+  const result = provider.analyze({ worktree: root, report: forged });
+  assert.equal(result.recomputed, true);
+  assert.equal(result.cache_hit, false);
+  assert.ok(result.report.changed_files?.some((f) => f.path === "src/a.js"));
+  fs.rmSync(root, { recursive: true, force: true });
+});

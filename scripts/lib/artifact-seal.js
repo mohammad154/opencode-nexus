@@ -1,5 +1,10 @@
 /**
  * Provider artifact sealing — shared by state machine and providers.
+ *
+ * Digests prove integrity (tamper/audit), NOT authenticity or provenance.
+ * A caller who can write JSON can also compute the same SHA-256. Safety-critical
+ * transitions must recompute evidence via providers; never treat
+ * provider_validated alone as proof that a trusted backend produced the report.
  */
 import { createHash } from "node:crypto";
 

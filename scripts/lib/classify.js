@@ -1077,8 +1077,7 @@ function finalize({
   const allowedClass =
     dp.allowed_classes.includes(changeClass) ||
     flags.has("documentation") ||
-    flags.has("formatting") ||
-    flags.has("one_file_internal");
+    flags.has("formatting");
 
   const files = nonNegativeNumber(input.filesChanged ?? input.files_changed);
   const lines = nonNegativeNumber(

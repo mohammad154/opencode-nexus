@@ -10,11 +10,10 @@
 .opencode/runs/
 .opencode/trajectories/
 .opencode/worktrees/
+.opencode/memory/
 
-# Graphify leftovers (optional compatibility; not a Nexus runtime prerequisite)
-graphify-out/cache/
-graphify-out/.graphify_python
-graphify-out/cost.json
+# Legacy Graphify output (optional local tool; not a Nexus V4 runtime prerequisite)
+graphify-out/
 
 # Editor / OS
 *.bak.*

@@ -1,11 +1,43 @@
 /**
  * Verification provider — discover + run project checks; agent claims are not evidence.
+ * Commands always use spawnSync(command, args, { shell: false }).
  */
 import fs from "fs";
 import path from "path";
 import { spawnSync } from "node:child_process";
 import { discoverVerification } from "../verification/discover.js";
 import { compareBaselines } from "../verification/compare.js";
+
+function formatCommand(step) {
+  const args = Array.isArray(step.args) ? step.args : [];
+  return [step.command, ...args].join(" ");
+}
+
+function runStep(step, worktree) {
+  if (!step.command || typeof step.command !== "string") {
+    return {
+      status: 1,
+      error: "verification step missing command",
+      stdout: "",
+      stderr: "missing command",
+    };
+  }
+  if (!Array.isArray(step.args)) {
+    return {
+      status: 1,
+      error: "verification step must use args[] (shell strings rejected)",
+      stdout: "",
+      stderr: "args required",
+    };
+  }
+  const r = spawnSync(step.command, step.args, {
+    cwd: worktree,
+    encoding: "utf8",
+    shell: false,
+    env: process.env,
+  });
+  return r;
+}
 
 export function createVerificationProvider() {
   return {
@@ -22,22 +54,23 @@ export function createVerificationProvider() {
       const results = [];
       for (const step of plan.steps || []) {
         if (step.status === "UNAVAILABLE") {
-          results.push({ ...step, pass: null, status: "UNAVAILABLE" });
+          results.push({
+            ...step,
+            command: formatCommand(step),
+            pass: null,
+            status: "UNAVAILABLE",
+          });
           continue;
         }
-        const r = spawnSync(step.command, {
-          cwd: worktree,
-          encoding: "utf8",
-          shell: true,
-          env: process.env,
-        });
+        const r = runStep(step, worktree);
         results.push({
           id: step.id,
-          command: step.command,
+          command: formatCommand(step),
+          argv: [step.command, ...(step.args || [])],
           exit_code: r.status,
           pass: r.status === 0,
           stdout_tail: String(r.stdout || "").slice(-2000),
-          stderr_tail: String(r.stderr || "").slice(-2000),
+          stderr_tail: String(r.stderr || r.error || "").slice(-2000),
         });
       }
       return {

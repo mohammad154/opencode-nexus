@@ -127,14 +127,21 @@ export function mockTrustProviders({ impact, graph, blast } = {}) {
   return {
     impactProvider: {
       analyze(ctx = {}) {
+        let phase = i.phase;
+        if (ctx.post_impact === true || ctx.phase === "post") phase = "post";
+        else if (ctx.phase === "pre") phase = "pre";
         const report = {
           ...i,
           provider_validated: undefined,
           artifact_digest: undefined,
-          phase: ctx.phase || ctx.post_impact ? "post" : i.phase || "pre",
           related_tests: i.related_tests || [],
         };
-        return { ok: true, report };
+        if (phase) report.phase = phase;
+        if (phase === "pre") {
+          report.pre_impact = true;
+          report.trusted = false;
+        }
+        return { ok: true, report, recomputed: true };
       },
     },
     graphProvider: {

@@ -9,7 +9,7 @@
       "impactPolicy": "cache-by-file-hash",
       "cleanupPolicy": "script",
       "batchTasks": true,
-      "implementerPer": "execution-unit",
+      "implementerPer": "task",
       "maxTasksPerBatch": 5,
       "maxParallelTasks": 2,
       "requireDualReviewOn": [
@@ -27,7 +27,7 @@
       "impactPolicy": "cache-by-file-hash",
       "cleanupPolicy": "script",
       "batchTasks": true,
-      "implementerPer": "execution-unit",
+      "implementerPer": "task",
       "maxTasksPerBatch": 5,
       "maxParallelTasks": 2,
       "requireDualReviewOn": [
@@ -152,8 +152,7 @@
       "min_confidence": 0.85,
       "allowed_classes": [
         "documentation",
-        "formatting",
-        "one_file_internal"
+        "formatting"
       ]
     },
     "escalateToStrictOnHighBlast": false,

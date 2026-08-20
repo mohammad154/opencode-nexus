@@ -36,6 +36,7 @@ nexus run transition --to IMPLEMENTING --branch <b> --acceptance 'c1|c2'
 nexus run validate-handoff --role implementer --file .opencode/handoffs/<id>-implementer.json
 nexus run transition --to FINAL_VERIFYING --json '{"unified_handoff":{...}}'
 # COMPLETED re-runs verificationProvider — never pass final_verification.ok / skip_final_verification
+# legacy_skip_final is only honored when the run was created with compatibility_mode: "v3"
 nexus run transition --to COMPLETED
 nexus run inspect --run-id <id>
 nexus run status

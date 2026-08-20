@@ -227,8 +227,36 @@ export function isUnknownImpact(report) {
   return isUnknownBlast(report);
 }
 
+/**
+ * Provider-produced pre-impact may pass IMPACT_READY (planned targets on a
+ * clean tree) without authorizing direct mode. Post-impact remains mandatory
+ * before review.
+ */
+export function isAcceptablePreImpact(report) {
+  if (!report || typeof report !== "object") return false;
+  if (report.ok === false) return false;
+  const phase = String(report.phase || "").toLowerCase();
+  if (phase !== "pre" && report.pre_impact !== true) return false;
+  const provider = report.provider || report.graph_provider;
+  if (provider && provider !== "nexus-impact" && provider !== "legacy-bridge") {
+    return false;
+  }
+  const targets =
+    report.planned_targets ||
+    report.changed_files ||
+    report.files ||
+    [];
+  if (!Array.isArray(targets) || targets.length === 0) return false;
+  // Never treat pre-impact as trusted LOW for direct mode.
+  if (report.trusted === true && (phase === "pre" || report.pre_impact === true)) {
+    return false;
+  }
+  return true;
+}
+
 export function isTrustedLowRiskImpact(report) {
   if (!report || typeof report !== "object") return false;
+  if (report.phase === "pre" || report.pre_impact === true) return false;
   const risk = blastRisk(report);
   if (risk !== "LOW") return false;
   if (typeof report.confidence === "number" && report.confidence < 0.85) {

@@ -45,6 +45,7 @@ test("ctx review_level none cannot downgrade stored dual", () => {
     state: "VERIFYING",
     review_level: "dual",
     profile: "strict",
+    compatibility_mode: "v3",
     classification: sampleClassification(),
   };
   const r = canTransition(state, "COMPLETED", { legacy_skip_final: true,
@@ -197,6 +198,7 @@ test("escalate_to_dual APPROVED cannot COMPLETE unified", () => {
     ...createEmptyRunState("gate-4"),
     state: "REVIEWING",
     review_level: "unified",
+    compatibility_mode: "v3",
     current_unit: "unit-1",
     implementer_commit: "abc123",
     head_commit: "base000",
@@ -276,6 +278,7 @@ test("stale approval without run binding rejected", () => {
     ...createEmptyRunState("gate-7"),
     state: "REVIEWING",
     review_level: "unified",
+    compatibility_mode: "v3",
     current_unit: "auth",
     implementer_commit: "deadbeef",
     head_commit: "base",
@@ -394,4 +397,74 @@ test("multi-task FINAL_VERIFYING requires integration-reviewer", () => {
   });
   assert.equal(r.ok, false);
   assert.ok(r.errors.some((e) => /integration-reviewer/i.test(e)));
+});
+
+test("legacy_skip_final rejected without compatibility_mode v3", () => {
+  const state = {
+    ...createEmptyRunState("gate-no-compat"),
+    state: "REVIEWING",
+    review_level: "unified",
+    current_unit: "auth",
+    implementer_commit: "abc123",
+    head_commit: "base000",
+  };
+  const r = canTransition(state, "COMPLETED", {
+    legacy_skip_final: true,
+    unified_handoff: goodUnifiedHandoff({
+      run_id: "gate-no-compat",
+      unit_or_task: "auth",
+      reviewed_commit: "abc123",
+      base_commit: "base000",
+    }),
+  });
+  assert.equal(r.ok, false);
+  assert.ok(r.errors.some((e) => /compatibility_mode/i.test(e)));
+});
+
+test("pre-impact can enter IMPACT_READY without trusted label", () => {
+  const providers = mockTrustProviders({
+    impact: sealedImpact({
+      trusted: false,
+      confidence: 0.5,
+      phase: "pre",
+      pre_impact: true,
+      changed_files: [{ path: "src/a.js", planned: true }],
+    }),
+  });
+  // Strip seal so provider returns raw pre-impact shape
+  providers.impactProvider.analyze = () => ({
+    ok: true,
+    recomputed: true,
+    report: {
+      schema_version: "1.0",
+      ok: true,
+      provider: "nexus-impact",
+      risk: "LOW",
+      level: "LOW",
+      confidence: 0.5,
+      trusted: false,
+      phase: "pre",
+      pre_impact: true,
+      analysis_quality: "PRECISE",
+      graph_quality: "PRECISE",
+      analysis_complete: true,
+      graph_freshness: { valid: true },
+      uncertainties: [],
+      dimensions: {},
+      changed_files: [{ path: "src/a.js", planned: true }],
+    },
+  });
+  let state = createEmptyRunState("gate-pre");
+  state = transition(state, "CLASSIFIED", {
+    classification: sampleClassification(),
+  }).state;
+  state = transition(state, "PLANNED", { plan_skip: true }).state;
+  const r = transition(
+    state,
+    "IMPACT_READY",
+    { planned_targets: ["src/a.js"] },
+    providers,
+  );
+  assert.equal(r.ok, true, JSON.stringify(r.errors));
+  assert.equal(r.state.require_post_impact, true);
 });

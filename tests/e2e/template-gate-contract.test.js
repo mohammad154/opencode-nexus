@@ -135,6 +135,7 @@ test("documented unified template produces a gate-valid approval", () => {
     ...createEmptyRunState("contract-run"),
     state: "REVIEWING",
     review_level: "unified",
+    compatibility_mode: "v3",
     current_unit: "unit-contract",
     head_commit: "baseaaa",
     implementer_commit: "commitbb",

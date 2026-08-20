@@ -159,6 +159,8 @@ export function createEmptyRunState(runId, overrides = {}) {
     graph: null,
     blast: null,
     verification_policy: { exempt: false, reason: null },
+    compatibility_mode: null,
+    require_post_impact: false,
     block_reason: null,
     block_code: null,
     escalation_reasons: [],

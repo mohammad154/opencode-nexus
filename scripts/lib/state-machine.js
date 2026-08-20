@@ -28,6 +28,7 @@ import {
   maxReview,
   requiresTdd,
   isMultiTaskRun,
+  isAcceptablePreImpact,
 } from "./policy.js";
 
 export const STATES = [
@@ -168,7 +169,7 @@ export function requiredEvidence(from, to) {
     "VERIFYING->REVIEWING": ["provider_verification"],
     "REVIEWING->FINAL_VERIFYING": ["review_approval"],
     "FINAL_VERIFYING->COMPLETED": ["final_verification"],
-    "REVIEWING->COMPLETED": ["review_approval|legacy_skip_final"],
+    "REVIEWING->COMPLETED": ["review_approval|legacy_skip_final+compatibility_mode_v3"],
     "VERIFYING->COMPLETED": ["review_level_none"],
   };
   return map[`${from}->${to}`] || [];
@@ -324,8 +325,36 @@ function isProviderTrustedImpact(impact) {
   return verifySealedArtifact(impact) && isTrustedLowRiskImpact(impact);
 }
 
+function allowsLegacySkipFinal(state, ctx) {
+  if (ctx.legacy_skip_final !== true) return false;
+  return (
+    state.compatibility_mode === "v3" ||
+    state.classification?.compatibility_mode === "v3"
+  );
+}
+
+function loadRunBaseline(state, ctx, worktree) {
+  if (ctx.baseline && typeof ctx.baseline === "object") return ctx.baseline;
+  if (state.baseline && typeof state.baseline === "object") return state.baseline;
+  if (!worktree || !state.run_id) return null;
+  const p = path.join(
+    worktree,
+    ".opencode",
+    "runs",
+    state.run_id,
+    "baseline.json",
+  );
+  if (!fs.existsSync(p)) return null;
+  try {
+    return JSON.parse(fs.readFileSync(p, "utf8"));
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Revalidate impact via providers. Caller-supplied trusted labels are ignored.
+ * Digests never establish authenticity — always recompute at safety gates.
  */
 export function revalidateTransitionEvidence(to, ctx, providers, state = {}) {
   const worktree = ctx.worktree || process.cwd();
@@ -339,21 +368,19 @@ export function revalidateTransitionEvidence(to, ctx, providers, state = {}) {
         worktree,
         reportPath: ctx.impact_path || ctx["impact-path"] || ctx.blast_path,
         base: ctx.base,
-        change_class: ctx.change_class || ctx.classification?.change_class || state.classification?.change_class,
-        planned_targets: ctx.planned_targets || ctx.targets || ctx.allowed_files || ctx.files,
-        report: verifySealedArtifact(ctx.impact?.report || ctx.impact || ctx.blast)
-          ? ctx.impact?.report || ctx.impact || ctx.blast
-          : undefined,
+        change_class:
+          ctx.change_class ||
+          ctx.classification?.change_class ||
+          state.classification?.change_class,
+        planned_targets:
+          ctx.planned_targets || ctx.targets || ctx.allowed_files || ctx.files,
+        // Never pass sealed inline report — digests are not provenance.
         files: ctx.files || ctx.changed_files,
+        force_recompute: true,
       });
       const report = analyzed?.report || analyzed;
       if (report && typeof report === "object") {
         const nextReport = { ...report };
-        if (report.trusted === true && analyzed?.ok !== false) {
-          nextReport.trusted = true;
-        } else if (report.trusted !== true) {
-          delete nextReport.trusted;
-        }
         if (nextReport.confidence == null) nextReport.confidence = 0.85;
         if (!nextReport.schema_version) nextReport.schema_version = "1.0";
         next.impact = sealImpactArtifact(nextReport, head);
@@ -371,6 +398,9 @@ export function revalidateTransitionEvidence(to, ctx, providers, state = {}) {
           },
           head,
         );
+        if (isAcceptablePreImpact(nextReport)) {
+          next.require_post_impact = true;
+        }
       } else if (to === "IMPACT_READY") {
         errors.push(
           `impact provider rejected artifact: ${analyzed?.error || "not ok"}`,
@@ -381,9 +411,7 @@ export function revalidateTransitionEvidence(to, ctx, providers, state = {}) {
         worktree,
         reportPath: ctx.blast_path || ctx.impact_path,
         files: ctx.files || ctx.changed_files,
-        report: verifySealedArtifact(ctx.impact || ctx.blast?.report || ctx.blast)
-          ? ctx.impact || ctx.blast?.report || ctx.blast
-          : undefined,
+        // Do not accept sealed inline blast as provenance.
       });
       const report = analyzed?.report || analyzed;
       if (report && typeof report === "object") {
@@ -403,7 +431,7 @@ export function revalidateTransitionEvidence(to, ctx, providers, state = {}) {
       }
     } else if (ctx.impact || ctx.blast) {
       const report = ctx.impact?.report || ctx.impact || ctx.blast?.report || ctx.blast;
-      if (report?.trusted === true && !verifySealedArtifact(report)) {
+      if (report?.trusted === true) {
         errors.push(
           "impact trusted label rejected: provider revalidation required",
         );
@@ -426,10 +454,12 @@ export function revalidateTransitionEvidence(to, ctx, providers, state = {}) {
         change_class: state.classification?.change_class,
         phase: "post",
         post_impact: true,
+        force_recompute: true,
       });
       const report = analyzed?.report || analyzed;
       if (report && typeof report === "object") {
         next.post_impact = sealImpactArtifact(report, head);
+        next.require_post_impact = false;
       } else {
         errors.push(
           `post-impact provider rejected artifact: ${analyzed?.error || "not ok"}`,
@@ -437,7 +467,8 @@ export function revalidateTransitionEvidence(to, ctx, providers, state = {}) {
       }
     }
     if (!exempt && providers?.verificationProvider?.run) {
-      const field = to === "COMPLETED" ? "final_verification" : "provider_verification";
+      const field =
+        to === "COMPLETED" ? "final_verification" : "provider_verification";
       const related =
         next.post_impact?.related_tests ||
         state.post_impact?.related_tests ||
@@ -451,12 +482,32 @@ export function revalidateTransitionEvidence(to, ctx, providers, state = {}) {
           related_tests: related,
         }),
       });
+      const baseline = loadRunBaseline(state, ctx, worktree);
+      let baseline_comparison = null;
+      let ok = run?.ok === true;
+      if (baseline && providers.verificationProvider.compare) {
+        baseline_comparison = providers.verificationProvider.compare(
+          baseline,
+          run,
+        );
+        if (baseline_comparison.ok !== true) {
+          ok = false;
+          errors.push(
+            `new verification regressions vs baseline: ${(
+              baseline_comparison.new_regressions || []
+            )
+              .map((r) => r.id || r.command)
+              .join(", ") || "unknown"}`,
+          );
+        }
+      }
       const sealed = sealVerificationReport(
         {
-          ok: run?.ok === true,
+          ok,
           results: run?.results || [],
           plan: run?.plan,
           source: "verification-provider",
+          baseline_comparison,
         },
         head,
       );
@@ -465,8 +516,13 @@ export function revalidateTransitionEvidence(to, ctx, providers, state = {}) {
       if (ctx.skip_final_verification === true) {
         errors.push("skip_final_verification is not allowed");
       }
-      if (ctx.final_verification && !verifySealedArtifact(ctx.final_verification)) {
-        errors.push("caller-supplied final_verification rejected — must be provider-sealed");
+      if (
+        ctx.final_verification &&
+        !verifySealedArtifact(ctx.final_verification)
+      ) {
+        errors.push(
+          "caller-supplied final_verification rejected — must be provider-sealed",
+        );
       }
     }
   }
@@ -597,6 +653,7 @@ export function canTransition(state, to, ctx = {}) {
       }
       if (
         isUnknownImpact(normalized) &&
+        !isAcceptablePreImpact(normalized) &&
         !hasExplicitImpactVerification(
           ctx.impact_verification ||
             ctx.blast_verification ||
@@ -629,6 +686,7 @@ export function canTransition(state, to, ctx = {}) {
     }
     if (
       isUnknownImpact(report) &&
+      !isAcceptablePreImpact(report) &&
       !hasExplicitImpactVerification(
         state.impact_verification || state.blast_verification,
       )
@@ -841,11 +899,11 @@ export function canTransition(state, to, ctx = {}) {
           // Integrated branch may have moved — require fresh final verification only
         }
       }
-    } else if (from === "REVIEWING" && ctx.legacy_skip_final !== true) {
-      // Prefer FINAL_VERIFYING; allow legacy COMPLETED from REVIEWING when explicitly opted in
+    } else if (from === "REVIEWING" && !allowsLegacySkipFinal(state, ctx)) {
+      // Prefer FINAL_VERIFYING; V3 migration only when run has compatibility_mode:"v3"
       if (level !== "none") {
         errors.push(
-          "COMPLETED should follow FINAL_VERIFYING (pass legacy_skip_final to bypass during migration)",
+          "COMPLETED should follow FINAL_VERIFYING (legacy_skip_final requires persisted compatibility_mode:v3)",
         );
       }
     }
@@ -861,7 +919,11 @@ export function canTransition(state, to, ctx = {}) {
           "legacy_unverified handoff cannot COMPLETE without allow_legacy_complete",
         );
       }
-    } else if (level === "unified" && from === "REVIEWING" && ctx.legacy_skip_final === true) {
+    } else if (
+      level === "unified" &&
+      from === "REVIEWING" &&
+      allowsLegacySkipFinal(state, ctx)
+    ) {
       const h = ctx.unified_handoff || ctx.review_handoff;
       const {
         ok,
@@ -883,7 +945,11 @@ export function canTransition(state, to, ctx = {}) {
           ...bindReviewerHandoffErrors(data, state, "unified-reviewer"),
         );
       }
-    } else if (level === "dual" && from === "REVIEWING" && ctx.legacy_skip_final === true) {
+    } else if (
+      level === "dual" &&
+      from === "REVIEWING" &&
+      allowsLegacySkipFinal(state, ctx)
+    ) {
       const spec = normalizeAndValidateHandoff(
         "spec-reviewer",
         ctx.spec_handoff || {},
@@ -1026,6 +1092,9 @@ export function transition(state, to, evidence = {}, providers = null) {
     next.impact = report;
     next.blast = report; // legacy mirror
     next = applyImpactEscalation(next, report);
+    if (ctx.require_post_impact === true || isAcceptablePreImpact(report)) {
+      next.require_post_impact = true;
+    }
     const verification =
       ctx.impact_verification ||
       ctx.blast_verification ||
@@ -1068,6 +1137,7 @@ export function transition(state, to, evidence = {}, providers = null) {
       next.provider_verification = ctx.provider_verification;
     }
     if (ctx.post_impact) next.post_impact = ctx.post_impact;
+    if (ctx.require_post_impact === false) next.require_post_impact = false;
   }
   if (to === "COMPLETED" && ctx.final_verification) {
     next.final_verification = ctx.final_verification;

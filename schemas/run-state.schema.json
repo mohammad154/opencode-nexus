@@ -33,6 +33,8 @@
     "profile": { "type": "string", "enum": ["fast", "balanced", "strict"] },
     "review_level": { "type": "string", "enum": ["none", "unified", "dual"] },
     "execution_mode": { "type": "string", "enum": ["direct", "delegated"] },
+    "compatibility_mode": { "type": ["string", "null"] },
+    "require_post_impact": { "type": "boolean" },
     "current_unit": { "type": ["string", "null"] },
     "classification": {
       "type": ["object", "null"],
