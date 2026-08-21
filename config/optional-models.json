@@ -1,6 +1,3 @@
 {
-  "blast-analyzer": {
-    "model": "opencode/deepseek-v4-flash-free",
-    "variant": "medium"
-  }
+  "_comment": "V5 has no optional agents. Kept empty so --with-optional-agents is a no-op."
 }

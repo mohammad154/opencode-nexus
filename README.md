@@ -359,13 +359,9 @@ One-off overrides (no file edit):
 |---|---|
 | `NEXUS_ORCHESTRATOR_MODEL` | Orchestrator model |
 | `NEXUS_IMPLEMENTER_MODEL` | Implementer model |
-| `NEXUS_UNIFIED_REVIEWER_MODEL` | Unified reviewer model |
-| `NEXUS_SPEC_REVIEWER_MODEL` | Spec reviewer model |
-| `NEXUS_CODE_REVIEWER_MODEL` | Code reviewer model |
-| `NEXUS_IMPLEMENTER_REASONING_EFFORT` | Implementer reasoning effort |
-| `NEXUS_UNIFIED_REVIEWER_REASONING_EFFORT` | Unified reviewer reasoning effort |
-| `NEXUS_SPEC_REVIEWER_REASONING_EFFORT` | Spec reviewer reasoning effort |
-| `NEXUS_CODE_REVIEWER_REASONING_EFFORT` | Code reviewer reasoning effort |
+| `NEXUS_REVIEWER_MODEL` | Reviewer model |
+| `NEXUS_IMPLEMENTER_VARIANT` / `NEXUS_IMPLEMENTER_REASONING_EFFORT` | Implementer reasoning effort |
+| `NEXUS_REVIEWER_VARIANT` / `NEXUS_REVIEWER_REASONING_EFFORT` | Reviewer reasoning effort |
 
 Example:
 

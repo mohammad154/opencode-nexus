@@ -136,7 +136,10 @@ for spec in "implementer:NEXUS_IMPLEMENTER_VARIANT:NEXUS_IMPLEMENTER_REASONING_E
 done
 # Drop retired V4 agents from the merge payload
 MJ="$(jq --argjson skip "$RETIRED_JSON" 'reduce $skip[] as $k (.; del(.[$k]))' <<<"$MJ")"
-# Always prune retired V4 agent config keys from existing opencode.json on upgrade
+# Always prune retired V4 agent config keys from existing opencode.json on upgrade.
+# OpenCode treats agent keys in opencode.json as selectable agents; without
+# mode:subagent they show up in the primary "Select agent" menu — so retired
+# keys must never linger, and canonical modes must be forced every install.
 PRUNE_JSON="$RETIRED_JSON"
 TMP="$(mktemp)"
 # Keep object context: `.plugin=(...)` would pipe the array and break later merges
@@ -156,6 +159,9 @@ if ! jq --arg p "$PLUGIN_SPEC" --arg name "$PKG_NAME" --arg legacy "$LEGACY_GIT_
       if .agent[$k] then
         .agent |= del(.[$k])
       else . end)
+  | if .agent.orchestrator then .agent.orchestrator.mode = "primary" else . end
+  | if .agent.implementer then .agent.implementer.mode = "subagent" else . end
+  | if .agent.reviewer then .agent.reviewer.mode = "subagent" else . end
 ' "$CONFIG_FILE" >"$TMP"; then
   echo "  Error: failed to merge plugin/models into $CONFIG_FILE"
   rm -f "$TMP"

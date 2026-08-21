@@ -92,6 +92,8 @@ cat >"$UPG_HOME/.config/opencode/opencode.json" <<'JSON'
     "implementer": { "model": "x" },
     "unified-reviewer": { "model": "old" },
     "spec-reviewer": { "model": "old" },
+    "code-reviewer": { "model": "old" },
+    "reconciler": { "model": "old" },
     "diagnostician": { "model": "old" }
   }
 }
@@ -105,7 +107,12 @@ printf '# leftover\n' >"$UPG_HOME/.config/opencode/agents/unified-reviewer.md"
 jq -e '(.agent | has("unified-reviewer")) | not' "$UPG_HOME/.config/opencode/opencode.json" >/dev/null
 jq -e '(.agent | has("spec-reviewer")) | not' "$UPG_HOME/.config/opencode/opencode.json" >/dev/null
 jq -e '(.agent | has("diagnostician")) | not' "$UPG_HOME/.config/opencode/opencode.json" >/dev/null
+jq -e '(.agent | has("code-reviewer")) | not' "$UPG_HOME/.config/opencode/opencode.json" >/dev/null
+jq -e '(.agent | has("reconciler")) | not' "$UPG_HOME/.config/opencode/opencode.json" >/dev/null
 jq -e '.agent | has("reviewer")' "$UPG_HOME/.config/opencode/opencode.json" >/dev/null
+jq -e '.agent.orchestrator.mode == "primary"' "$UPG_HOME/.config/opencode/opencode.json" >/dev/null
+jq -e '.agent.implementer.mode == "subagent"' "$UPG_HOME/.config/opencode/opencode.json" >/dev/null
+jq -e '.agent.reviewer.mode == "subagent"' "$UPG_HOME/.config/opencode/opencode.json" >/dev/null
 test ! -f "$UPG_HOME/.config/opencode/agents/unified-reviewer.md"
 test -f "$UPG_HOME/.config/opencode/agents/reviewer.md"
 rm -rf "$UPG_HOME"

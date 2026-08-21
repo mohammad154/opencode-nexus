@@ -1,12 +1,15 @@
 {
   "orchestrator": {
+    "mode": "primary",
     "model": "opencode-go/minimax-m3"
   },
   "implementer": {
+    "mode": "subagent",
     "model": "opencode/deepseek-v4-flash-free",
     "variant": "high"
   },
   "reviewer": {
+    "mode": "subagent",
     "model": "opencode-go/deepseek-v4-pro",
     "variant": "high"
   }

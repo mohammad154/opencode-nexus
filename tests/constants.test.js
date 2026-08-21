@@ -46,3 +46,44 @@ test("orchestrator is primary; implementer and reviewer are subagents", () => {
     );
   }
 });
+
+test("default-models.json declares modes so json-only agent entries stay out of the primary picker", () => {
+  const models = JSON.parse(
+    fs.readFileSync(
+      path.join(repoRoot, "config", "default-models.json"),
+      "utf8",
+    ),
+  );
+  assert.equal(models.orchestrator.mode, "primary");
+  assert.equal(models.implementer.mode, "subagent");
+  assert.equal(models.reviewer.mode, "subagent");
+  assert.equal(
+    Object.keys(models).sort().join(","),
+    "implementer,orchestrator,reviewer",
+  );
+});
+
+test("models.example.json is V5-only and does not reintroduce retired agents", () => {
+  const example = JSON.parse(
+    fs.readFileSync(
+      path.join(repoRoot, "config", "models.example.json"),
+      "utf8",
+    ),
+  );
+  const keys = Object.keys(example).filter((k) => !k.startsWith("_"));
+  assert.deepEqual(keys.sort(), ["implementer", "orchestrator", "reviewer"]);
+  for (const retired of [
+    "unified-reviewer",
+    "spec-reviewer",
+    "code-reviewer",
+    "reconciler",
+    "diagnostician",
+    "blast-analyzer",
+  ]) {
+    assert.equal(
+      example[retired],
+      undefined,
+      `example must not include ${retired}`,
+    );
+  }
+});

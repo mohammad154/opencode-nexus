@@ -1,30 +1,17 @@
 {
-  "_comment": "Copy to ~/.config/opencode/nexus.models.json and edit. Re-run install.sh to apply. blast-analyzer is applied only with --with-optional-agents. Graphify provides graph and blast context. Risk tiers: see config/workflow-profiles.json modelTiers.",
+  "_comment": "Copy to ~/.config/opencode/nexus.models.json and edit. Re-run install.sh to apply. V5 agents only: orchestrator (primary), implementer + reviewer (subagents).",
   "orchestrator": {
+    "mode": "primary",
     "model": "anthropic/claude-sonnet-4-20250514"
   },
   "implementer": {
+    "mode": "subagent",
     "model": "opencode/deepseek-v4-flash-free",
     "variant": "high"
   },
-  "unified-reviewer": {
+  "reviewer": {
+    "mode": "subagent",
     "model": "opencode-go/deepseek-v4-pro",
     "variant": "high"
-  },
-  "spec-reviewer": {
-    "model": "opencode-go/deepseek-v4-pro",
-    "variant": "max"
-  },
-  "code-reviewer": {
-    "model": "opencode-go/deepseek-v4-pro",
-    "variant": "max"
-  },
-  "blast-analyzer": {
-    "model": "opencode/deepseek-v4-flash-free",
-    "variant": "medium"
-  },
-  "reconciler": {
-    "model": "opencode-go/deepseek-v4-pro",
-    "variant": "max"
   }
 }
