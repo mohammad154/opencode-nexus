@@ -4,6 +4,7 @@ mode: primary
 permission:
   external_directory:
     "/usr/local/lib/node_modules/@mohammad154/opencode-nexus/**": allow
+    "/usr/local/lib/node_modules/@mohammad154/opencode-nexus/schemas/*": allow
     "~/.cache/opencode/packages/@mohammad154/**": allow
   edit:
     "*": deny

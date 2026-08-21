@@ -113,6 +113,11 @@ jq -e '.agent | has("reviewer")' "$UPG_HOME/.config/opencode/opencode.json" >/de
 jq -e '.agent.orchestrator.mode == "primary"' "$UPG_HOME/.config/opencode/opencode.json" >/dev/null
 jq -e '.agent.implementer.mode == "subagent"' "$UPG_HOME/.config/opencode/opencode.json" >/dev/null
 jq -e '.agent.reviewer.mode == "subagent"' "$UPG_HOME/.config/opencode/opencode.json" >/dev/null
+jq -e '
+  .permission.external_directory["/usr/local/lib/node_modules/@mohammad154/opencode-nexus/**"] == "allow"
+  and .permission.external_directory["/usr/local/lib/node_modules/@mohammad154/opencode-nexus/schemas/*"] == "allow"
+  and .permission.external_directory["~/.cache/opencode/packages/@mohammad154/**"] == "allow"
+' "$UPG_HOME/.config/opencode/opencode.json" >/dev/null
 test ! -f "$UPG_HOME/.config/opencode/agents/unified-reviewer.md"
 test -f "$UPG_HOME/.config/opencode/agents/reviewer.md"
 rm -rf "$UPG_HOME"

@@ -162,6 +162,15 @@ if ! jq --arg p "$PLUGIN_SPEC" --arg name "$PKG_NAME" --arg legacy "$LEGACY_GIT_
   | if .agent.orchestrator then .agent.orchestrator.mode = "primary" else . end
   | if .agent.implementer then .agent.implementer.mode = "subagent" else . end
   | if .agent.reviewer then .agent.reviewer.mode = "subagent" else . end
+  | .permission = (.permission // {})
+  | .permission.external_directory = (
+      (.permission.external_directory // {})
+      + {
+          "/usr/local/lib/node_modules/@mohammad154/opencode-nexus/**": "allow",
+          "/usr/local/lib/node_modules/@mohammad154/opencode-nexus/schemas/*": "allow",
+          "~/.cache/opencode/packages/@mohammad154/**": "allow"
+        }
+    )
 ' "$CONFIG_FILE" >"$TMP"; then
   echo "  Error: failed to merge plugin/models into $CONFIG_FILE"
   rm -f "$TMP"
