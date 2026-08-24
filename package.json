@@ -1,6 +1,6 @@
 {
   "name": "@mohammad154/opencode-nexus",
-  "version": "4.2.2",
+  "version": "4.2.3",
   "description": "Three-agent development workflow for OpenCode (orchestrator, implementer, reviewer + Impact Engine)",
   "type": "module",
   "main": ".opencode/plugins/nexus.js",
