@@ -19,9 +19,9 @@ Ensures the PLAN is still a true picture of the repo after time and commits have
 
 ## Pre-requisites
 
-- .opencode/plans/PLAN.md must exist with plan_commit stamped.
+- `.opencode/plans/PLAN.md` must exist with plan_commit stamped.
 - CONTEXT.md must have base_branch + plan_commit.
-- `graphify-out/graph.json` may help for deeper checks (optional).
+- `nexus impact --json` may help for deeper checks when reconciling blast assumptions.
 
 ## Procedure
 
@@ -29,8 +29,7 @@ Ensures the PLAN is still a true picture of the repo after time and commits have
 
 1. Read `.opencode/plans/PLAN.md` – note plan_commit (short and full SHA from header), task list with [x]/[ ] marks, findings triage, verification_baseline.
 2. Read `.opencode/CONTEXT.md` – plan_commit, base_branch, task_branches.
-3. Read `graphify-out/graph.json` if present – validate Graphify freshness and direction.
-4. Run:
+3. Run:
    ```bash
    git rev-parse --short HEAD
    git rev-parse HEAD
@@ -117,7 +116,7 @@ Write findings to reconcile report.
 For each remaining [ ] task:
 
 1. Verify Evidence file:line – if broken and blast analysis now shows new callers, expand Scope In related callers section.
-2. Re-run `nexus blast --files <scope in csv> --task N` to refresh blast report with current Graphify state.
+2. Re-run `nexus impact --json --targets <scope in csv>` to refresh impact report for the current repo state.
 3. If effort/confidence changed due to drift (e.g. file now larger, coupled), update task-N.md header (effort, risk).
 4. If blast risk now HIGH and was LOW when planned, flag to user for explicit approval.
 

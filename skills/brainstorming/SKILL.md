@@ -35,4 +35,4 @@ Examples:
 - Risks and mitigations
 - Clear handoff into `writing-plans`
 
-Graphify (if present) is an **optional** analysis aid only — never block brainstorming on it. Prefer `nexus impact` once targets are known.
+Use `nexus impact` once targets are known for optional analysis — never block brainstorming on external graph tooling.

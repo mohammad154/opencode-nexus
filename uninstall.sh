@@ -94,5 +94,5 @@ rm -f "$AD"/*.nexus-original.* 2>/dev/null || true
 echo "  [opencode] Done. Kept $CD/nexus.models.json"
 
 echo ""; echo "Uninstall complete."
-echo "Notes: graphify-out/ and Graphify installation are not touched; nexus.models.json kept"
+echo "Notes: project-local .opencode/ is not touched; nexus.models.json kept"
 echo "       Project git post-commit hooks are not auto-removed (edit .git/hooks/post-commit if needed)"

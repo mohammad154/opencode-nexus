@@ -61,12 +61,11 @@ home="$TMPROOT/opencode"
 project="$home/project"
 mkdir -p "$home/bin" "$project" "$home/.config/opencode"
 printf '{}\n' >"$home/.config/opencode/opencode.json"
-printf '#!/bin/sh\nprintf "%%s\\n" "$*" >>"$GRAPHIFY_LOG"\n' >"$home/bin/graphify"
-chmod +x "$home/bin/graphify"
+printf '#!/bin/sh\nexit 0\n' >"$home/bin/opencode"
+chmod +x "$home/bin/opencode"
 
 export HOME="$home"
 export PATH="$home/bin:$SANITIZED_PATH"
-export GRAPHIFY_LOG="$home/graphify.log"
 unset OPENCODE_CONFIG_DIR NEXUS_PLUGIN_SPEC NEXUS_OPTIONAL_AGENTS
 
 if ! (cd "$project" && "$ROOT/install.sh" >"$home/install.log" 2>&1); then
@@ -113,17 +112,6 @@ if find "$home" "$project" -type f \( \
   fail "OpenCode installed an optional graph/blast agent without an explicit flag"
 fi
 
-grep -q '^install --platform opencode$' "$GRAPHIFY_LOG" \
-  || fail "OpenCode installer did not invoke Graphify global skill installation when Graphify is on PATH"
-# `graphify opencode install` is a PROJECT-level mutation; a global `nexus
-# install` must NOT perform it (it now runs in `nexus project-init`).
-! grep -q '^opencode install$' "$GRAPHIFY_LOG" \
-  || fail "global install unexpectedly performed project-level 'graphify opencode install'"
-[[ -x "$home/bin/graphify" ]] \
-  || fail "Nexus uninstall removed the external Graphify executable"
-! grep -q 'uninstall' "$GRAPHIFY_LOG" \
-  || fail "Nexus uninstall invoked a Graphify uninstall command"
-
 if ! (cd "$project" && "$ROOT/uninstall.sh" >"$home/uninstall.log" 2>&1); then
   fail "OpenCode uninstall exited non-zero"
 fi
@@ -137,14 +125,13 @@ restore_home="$TMPROOT/opencode-restore"
 restore_project="$restore_home/project"
 mkdir -p "$restore_home/bin" "$restore_home/.config/opencode/agents" "$restore_project"
 git init -q "$restore_project"
-printf '#!/bin/sh\nprintf "%%s\\n" "$*" >>"$GRAPHIFY_LOG"\n' >"$restore_home/bin/graphify"
-chmod +x "$restore_home/bin/graphify"
+printf '#!/bin/sh\nexit 0\n' >"$restore_home/bin/opencode"
+chmod +x "$restore_home/bin/opencode"
 printf '{"plugin":["user/plugin"],"agent":{"custom":{"model":"user-model"}}}\n' \
   >"$restore_home/.config/opencode/opencode.json"
 printf 'user orchestrator configuration\n' >"$restore_home/.config/opencode/agents/orchestrator.md"
 export HOME="$restore_home"
 export PATH="$restore_home/bin:$SANITIZED_PATH"
-export GRAPHIFY_LOG="$restore_home/graphify.log"
 if ! (cd "$restore_project" && "$ROOT/install.sh" >"$restore_home/install.log" 2>&1); then
   fail "OpenCode restoration fixture install exited non-zero"
 fi
@@ -162,13 +149,12 @@ echo "== migrate legacy git plugin spec =="
 migrate_home="$TMPROOT/opencode-migrate"
 migrate_project="$migrate_home/project"
 mkdir -p "$migrate_home/bin" "$migrate_project" "$migrate_home/.config/opencode"
-printf '#!/bin/sh\nprintf "%%s\\n" "$*" >>"$GRAPHIFY_LOG"\n' >"$migrate_home/bin/graphify"
-chmod +x "$migrate_home/bin/graphify"
+printf '#!/bin/sh\nexit 0\n' >"$migrate_home/bin/opencode"
+chmod +x "$migrate_home/bin/opencode"
 jq -n --arg legacy "$LEGACY_GIT_SPEC" '{plugin:[$legacy]}' \
   >"$migrate_home/.config/opencode/opencode.json"
 export HOME="$migrate_home"
 export PATH="$migrate_home/bin:$SANITIZED_PATH"
-export GRAPHIFY_LOG="$migrate_home/graphify.log"
 unset OPENCODE_CONFIG_DIR NEXUS_PLUGIN_SPEC NEXUS_OPTIONAL_AGENTS
 if ! (cd "$migrate_project" && "$ROOT/install.sh" >"$migrate_home/install.log" 2>&1); then
   fail "legacy plugin migration install exited non-zero"

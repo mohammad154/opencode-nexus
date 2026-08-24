@@ -53,7 +53,7 @@ const USAGE = `Usage: node scripts/nexus-classify.js [options]
   --input path.json | --json '{...}'
 Note: --class public-api|authentication-security|database-migration
       alone triggers hard strict + dual review. HIGH blast escalates review;
-      execution profile is re-scored from semantic + Graphify impact.`;
+      execution profile is re-scored from semantic + impact evidence.`;
 
 export function classifyFromArgs(argv = process.argv.slice(2), cwd = process.cwd()) {
   const args = parseArgs(argv);

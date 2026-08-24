@@ -116,7 +116,7 @@ const SCENARIOS = [
     expected: { profile: "balanced", notProfile: "strict" },
   },
   {
-    name: "stale Graphify data → never fast",
+    name: "stale impact data → never fast",
     input: {
       filesChanged: 1,
       estimatedLines: 12,
@@ -153,7 +153,7 @@ const SCENARIOS = [
     expected: { profile: "strict", review_level: "dual" },
   },
   {
-    name: "one Graphify caller keeps a private helper low risk",
+    name: "one direct caller keeps a private helper low risk",
     input: {
       filesChanged: 1,
       estimatedLines: 14,

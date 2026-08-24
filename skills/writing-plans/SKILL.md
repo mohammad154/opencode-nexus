@@ -20,7 +20,7 @@ This skill borrows the three guarantees from shadcn/improve:
 1. Read README, CLAUDE.md / AGENTS.md, CONTRIBUTING, root config (package.json, pyproject.toml, go.mod, Cargo.toml, etc.), CI config.
 2. Detect **exact verification commands** — how to build / test / lint / typecheck — these become gates in every task. If none exist, note that; "establish a verification baseline" may become task 1.
 3. Record `git rev-parse --short HEAD` → every plan stamps the commit it was written against. Executors must run a drift check before touching code.
-4. If present, read `graphify-out/graph.json` and `graphify-out/reflections/LESSONS.md` — carry forward prior architectural knowledge and past failure modes.
+4. If present, read `.opencode/reflections/LESSONS.md` and `.opencode/memory/` — carry forward prior architectural knowledge and past failure modes.
 5. Glob for intent docs (docs/adr/, PRODUCT.md, CONTEXT.md, DESIGN.md) so you do not re-flag decided trade-offs as findings.
 
 ## Step 1 — Create PLAN.md
@@ -51,9 +51,9 @@ Write `.opencode/plans/PLAN.md` using the template below. Every section is manda
 - Key files touched (with file:line evidence):
   - `path/to/file.ts:42` – current implementation of X, shows Y
   - `path/to/other.ts:101-120` – pattern to follow / convention exemplar
-- Graphify insight (from graphify-out/graph.json when present):
-  - Hub nodes / god nodes relevant to this change
-  - Blast radius summary for proposed files (who imports them)
+- Impact insight (from `nexus impact --json` when available):
+  - Direct dependents / affected tests for proposed files
+  - Blast radius summary for proposed files
 - Existing patterns to match:
   - Example file: `path/to/exemplar.ts` – shows error handling / naming / folder layout
 
@@ -116,7 +116,7 @@ flowchart LR
 - No migration / data loss / forced push to base without explicit user confirmation
 
 ## Outcome memory
-- After each task completes, orchestrator records noteworthy outcomes with `graphify save-result` and `graphify reflect` + handoff JSON
+- After each task completes, orchestrator records noteworthy outcomes in `.opencode/memory/` + handoff JSON
 - On future plans, check LESSONS for patterns and avoid repeating mistakes
 ```
 
@@ -128,7 +128,7 @@ Each task-N.md MUST include:
 - Frontmatter-like header: id, title, commit drift sha, base_branch, effort, confidence, dependencies
 - Evidence with file:line
 - Scope in/out
-- Related callers / blast radius (run `nexus blast --files <target> --task N` when graph exists, or leave placeholder for orchestrator to fill)
+- Related callers / blast radius (run `nexus impact --json --targets <path>` or `nexus blast --files <target> --task N`)
 - Acceptance criteria as checklists
 - STOP conditions (at least 2)
 - Verification gates (exact commands)
@@ -149,7 +149,7 @@ Label confidence honestly:
   - Effort and confidence
   - STOP conditions (including drift)
   - Verification gates with exact commands (not "run tests")
-- Blast radius awareness (even if just "no directed Graphify graph yet, run graphify update")
+- Blast radius awareness (run `nexus impact --json` for proposed targets)
 - If verification baseline is missing (no tests / broken build), make task 1 "establish verification baseline".
 - Stamp commit SHA: `git rev-parse --short HEAD` (and full SHA in PLAN.md metadata). Include warning: if executor finds drift > threshold, STOP.
 
@@ -164,7 +164,7 @@ Also create or refresh `.opencode/CONTEXT.md` with:
 - verification_baseline: detected build/test/lint/typecheck commands + outcome of baseline run (pass/fail)
 - plan_commit: short + full SHA
 - generated_at: ISO timestamp
-- graphify: whether graphify-out/graph.json + reflections/LESSONS.md are present
+- impact: whether `.opencode/impact/latest.json` and reflections/LESSONS.md are present
 - Pending blockers
 - Next action
 
@@ -174,4 +174,3 @@ You have written:
 - .opencode/plans/PLAN.md (full, with metadata, effort/confidence, STOP, drift)
 - .opencode/CONTEXT.md (with verification_baseline + plan_commit)
 - .opencode/tasks/task-N.md (N per task, self-contained, with STOP + blast)
-- Optionally triggered `graphify extract . --code-only --directed --no-viz` if the Graphify graph is missing to seed later blast checks

@@ -29,7 +29,7 @@
     "uncertainty_factors": { "type": "array", "items": { "type": "string" } },
     "reasons": { "type": "array", "items": { "type": "string" } },
     "semantic_signals": { "type": "array", "items": { "type": "string" } },
-    "graphify": {
+    "impact": {
       "type": "object",
       "additionalProperties": true,
       "properties": {

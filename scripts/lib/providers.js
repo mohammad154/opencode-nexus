@@ -1,36 +1,18 @@
 /**
- * Provider registry — Graphify-backed providers and host measurement hooks.
+ * Provider registry — Nexus Impact Engine and host measurement hooks.
  * Provider implementations can evolve without changing the state machine.
  */
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import { spawnSync } from "child_process";
-import {
-  prepareGraphifyGraph,
-  resolveGraphifyGraphPath,
-  resolveGraphifyOut,
-} from "./graphify.js";
 import { createNexusImpactProvider } from "./providers/impact-provider.js";
 import { createVerificationProvider } from "./providers/verification-provider.js";
 import { createMemoryProvider } from "./providers/memory-provider.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const REPO_ROOT = path.resolve(__dirname, "../..");
 const SUPPORTED_PROVIDER_MODE = "nexus-impact";
-const LEGACY_GRAPHIFY_MODE = "graphify";
 const COMPAT_PROVIDER_MODE = "lite";
 const SAFE_RUN_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
-
-const GRAPH_PROVIDER_METADATA = {
-  capability: "dependency-graph",
-  quality: "graphify",
-};
-
-const BLAST_PROVIDER_METADATA = {
-  capability: "blast-radius",
-  quality: "graphify",
-};
 
 const EDIT_VALIDATOR_METADATA = {
   capability: "scope-and-obvious-safety",
@@ -123,34 +105,6 @@ function providerResultMetadata(metadata, cacheHit = undefined) {
   };
   if (cacheHit !== undefined) result.cache_hit = cacheHit;
   return result;
-}
-
-function annotateGraphifyBlastReport(report) {
-  const normalized = {
-    uncertainties: [],
-    dimensions: {},
-    ...(report && typeof report === "object" ? report : {}),
-  };
-  const placeholders = new Set(
-    Array.isArray(normalized.placeholder_fields)
-      ? normalized.placeholder_fields
-      : [],
-  );
-  for (const field of ["changed_symbols", "tests", "dimensions"]) {
-    const value = normalized[field];
-    if (
-      (Array.isArray(value) && value.length === 0) ||
-      (value && typeof value === "object" && !Array.isArray(value) && Object.keys(value).length === 0)
-    ) {
-      placeholders.add(field);
-    }
-  }
-  return {
-    ...normalized,
-    analysis_quality: normalized.analysis_quality || "UNKNOWN",
-    analysis_complete: normalized.analysis_complete ?? false,
-    placeholder_fields: [...placeholders],
-  };
 }
 
 export function createNoopTelemetry() {
@@ -407,310 +361,7 @@ export function createMetricsTelemetry(options = {}) {
 }
 
 export function createLessonsMemory() {
-  // V4: prefer .opencode memory; legacy graphify-out remains read-only fallback.
   return createMemoryProvider();
-}
-
-function graphifyGraphResult(snapshot) {
-  const trusted = snapshot?.ok === true && snapshot?.status === "FRESH";
-  return {
-    ok: trusted,
-    ...providerResultMetadata(GRAPH_PROVIDER_METADATA, false),
-    provider: "graphify",
-    graph_provider: "graphify",
-    path: snapshot?.path || null,
-    graph_path: snapshot?.path || null,
-    graphify_out: snapshot?.out_directory || null,
-    snapshot: snapshot?.graph || null,
-    freshness: snapshot?.freshness || {
-      valid: false,
-      status: snapshot?.status || "UNKNOWN",
-      reasons: snapshot?.issues || ["Graphify graph was not validated"],
-    },
-    stale: !trusted,
-    fresh: trusted,
-    trusted,
-    quality: trusted ? "PRECISE" : "UNKNOWN",
-    confidence: trusted ? 1 : 0,
-    trust_issues: snapshot?.issues || [],
-    error: trusted ? undefined : (snapshot?.issues || ["Graphify graph is not trusted"]).join("; "),
-    refresh: snapshot?.refresh || null,
-  };
-}
-
-export function createGraphifyGraphProvider() {
-  return {
-    mode: "graphify",
-    supported: true,
-    ...GRAPH_PROVIDER_METADATA,
-    build(ctx = {}) {
-      const worktree = ctx.worktree || process.cwd();
-      // Trusted workflow decisions bind ONLY to the canonical Graphify output
-      // for this worktree. A caller-supplied custom graph.json path is never
-      // accepted here, so a foreign graph cannot be provider-sealed and satisfy
-      // safety gates. Custom paths remain available for inspection tooling.
-      const graphPath = resolveGraphifyGraphPath(worktree, ctx.graphifyOut);
-      const requestedPath =
-        ctx.path && String(ctx.path).endsWith("graph.json")
-          ? path.resolve(
-              path.isAbsolute(String(ctx.path))
-                ? String(ctx.path)
-                : path.resolve(worktree, String(ctx.path)),
-            )
-          : null;
-      if (requestedPath && requestedPath !== graphPath) {
-        return {
-          ok: false,
-          ...providerResultMetadata(GRAPH_PROVIDER_METADATA, false),
-          provider: "graphify",
-          graph_provider: "graphify",
-          path: requestedPath,
-          graph_path: requestedPath,
-          canonical: false,
-          stale: true,
-          fresh: false,
-          trusted: false,
-          quality: "UNKNOWN",
-          confidence: 0,
-          trust_issues: [
-            `custom graph path rejected for trusted decisions: ${requestedPath} (canonical is ${graphPath})`,
-          ],
-          error: `custom graph path rejected for trusted decisions: ${requestedPath}`,
-        };
-      }
-      const snapshot = prepareGraphifyGraph({
-        worktree,
-        graphPath,
-        force: !!ctx.force,
-        command: ctx.graphifyCommand || "graphify",
-        env: ctx.graphifyEnv || process.env,
-      });
-      return graphifyGraphResult(snapshot);
-    },
-  };
-}
-
-// Existing callers may still request the old provider mode name. It is only a
-// compatibility alias; both implementations now use Graphify.
-export function createLiteGraphProvider() {
-  return createGraphifyGraphProvider();
-}
-
-function readBlastReport(reportPath) {
-  try {
-    return JSON.parse(fs.readFileSync(reportPath, "utf8"));
-  } catch {
-    return null;
-  }
-}
-
-function currentGitHead(worktree) {
-  try {
-    const r = spawnSync("git", ["rev-parse", "HEAD"], {
-      cwd: worktree,
-      encoding: "utf8",
-    });
-    return r.status === 0 ? String(r.stdout || "").trim() || null : null;
-  } catch {
-    return null;
-  }
-}
-
-function trustedGraphifyBlastReport(report, { worktree } = {}) {
-  const baseTrust = Boolean(
-    report &&
-    report.graph_provider === "graphify" &&
-    report.analysis_quality === "PRECISE" &&
-    report.graph_quality === "PRECISE" &&
-    report.graph_freshness?.valid === true &&
-    report.analysis_complete !== false,
-  );
-  if (!baseTrust) return false;
-  // Provenance: when we can determine the current HEAD, the report MUST bind
-  // to that HEAD. Missing report HEAD is not trusted (fail closed).
-  if (worktree) {
-    const head = currentGitHead(worktree);
-    if (!head) return false;
-    const reportHead =
-      report.graph_freshness?.current_head ||
-      report.graph_freshness?.built_at_commit ||
-      report.worktree_head ||
-      null;
-    if (!reportHead || reportHead !== head) return false;
-  }
-  return true;
-}
-
-function normalizeUntrustedBlastReport(report, reason) {
-  const normalized = annotateGraphifyBlastReport({
-    uncertainties: [],
-    dimensions: {},
-    ...(report && typeof report === "object" ? report : {}),
-    risk: "UNKNOWN",
-    level: "UNKNOWN",
-    computed_risk: "UNKNOWN",
-    analysis_quality: "UNKNOWN",
-    graph_quality: "UNKNOWN",
-    analysis_complete: false,
-    graph_provider: "graphify",
-  });
-  normalized.uncertainties = [
-    ...new Set([
-      ...(Array.isArray(normalized.uncertainties) ? normalized.uncertainties : []),
-      reason,
-    ]),
-  ];
-  return normalized;
-}
-
-export function createGraphifyBlastProvider() {
-  return {
-    mode: "graphify",
-    supported: true,
-    ...BLAST_PROVIDER_METADATA,
-    analyze(ctx = {}) {
-      const worktree = ctx.worktree || process.cwd();
-      const outPath =
-        ctx.outPath ||
-        path.join(worktree, ".opencode", "blast", "latest.json");
-      const reportPath = ctx.reportPath
-        ? path.isAbsolute(ctx.reportPath)
-          ? ctx.reportPath
-          : path.resolve(worktree, ctx.reportPath)
-        : null;
-      // Inline reports are authoritative only when already provider-sealed.
-      if (ctx.report && typeof ctx.report === "object") {
-        if (
-          ctx.report.provider_validated === true &&
-          ctx.report.artifact_digest
-        ) {
-          const report = annotateGraphifyBlastReport({
-            uncertainties: [],
-            dimensions: {},
-            ...ctx.report,
-            risk: ctx.report.risk || ctx.report.level || "UNKNOWN",
-          });
-          const trusted = trustedGraphifyBlastReport(report, { worktree });
-          return {
-            ok: true,
-            ...providerResultMetadata(BLAST_PROVIDER_METADATA, true),
-            report: trusted
-              ? report
-              : normalizeUntrustedBlastReport(
-                report,
-                "blast report lacks fresh, directed Graphify evidence",
-              ),
-            path: ctx.outPath || null,
-          };
-        }
-        // Ignore fabricated inline trust labels — fall through to artifact/script.
-      }
-      if (reportPath && fs.existsSync(reportPath)) {
-        const report = readBlastReport(reportPath);
-        if (!report) {
-          return {
-            ok: false,
-            ...providerResultMetadata(BLAST_PROVIDER_METADATA, true),
-            error: `blast report is invalid: ${reportPath}`,
-          };
-        }
-        const normalized = annotateGraphifyBlastReport(report);
-        return {
-          ok: true,
-          ...providerResultMetadata(BLAST_PROVIDER_METADATA, true),
-          report: trustedGraphifyBlastReport(normalized, { worktree })
-            ? normalized
-            : normalizeUntrustedBlastReport(
-              normalized,
-              "blast report lacks fresh, directed Graphify evidence for the current HEAD",
-            ),
-          path: reportPath,
-        };
-      }
-      const script = path.join(REPO_ROOT, "scripts", "nexus-blast.js");
-      if (!fs.existsSync(script)) {
-        return {
-          ok: false,
-          ...providerResultMetadata(BLAST_PROVIDER_METADATA, false),
-          error: "nexus-blast.js not found",
-        };
-      }
-      const args = [script];
-      if (ctx.files?.length) args.push("--files", ctx.files.join(","));
-      if (ctx.task != null) args.push("--task", String(ctx.task));
-      if (ctx.mermaid) args.push("--mermaid");
-      // Record the pre-existing output signature so a stale report from an
-      // earlier invocation cannot be consumed if this generation fails.
-      const priorStat = fs.existsSync(outPath) ? fs.statSync(outPath) : null;
-      const priorSignature = priorStat
-        ? `${priorStat.mtimeMs}:${priorStat.size}`
-        : null;
-      const r = spawnSync(process.execPath, args, {
-        cwd: worktree,
-        encoding: "utf8",
-      });
-      if (fs.existsSync(outPath)) {
-        const freshStat = fs.statSync(outPath);
-        const freshSignature = `${freshStat.mtimeMs}:${freshStat.size}`;
-        const regenerated = freshSignature !== priorSignature;
-        // Only trust the on-disk report when THIS invocation both succeeded and
-        // rewrote the file. A pre-existing report left behind by a failed run
-        // must never satisfy a safety gate.
-        if (r.status !== 0 || !regenerated) {
-          return {
-            ok: false,
-            ...providerResultMetadata(BLAST_PROVIDER_METADATA, false),
-            error:
-              r.status !== 0
-                ? `Graphify blast generation failed (exit ${r.status}); refusing stale report at ${outPath}`
-                : `Graphify blast did not regenerate ${outPath}; refusing stale report`,
-            stderr: r.stderr,
-          };
-        }
-        const report = readBlastReport(outPath);
-        if (!report) {
-          return {
-            ok: false,
-            ...providerResultMetadata(BLAST_PROVIDER_METADATA, false),
-            error: `blast report is invalid: ${outPath}`,
-          };
-        }
-        return {
-          ok: true,
-          ...providerResultMetadata(BLAST_PROVIDER_METADATA, false),
-          report: annotateGraphifyBlastReport(report),
-          path: outPath,
-          stdout: r.stdout,
-        };
-      }
-      // Try parse stdout JSON
-      try {
-        const parsed = JSON.parse(r.stdout || "{}");
-        const report = parsed?.risk || parsed?.level
-          ? annotateGraphifyBlastReport(parsed)
-          : normalizeUntrustedBlastReport(
-            parsed,
-            r.stderr || r.stdout || "Graphify blast refresh did not produce a report",
-          );
-        return {
-          ok: r.status === 0,
-          ...providerResultMetadata(BLAST_PROVIDER_METADATA, false),
-          report,
-          stdout: r.stdout,
-        };
-      } catch {
-        return {
-          ok: false,
-          ...providerResultMetadata(BLAST_PROVIDER_METADATA, false),
-          error: r.stderr || r.stdout || "blast failed",
-        };
-      }
-    },
-  };
-}
-
-export function createLiteBlastProvider() {
-  return createGraphifyBlastProvider();
 }
 
 function normalizePathValue(value) {
@@ -953,30 +604,17 @@ export function createEditValidator() {
 }
 
 export function getGraphProvider(
-  mode = process.env.NEXUS_GRAPH_MODE || LEGACY_GRAPHIFY_MODE,
+  mode = process.env.NEXUS_GRAPH_MODE || SUPPORTED_PROVIDER_MODE,
 ) {
-  const normalizedMode = normalizeMode(mode);
-  if (
-    [LEGACY_GRAPHIFY_MODE, COMPAT_PROVIDER_MODE, SUPPORTED_PROVIDER_MODE].includes(
-      normalizedMode,
-    )
-  ) {
-    // V4 default evidence is impact; graphify remains available for legacy callers/tests.
-    return createGraphifyGraphProvider();
-  }
-  return createUnsupportedProvider("graph", normalizedMode);
+  return createUnsupportedProvider("graph", normalizeMode(mode));
 }
 
 export function getBlastProvider(
-  mode = process.env.NEXUS_BLAST_MODE || LEGACY_GRAPHIFY_MODE,
+  mode = process.env.NEXUS_BLAST_MODE || SUPPORTED_PROVIDER_MODE,
 ) {
   const normalizedMode = normalizeMode(mode);
-  if (
-    [LEGACY_GRAPHIFY_MODE, COMPAT_PROVIDER_MODE, SUPPORTED_PROVIDER_MODE].includes(
-      normalizedMode,
-    )
-  ) {
-    return createGraphifyBlastProvider();
+  if ([COMPAT_PROVIDER_MODE, SUPPORTED_PROVIDER_MODE].includes(normalizedMode)) {
+    return createNexusImpactProvider();
   }
   return createUnsupportedProvider("blast", normalizedMode);
 }
@@ -991,9 +629,7 @@ export function createDefaultProviders(options = {}) {
   return {
     impactProvider,
     verificationProvider: createVerificationProvider(),
-    // Legacy aliases — graph/blast map to impact for V3 callers during migration.
-    graphProvider: getGraphProvider(),
-    blastProvider: getBlastProvider(),
+    blastProvider: impactProvider,
     telemetry:
       options.telemetry ||
       createMetricsTelemetry({

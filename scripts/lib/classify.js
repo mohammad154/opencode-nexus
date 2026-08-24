@@ -426,19 +426,19 @@ function isUnknownGraphEvidence(graph) {
   return false;
 }
 
-function graphifySignalsFrom(input) {
-  const graphify = asObject(input.graphify) || {};
+function impactSignalsFrom(input) {
+  const impact = asObject(input.impact) || {};
   const blast = asObject(input.blast) || asObject(input.blast_report) || {};
   const hasDependents = Array.isArray(blast.direct_dependents);
   const hasImpacts = Array.isArray(blast.impacts);
   const dependents = hasDependents ? stringArray(blast.direct_dependents) : [];
   const impacts = hasImpacts ? blast.impacts : [];
   const explicitCallers =
-    input.directCallers ?? input.direct_callers ?? graphify.direct_callers;
+    input.directCallers ?? input.direct_callers ?? impact.direct_callers;
   const explicitTransitive =
     input.transitiveImpact ??
     input.transitive_impact ??
-    graphify.transitive_impact;
+    impact.transitive_impact;
   const directCallers = nonNegativeNumber(
     explicitCallers ?? (hasDependents ? dependents.length : NaN),
     NaN,
@@ -449,7 +449,7 @@ function graphifySignalsFrom(input) {
   );
   const packages = stringArray(
     input.affected_packages ??
-      graphify.affected_packages ??
+      impact.affected_packages ??
       blast.affected_packages,
   );
   return {
@@ -596,10 +596,10 @@ function assessEvidenceQuality(input, stage) {
   if (diffMissing) factors.push("diff evidence missing");
 
   const blast = asObject(input.blast) || asObject(input.blast_report);
-  const graph = asObject(input.graph) || asObject(input.graphify);
-  const graphify = asObject(input.graphify);
-  if (input.graph_stale === true || graphify?.stale === true) {
-    factors.push("Graphify stale");
+  const graph = asObject(input.graph) || asObject(input.impact);
+  const impactMeta = asObject(input.impact);
+  if (input.graph_stale === true || impactMeta?.stale === true) {
+    factors.push("Impact evidence stale");
   }
   if (input.blast_incomplete === true) factors.push("blast incomplete");
   if (input.dependency_analysis_failed === true) {
@@ -609,7 +609,7 @@ function assessEvidenceQuality(input, stage) {
     if (!factors.includes("blast incomplete")) factors.push("blast incomplete");
   }
   if (graph && isUnknownGraphEvidence(graph)) {
-    if (!factors.includes("Graphify stale")) factors.push("Graphify stale");
+    if (!factors.includes("Impact evidence stale")) factors.push("Impact evidence stale");
   }
   if (
     stage === "post-blast" &&
@@ -648,7 +648,7 @@ function addWeighted(risk, weight, reason, reasons) {
 
 function scoreSemanticRisk(input, flags, files, lines, rules, reasons) {
   const w = rules.risk_weights;
-  const callers = graphifySignalsFrom(input);
+  const callers = impactSignalsFrom(input);
   const callerLimits = rules.caller_thresholds || DEFAULT_V2.caller_thresholds;
   let risk_score = 0;
 
@@ -698,7 +698,7 @@ function scoreSemanticRisk(input, flags, files, lines, rules, reasons) {
       risk_score = addWeighted(
         risk_score,
         w.many_direct_callers,
-        `Graphify: ${callers.direct_callers} direct callers`,
+        `Impact: ${callers.direct_callers} direct callers`,
         reasons,
       );
     }
@@ -709,7 +709,7 @@ function scoreSemanticRisk(input, flags, files, lines, rules, reasons) {
       (callers.transitive_impact == null || callers.transitive_impact <= 2)
     ) {
       reasons.push(
-        "Graphify: direct callers = 1, transitive impact small → lower risk",
+        "Impact: direct callers = 1, transitive impact small → lower risk",
       );
     }
   }
@@ -808,7 +808,7 @@ function scoreSemanticRisk(input, flags, files, lines, rules, reasons) {
     );
   }
 
-  return { risk_score, graphify: callers };
+  return { risk_score, impact: callers };
 }
 
 function tinyInternalEvidence(flags, changeClass, files, lines) {
@@ -935,7 +935,7 @@ export function classify(input = {}, options = {}) {
       stage,
       evidence_quality: quality.evidence_quality,
       uncertainty_factors: quality.uncertainty_factors,
-      graphify: graphifySignalsFrom(input),
+      impact: impactSignalsFrom(input),
     });
   }
 
@@ -967,8 +967,8 @@ export function classify(input = {}, options = {}) {
     confidence = Math.min(1, confidence + 0.05);
   }
   if (
-    scored.graphify.direct_callers != null &&
-    scored.graphify.direct_callers <=
+    scored.impact.direct_callers != null &&
+    scored.impact.direct_callers <=
       (rules.caller_thresholds?.low_direct ?? 1) &&
     quality.evidence_quality !== "unknown"
   ) {
@@ -1041,7 +1041,7 @@ export function classify(input = {}, options = {}) {
     stage,
     evidence_quality: quality.evidence_quality,
     uncertainty_factors: quality.uncertainty_factors,
-    graphify: scored.graphify,
+    impact: scored.impact,
   });
 }
 
@@ -1071,7 +1071,7 @@ function finalize({
   stage = "pre-implementation",
   evidence_quality = "partial",
   uncertainty_factors = [],
-  graphify = {},
+  impact = {},
 }) {
   const dp = rules.direct_path;
   const allowedClass =
@@ -1198,10 +1198,10 @@ function finalize({
     change_class: changeClass,
     hard_triggers,
     semantic_signals: [...flags].sort(),
-    graphify: {
-      direct_callers: graphify.direct_callers ?? null,
-      transitive_impact: graphify.transitive_impact ?? null,
-      affected_packages: graphify.affected_packages || [],
+    impact: {
+      direct_callers: impact.direct_callers ?? null,
+      transitive_impact: impact.transitive_impact ?? null,
+      affected_packages: impact.affected_packages || [],
     },
     evidence_source: evidenceSource,
     diff_verified: input.diff_verified === true,
@@ -1261,7 +1261,7 @@ export function reclassifyAfterBlast(
     ...priorInputFrom(previous),
     blast: blastReport,
     graph: options.graph,
-    graphify: options.graphify,
+    impact: options.impact,
     classification_stage: "post-blast",
     prior_profile: previous.profile,
     prior_review_level: previous.review_level,

@@ -31,10 +31,10 @@ function diffFor(files, added = "const value = 1;") {
     .join("\n");
 }
 
-test("unsupported graph and blast modes are explicit instead of Lite fallbacks", () => {
-  for (const mode of ["enhanced", "ide"]) {
+test("unsupported graph and blast modes are explicit", () => {
+  for (const mode of ["enhanced", "ide", "graphify"]) {
     const graph = getGraphProvider(mode);
-    assert.equal(graph.mode, mode);
+    assert.equal(graph.mode, mode === "graphify" ? "graphify" : mode);
     assert.equal(graph.supported, false);
     assert.equal(graph.capability, "unsupported");
     assert.equal(graph.quality, "unavailable");
@@ -50,109 +50,31 @@ test("unsupported graph and blast modes are explicit instead of Lite fallbacks",
     assert.equal(blast.analyze().ok, false);
   }
 
-  assert.equal(getGraphProvider("lite").supported, true);
+  assert.equal(getGraphProvider("nexus-impact").supported, false);
   assert.equal(getBlastProvider("lite").supported, true);
+  assert.equal(getBlastProvider("nexus-impact").supported, true);
+  assert.equal(getBlastProvider("nexus-impact").mode, "nexus-impact");
 });
-
-test("Graphify blast reports label incomplete placeholder fields", () => {
-  const result = getBlastProvider("lite").analyze({
-    report: {
-      risk: "LOW",
-      provider_validated: true,
-      artifact_digest: "sha256:test-fixture",
-    },
-  });
-  assert.equal(result.ok, true);
-  assert.equal(result.report.analysis_complete, false);
-  assert.equal(result.report.analysis_quality, "UNKNOWN");
-  assert.ok(result.report.placeholder_fields.includes("dimensions"));
-});
-
-test("Graphify blast ignores unsealed inline trusted reports", () => {
-  const result = getBlastProvider("lite").analyze({
-    report: { risk: "LOW", trusted: true },
-    worktree: tempDir("nexus-blast-ignore-"),
-  });
-  // Without a sealed report or on-disk artifact, analyze falls through to the script
-  // and should not treat the fabricated trusted label as authoritative.
-  assert.notEqual(result.report?.trusted, true);
-});
-
-test("Graphify blast downgrades legacy or stale report files to UNKNOWN", (t) => {
-  const worktree = tempDir("nexus-blast-report-");
-  t.after(() => fs.rmSync(worktree, { recursive: true, force: true }));
-  const reportPath = path.join(worktree, "reports", "legacy.json");
-  fs.mkdirSync(path.dirname(reportPath), { recursive: true });
-  fs.writeFileSync(reportPath, JSON.stringify({
-    risk: "LOW",
-    analysis_quality: "PRECISE",
-    graph_quality: "PRECISE",
-    graph_freshness: { valid: true },
-    analysis_complete: true,
-  }));
-
-  const result = getBlastProvider("graphify").analyze({
-    worktree,
-    reportPath: "reports/legacy.json",
-  });
-  assert.equal(result.ok, true);
-  assert.equal(result.report.risk, "UNKNOWN");
-  assert.equal(result.report.analysis_quality, "UNKNOWN");
-  assert.match(result.report.uncertainties.join("\n"), /Graphify evidence/i);
-});
-
-test("Graphify blast refuses trust when report HEAD is missing under a real git worktree", (t) => {
-  const worktree = tempDir("nexus-blast-missing-head-");
-  t.after(() => fs.rmSync(worktree, { recursive: true, force: true }));
-  execFileSync("git", ["init"], { cwd: worktree });
-  execFileSync("git", ["config", "user.email", "t@t"], { cwd: worktree });
-  execFileSync("git", ["config", "user.name", "t"], { cwd: worktree });
-  fs.writeFileSync(path.join(worktree, "a.js"), "1\n");
-  execFileSync("git", ["add", "."], { cwd: worktree });
-  execFileSync("git", ["commit", "-m", "base"], { cwd: worktree });
-
-  const reportPath = path.join(worktree, "reports", "no-head.json");
-  fs.mkdirSync(path.dirname(reportPath), { recursive: true });
-  fs.writeFileSync(
-    reportPath,
-    JSON.stringify({
-      risk: "LOW",
-      graph_provider: "graphify",
-      analysis_quality: "PRECISE",
-      graph_quality: "PRECISE",
-      graph_freshness: { valid: true },
-      analysis_complete: true,
-    }),
-  );
-
-  const result = getBlastProvider("graphify").analyze({
-    worktree,
-    reportPath: "reports/no-head.json",
-  });
-  assert.equal(result.ok, true);
-  assert.equal(result.report.risk, "UNKNOWN");
-  assert.match(result.report.uncertainties.join("\n"), /Graphify evidence/i);
-});
-
 
 test("default providers expose deterministic edit validation and metrics", () => {
   const providers = createDefaultProviders();
   assert.equal(providers.editValidator.mode, "deterministic");
   assert.equal(providers.editValidator.capability, "scope-and-obvious-safety");
   assert.equal(providers.telemetry.mode, "jsonl");
+  assert.equal(providers.blastProvider.mode, "nexus-impact");
 });
 
-test("lessons memory reads Graphify memory and reflected lessons paths", (t) => {
-  const worktree = tempDir("nexus-graphify-memory-");
+test("lessons memory reads opencode memory and reflected lessons paths", (t) => {
+  const worktree = tempDir("nexus-memory-");
   t.after(() => fs.rmSync(worktree, { recursive: true, force: true }));
-  fs.mkdirSync(path.join(worktree, "graphify-out", "memory"), { recursive: true });
-  fs.mkdirSync(path.join(worktree, "graphify-out", "reflections"), { recursive: true });
+  fs.mkdirSync(path.join(worktree, ".opencode", "memory"), { recursive: true });
+  fs.mkdirSync(path.join(worktree, ".opencode", "reflections"), { recursive: true });
   fs.writeFileSync(
-    path.join(worktree, "graphify-out", "memory", "query_20260809.md"),
+    path.join(worktree, ".opencode", "memory", "query_20260809.md"),
     "native memory entry",
   );
   fs.writeFileSync(
-    path.join(worktree, "graphify-out", "reflections", "LESSONS.md"),
+    path.join(worktree, ".opencode", "reflections", "LESSONS.md"),
     "reflected lesson",
   );
 
@@ -186,7 +108,6 @@ test("default providers preserve the resolved run context in call budgets", () =
 });
 
 test("agent-call budgets use V5 fixed formula and never escalate past derived max", () => {
-  // tasks * 2 + headroom(max(2, units))
   assert.equal(getAgentCallBudget({ units: 1 }).max_calls, 4);
   assert.equal(getAgentCallBudget({ units: 2 }).max_calls, 6);
   assert.equal(getAgentCallBudget({ units: 1, maxCalls: 99 }).max_calls, 4);
@@ -319,76 +240,6 @@ test("metrics enforce the hard agent-call budget and record rejected calls", () 
   assert.equal(telemetry.getTotals().failures, 1);
 });
 
-function makeGraphifyProviderFixture({ stale = false } = {}) {
-  const worktree = tempDir("nexus-graph-trust-");
-  fs.writeFileSync(path.join(worktree, "index.js"), "export const value = 1;\n");
-  execFileSync("git", ["init", "-q"], { cwd: worktree });
-  execFileSync("git", ["config", "user.email", "nexus@example.test"], { cwd: worktree });
-  execFileSync("git", ["config", "user.name", "Nexus Test"], { cwd: worktree });
-  execFileSync("git", ["add", "index.js"], { cwd: worktree });
-  execFileSync("git", ["commit", "-qm", "fixture"], { cwd: worktree });
-  const head = execFileSync("git", ["rev-parse", "HEAD"], {
-    cwd: worktree,
-    encoding: "utf8",
-  }).trim();
-  const out = path.join(worktree, "graphify-out");
-  fs.mkdirSync(out, { recursive: true });
-  fs.writeFileSync(path.join(out, ".graphify_root"), `${worktree}\n`);
-  fs.writeFileSync(
-    path.join(out, "graph.json"),
-    JSON.stringify({
-      directed: true,
-      multigraph: false,
-      graph: {},
-      built_at_commit: stale ? "old-commit" : head,
-      nodes: [{ id: "index", source_file: "index.js" }],
-      links: [],
-    }),
-  );
-  fs.writeFileSync(
-    path.join(out, "manifest.json"),
-    JSON.stringify({
-      "index.js": { mtime: fs.statSync(path.join(worktree, "index.js")).mtimeMs / 1000 },
-    }),
-  );
-  const command = path.join(worktree, "fake-graphify");
-  fs.writeFileSync(command, "#!/bin/sh\nexit 0\n");
-  fs.chmodSync(command, 0o755);
-  return {
-    worktree,
-    graphifyCommand: command,
-    graphifyEnv: process.env,
-  };
-}
-
-test("Graphify provider rejects stale graph metadata", (t) => {
-  const fixture = makeGraphifyProviderFixture({ stale: true });
-  t.after(() => fs.rmSync(fixture.worktree, { recursive: true, force: true }));
-
-  const result = getGraphProvider("graphify").build(fixture);
-  assert.equal(result.ok, false);
-  assert.equal(result.cache_hit, false);
-  assert.equal(result.quality, "UNKNOWN");
-  assert.equal(result.provider_quality, "graphify");
-  assert.equal(result.stale, true);
-  assert.ok(result.trust_issues.length > 0);
-});
-
-test("Graphify provider trusts a fresh directed native snapshot", (t) => {
-  const fixture = makeGraphifyProviderFixture();
-  t.after(() => fs.rmSync(fixture.worktree, { recursive: true, force: true }));
-  const result = getGraphProvider("graphify").build(fixture);
-  assert.equal(result.ok, true);
-  assert.equal(result.cache_hit, false);
-  assert.equal(result.quality, "PRECISE");
-  assert.equal(result.provider, "graphify");
-  assert.equal(result.graph_provider, "graphify");
-  assert.equal(result.trusted, true);
-  assert.equal(result.stale, false);
-  assert.equal(result.confidence, 1);
-  assert.match(result.path, /graphify-out\/graph\.json$/);
-});
-
 test("default telemetry writes metrics for an initialized run", () => {
   const worktree = tempDir("nexus-run-metrics-");
   fs.mkdirSync(path.join(worktree, ".opencode", "runs", "run-1"), {
@@ -409,4 +260,20 @@ test("default telemetry writes metrics for an initialized run", () => {
   );
   assert.equal(fs.existsSync(metricsPath), true);
   assert.match(fs.readFileSync(metricsPath, "utf8"), /"event":"agent_call"/);
+});
+
+test("impact blast provider analyzes in a git worktree", (t) => {
+  const worktree = tempDir("nexus-impact-blast-");
+  t.after(() => fs.rmSync(worktree, { recursive: true, force: true }));
+  execFileSync("git", ["init", "-q"], { cwd: worktree });
+  execFileSync("git", ["config", "user.email", "nexus@example.test"], { cwd: worktree });
+  execFileSync("git", ["config", "user.name", "Nexus Test"], { cwd: worktree });
+  fs.writeFileSync(path.join(worktree, "index.js"), "export const value = 1;\n");
+  execFileSync("git", ["add", "index.js"], { cwd: worktree });
+  execFileSync("git", ["commit", "-qm", "fixture"], { cwd: worktree });
+
+  const result = getBlastProvider("nexus-impact").analyze({ worktree });
+  assert.equal(result.ok, true);
+  assert.equal(result.report.provider, "nexus-impact");
+  assert.match(result.path, /\.opencode\/impact\/latest\.json$/);
 });

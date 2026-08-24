@@ -1,5 +1,5 @@
 /**
- * Memory provider — LESSONS / outcome memory under .opencode (never graphify-out).
+ * Memory provider — LESSONS / outcome memory under .opencode.
  */
 import fs from "fs";
 import path from "path";
@@ -15,9 +15,6 @@ export function createMemoryProvider() {
       const roots = [
         path.join(worktree, ".opencode", "memory"),
         path.join(worktree, ".opencode", "reflections"),
-        // Legacy read-only fallback during migration
-        path.join(worktree, "graphify-out", "reflections"),
-        path.join(worktree, "graphify-out", "memory"),
       ];
       for (const root of roots) {
         const lessons = path.join(root, "LESSONS.md");

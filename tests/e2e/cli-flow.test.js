@@ -15,8 +15,6 @@ function makeTempRepo() {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "nexus-home-"));
   temporaryRoots.push(root, home);
   fs.mkdirSync(path.join(home, "bin"), { recursive: true });
-  fs.writeFileSync(path.join(home, "bin", "graphify"), "#!/bin/sh\nexit 0\n");
-  fs.chmodSync(path.join(home, "bin", "graphify"), 0o755);
   const git = spawnSync("git", ["init", "--quiet", root], {
     encoding: "utf8",
   });

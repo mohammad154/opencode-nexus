@@ -1,6 +1,5 @@
 /**
- * Impact provider interface. V4 backend is Nexus Impact Engine.
- * Graphify wrappers remain only as legacy fallbacks during migration tests.
+ * Impact provider interface. V4+ backend is Nexus Impact Engine.
  *
  * Sealed digests are integrity/audit markers only — never authenticity.
  * Safety-critical callers must always recompute via analyzeImpact.
@@ -88,33 +87,6 @@ export function createNexusImpactProvider() {
         path: outPath,
         cache_hit: false,
         recomputed: true,
-      };
-    },
-  };
-}
-
-/** @deprecated Graphify-era dual providers — bridge until tests fully migrate */
-export function createLegacyGraphBlastImpactBridge({ graphProvider, blastProvider }) {
-  return {
-    mode: "legacy-bridge",
-    supported: true,
-    capability: "impact-analysis",
-    quality: "graphify-bridge",
-    analyze(ctx = {}) {
-      const worktree = ctx.worktree || process.cwd();
-      const graph = graphProvider?.build?.({ worktree, ...ctx }) || {};
-      const blast = blastProvider?.analyze?.({ worktree, ...ctx }) || {};
-      const report = blast.report || blast;
-      return {
-        ok: graph.ok !== false && blast.ok !== false,
-        report: {
-          schema_version: "1.0",
-          provider: "legacy-bridge",
-          ...report,
-          confidence: report.confidence ?? graph.confidence ?? 0.5,
-          risk: report.risk || report.level || "UNKNOWN",
-          graph,
-        },
       };
     },
   };

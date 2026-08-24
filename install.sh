@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # OpenCode Nexus installer — V5 fixed three-agent pipeline for OpenCode
 # Usage: ./install.sh [--prune-optional-agents] [--uninstall] [-h]
-# Deps: bash, jq; git optional. Graphify is NOT a runtime prerequisite.
+# Deps: bash, jq; git optional.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -185,31 +185,18 @@ while IFS= read -r ag; do
 done < <(nexus_agent_basenames)
 prune_optional_from_dir "$AGENTS_DIR"
 echo "  [opencode] V5 agents: orchestrator, implementer, reviewer"
-echo "  [opencode] Graphify is optional (Impact Engine is the default evidence provider)."
-if command -v graphify >/dev/null 2>&1; then
-  echo "  [opencode] Graphify found — installing optional global skill..."
-  if ! graphify install --platform opencode; then
-    echo "  Warning: Graphify skill install failed; Nexus V5 does not require it." >&2
-  fi
-else
-  echo "  [opencode] Graphify not on PATH — skipped (not required for V5)."
-fi
-# NOTE: `graphify opencode install` is a PROJECT-level mutation and must not run
-# from a global `nexus install` invoked in an arbitrary directory. It now runs
-# in `nexus project-init` (see scripts/lib/project-init.js), which is the
-# command documented for bootstrapping the current project's .opencode/.
 echo "  [opencode] Done → $CONFIG_FILE agents: $AGENTS_DIR/"
 
 echo ""; echo "[scripts] Checking:"
-for s in nexus-impact.js nexus-blast.sh nexus-blast.js nexus-branch-cleanup.sh nexus-estimate-calls.js nexus-run.js nexus-classify.js install-git-hook.sh; do if [[ -f "$SCRIPT_DIR/scripts/$s" ]]; then echo "  ✓ scripts/$s"; else echo "  ✗ missing $s"; fi; done
-chmod +x "$SCRIPT_DIR/scripts/nexus-blast.sh" "$SCRIPT_DIR/scripts/nexus-branch-cleanup.sh" "$SCRIPT_DIR/scripts/install-git-hook.sh" 2>/dev/null || true
+for s in nexus-impact.js nexus-blast.sh nexus-blast.js nexus-branch-cleanup.sh nexus-estimate-calls.js nexus-run.js nexus-classify.js; do if [[ -f "$SCRIPT_DIR/scripts/$s" ]]; then echo "  ✓ scripts/$s"; else echo "  ✗ missing $s"; fi; done
+chmod +x "$SCRIPT_DIR/scripts/nexus-blast.sh" "$SCRIPT_DIR/scripts/nexus-branch-cleanup.sh" 2>/dev/null || true
 chmod a+r "$SCRIPT_DIR/scripts/nexus-blast.js" "$SCRIPT_DIR/scripts/nexus-estimate-calls.js" "$SCRIPT_DIR/scripts/nexus-run.js" "$SCRIPT_DIR/scripts/nexus-classify.js" 2>/dev/null || true
 
 cat <<END
 
 Installation complete (Nexus V5 — fixed pipeline: brainstorm → plan → impact → implement → review).
 Canonical agents: orchestrator, implementer, reviewer.
-Graphify is optional; Impact Engine is the default evidence provider.
+Impact Engine is the default evidence provider.
 OpenCode → ~/.config/opencode/ (plugin + canonical agents)
 Next:
   - nexus project-init

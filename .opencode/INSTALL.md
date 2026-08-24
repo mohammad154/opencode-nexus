@@ -11,8 +11,6 @@ plugin/model config.
 - `jq` for OpenCode configuration merging and uninstall cleanup
 - `git` for change evidence, worktrees, and branch workflows
 
-Graphify is **not** required at runtime.
-
 ## Install
 
 ```bash

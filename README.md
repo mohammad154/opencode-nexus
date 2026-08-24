@@ -76,7 +76,7 @@ After install, OpenCode has three canonical agents:
 
 Nexus also installs a plugin and model config, with the **Nexus Impact Engine** as the primary canonical evidence provider.
 
-Plans, run state, handoffs, and impact reports live in `.opencode/`. Legacy Graphify repository graphs (if used) stay in `graphify-out/`.
+Plans, run state, handoffs, and impact reports live in `.opencode/`.
 
 ---
 
@@ -151,7 +151,6 @@ jq --version
 
 ### Optional (recommended)
 
-- [Graphify](https://github.com/Graphify-Labs/graphify) (`graphify` on `PATH`): Optional repository visualization and graph exploration.
 - `rg` ([ripgrep](https://github.com/BurntSushi/ripgrep)) and `fd` ([fd](https://github.com/sharkdp/fd)) speed up repository discovery.
 
 ```bash
@@ -373,7 +372,7 @@ NEXUS_IMPLEMENTER_MODEL=anthropic/claude-sonnet-4-20250514 nexus install
 
 ## Uninstall
 
-Removes Nexus agents and plugin entries. Graphify stays installed. Project-local `.opencode/` and `graphify-out/` data is left alone. Pre-existing OpenCode agent files are restored from installer backups when those backups exist.
+Removes Nexus agents and plugin entries. Project-local `.opencode/` data is left alone. Pre-existing OpenCode agent files are restored from installer backups when those backups exist.
 
 ```bash
 nexus uninstall
@@ -443,10 +442,9 @@ uninstall.sh     matching cleanup
 
 - [`.opencode/INSTALL.md`](.opencode/INSTALL.md) — installer behavior and verification
 - [`docs/workflow.md`](docs/workflow.md) — profiles, gates, handoffs, and review policy
-- [`docs/compatibility-v3.md`](docs/compatibility-v3.md) — legacy Graphify / V3 compatibility only
+- [`docs/compatibility-v3.md`](docs/compatibility-v3.md) — legacy V3 migration notes
 - [`skills/using-nexus/SKILL.md`](skills/using-nexus/SKILL.md) — how the orchestrator routes skills
 - [OpenCode installation](https://opencode.ai/docs/installation/)
-- [Graphify](https://github.com/Graphify-Labs/graphify)
 
 ---
 

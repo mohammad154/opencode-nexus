@@ -209,27 +209,6 @@ function cmdProjectInit() {
     pkgRoot,
   });
 
-  // Graphify is optional V3 compatibility. Prefer Nexus Impact Engine.
-  let graphify = {
-    attempted: false,
-    ok: null,
-    optional: true,
-    detail: "graphify not on PATH (optional)",
-  };
-  if (hasCommand("graphify")) {
-    graphify = { attempted: true, ok: false, optional: true, detail: null };
-    const r = spawnSync("graphify", ["opencode", "install"], {
-      cwd: worktree,
-      encoding: "utf8",
-    });
-    graphify.ok = r.status === 0;
-    graphify.detail = graphify.ok
-      ? "optional graphify opencode install completed"
-      : `optional graphify install failed (exit ${r.status ?? "unknown"}): ${
-          (r.stderr || r.stdout || "").trim() || "no output"
-        }`;
-  }
-
   console.log(
     JSON.stringify(
       {
@@ -237,7 +216,6 @@ function cmdProjectInit() {
         message: "Nexus project bootstrap complete",
         ...result,
         impact_engine: "nexus-impact",
-        graphify,
       },
       null,
       2,
@@ -368,15 +346,6 @@ function doctor() {
         ? ".opencode/impact/ present"
         : "optional — run: nexus impact --json",
     ]);
-    const graphPath = path.join(worktree, "graphify-out", "graph.json");
-    if (fs.existsSync(graphPath)) {
-      rows.push([
-        "project-graphify",
-        true,
-        "optional graphify-out/graph.json present",
-      ]);
-    }
-
     const activeRun = readActiveRunSummary(worktree);
     if (activeRun) {
       rows.push([

@@ -1,30 +1,23 @@
-# OpenCode Nexus — V3 / Graphify Compatibility
+# OpenCode Nexus — V3 Compatibility (Historical)
 
-This document is the only place that describes the **legacy V3 Graphify-driven** mental model.
-Normal README, agent prompts, and skills describe **V4+ Nexus Impact Engine** only.
+This document describes the **legacy V3** mental model. Nexus V5 uses the **Nexus Impact Engine** only.
 
 ## What changed in V4+
 
 | V3 (legacy) | V4+ (canonical) |
 | --- | --- |
-| Graphify graph → blast → implement | Nexus Impact Engine → implement → post-impact |
-| Graphify required for trusted analysis | Graphify optional (visualization / inspection) |
-| Blast terminology in prompts | Impact reports; `blast` fields kept as legacy mirrors |
+| External graph → blast → implement | Nexus Impact Engine → implement → post-impact |
+| Graph tooling required for trusted analysis | Built-in impact analysis (`nexus impact`) |
+| Blast terminology in prompts | Impact reports; `blast` CLI kept as compatibility alias |
 
-## When Graphify still appears
+## V5 status
 
-- Optional `graphify` on `PATH` for repository visualization
-- Legacy Graphify blast provider paths under `scripts/lib/providers.js` (compatibility)
-- `compatibility_mode: "v3"` run flags (e.g. `legacy_skip_final`) for older workflows
-
-Trusted Graphify blast reports must bind to the current git HEAD: missing report HEAD is **not** trusted.
-
-## Do not use for new work
+Graphify integration has been **removed from Nexus**. Do not install or reference Graphify for Nexus workflows.
 
 New runs should:
 
-1. Prefer Nexus Impact Engine evidence
-2. Treat Graphify as optional tooling, never as required runtime evidence
-3. Keep agent instructions free of V3 “blast-first” orchestration language
+1. Use Nexus Impact Engine evidence (`nexus impact --json`)
+2. Keep agent instructions on impact-first orchestration language
+3. Store outcome memory under `.opencode/memory/` and `.opencode/reflections/`
 
 See the main [README](../README.md) for the current workflow.

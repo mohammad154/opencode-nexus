@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
-# Regression: installer writes only OpenCode paths; Graphify remains required.
+# Regression: installer writes only OpenCode paths.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 TMPHOME="$(mktemp -d)"
-MISSING_HOME=""
-cleanup() { rm -rf "$TMPHOME" "${MISSING_HOME:-}"; }
+cleanup() { rm -rf "$TMPHOME"; }
 trap cleanup EXIT
 
 SANITIZED_PATH="/usr/bin:/bin"
@@ -17,9 +16,7 @@ export HOME="$TMPHOME"
 mkdir -p "$HOME/.config/opencode" "$HOME/bin" "$HOME/project"
 git init -q "$HOME/project"
 printf '#!/bin/sh\nexit 0\n' >"$HOME/bin/opencode"; chmod +x "$HOME/bin/opencode"
-printf '#!/bin/sh\nprintf "%%s\\n" "$*" >>"$GRAPHIFY_LOG"\n' >"$HOME/bin/graphify"; chmod +x "$HOME/bin/graphify"
 export PATH="$HOME/bin:$SANITIZED_PATH"
-export GRAPHIFY_LOG="$HOME/graphify.log"
 printf '{}\n' >"$HOME/.config/opencode/opencode.json"
 
 echo "== test OpenCode-only install =="
@@ -35,14 +32,6 @@ fi
 test "$(ls "$HOME/.config/opencode/agents" 2>/dev/null | wc -l)" -gt 0
 test ! -f "$HOME/.config/opencode/agents/blast-analyzer.md"
 jq -e '(.agent | has("blast-analyzer")) | not' "$HOME/.config/opencode/opencode.json" >/dev/null
-grep -q '^install --platform opencode$' "$GRAPHIFY_LOG"
-# Graphify is optional for V4, but when present on PATH the installer may wire the skill.
-# `graphify opencode install` is a PROJECT-level mutation and must NOT run from a
-# global `nexus install`; it belongs to `nexus project-init`.
-if grep -q '^opencode install$' "$GRAPHIFY_LOG"; then
-  echo "FAIL: global install performed project-level 'graphify opencode install'" >&2
-  exit 1
-fi
 echo "PASS: installer writes only OpenCode artifacts"
 
 echo "== rejected unknown flags =="
@@ -54,28 +43,30 @@ fi
 grep -qi 'unknown argument' /tmp/nexus-unknown-flag.log
 echo "PASS: leftover platform flags are rejected"
 
-echo "== Graphify optional (install succeeds without Graphify) =="
-MISSING_HOME="$(mktemp -d)"
-mkdir -p "$MISSING_HOME/.config/opencode" "$MISSING_HOME/project"
-git init -q "$MISSING_HOME/project"
-printf '{}\n' >"$MISSING_HOME/.config/opencode/opencode.json"
+echo "== install succeeds with minimal PATH =="
+MINIMAL_HOME="$(mktemp -d)"
+mkdir -p "$MINIMAL_HOME/.config/opencode" "$MINIMAL_HOME/project" "$MINIMAL_HOME/bin"
+git init -q "$MINIMAL_HOME/project"
+printf '#!/bin/sh\nexit 0\n' >"$MINIMAL_HOME/bin/opencode"; chmod +x "$MINIMAL_HOME/bin/opencode"
+printf '{}\n' >"$MINIMAL_HOME/.config/opencode/opencode.json"
 if ! (
-  export HOME="$MISSING_HOME" PATH="$SANITIZED_PATH"
-  cd "$MISSING_HOME/project"
+  export HOME="$MINIMAL_HOME" PATH="$MINIMAL_HOME/bin:$SANITIZED_PATH"
+  cd "$MINIMAL_HOME/project"
   "$ROOT/install.sh"
-) >"$MISSING_HOME/missing-graphify.log" 2>&1; then
-  cat "$MISSING_HOME/missing-graphify.log"
-  echo "FAIL: OpenCode install should succeed without Graphify in V4" >&2
+) >"$MINIMAL_HOME/minimal-install.log" 2>&1; then
+  cat "$MINIMAL_HOME/minimal-install.log"
+  echo "FAIL: OpenCode install should succeed without optional tooling" >&2
   exit 1
 fi
-grep -qi 'Graphify not on PATH\|Graphify is optional\|V5' "$MISSING_HOME/missing-graphify.log"
-test -f "$MISSING_HOME/.config/opencode/agents/orchestrator.md"
-test -f "$MISSING_HOME/.config/opencode/agents/implementer.md"
-test -f "$MISSING_HOME/.config/opencode/agents/reviewer.md"
-test ! -f "$MISSING_HOME/.config/opencode/agents/diagnostician.md"
-test ! -f "$MISSING_HOME/.config/opencode/agents/integration-reviewer.md"
-test ! -f "$MISSING_HOME/.config/opencode/agents/unified-reviewer.md"
-echo "PASS: install without Graphify succeeds and installs V5 agents only"
+grep -qi 'V5' "$MINIMAL_HOME/minimal-install.log"
+test -f "$MINIMAL_HOME/.config/opencode/agents/orchestrator.md"
+test -f "$MINIMAL_HOME/.config/opencode/agents/implementer.md"
+test -f "$MINIMAL_HOME/.config/opencode/agents/reviewer.md"
+test ! -f "$MINIMAL_HOME/.config/opencode/agents/diagnostician.md"
+test ! -f "$MINIMAL_HOME/.config/opencode/agents/integration-reviewer.md"
+test ! -f "$MINIMAL_HOME/.config/opencode/agents/unified-reviewer.md"
+rm -rf "$MINIMAL_HOME"
+echo "PASS: install with minimal PATH succeeds and installs V5 agents only"
 
 bash "$ROOT/scripts/test-adapter-contract.sh"
 

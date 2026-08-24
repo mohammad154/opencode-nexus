@@ -19,7 +19,7 @@ Agent claims are never evidence. Scripts measure; the state machine seals provid
 - Confirm the workspace is a git repository.
 - Load `using-feature-branches` and record `base_branch` in `.opencode/CONTEXT.md`.
 - If drift is suspected, run `reconcile` (skill) before starting tasks.
-- Graphify is optional. Do not block on it. Use `nexus impact`.
+- Graphify is not part of Nexus. Use `nexus impact`.
 
 ## Lifecycle
 
