@@ -46,8 +46,9 @@ nexus run transition --to TASK_IMPACT_READY --json '{"planned_targets":["..."]}'
 nexus run transition --to IMPLEMENTING --branch <b> --acceptance 'c1|c2'
 nexus run transition --to VERIFYING --json '{"implementer_handoff":{...}}'
 nexus run transition --to REVIEWING
-# APPROVED → next task or final:
-nexus run transition --to FINAL_VERIFYING --json '{"review_handoff":{...}}'
+# last task APPROVED → whole-branch review:
+nexus run transition --to FINAL_REVIEWING --json '{"review_handoff":{...},"review_package":{...}}'
+nexus run transition --to FINAL_VERIFYING --json '{"review_handoff":{...},"review_package":{...}}'
 # OR REQUEST_CHANGES / next task:
 nexus run transition --to TASK_IMPACT_READY --json '{"review_handoff":{...},"impact":{...}}'
 nexus run transition --to COMPLETED
@@ -56,7 +57,7 @@ nexus run inspect --run-id <id>
 
 ## Lifecycle
 
-`CREATED → BRAINSTORMING ↔ WAITING_FOR_USER → PLANNED → TASK_IMPACT_READY → IMPLEMENTING → VERIFYING → REVIEWING → (fix loop → TASK_IMPACT_READY) → FINAL_VERIFYING → COMPLETED`
+`CREATED → BRAINSTORMING ↔ WAITING_FOR_USER → PLANNED → TASK_IMPACT_READY → IMPLEMENTING → VERIFYING → REVIEWING → FINAL_REVIEWING → FINAL_VERIFYING → COMPLETED`
 
 ## Dispatch rules
 

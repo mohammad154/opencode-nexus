@@ -115,7 +115,7 @@ test("normalize strips verification_exempt from implementer handoffs", () => {
   assert.equal("verification_exempt" in data, false);
 });
 
-test("reviewer missing impact gets UNKNOWN defaults", () => {
+test("reviewer missing impact gets UNKNOWN defaults and upgrades to 1.2", () => {
   const { data } = normalizeHandoff("reviewer", {
     schema_version: "1.1",
     run_id: "r",
@@ -127,10 +127,12 @@ test("reviewer missing impact gets UNKNOWN defaults", () => {
     reviewed_commit: "b",
     task_id: "task-1",
   });
-  assert.equal(data.schema_version, "1.1");
+  assert.equal(data.schema_version, "1.2");
   assert.equal(data.agent, "reviewer");
   assert.equal(data.impact.pass, null);
   assert.equal(data.impact.risk, "UNKNOWN");
+  assert.ok(Array.isArray(data.files_reviewed));
+  assert.ok(Array.isArray(data.checks));
   const r = validateHandoff("reviewer", data);
   assert.equal(r.ok, true, JSON.stringify(r.errors));
 });

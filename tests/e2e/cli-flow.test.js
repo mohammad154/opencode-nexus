@@ -212,7 +212,7 @@ test("nexus-run completes a full CLI workflow in a temporary repository", () => 
   ]);
 
   const reviewHandoff = {
-    schema_version: "1.1",
+    schema_version: "1.2",
     run_id: runId,
     unit_or_task: "e2e-unit",
     agent: "reviewer",
@@ -220,10 +220,106 @@ test("nexus-run completes a full CLI workflow in a temporary repository", () => 
     created_at: new Date().toISOString(),
     verdict: "APPROVED",
     reviewed_commit: implCommit,
+    review_scope: "task",
     impact: { pass: true, risk: "LOW" },
     findings: [],
-    acceptance: [],
+    files_reviewed: ["src/app.js"],
+    acceptance: [
+      {
+        id: "AC-1",
+        status: "PASS",
+        evidence: [
+          {
+            file: "src/app.js",
+            line: 1,
+            reason: "CLI e2e acceptance satisfied",
+          },
+        ],
+      },
+    ],
+    checks: [
+      {
+        category: "correctness",
+        status: "PASS",
+        evidence: "Implementer commit matches task",
+      },
+      {
+        category: "test_quality",
+        status: "PASS",
+        evidence: "Provider verification sealed ok",
+      },
+      {
+        category: "impact",
+        status: "PASS",
+        evidence: "Post-impact sealed ok",
+      },
+    ],
   };
+
+  const taskPackage = (() => {
+    const r = spawnSync(
+      process.execPath,
+      [
+        path.join(repoRoot, "scripts", "nexus-review-package.js"),
+        "--scope",
+        "task",
+        "--run-id",
+        runId,
+        "--base",
+        baseHead,
+        "--head",
+        implCommit,
+        "--json",
+      ],
+      {
+        cwd: root,
+        encoding: "utf8",
+        env: { ...process.env, NEXUS_WORKTREE: root, HOME: home },
+      },
+    );
+    assert.equal(r.status, 0, r.stderr || r.stdout);
+    return JSON.parse(r.stdout);
+  })();
+
+  invoke(root, home, [
+    "transition",
+    "--run-id",
+    runId,
+    "--to",
+    "FINAL_REVIEWING",
+    "--json",
+    json({ review_handoff: reviewHandoff, review_package: taskPackage }),
+  ]);
+
+  const finalHandoff = {
+    ...reviewHandoff,
+    review_scope: "final",
+  };
+
+  const finalPackage = (() => {
+    const r = spawnSync(
+      process.execPath,
+      [
+        path.join(repoRoot, "scripts", "nexus-review-package.js"),
+        "--scope",
+        "final",
+        "--run-id",
+        runId,
+        "--base",
+        baseHead,
+        "--head",
+        implCommit,
+        "--json",
+      ],
+      {
+        cwd: root,
+        encoding: "utf8",
+        env: { ...process.env, NEXUS_WORKTREE: root, HOME: home },
+      },
+    );
+    assert.equal(r.status, 0, r.stderr || r.stdout);
+    return JSON.parse(r.stdout);
+  })();
 
   invoke(root, home, [
     "transition",
@@ -232,7 +328,7 @@ test("nexus-run completes a full CLI workflow in a temporary repository", () => 
     "--to",
     "FINAL_VERIFYING",
     "--json",
-    json({ review_handoff: reviewHandoff }),
+    json({ review_handoff: finalHandoff, review_package: finalPackage }),
   ]);
 
   const completed = invoke(root, home, [
@@ -242,7 +338,7 @@ test("nexus-run completes a full CLI workflow in a temporary repository", () => 
     "--to",
     "COMPLETED",
     "--json",
-    json({ review_handoff: reviewHandoff }),
+    json({ review_handoff: finalHandoff }),
   ]);
   assert.equal(completed.state.state, "COMPLETED");
   assert.equal(completed.state.implementer_commit, implCommit);

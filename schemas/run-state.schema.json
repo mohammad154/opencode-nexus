@@ -25,6 +25,7 @@
         "VERIFYING",
         "REVIEWING",
         "FINAL_VERIFYING",
+        "FINAL_REVIEWING",
         "COMPLETED",
         "BLOCKED",
         "FAILED"

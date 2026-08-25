@@ -12,6 +12,7 @@ export const V5_HAPPY_PATH = [
   ["transition", "--to", "IMPLEMENTING"],
   ["transition", "--to", "VERIFYING"],
   ["transition", "--to", "REVIEWING"],
+  ["transition", "--to", "FINAL_REVIEWING"],
   ["transition", "--to", "FINAL_VERIFYING"],
   ["transition", "--to", "COMPLETED"],
 ];
@@ -25,6 +26,7 @@ export const V5_STATES = [
   "IMPLEMENTING",
   "VERIFYING",
   "REVIEWING",
+  "FINAL_REVIEWING",
   "FINAL_VERIFYING",
   "COMPLETED",
 ];

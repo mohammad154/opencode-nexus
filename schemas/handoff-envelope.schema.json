@@ -14,7 +14,7 @@
     "created_at"
   ],
   "properties": {
-    "schema_version": { "type": "string", "enum": ["1.1"] },
+    "schema_version": { "type": "string", "enum": ["1.1", "1.2"] },
     "run_id": { "type": "string", "minLength": 1 },
     "unit_or_task": { "type": "string", "minLength": 1 },
     "task_id": { "type": "string" },

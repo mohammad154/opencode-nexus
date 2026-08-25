@@ -1,5 +1,6 @@
 /**
  * V5 lifecycle freeze — TASK_IMPACT_READY; no CLASSIFIED / DIRECT.
+ * V5.1 adds FINAL_REVIEWING (whole-branch review) before FINAL_VERIFYING.
  */
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -14,6 +15,7 @@ const EXPECTED = [
   "IMPLEMENTING",
   "VERIFYING",
   "REVIEWING",
+  "FINAL_REVIEWING",
   "FINAL_VERIFYING",
   "COMPLETED",
   "BLOCKED",
@@ -33,6 +35,7 @@ test("V5 freeze: LINEAR happy path", () => {
     "IMPLEMENTING",
     "VERIFYING",
     "REVIEWING",
+    "FINAL_REVIEWING",
     "FINAL_VERIFYING",
     "COMPLETED",
   ]);
@@ -48,6 +51,14 @@ test("V5 freeze: PLANNED→TASK_IMPACT_READY evidence locked", () => {
   ]);
   assert.deepEqual(requiredEvidence("REVIEWING", "TASK_IMPACT_READY"), [
     "review_handoff",
+  ]);
+  assert.deepEqual(requiredEvidence("REVIEWING", "FINAL_REVIEWING"), [
+    "review_handoff",
+    "review_package",
+  ]);
+  assert.deepEqual(requiredEvidence("FINAL_REVIEWING", "FINAL_VERIFYING"), [
+    "review_handoff",
+    "review_package",
   ]);
 });
 

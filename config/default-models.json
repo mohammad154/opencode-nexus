@@ -1,4 +1,5 @@
 {
+  "_reviewer_diversity_note": "Keep reviewer on a different model family than implementer when possible so approval is not same-model self-agreement.",
   "orchestrator": {
     "mode": "primary",
     "model": "opencode-go/minimax-m3"

@@ -13,6 +13,9 @@ import { normalizeHandoff } from "../../scripts/lib/migrate-artifacts.js";
 import {
   goodImplementerHandoff,
   goodReviewerHandoff,
+  goodReviewPackage,
+  finalReviewingState,
+  finalVerifyingEvidence,
   mockTrustProviders,
   sealedImpact,
   sealedVerification,
@@ -95,16 +98,17 @@ test("REVIEWING → COMPLETED is illegal (must FINAL_VERIFYING)", () => {
 });
 
 test("multi-task FINAL_VERIFYING does not require integration-reviewer", () => {
-  const state = {
+  const state = finalReviewingState({
     ...createEmptyRunState("g-multi"),
-    state: "REVIEWING",
     implementer_commit: "impl222",
     current_unit: "unit-1",
     tasks: ["a", "b"],
-  };
-  const r = canTransition(state, "FINAL_VERIFYING", {
-    review_handoff: goodReviewerHandoff({ run_id: "g-multi" }),
   });
+  const r = canTransition(
+    state,
+    "FINAL_VERIFYING",
+    finalVerifyingEvidence({ run_id: "g-multi" }),
+  );
   assert.equal(r.ok, true, JSON.stringify(r.errors));
 });
 
@@ -120,6 +124,7 @@ test("normalizeHandoff remaps legacy unified-reviewer agent to reviewer", () => 
     reviewed_commit: "c",
   });
   assert.equal(data.agent, "reviewer");
+  assert.equal(data.schema_version, "1.2");
 });
 
 test("VERIFYING requires sealed provider verification path via gates", () => {

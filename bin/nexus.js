@@ -26,6 +26,8 @@ Commands:
   blast          Alias for impact (compatibility)
   classify       Risk classifier CLI
   estimate       Estimate minimum agent calls for a plan
+  review-package Build deterministic reviewer briefing (task|final)
+  eval           Reviewer planted-defect eval harness (oracle/rubber suites)
   worktree       Manage task worktrees (create, list, remove)
   baseline       Capture verification baseline for current project / run
   verify         Run verification checks (--baseline, --compare)
@@ -46,6 +48,8 @@ Examples:
   nexus baseline
   nexus verify --baseline
   nexus estimate --tasks 3 --profile balanced
+  nexus review-package --scope task --json
+  nexus eval reviewer --json
   nexus worktree create --task task-1 --base HEAD
   nexus doctor
 
@@ -421,6 +425,21 @@ switch (command) {
   case "estimate":
     cmdEstimate(args);
     break;
+  case "review-package":
+    runNodeScript("nexus-review-package.js", args);
+    break;
+  case "eval": {
+    const [sub, ...rest] = args;
+    if (sub === "reviewer" || sub === undefined) {
+      runNodeScript(
+        "nexus-eval-reviewer.js",
+        sub === "reviewer" ? rest : args,
+      );
+    } else {
+      fail(`Unknown eval suite: ${sub}. Use: nexus eval reviewer`);
+    }
+    break;
+  }
   case "worktree":
     cmdWorktree(args);
     break;

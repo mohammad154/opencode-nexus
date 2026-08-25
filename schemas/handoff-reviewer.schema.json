@@ -2,6 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://opencode-nexus.local/schemas/handoff-reviewer.schema.json",
   "title": "ReviewerHandoff",
+  "description": "Evidence-based reviewer handoff (schema 1.2). APPROVED is only gate-valid when Nexus admits the evidence — empty acceptance/findings is not sufficient.",
   "type": "object",
   "additionalProperties": true,
   "allOf": [{ "$ref": "handoff-envelope.schema.json" }],
@@ -13,10 +14,14 @@
     "base_commit",
     "created_at",
     "verdict",
-    "reviewed_commit"
+    "reviewed_commit",
+    "acceptance",
+    "findings",
+    "files_reviewed",
+    "checks"
   ],
   "properties": {
-    "schema_version": { "type": "string", "enum": ["1.1"] },
+    "schema_version": { "type": "string", "enum": ["1.2"] },
     "agent": { "type": "string", "enum": ["reviewer"] },
     "run_id": { "type": "string", "minLength": 1 },
     "unit_or_task": { "type": "string", "minLength": 1 },
@@ -25,18 +30,100 @@
     "base_commit": { "type": ["string", "null"] },
     "created_at": { "type": "string", "minLength": 1 },
     "role": { "type": "string" },
+    "review_scope": {
+      "type": "string",
+      "enum": ["task", "final"]
+    },
     "verdict": {
       "type": "string",
       "enum": ["APPROVED", "REQUEST_CHANGES", "ISOLATION_VIOLATION", "BLOCKED"]
     },
     "legacy_unverified": { "type": "boolean" },
+    "files_reviewed": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
     "acceptance": {
       "type": "array",
-      "items": { "type": "object", "additionalProperties": true }
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["id", "status", "evidence"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "status": {
+            "type": "string",
+            "enum": ["PASS", "FAIL", "CANNOT_VERIFY"]
+          },
+          "evidence": {
+            "type": "array",
+            "items": { "$ref": "#/definitions/evidenceItem" }
+          }
+        }
+      }
+    },
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["category", "status", "evidence"],
+        "properties": {
+          "category": {
+            "type": "string",
+            "enum": [
+              "correctness",
+              "test_quality",
+              "impact",
+              "scope",
+              "spec_fidelity"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": ["PASS", "FAIL", "CANNOT_VERIFY"]
+          },
+          "evidence": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "adversarial_checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["risk", "result", "evidence"],
+        "properties": {
+          "risk": { "type": "string", "minLength": 1 },
+          "result": {
+            "type": "string",
+            "enum": ["PASS", "FAIL", "CANNOT_VERIFY"]
+          },
+          "evidence": { "type": "string", "minLength": 1 }
+        }
+      }
     },
     "findings": {
       "type": "array",
-      "items": { "type": "object", "additionalProperties": true }
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["severity", "title"],
+        "properties": {
+          "id": { "type": "string" },
+          "severity": {
+            "type": "string",
+            "enum": ["HIGH", "MEDIUM", "LOW", "CRITICAL"]
+          },
+          "blocking": { "type": "boolean" },
+          "title": { "type": "string", "minLength": 1 },
+          "evidence": { "type": "string" },
+          "file": { "type": "string" },
+          "line": { "type": ["integer", "null"] },
+          "resolved": { "type": "boolean" },
+          "commit": { "type": ["string", "null"] }
+        }
+      }
     },
     "notes": { "type": "string" },
     "impact": {
@@ -45,6 +132,18 @@
       "properties": {
         "pass": { "type": ["boolean", "null"] },
         "risk": { "type": "string" }
+      }
+    }
+  },
+  "definitions": {
+    "evidenceItem": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["file", "reason"],
+      "properties": {
+        "file": { "type": "string", "minLength": 1 },
+        "line": { "type": ["integer", "null"] },
+        "reason": { "type": "string", "minLength": 1 }
       }
     }
   }

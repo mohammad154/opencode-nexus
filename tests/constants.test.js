@@ -58,8 +58,16 @@ test("default-models.json declares modes so json-only agent entries stay out of 
   assert.equal(models.implementer.mode, "subagent");
   assert.equal(models.reviewer.mode, "subagent");
   assert.equal(
-    Object.keys(models).sort().join(","),
+    Object.keys(models)
+      .filter((k) => !k.startsWith("_"))
+      .sort()
+      .join(","),
     "implementer,orchestrator,reviewer",
+  );
+  assert.notEqual(models.implementer.model, models.reviewer.model);
+  assert.ok(
+    typeof models._reviewer_diversity_note === "string" &&
+      models._reviewer_diversity_note.length > 0,
   );
 });
 

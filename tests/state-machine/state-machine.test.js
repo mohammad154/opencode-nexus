@@ -14,6 +14,7 @@ import {
 import {
   goodImplementerHandoff,
   goodReviewerHandoff,
+  goodReviewPackage,
   mockTrustProviders,
   sealedImpact,
   sealedVerification,
@@ -188,9 +189,10 @@ test("REVIEWING REQUEST_CHANGES → TASK_IMPACT_READY requires fresh impact", ()
       {
         id: "f1",
         severity: "HIGH",
+        title: "bug",
         file: "src/app.js",
         line: 10,
-        message: "bug",
+        evidence: "bug at line 10",
       },
     ],
   });
@@ -216,27 +218,55 @@ test("REVIEWING REQUEST_CHANGES → TASK_IMPACT_READY requires fresh impact", ()
   assert.equal(r.state.pending_review_findings.length, 1);
 });
 
-test("APPROVED → FINAL_VERIFYING with reviewer handoff", () => {
+test("APPROVED task → FINAL_REVIEWING → FINAL_VERIFYING", () => {
   let state = createEmptyRunState("t8");
   state.state = "REVIEWING";
   state.implementer_commit = "impl222";
   state.current_unit = "unit-1";
   state.head_commit = "base111";
-  const review = goodReviewerHandoff({ run_id: "t8" });
+  const taskReview = goodReviewerHandoff({
+    run_id: "t8",
+    review_scope: "task",
+  });
+  const toFinalReview = canTransition(state, "FINAL_REVIEWING", {
+    review_handoff: taskReview,
+    review_package: goodReviewPackage({ scope: "task" }),
+  });
+  assert.equal(toFinalReview.ok, true, JSON.stringify(toFinalReview.errors));
+
+  state = {
+    ...state,
+    state: "FINAL_REVIEWING",
+    last_task_review_handoff: taskReview,
+    last_review_handoff: taskReview,
+  };
+  const finalReview = goodReviewerHandoff({
+    run_id: "t8",
+    review_scope: "final",
+  });
   const r = canTransition(state, "FINAL_VERIFYING", {
-    review_handoff: review,
+    review_handoff: finalReview,
+    review_package: goodReviewPackage({ scope: "final" }),
   });
   assert.equal(r.ok, true, JSON.stringify(r.errors));
 });
 
 test("no self-approval: reviewer agent must not match implementer", () => {
   let state = createEmptyRunState("t9");
-  state.state = "REVIEWING";
+  state.state = "FINAL_REVIEWING";
   state.implementer_commit = "impl222";
   state.last_implementer_handoff = { agent: "reviewer" };
-  const review = goodReviewerHandoff();
+  state.last_task_review_handoff = goodReviewerHandoff({
+    run_id: "t9",
+    review_scope: "task",
+  });
+  const review = goodReviewerHandoff({
+    run_id: "t9",
+    review_scope: "final",
+  });
   const r = canTransition(state, "FINAL_VERIFYING", {
     review_handoff: review,
+    review_package: goodReviewPackage({ scope: "final" }),
   });
   assert.equal(r.ok, false);
   assert.match(r.errors.join(" "), /self-approval/i);
@@ -285,6 +315,7 @@ test("V5 STATES enum", () => {
       "IMPLEMENTING",
       "VERIFYING",
       "REVIEWING",
+      "FINAL_REVIEWING",
       "FINAL_VERIFYING",
       "COMPLETED",
     ],

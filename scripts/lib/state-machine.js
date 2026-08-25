@@ -32,6 +32,11 @@ import {
   assertScopeLock,
   assertTransitionScopeLock,
 } from "./scope-lock.js";
+import {
+  isApprovalAdmissible,
+  isBlockingFinding,
+} from "./review-protocol.js";
+import { assertReviewPackagePresent } from "./review-package.js";
 
 export const STATES = [
   "CREATED",
@@ -42,6 +47,7 @@ export const STATES = [
   "IMPLEMENTING",
   "VERIFYING",
   "REVIEWING",
+  "FINAL_REVIEWING",
   "FINAL_VERIFYING",
   "COMPLETED",
   "BLOCKED",
@@ -57,6 +63,7 @@ export const LINEAR = [
   "IMPLEMENTING",
   "VERIFYING",
   "REVIEWING",
+  "FINAL_REVIEWING",
   "FINAL_VERIFYING",
   "COMPLETED",
 ];
@@ -180,7 +187,9 @@ export function requiredEvidence(from, to) {
     "IMPLEMENTING->VERIFYING": ["implementer_handoff"],
     "VERIFYING->REVIEWING": ["provider_verification"],
     "REVIEWING->TASK_IMPACT_READY": ["review_handoff"],
-    "REVIEWING->FINAL_VERIFYING": ["review_approval"],
+    "REVIEWING->FINAL_REVIEWING": ["review_handoff", "review_package"],
+    "FINAL_REVIEWING->FINAL_VERIFYING": ["review_handoff", "review_package"],
+    "FINAL_REVIEWING->TASK_IMPACT_READY": ["review_handoff"],
     "FINAL_VERIFYING->COMPLETED": ["final_verification"],
   };
   return map[`${from}->${to}`] || [];
@@ -290,6 +299,58 @@ export function bindReviewerHandoffErrors(data, state, role) {
     }
   }
   return errors;
+}
+
+function wantsNextTask(ctx, state) {
+  return (
+    ctx.next_task === true ||
+    ctx.more_tasks === true ||
+    Boolean(ctx.next_unit) ||
+    Boolean(ctx.current_unit && ctx.current_unit !== state.current_unit)
+  );
+}
+
+function validateReviewerApproval(handoff, state, ctx, {
+  expectedScope,
+  label,
+}) {
+  const errors = [];
+  const {
+    ok,
+    data,
+    errors: he,
+  } = normalizeAndValidateHandoff("reviewer", handoff || {});
+  if (!ok || data.verdict !== "APPROVED") {
+    errors.push(
+      `${label} requires reviewer APPROVED: ${(he || []).map((e) => e.message).join("; ") || data?.verdict}`,
+    );
+    return { ok: false, errors, data };
+  }
+  if (data.agent && data.agent !== "reviewer") {
+    errors.push(`review requires agent "reviewer", got "${data.agent}"`);
+  }
+  if ((data.review_scope || "task") !== expectedScope) {
+    errors.push(
+      `${label} requires review_scope "${expectedScope}" (got ${data.review_scope || "task"})`,
+    );
+  }
+  errors.push(...bindReviewerHandoffErrors(data, state, "reviewer"));
+  const adm = isApprovalAdmissible(data, state);
+  if (!adm.ok) {
+    errors.push(...adm.errors.map((e) => `approval not admissible: ${e}`));
+  }
+  if (canSelfApproveSafe(state, data, ctx)) {
+    errors.push("no self-approval: reviewer agent matches implementer");
+  }
+  const pkg = ctx.review_package || state.review_package;
+  const pkgCheck = assertReviewPackagePresent(pkg, {
+    scope: expectedScope,
+    worktree: ctx.worktree,
+  });
+  if (!pkgCheck.ok) {
+    errors.push(...pkgCheck.errors.map((e) => `${label}: ${e}`));
+  }
+  return { ok: errors.length === 0, errors, data };
 }
 
 function verificationPolicyExempt(state) {
@@ -672,7 +733,11 @@ export function canTransition(state, to, ctx = {}) {
   if (from === "VERIFYING") allowed.add("REVIEWING");
   if (from === "REVIEWING") {
     allowed.add("TASK_IMPACT_READY"); // REQUEST_CHANGES fix loop or next task
-    allowed.add("FINAL_VERIFYING"); // all tasks APPROVED
+    allowed.add("FINAL_REVIEWING"); // last task APPROVED → whole-branch review
+  }
+  if (from === "FINAL_REVIEWING") {
+    allowed.add("FINAL_VERIFYING"); // final-scope APPROVED
+    allowed.add("TASK_IMPACT_READY"); // REQUEST_CHANGES on final review
   }
   if (from === "FINAL_VERIFYING") allowed.add("COMPLETED");
   if (from === "BLOCKED") {
@@ -732,8 +797,8 @@ export function canTransition(state, to, ctx = {}) {
       ctx.blast ||
       state.blast;
     const report = impact?.report || impact;
-    // When coming from REVIEWING, require a new impact in ctx (not stale state.impact alone)
-    if (from === "REVIEWING") {
+    // When coming from REVIEWING / FINAL_REVIEWING, require a new impact in ctx
+    if (from === "REVIEWING" || from === "FINAL_REVIEWING") {
       const fresh = ctx.impact?.report || ctx.impact || ctx.blast;
       if (!fresh) {
         errors.push(
@@ -747,7 +812,7 @@ export function canTransition(state, to, ctx = {}) {
         state.last_review_handoff;
       if (!reviewRaw) {
         errors.push(
-          "REVIEWING → TASK_IMPACT_READY requires review_handoff (REQUEST_CHANGES or next-task APPROVED)",
+          `${from} → TASK_IMPACT_READY requires review_handoff (REQUEST_CHANGES or next-task APPROVED)`,
         );
       } else {
         const {
@@ -764,18 +829,27 @@ export function canTransition(state, to, ctx = {}) {
           data.verdict !== "APPROVED"
         ) {
           errors.push(
-            `REVIEWING → TASK_IMPACT_READY requires REQUEST_CHANGES or APPROVED (next task), got ${data.verdict}`,
+            `${from} → TASK_IMPACT_READY requires REQUEST_CHANGES or APPROVED (next task), got ${data.verdict}`,
           );
-        } else if (
-          data.verdict === "APPROVED" &&
-          ctx.next_task !== true &&
-          ctx.more_tasks !== true &&
-          !ctx.next_unit &&
-          !(ctx.current_unit && ctx.current_unit !== state.current_unit)
-        ) {
+        } else if (data.verdict === "APPROVED" && from === "FINAL_REVIEWING") {
+          errors.push(
+            "FINAL_REVIEWING APPROVED must go to FINAL_VERIFYING (use REQUEST_CHANGES for fix loops)",
+          );
+        } else if (data.verdict === "APPROVED" && !wantsNextTask(ctx, state)) {
           errors.push(
             "APPROVED review returning to TASK_IMPACT_READY requires next_task/more_tasks or a new current_unit",
           );
+        } else if (data.verdict === "APPROVED") {
+          if ((data.review_scope || "task") === "final") {
+            errors.push(
+              'next-task APPROVED must use review_scope "task"',
+            );
+          }
+          const adm = isApprovalAdmissible(data, state);
+          if (!adm.ok) {
+            errors.push(...adm.errors.map((e) => `approval not admissible: ${e}`));
+          }
+          errors.push(...bindReviewerHandoffErrors(data, state, "reviewer"));
         }
       }
     }
@@ -788,7 +862,7 @@ export function canTransition(state, to, ctx = {}) {
       );
     }
     const impactForGate =
-      from === "REVIEWING"
+      from === "REVIEWING" || from === "FINAL_REVIEWING"
         ? ctx.impact?.report || ctx.impact || ctx.blast || report
         : report;
     if (!impactForGate) {
@@ -960,34 +1034,56 @@ export function canTransition(state, to, ctx = {}) {
     }
   }
 
-  if (to === "FINAL_VERIFYING") {
+  if (to === "FINAL_REVIEWING") {
     if (from !== "REVIEWING" && from !== "BLOCKED") {
-      errors.push("FINAL_VERIFYING must follow REVIEWING");
+      errors.push("FINAL_REVIEWING must follow REVIEWING");
     }
     const h =
       ctx.review_handoff || ctx.unified_handoff || state.last_review_handoff;
-    const {
-      ok,
-      data,
-      errors: he,
-    } = normalizeAndValidateHandoff("reviewer", h || {});
-    if (!ok || data.verdict !== "APPROVED") {
+    const validated = validateReviewerApproval(h, state, ctx, {
+      expectedScope: "task",
+      label: "FINAL_REVIEWING",
+    });
+    errors.push(...validated.errors);
+    if (wantsNextTask(ctx, state)) {
       errors.push(
-        `FINAL_VERIFYING requires reviewer APPROVED: ${(he || []).map((e) => e.message).join("; ") || data?.verdict}`,
+        "FINAL_REVIEWING is only for the last task (omit next_task/more_tasks)",
       );
-    } else {
-      errors.push(...bindReviewerHandoffErrors(data, state, "reviewer"));
-    }
-    if (data?.agent && data.agent !== "reviewer") {
-      errors.push(`review requires agent "reviewer", got "${data?.agent}"`);
-    }
-    if (canSelfApproveSafe(state, data, ctx)) {
-      errors.push("no self-approval: reviewer agent matches implementer");
     }
     const high = unresolvedHighFromCtx(ctx, state);
     if (high.length > 0) {
       errors.push(
-        `FINAL_VERIFYING blocked by unresolved HIGH findings: ${high.map((f) => f.id).join(", ")}`,
+        `FINAL_REVIEWING blocked by unresolved findings: ${high.map((f) => f.id).join(", ")}`,
+      );
+    }
+  }
+
+  if (to === "FINAL_VERIFYING") {
+    if (from !== "FINAL_REVIEWING" && from !== "BLOCKED") {
+      errors.push("FINAL_VERIFYING must follow FINAL_REVIEWING");
+    }
+    const h =
+      ctx.review_handoff || ctx.unified_handoff || state.last_review_handoff;
+    const validated = validateReviewerApproval(h, state, ctx, {
+      expectedScope: "final",
+      label: "FINAL_VERIFYING",
+    });
+    errors.push(...validated.errors);
+    if (
+      from === "FINAL_REVIEWING" &&
+      !state.last_task_review_handoff &&
+      !ctx.task_review_handoff
+    ) {
+      // Entering FINAL_REVIEWING should have persisted last_task_review_handoff;
+      // when resuming from BLOCKED, accept prior task approval on state.
+      errors.push(
+        "FINAL_VERIFYING requires a prior task-scope approval (last_task_review_handoff)",
+      );
+    }
+    const high = unresolvedHighFromCtx(ctx, state);
+    if (high.length > 0) {
+      errors.push(
+        `FINAL_VERIFYING blocked by unresolved findings: ${high.map((f) => f.id).join(", ")}`,
       );
     }
   }
@@ -1031,17 +1127,17 @@ function canSelfApproveSafe(state, reviewData, ctx = {}) {
 }
 
 function unresolvedHighFromCtx(ctx, state) {
+  const review =
+    ctx.review_handoff || ctx.unified_handoff || state.last_review_handoff;
   const findings = [
     ...(ctx.findings || []),
     ...(state.findings || []),
     ...(ctx.integration_handoff?.findings || []),
+    ...(review?.findings || []),
+    ...(state.pending_review_findings || []),
+    ...(state.last_review_handoff?.findings || []),
   ];
-  return findings.filter(
-    (f) =>
-      f &&
-      !f.resolved &&
-      ["HIGH", "CRITICAL"].includes(String(f.severity || "").toUpperCase()),
-  );
+  return findings.filter(isBlockingFinding);
 }
 
 function agentCallsForTransition(from, to, state, ctx) {
@@ -1051,11 +1147,13 @@ function agentCallsForTransition(from, to, state, ctx) {
   }
   if (
     to === "FINAL_VERIFYING" ||
-    (to === "TASK_IMPACT_READY" && from === "REVIEWING")
+    to === "FINAL_REVIEWING" ||
+    (to === "TASK_IMPACT_READY" &&
+      (from === "REVIEWING" || from === "FINAL_REVIEWING"))
   ) {
     const h =
       ctx.review_handoff || ctx.unified_handoff || state.last_review_handoff;
-    if (h || to === "FINAL_VERIFYING") {
+    if (h || to === "FINAL_VERIFYING" || to === "FINAL_REVIEWING") {
       return { count: 1, agent: "reviewer" };
     }
   }
@@ -1243,10 +1341,24 @@ export function transition(state, to, evidence = {}, providers = null) {
       };
     }
   }
+  if (to === "FINAL_REVIEWING") {
+    const raw =
+      ctx.review_handoff || ctx.unified_handoff || state.last_review_handoff;
+    if (raw) {
+      const { data } = normalizeAndValidateHandoff("reviewer", raw);
+      next.last_task_review_handoff = data;
+      next.last_review_handoff = data;
+    }
+    if (ctx.review_package) next.review_package = ctx.review_package;
+  }
   if (to === "FINAL_VERIFYING") {
     if (ctx.unified_handoff || ctx.review_handoff) {
-      next.last_review_handoff = ctx.unified_handoff || ctx.review_handoff;
+      const raw = ctx.unified_handoff || ctx.review_handoff;
+      const { data } = normalizeAndValidateHandoff("reviewer", raw);
+      next.last_final_review_handoff = data;
+      next.last_review_handoff = data;
     }
+    if (ctx.review_package) next.review_package = ctx.review_package;
   }
   if (to === "VERIFYING") {
     const raw = ctx.implementer_handoff || ctx.handoff;

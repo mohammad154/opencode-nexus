@@ -18,6 +18,7 @@ const KNOWLEDGE_RELEVANT_STATES = new Set([
   "IMPLEMENTING",
   "VERIFYING",
   "REVIEWING",
+  "FINAL_REVIEWING",
   "FINAL_VERIFYING",
   "BLOCKED",
 ]);
@@ -32,7 +33,7 @@ function buildCompactRouter() {
     "Portable commands: nexus project-init | nexus next | nexus run ... | nexus impact ... | nexus estimate ...",
     "Use nexus run for state machine gates. Use nexus next (or the injected Nexus Next Action block) for the deterministic next step — including REQUIRED_DISPATCH agent. Do NOT assume repo-local scripts/ exists.",
     "Agents only: orchestrator, implementer, reviewer. Orchestrator must Task-dispatch implementer for production code and reviewer after VERIFYING. Never self-implement. Never skip reviewer. Do not use legacy classify/blast/Graphify workflow routing, profile matrices, or dual review agents.",
-    "Lifecycle: CREATED → BRAINSTORMING ↔ WAITING_FOR_USER → PLANNED → TASK_IMPACT_READY → IMPLEMENTING → VERIFYING → REVIEWING → (REQUEST_CHANGES → TASK_IMPACT_READY) → FINAL_VERIFYING → COMPLETED.",
+    "Lifecycle: CREATED → BRAINSTORMING ↔ WAITING_FOR_USER → PLANNED → TASK_IMPACT_READY → IMPLEMENTING → VERIFYING → REVIEWING → FINAL_REVIEWING → FINAL_VERIFYING → COMPLETED. After each VERIFYING: nexus review-package then reviewer (task scope). After last task APPROVED: review-package --scope final then reviewer (final / whole-branch).",
     "</EXTREMELY_IMPORTANT>",
   ].join("\n");
 }

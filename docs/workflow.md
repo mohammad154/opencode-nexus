@@ -16,7 +16,7 @@ request → brainstorm → plan → (per task) pre-impact → implement → post
 
 Durable state: `.opencode/runs/<run-id>/state.json`
 
-States: `CREATED` → `BRAINSTORMING` ↔ `WAITING_FOR_USER` → `PLANNED` → `TASK_IMPACT_READY` → `IMPLEMENTING` → `VERIFYING` → `REVIEWING` → (`TASK_IMPACT_READY` on REQUEST_CHANGES / next task) → `FINAL_VERIFYING` → `COMPLETED`
+States: `CREATED` → `BRAINSTORMING` ↔ `WAITING_FOR_USER` → `PLANNED` → `TASK_IMPACT_READY` → `IMPLEMENTING` → `VERIFYING` → `REVIEWING` → (`TASK_IMPACT_READY` on REQUEST_CHANGES / next task) → `FINAL_REVIEWING` → `FINAL_VERIFYING` → `COMPLETED`
 
 ## Impact Engine
 
@@ -29,9 +29,22 @@ Pre-impact before every implementer (including fix loops). Post-impact during VE
 
 ## Review
 
-Always dispatch `reviewer` after VERIFYING. Verdicts: `APPROVED` | `REQUEST_CHANGES`.
+Always: `nexus review-package --scope task` then dispatch `reviewer` after VERIFYING.
+
+After the last task APPROVED: `nexus review-package --scope final` then dispatch `reviewer` again (`review_scope: final`) before `FINAL_VERIFYING`.
+
+Verdicts: `APPROVED` | `REQUEST_CHANGES`. Approvals require evidence (acceptance/checks/files_reviewed); empty APPROVED is gate-invalid.
 
 On `REQUEST_CHANGES`, the orchestrator automatically re-impacts and re-dispatches the implementer — the user does not need to ask for fixes.
+
+Planted-defect reviewer evals (deterministic oracle + rubber-stamp suites):
+
+```bash
+nexus eval reviewer
+nexus eval reviewer --json
+```
+
+Metrics: `defect_recall`, `false_positive_rate`, `unsupported_finding_rate`, `approval_of_bad_patch_rate`.
 
 ## Agent roster
 

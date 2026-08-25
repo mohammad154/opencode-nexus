@@ -41,14 +41,109 @@ export function goodImplementerHandoff(overrides = {}) {
   };
 }
 
+export function goodReviewPackage(overrides = {}) {
+  return {
+    schema_version: "1.0",
+    ok: true,
+    scope: "task",
+    path: ".opencode/reviews/fixture-review-package.md",
+    base_commit: "base111",
+    head_commit: "impl222",
+    changed_files: ["src/app.js"],
+    generated_at: "2026-07-30T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
+/** Evidence for FINAL_REVIEWING → FINAL_VERIFYING (final scope + package). */
+export function finalVerifyingEvidence(overrides = {}) {
+  const runId = overrides.run_id || "test-run";
+  const taskHandoff =
+    overrides.task_review_handoff ||
+    goodReviewerHandoff({
+      run_id: runId,
+      review_scope: "task",
+      ...(overrides.task_overrides || {}),
+    });
+  const finalHandoff =
+    overrides.review_handoff ||
+    goodReviewerHandoff({
+      run_id: runId,
+      review_scope: "final",
+      ...(overrides.final_overrides || {}),
+    });
+  return {
+    review_handoff: finalHandoff,
+    review_package:
+      overrides.review_package || goodReviewPackage({ scope: "final" }),
+    task_review_handoff: taskHandoff,
+    ...overrides,
+  };
+}
+
+/** State parked in FINAL_REVIEWING after an admissible task approval. */
+export function finalReviewingState(base = {}) {
+  const runId = base.run_id || base.runId || "test-run";
+  const task =
+    base.last_task_review_handoff ||
+    goodReviewerHandoff({ run_id: runId, review_scope: "task" });
+  return {
+    ...base,
+    run_id: runId,
+    state: "FINAL_REVIEWING",
+    implementer_commit: base.implementer_commit || "impl222",
+    last_task_review_handoff: task,
+    last_review_handoff: task,
+    review_package: base.review_package || goodReviewPackage({ scope: "task" }),
+  };
+}
+
 export function goodReviewerHandoff(overrides = {}) {
   return {
-    ...handoffEnvelope({ agent: "reviewer" }),
+    ...handoffEnvelope({ agent: "reviewer", schema_version: "1.2" }),
     verdict: "APPROVED",
     reviewed_commit: "impl222",
+    review_scope: "task",
     impact: { pass: true, risk: "LOW" },
+    files_reviewed: ["src/app.js"],
+    acceptance: [
+      {
+        id: "AC-1",
+        status: "PASS",
+        evidence: [
+          {
+            file: "src/app.js",
+            line: 1,
+            reason: "Acceptance behavior present in changed production code",
+          },
+        ],
+      },
+    ],
+    checks: [
+      {
+        category: "correctness",
+        status: "PASS",
+        evidence: "Changed paths match intended behavior for the task",
+      },
+      {
+        category: "test_quality",
+        status: "PASS",
+        evidence: "Tests exercise production module under change",
+      },
+      {
+        category: "impact",
+        status: "PASS",
+        evidence: "Post-impact callers reviewed; no unresolved HIGH impact",
+      },
+    ],
+    adversarial_checks: [
+      {
+        risk: "tests bypass production helper",
+        result: "PASS",
+        evidence: "No duplicate helper path found in tests",
+      },
+    ],
     findings: [],
-    acceptance: [],
     ...overrides,
   };
 }

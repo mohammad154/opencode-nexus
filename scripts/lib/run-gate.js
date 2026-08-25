@@ -71,6 +71,7 @@ export function buildRunGateReminder(activeRun, opts = {}) {
   } else if (
     state === "VERIFYING" ||
     state === "REVIEWING" ||
+    state === "FINAL_REVIEWING" ||
     state === "FINAL_VERIFYING" ||
     state === "BLOCKED"
   ) {

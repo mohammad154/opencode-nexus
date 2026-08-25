@@ -205,14 +205,34 @@ export function resolveNextAction(runState, opts = {}) {
         action: "dispatch_reviewer",
         agent: "reviewer",
         skill: "orchestrating",
-        command: null,
+        command: "nexus review-package --scope task --json",
         instruction:
-          "REQUIRED NOW: Task-dispatch reviewer. On REQUEST_CHANGES → fresh pre-impact → implementer again (do not ask the user to fix).",
+          "REQUIRED NOW: Generate task review package, then Task-dispatch reviewer (scope=task). On REQUEST_CHANGES → fresh pre-impact → implementer again. On last-task APPROVED → FINAL_REVIEWING (not FINAL_VERIFYING).",
         steps: [
-          "Task-dispatch agent: reviewer",
+          "nexus review-package --scope task --json",
+          "Task-dispatch agent: reviewer (review_scope=task; read the review package)",
           "If APPROVED and more tasks: TASK_IMPACT_READY with next_task + fresh impact",
-          "If APPROVED and done: nexus run transition --to FINAL_VERIFYING --json '{\"review_handoff\":{...}}'",
+          "If APPROVED and done: nexus run transition --to FINAL_REVIEWING --json '{\"review_handoff\":{...},\"review_package\":{...}}'",
           "If REQUEST_CHANGES: fresh nexus impact → TASK_IMPACT_READY → implementer → reviewer",
+        ],
+      };
+
+    case "FINAL_REVIEWING":
+      return {
+        ok: true,
+        run_id: runId,
+        state,
+        action: "dispatch_reviewer",
+        agent: "reviewer",
+        skill: "orchestrating",
+        command: "nexus review-package --scope final --json",
+        instruction:
+          "REQUIRED NOW: Generate final (whole-branch) review package, then Task-dispatch reviewer with review_scope=final. Cross-task integration defects are in scope.",
+        steps: [
+          "nexus review-package --scope final --json",
+          "Task-dispatch agent: reviewer (review_scope=final; whole-branch package)",
+          "If APPROVED: nexus run transition --to FINAL_VERIFYING --json '{\"review_handoff\":{...},\"review_package\":{...}}'",
+          "If REQUEST_CHANGES: fresh nexus impact → TASK_IMPACT_READY → implementer → … → final review again",
         ],
       };
 

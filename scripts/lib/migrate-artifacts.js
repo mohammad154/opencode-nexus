@@ -6,8 +6,13 @@ import { withFileLock } from "./lock.js";
 
 const RUN_STATE_VERSION = "1.0";
 const HANDOFF_VERSION = "1.1";
+const REVIEWER_HANDOFF_VERSION = "1.2";
 const LEGACY_HANDOFF = "0.9";
 const LEGACY_HANDOFF_VERSIONS = new Set(["0.9", "1.0", LEGACY_HANDOFF]);
+const SUPPORTED_HANDOFF_VERSIONS = new Set([
+  HANDOFF_VERSION,
+  REVIEWER_HANDOFF_VERSION,
+]);
 
 function nowIso() {
   return new Date().toISOString();
@@ -21,8 +26,19 @@ function isLegacyHandoffVersion(version) {
   return !version || LEGACY_HANDOFF_VERSIONS.has(version);
 }
 
+function isReviewerRoleName(role) {
+  return (
+    role === "reviewer" ||
+    role === "unified-reviewer" ||
+    role === "spec-reviewer" ||
+    role === "code-reviewer" ||
+    role === "integration-reviewer"
+  );
+}
+
 /**
- * Normalize legacy (0.9 / 1.0 / missing schema_version) handoffs to 1.1 in memory.
+ * Normalize legacy (0.9 / 1.0 / missing schema_version) handoffs in memory.
+ * Implementer stays on 1.1; reviewer is normalized to 1.2 evidence shape.
  * Does not write disk unless caller uses write flag elsewhere.
  * Legacy migrations are marked legacy_unverified and cannot satisfy COMPLETED
  * without an explicit administrative override.
@@ -32,8 +48,21 @@ export function normalizeHandoff(role, raw) {
   const data = deepClone(raw && typeof raw === "object" ? raw : {});
   const migrated_from = raw?.schema_version || LEGACY_HANDOFF;
   const wasLegacy = isLegacyHandoffVersion(raw?.schema_version);
+  const reviewerRole = isReviewerRoleName(role);
 
-  if (wasLegacy || data.schema_version !== HANDOFF_VERSION) {
+  if (wasLegacy) {
+    data.schema_version = reviewerRole
+      ? REVIEWER_HANDOFF_VERSION
+      : HANDOFF_VERSION;
+  } else if (reviewerRole) {
+    // Upgrade 1.1 (and any unsupported) reviewer handoffs to 1.2 shape.
+    if (data.schema_version !== REVIEWER_HANDOFF_VERSION) {
+      data.schema_version = REVIEWER_HANDOFF_VERSION;
+    }
+  } else if (!SUPPORTED_HANDOFF_VERSIONS.has(data.schema_version)) {
+    data.schema_version = HANDOFF_VERSION;
+  } else if (data.schema_version === REVIEWER_HANDOFF_VERSION) {
+    // Implementer must not carry reviewer schema version.
     data.schema_version = HANDOFF_VERSION;
   }
 
@@ -82,13 +111,7 @@ export function normalizeHandoff(role, raw) {
     if (data.notes_for_reviewer == null) data.notes_for_reviewer = "";
   }
 
-  const isReviewerRole =
-    role === "reviewer" ||
-    role === "unified-reviewer" ||
-    role === "spec-reviewer" ||
-    role === "code-reviewer" ||
-    role === "integration-reviewer";
-  if (isReviewerRole) {
+  if (reviewerRole) {
     const legacyReviewAgents = new Set([
       "unified-reviewer",
       "spec-reviewer",
@@ -106,6 +129,12 @@ export function normalizeHandoff(role, raw) {
     }
     if (!Array.isArray(data.findings)) data.findings = [];
     if (!Array.isArray(data.acceptance)) data.acceptance = [];
+    if (!Array.isArray(data.files_reviewed)) data.files_reviewed = [];
+    if (!Array.isArray(data.checks)) data.checks = [];
+    if (!Array.isArray(data.adversarial_checks)) data.adversarial_checks = [];
+    if (data.review_scope !== "task" && data.review_scope !== "final") {
+      data.review_scope = "task";
+    }
   }
 
   if (wasLegacy) {

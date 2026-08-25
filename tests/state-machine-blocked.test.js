@@ -5,6 +5,7 @@ import { transition, canTransition } from "../scripts/lib/state-machine.js";
 import {
   goodImplementerHandoff,
   goodUnifiedHandoff,
+  goodReviewPackage,
   sealedVerification,
   mockTrustProviders,
   sealedImpact,
@@ -147,10 +148,16 @@ test("BLOCKED resuming to FINAL_VERIFYING succeeds with valid approved review ha
     blocked_from: "FINAL_VERIFYING",
     resume_state: "FINAL_VERIFYING",
     block_code: "REVIEW_ISSUE",
-    last_review_handoff: goodUnifiedHandoff({ run_id: "r1", verdict: "APPROVED" }),
+    implementer_commit: "impl222",
+    last_review_handoff: goodUnifiedHandoff({
+      run_id: "r1",
+      verdict: "APPROVED",
+      review_scope: "final",
+    }),
+    review_package: goodReviewPackage({ scope: "final" }),
   };
   const r = transition(state, "FINAL_VERIFYING", {});
-  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.ok, true, JSON.stringify(r.errors));
   assert.strictEqual(r.state.state, "FINAL_VERIFYING");
 });
 
