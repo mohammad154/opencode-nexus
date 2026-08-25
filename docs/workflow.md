@@ -31,9 +31,9 @@ Pre-impact before every implementer (including fix loops). Post-impact during VE
 
 Always: `nexus review-package --scope task` then dispatch `reviewer` after VERIFYING.
 
-After the last task APPROVED: `nexus review-package --scope final` then dispatch `reviewer` again (`review_scope: final`) before `FINAL_VERIFYING`.
+After the last task APPROVED: `nexus review-package --scope final` then dispatch `reviewer` again (`review_scope: final`) before `FINAL_VERIFYING`. Final packages use immutable `run_base_commit..HEAD` (whole branch), not the last task’s pre-head.
 
-Verdicts: `APPROVED` | `REQUEST_CHANGES`. Approvals require evidence (acceptance/checks/files_reviewed); empty APPROVED is gate-invalid.
+Verdicts: `APPROVED` | `REQUEST_CHANGES`. Approvals require evidence (all persisted acceptance criteria, mandatory checks, production-file coverage in `files_reviewed` or explicit `files_skipped`, bound review-package digest); empty APPROVED is gate-invalid.
 
 On `REQUEST_CHANGES`, the orchestrator automatically re-impacts and re-dispatches the implementer — the user does not need to ask for fixes.
 

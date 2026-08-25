@@ -1,5 +1,6 @@
 {
-  "_comment": "Copy to ~/.config/opencode/nexus.models.json and edit. Re-run install.sh to apply. V5 agents only: orchestrator (primary), implementer + reviewer (subagents).",
+  "_comment": "Copy to ~/.config/opencode/nexus.models.json and edit. Prefer DIFFERENT model families for implementer vs reviewer to reduce correlated blind spots.",
+  "_reviewer_diversity_note": "Implementer and reviewer should not share a model family (e.g. DeepSeek+Claude, or DeepSeek+GPT).",
   "orchestrator": {
     "mode": "primary",
     "model": "anthropic/claude-sonnet-4-20250514"
@@ -11,7 +12,7 @@
   },
   "reviewer": {
     "mode": "subagent",
-    "model": "opencode-go/deepseek-v4-pro",
+    "model": "anthropic/claude-sonnet-4-20250514",
     "variant": "high"
   }
 }

@@ -80,6 +80,11 @@ test("models.example.json is V5-only and does not reintroduce retired agents", (
   );
   const keys = Object.keys(example).filter((k) => !k.startsWith("_"));
   assert.deepEqual(keys.sort(), ["implementer", "orchestrator", "reviewer"]);
+  assert.notEqual(
+    example.implementer.model.split("/")[0],
+    example.reviewer.model.split("/")[0],
+    "example should use different provider/family prefixes for implementer vs reviewer",
+  );
   for (const retired of [
     "unified-reviewer",
     "spec-reviewer",

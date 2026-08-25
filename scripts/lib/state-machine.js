@@ -36,7 +36,7 @@ import {
   isApprovalAdmissible,
   isBlockingFinding,
 } from "./review-protocol.js";
-import { assertReviewPackagePresent } from "./review-package.js";
+import { assertReviewPackageBound } from "./review-package.js";
 
 export const STATES = [
   "CREATED",
@@ -335,17 +335,23 @@ function validateReviewerApproval(handoff, state, ctx, {
     );
   }
   errors.push(...bindReviewerHandoffErrors(data, state, "reviewer"));
-  const adm = isApprovalAdmissible(data, state);
+  const pkg = ctx.review_package || state.review_package;
+  const adm = isApprovalAdmissible(data, state, {
+    review_package: pkg,
+    review_scope: expectedScope,
+  });
   if (!adm.ok) {
     errors.push(...adm.errors.map((e) => `approval not admissible: ${e}`));
   }
   if (canSelfApproveSafe(state, data, ctx)) {
     errors.push("no self-approval: reviewer agent matches implementer");
   }
-  const pkg = ctx.review_package || state.review_package;
-  const pkgCheck = assertReviewPackagePresent(pkg, {
+  const pkgCheck = assertReviewPackageBound(pkg, {
     scope: expectedScope,
     worktree: ctx.worktree,
+    state,
+    handoff: data,
+    requireDigest: Boolean(ctx.worktree),
   });
   if (!pkgCheck.ok) {
     errors.push(...pkgCheck.errors.map((e) => `${label}: ${e}`));
@@ -845,7 +851,11 @@ export function canTransition(state, to, ctx = {}) {
               'next-task APPROVED must use review_scope "task"',
             );
           }
-          const adm = isApprovalAdmissible(data, state);
+          const pkg = ctx.review_package || state.review_package;
+          const adm = isApprovalAdmissible(data, state, {
+            review_package: pkg,
+            review_scope: "task",
+          });
           if (!adm.ok) {
             errors.push(...adm.errors.map((e) => `approval not admissible: ${e}`));
           }
@@ -1301,6 +1311,16 @@ export function transition(state, to, evidence = {}, providers = null) {
         next.pending_review_findings = data.findings || [];
       } else if (data.verdict === "APPROVED") {
         next.pending_review_findings = null;
+        const history = Array.isArray(state.task_history)
+          ? [...state.task_history]
+          : [];
+        history.push({
+          id: state.current_unit || data.unit_or_task,
+          acceptance_criteria: state.acceptance_criteria || [],
+          reviewed_commit: data.reviewed_commit,
+          verdict: data.verdict,
+        });
+        next.task_history = history;
       }
     }
   }
@@ -1310,6 +1330,22 @@ export function transition(state, to, evidence = {}, providers = null) {
     if (ctx.drift?.plan_commit) next.plan_commit = ctx.drift.plan_commit;
     if (ctx.drift?.current_head) next.head_commit = ctx.drift.current_head;
     if (ctx.current_head) next.head_commit = ctx.current_head;
+    // Freeze run base once — whole-branch final review uses this forever.
+    const preImplHead =
+      ctx.drift?.current_head ||
+      ctx.current_head ||
+      next.head_commit ||
+      state.head_commit ||
+      null;
+    if (!next.run_base_commit && !state.run_base_commit && preImplHead) {
+      next.run_base_commit = preImplHead;
+    } else if (state.run_base_commit) {
+      next.run_base_commit = state.run_base_commit;
+    }
+    const criteria = ctx.acceptance_criteria || ctx.acceptanceCriteria;
+    if (Array.isArray(criteria) && criteria.length > 0) {
+      next.acceptance_criteria = criteria.map(String);
+    }
     if (ctx.impact) next.impact = ctx.impact?.report || ctx.impact;
     if (ctx.blast) next.blast = ctx.blast?.report || ctx.blast;
     if (ctx.graph) next.graph = ctx.graph;
@@ -1348,6 +1384,16 @@ export function transition(state, to, evidence = {}, providers = null) {
       const { data } = normalizeAndValidateHandoff("reviewer", raw);
       next.last_task_review_handoff = data;
       next.last_review_handoff = data;
+      const history = Array.isArray(state.task_history)
+        ? [...state.task_history]
+        : [];
+      history.push({
+        id: state.current_unit || data.unit_or_task,
+        acceptance_criteria: state.acceptance_criteria || [],
+        reviewed_commit: data.reviewed_commit,
+        verdict: data.verdict,
+      });
+      next.task_history = history;
     }
     if (ctx.review_package) next.review_package = ctx.review_package;
   }

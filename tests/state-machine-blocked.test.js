@@ -154,7 +154,13 @@ test("BLOCKED resuming to FINAL_VERIFYING succeeds with valid approved review ha
       verdict: "APPROVED",
       review_scope: "final",
     }),
-    review_package: goodReviewPackage({ scope: "final" }),
+    review_package: goodReviewPackage({
+      scope: "final",
+      run_id: "r1",
+      base_commit: "base111",
+      head_commit: "impl222",
+    }),
+    run_base_commit: "base111",
   };
   const r = transition(state, "FINAL_VERIFYING", {});
   assert.strictEqual(r.ok, true, JSON.stringify(r.errors));

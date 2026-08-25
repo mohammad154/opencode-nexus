@@ -42,6 +42,7 @@ export function goodImplementerHandoff(overrides = {}) {
 }
 
 export function goodReviewPackage(overrides = {}) {
+  const changed = overrides.changed_files || ["src/app.js"];
   return {
     schema_version: "1.0",
     ok: true,
@@ -49,7 +50,14 @@ export function goodReviewPackage(overrides = {}) {
     path: ".opencode/reviews/fixture-review-package.md",
     base_commit: "base111",
     head_commit: "impl222",
-    changed_files: ["src/app.js"],
+    run_id: overrides.run_id || "test-run",
+    unit_or_task: overrides.unit_or_task || "unit-1",
+    changed_files: changed,
+    production_files:
+      overrides.production_files ||
+      changed.filter((f) => !/\.md$/i.test(f) && !/(^|\/)tests?\//i.test(f)),
+    digest_sha256: "fixture",
+    acceptance_criteria: overrides.acceptance_criteria || ["done"],
     generated_at: "2026-07-30T00:00:00.000Z",
     ...overrides,
   };
@@ -75,7 +83,13 @@ export function finalVerifyingEvidence(overrides = {}) {
   return {
     review_handoff: finalHandoff,
     review_package:
-      overrides.review_package || goodReviewPackage({ scope: "final" }),
+      overrides.review_package ||
+      goodReviewPackage({
+        scope: "final",
+        run_id: runId,
+        head_commit: finalHandoff.reviewed_commit || "impl222",
+        base_commit: overrides.run_base_commit || "base111",
+      }),
     task_review_handoff: taskHandoff,
     ...overrides,
   };
@@ -94,7 +108,11 @@ export function finalReviewingState(base = {}) {
     implementer_commit: base.implementer_commit || "impl222",
     last_task_review_handoff: task,
     last_review_handoff: task,
-    review_package: base.review_package || goodReviewPackage({ scope: "task" }),
+    review_package: base.review_package || goodReviewPackage({
+      scope: "task",
+      run_id: runId,
+    }),
+    run_base_commit: base.run_base_commit || "base111",
   };
 }
 
@@ -106,6 +124,7 @@ export function goodReviewerHandoff(overrides = {}) {
     review_scope: "task",
     impact: { pass: true, risk: "LOW" },
     files_reviewed: ["src/app.js"],
+    files_skipped: [],
     acceptance: [
       {
         id: "AC-1",

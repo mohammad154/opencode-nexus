@@ -230,7 +230,7 @@ test("APPROVED task → FINAL_REVIEWING → FINAL_VERIFYING", () => {
   });
   const toFinalReview = canTransition(state, "FINAL_REVIEWING", {
     review_handoff: taskReview,
-    review_package: goodReviewPackage({ scope: "task" }),
+    review_package: goodReviewPackage({ scope: "task", run_id: "t8" }),
   });
   assert.equal(toFinalReview.ok, true, JSON.stringify(toFinalReview.errors));
 
@@ -239,6 +239,7 @@ test("APPROVED task → FINAL_REVIEWING → FINAL_VERIFYING", () => {
     state: "FINAL_REVIEWING",
     last_task_review_handoff: taskReview,
     last_review_handoff: taskReview,
+    run_base_commit: "base111",
   };
   const finalReview = goodReviewerHandoff({
     run_id: "t8",
@@ -246,7 +247,12 @@ test("APPROVED task → FINAL_REVIEWING → FINAL_VERIFYING", () => {
   });
   const r = canTransition(state, "FINAL_VERIFYING", {
     review_handoff: finalReview,
-    review_package: goodReviewPackage({ scope: "final" }),
+    review_package: goodReviewPackage({
+      scope: "final",
+      run_id: "t8",
+      base_commit: "base111",
+      head_commit: "impl222",
+    }),
   });
   assert.equal(r.ok, true, JSON.stringify(r.errors));
 });
@@ -255,6 +261,7 @@ test("no self-approval: reviewer agent must not match implementer", () => {
   let state = createEmptyRunState("t9");
   state.state = "FINAL_REVIEWING";
   state.implementer_commit = "impl222";
+  state.run_base_commit = "base111";
   state.last_implementer_handoff = { agent: "reviewer" };
   state.last_task_review_handoff = goodReviewerHandoff({
     run_id: "t9",
@@ -266,7 +273,11 @@ test("no self-approval: reviewer agent must not match implementer", () => {
   });
   const r = canTransition(state, "FINAL_VERIFYING", {
     review_handoff: review,
-    review_package: goodReviewPackage({ scope: "final" }),
+    review_package: goodReviewPackage({
+      scope: "final",
+      run_id: "t9",
+      base_commit: "base111",
+    }),
   });
   assert.equal(r.ok, false);
   assert.match(r.errors.join(" "), /self-approval/i);

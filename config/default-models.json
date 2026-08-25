@@ -1,5 +1,5 @@
 {
-  "_reviewer_diversity_note": "Keep reviewer on a different model family than implementer when possible so approval is not same-model self-agreement.",
+  "_reviewer_diversity_note": "Prefer different model families for implementer vs reviewer (see models.example.json). Current defaults still use DeepSeek variants for availability; override reviewer to Claude/GPT/Gemini in nexus.models.json when possible.",
   "orchestrator": {
     "mode": "primary",
     "model": "opencode-go/minimax-m3"

@@ -49,7 +49,11 @@ test("FINAL_REVIEWING accepts task-scope APPROVED with review package", () => {
       run_id: "run-reviewer-test",
       review_scope: "task",
     }),
-    review_package: goodReviewPackage({ scope: "task" }),
+    review_package: goodReviewPackage({
+      scope: "task",
+      run_id: "run-reviewer-test",
+      unit_or_task: "unit-1",
+    }),
   });
   assert.equal(ok.ok, true, JSON.stringify(ok.errors));
 });

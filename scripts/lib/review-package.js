@@ -7,6 +7,8 @@ import path from "path";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 
+import { isLikelyProductionPath } from "./review-protocol.js";
+
 function runGit(worktree, args) {
   const r = spawnSync("git", args, {
     cwd: worktree,
@@ -58,16 +60,34 @@ function summarizeVerification(v) {
   return lines.join("\n");
 }
 
+/** Resolve package markdown path against worktree. */
+export function resolveReviewPackagePath(pkg, worktree) {
+  if (!pkg?.path) return null;
+  if (path.isAbsolute(pkg.path)) return pkg.path;
+  if (!worktree) return pkg.path;
+  return path.join(worktree, pkg.path);
+}
+
+/**
+ * Choose BASE for a review package.
+ * - task: pre-task head (runState.head_commit)
+ * - final: immutable run_base_commit (whole branch since run start)
+ */
+export function resolveReviewPackageBase(runState = {}, scope = "task", opts = {}) {
+  if (opts.baseCommit) return opts.baseCommit;
+  if (scope === "final") {
+    return (
+      runState.run_base_commit ||
+      runState.plan_commit ||
+      null
+    );
+  }
+  return runState.head_commit || runState.plan_commit || null;
+}
+
 /**
  * @param {string} worktree
  * @param {object} opts
- * @param {"task"|"final"} opts.scope
- * @param {object} [opts.runState]
- * @param {string} [opts.baseCommit]
- * @param {string} [opts.headCommit]
- * @param {string[]} [opts.acceptanceCriteria]
- * @param {string} [opts.outDir]
- * @param {string} [opts.planPath]
  */
 export function buildReviewPackage(worktree, opts = {}) {
   const scope = opts.scope === "final" ? "final" : "task";
@@ -80,15 +100,17 @@ export function buildReviewPackage(worktree, opts = {}) {
     opts.headCommit ||
     runState.implementer_commit ||
     revParse(worktree, "HEAD");
-  const baseCommit =
-    opts.baseCommit ||
-    runState.head_commit ||
-    runState.plan_commit ||
-    (headCommit ? revParse(worktree, `${headCommit}^`) : null) ||
-    headCommit;
+
+  let baseCommit = resolveReviewPackageBase(runState, scope, opts);
+  if (!baseCommit && headCommit) {
+    baseCommit = revParse(worktree, `${headCommit}^`) || headCommit;
+  }
 
   const acceptance =
     opts.acceptanceCriteria ||
+    (scope === "final" && Array.isArray(runState.task_history)
+      ? runState.task_history.flatMap((t) => t.acceptance_criteria || [])
+      : null) ||
     runState.acceptance_criteria ||
     [];
 
@@ -113,7 +135,9 @@ export function buildReviewPackage(worktree, opts = {}) {
     baseCommit,
     headCommit,
   ]);
-  let diffText = fullDiff.ok ? fullDiff.stdout : fullDiff.stderr || "(diff unavailable)";
+  let diffText = fullDiff.ok
+    ? fullDiff.stdout
+    : fullDiff.stderr || "(diff unavailable)";
   const maxDiff = opts.maxDiffBytes || 400_000;
   if (diffText.length > maxDiff) {
     diffText = `${diffText.slice(0, maxDiff)}\n\n…[diff truncated]…\n`;
@@ -124,10 +148,7 @@ export function buildReviewPackage(worktree, opts = {}) {
   const planExcerpt = safeRead(planPath, 20_000) || "_PLAN.md not found._";
 
   const impact =
-    opts.impact ||
-    runState.post_impact ||
-    runState.impact ||
-    null;
+    opts.impact || runState.post_impact || runState.impact || null;
   const verification =
     opts.verification ||
     runState.provider_verification ||
@@ -138,6 +159,7 @@ export function buildReviewPackage(worktree, opts = {}) {
     opts.implementer_notes ||
     "";
 
+  const productionChanged = changedFiles.filter(isLikelyProductionPath);
   const generatedAt = new Date().toISOString();
   const md = [
     `# Nexus Review Package (${scope})`,
@@ -150,6 +172,7 @@ export function buildReviewPackage(worktree, opts = {}) {
     `- run_id: \`${runId}\``,
     `- unit_or_task: \`${unit}\``,
     `- review_scope: \`${scope}\``,
+    `- run_base_commit: \`${runState.run_base_commit || "(unset)"}\``,
     `- base_commit: \`${baseCommit}\``,
     `- head_commit: \`${headCommit}\``,
     `- generated_at: \`${generatedAt}\``,
@@ -169,6 +192,12 @@ export function buildReviewPackage(worktree, opts = {}) {
     changedFiles.length
       ? changedFiles.map((f) => `- ${f}`).join("\n")
       : "_No changed files between base and head._",
+    "",
+    "## Production files (must be reviewed or explicitly skipped)",
+    "",
+    productionChanged.length
+      ? productionChanged.map((f) => `- ${f}`).join("\n")
+      : "_None classified as production._",
     "",
     "## Impact evidence",
     "",
@@ -207,12 +236,14 @@ export function buildReviewPackage(worktree, opts = {}) {
     scope,
     run_id: runId,
     unit_or_task: unit,
+    run_base_commit: runState.run_base_commit || null,
     base_commit: baseCommit,
     head_commit: headCommit,
     path: path.relative(worktree, mdPath).split(path.sep).join("/"),
     absolute_path: mdPath,
     meta_path: path.relative(worktree, jsonPath).split(path.sep).join("/"),
     changed_files: changedFiles,
+    production_files: productionChanged,
     acceptance_criteria: acceptance,
     digest_sha256: digest,
     generated_at: generatedAt,
@@ -221,9 +252,11 @@ export function buildReviewPackage(worktree, opts = {}) {
   return meta;
 }
 
+// re-export for callers that imported from review-package
+export { isLikelyProductionPath };
+
 /**
- * Validate review package meta for state-machine gates.
- * @returns {{ ok: boolean, errors: string[] }}
+ * Lightweight presence check (scope/path/commits).
  */
 export function assertReviewPackagePresent(pkg, { scope, worktree } = {}) {
   const errors = [];
@@ -240,14 +273,92 @@ export function assertReviewPackagePresent(pkg, { scope, worktree } = {}) {
   if (!pkg.path || typeof pkg.path !== "string" || !pkg.path.trim()) {
     errors.push("review_package.path required");
   } else if (worktree) {
-    const full = path.isAbsolute(pkg.path)
-      ? pkg.path
-      : path.join(worktree, pkg.path);
+    const full = resolveReviewPackagePath(pkg, worktree);
     if (!fs.existsSync(full)) {
       errors.push(`review_package file missing: ${pkg.path}`);
     }
   }
   if (!pkg.base_commit) errors.push("review_package.base_commit required");
   if (!pkg.head_commit) errors.push("review_package.head_commit required");
+  return { ok: errors.length === 0, errors };
+}
+
+/**
+ * Full binding + integrity check for an authoritative review package.
+ */
+export function assertReviewPackageBound(pkg, {
+  scope,
+  worktree,
+  state = {},
+  handoff = {},
+  requireDigest = true,
+} = {}) {
+  const present = assertReviewPackagePresent(pkg, { scope, worktree });
+  const errors = [...present.errors];
+  if (!pkg || typeof pkg !== "object") {
+    return { ok: false, errors };
+  }
+
+  if (state.run_id && pkg.run_id && pkg.run_id !== state.run_id) {
+    errors.push(
+      `review_package.run_id mismatch (got ${pkg.run_id}, want ${state.run_id})`,
+    );
+  }
+  const unit = state.current_unit;
+  if (
+    unit &&
+    pkg.unit_or_task &&
+    pkg.unit_or_task !== unit &&
+    scope !== "final"
+  ) {
+    errors.push(
+      `review_package.unit_or_task mismatch (got ${pkg.unit_or_task}, want ${unit})`,
+    );
+  }
+
+  const reviewed = handoff.reviewed_commit;
+  if (reviewed && pkg.head_commit && pkg.head_commit !== reviewed) {
+    errors.push(
+      `review_package.head_commit (${pkg.head_commit}) must equal reviewed_commit (${reviewed})`,
+    );
+  }
+
+  if (scope === "final" && state.run_base_commit && pkg.base_commit) {
+    if (pkg.base_commit !== state.run_base_commit) {
+      errors.push(
+        `final review_package.base_commit must equal run_base_commit (${state.run_base_commit})`,
+      );
+    }
+  }
+
+  if (worktree && pkg.path) {
+    const full = resolveReviewPackagePath(pkg, worktree);
+    if (full && fs.existsSync(full)) {
+      if (requireDigest) {
+        if (!pkg.digest_sha256) {
+          errors.push("review_package.digest_sha256 required");
+        } else {
+          const body = fs.readFileSync(full, "utf8");
+          const digest = createHash("sha256").update(body).digest("hex");
+          if (digest !== pkg.digest_sha256) {
+            errors.push(
+              "review_package digest mismatch (file content does not match digest_sha256)",
+            );
+          }
+        }
+      }
+      const head = revParse(worktree, "HEAD");
+      if (head && pkg.head_commit && pkg.head_commit !== head) {
+        // Soft when implementer_commit is the reviewed tip and differs from dirty HEAD
+        const tip = state.implementer_commit || reviewed;
+        if (tip && pkg.head_commit !== tip) {
+          errors.push(
+            `review_package.head_commit (${pkg.head_commit}) must match implementer/reviewed tip (${tip})`,
+          );
+        }
+      }
+    }
+  }
+
   return { ok: errors.length === 0, errors };
 }

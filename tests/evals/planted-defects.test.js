@@ -198,10 +198,22 @@ test("FINAL_VERIFYING path: oracle final approval on clean control is gate-valid
     current_unit: s.id,
     acceptance_criteria: s.acceptance_criteria,
     last_task_review_handoff: task,
+    run_base_commit: "base111",
   });
   const r = canTransition(state, "FINAL_VERIFYING", {
     review_handoff: final,
-    review_package: goodReviewPackage({ scope: "final" }),
+    review_package: goodReviewPackage({
+      scope: "final",
+      run_id: "eval-clean",
+      unit_or_task: s.id,
+      base_commit: "base111",
+      head_commit: "impl222",
+      changed_files: s.changed_files,
+      production_files: s.changed_files.filter(
+        (f) => !/(^|\/)tests?\//i.test(f) && !/\.md$/i.test(f),
+      ),
+      acceptance_criteria: s.acceptance_criteria,
+    }),
   });
   assert.equal(r.ok, true, JSON.stringify(r.errors));
 });
@@ -211,5 +223,5 @@ test("default models keep implementer and reviewer on different models", () => {
     fs.readFileSync(path.join(root, "config/default-models.json"), "utf8"),
   );
   assert.notEqual(models.implementer.model, models.reviewer.model);
-  assert.match(models._reviewer_diversity_note, /different model/i);
+  assert.match(models._reviewer_diversity_note, /model famil/i);
 });
