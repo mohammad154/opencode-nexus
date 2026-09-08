@@ -1,0 +1,64 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://opencode-nexus.local/schemas/handoff-plan-advisor.schema.json",
+  "title": "PlanAdvisorHandoff",
+  "description": "Read-only planning challenge; it cannot authorize a state transition or write production code.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "agent",
+    "calls",
+    "read_only",
+    "permission_profile",
+    "plan_verdict",
+    "simpler_approach_available",
+    "units",
+    "missing_dependencies",
+    "missing_edge_cases",
+    "risk_misses",
+    "recommended_unit_count"
+  ],
+  "properties": {
+    "schema_version": { "type": "string", "enum": ["1.0"] },
+    "agent": { "type": "string", "const": "plan-advisor" },
+    "calls": { "type": "integer", "minimum": 1 },
+    "read_only": { "type": "boolean", "const": true },
+    "permission_profile": {
+      "type": "string",
+      "const": "read-only-bash-allowlist"
+    },
+    "wrote_production_code": { "type": "boolean", "const": false },
+    "plan_verdict": { "type": "string", "enum": ["KEEP", "REVISE"] },
+    "simpler_approach_available": { "type": "boolean" },
+    "units": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["id", "verdict", "action", "reason"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "verdict": { "type": "string", "enum": ["KEEP", "MERGE", "SPLIT"] },
+          "action": { "type": "string", "enum": ["KEEP", "MERGE", "SPLIT"] },
+          "with": { "type": ["string", "null"] },
+          "reason": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "missing_dependencies": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "missing_edge_cases": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "risk_misses": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "recommended_unit_count": { "type": "integer", "minimum": 1 },
+    "model": { "type": ["string", "null"] }
+  }
+}

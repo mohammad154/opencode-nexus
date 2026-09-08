@@ -77,7 +77,7 @@ test("plan-check reports missing ownership, cycles, and missing unit justificati
   );
 });
 
-test("plan-check warns on duplicate scope and test-only units, with strict mode available", () => {
+test("plan-check warns on test-only units and requires explicit dispositions", () => {
   const plan = normalizePlan({
     justification: {
       number_of_units: 2,
@@ -101,10 +101,55 @@ test("plan-check warns on duplicate scope and test-only units, with strict mode 
         verification_gates: ["npm test -- api"],
       },
     ],
+    warning_dispositions: [
+      {
+        code: "TEST_ONLY_UNIT",
+        units: ["tests"],
+        decision: "KEEP_SEPARATE",
+        reason: "The test package is maintained and reviewed independently.",
+      },
+      {
+        code: "MERGE_CANDIDATE",
+        units: ["behavior", "tests"],
+        decision: "KEEP_SEPARATE",
+        reason: "The behavior and test boundaries are intentionally separate.",
+      },
+    ],
   });
   const result = checkPlan(plan);
   assert.equal(result.ok, true);
   assert.ok(result.warnings.some((warning) => warning.code === "TEST_ONLY_UNIT"));
+  assert.ok(
+    result.merge_candidates[0].reasons.includes(
+      "tests are only for the dependent unit",
+    ),
+  );
+  const missing = checkPlan({ ...plan, warning_dispositions: [] });
+  assert.equal(missing.ok, false);
+  assert.ok(
+    missing.errors.some(
+      (error) => error.code === "MISSING_WARNING_DISPOSITION",
+    ),
+  );
   const strict = checkPlan(plan, { strict: true });
   assert.equal(strict.ok, false);
+});
+
+test("plan-check parses warning dispositions from Markdown", () => {
+  const parsed = parsePlanMarkdown(`
+## Plan Check Dispositions
+- code: MERGE_CANDIDATE
+  units: unit-1, unit-2
+  decision: KEEP_SEPARATE
+  reason: independent review boundaries
+`);
+  assert.deepEqual(parsed.warning_dispositions, [
+    {
+      code: "MERGE_CANDIDATE",
+      units: ["unit-1", "unit-2"],
+      file: "",
+      decision: "KEEP_SEPARATE",
+      reason: "independent review boundaries",
+    },
+  ]);
 });

@@ -72,7 +72,7 @@ Subcommands:
   init              Create a run (--run-id <id>)
   next              Deterministic next action (alias of nexus next)
   classify          Classify and optionally apply (--apply)
-  transition        Transition state (--to STATE)
+  transition        Transition state (--to STATE; PLANNED supports --plan-check)
   validate-handoff  Validate a handoff JSON (--role ROLE --file path)
   status            Show run state
   resume            Resume from durable state

@@ -4,10 +4,14 @@ import {
 } from "./planning.js";
 
 /**
- * Calculate the deterministic minimum call envelope for a Nexus plan.
- * `tasks` remains a compatibility alias; the public concept is units.
+ * Canonical agent-cost model shared by the estimator and runtime budget.
+ *
+ * `fixLoops` counts observed/assumed fix-loop pairs. The returned
+ * `budget_ceiling` reserves bounded fix-loop headroom of `max(2, units)` calls
+ * and always includes the final reviewer unless an explicitly eligible
+ * single-unit reuse is requested.
  */
-export function estimateAgentCalls({
+export function agentCostModel({
   units = 1,
   tasks,
   fixLoops = 0,
@@ -28,13 +32,14 @@ export function estimateAgentCalls({
   const finalReviewer =
     singleUnitFinalReviewReuse && count === 1 ? 0 : 1;
   const total = implementer + taskReviewer + finalReviewer + planAdvisor;
-  const headroom = Math.max(2, count);
+  const fixHeadroom = Math.max(2, count);
 
   return {
     units: count,
     tasks: count,
     planning_mode: mode,
     plan_advisor_calls: planAdvisor,
+    fix_loops: fixes,
     single_unit_final_review_reuse:
       Boolean(singleUnitFinalReviewReuse && count === 1),
     calls: {
@@ -45,7 +50,43 @@ export function estimateAgentCalls({
       // Compatibility aggregate: all reviewer calls, including final.
       reviewer: taskReviewer + finalReviewer,
       total,
-      budget_ceiling: total + headroom,
+      fix_headroom: fixHeadroom,
+      budget_ceiling: total + fixHeadroom,
+    },
+  };
+}
+
+/**
+ * Calculate the deterministic minimum call envelope for a Nexus plan.
+ * `tasks` remains a compatibility alias; the public concept is units.
+ */
+export function estimateAgentCalls({
+  units = 1,
+  tasks,
+  fixLoops = 0,
+  planningMode = "compact",
+  advisorCalls,
+  criticalDisagreement = false,
+  singleUnitFinalReviewReuse = false,
+} = {}) {
+  const model = agentCostModel({
+    units,
+    tasks,
+    fixLoops,
+    planningMode,
+    advisorCalls,
+    criticalDisagreement,
+    singleUnitFinalReviewReuse,
+  });
+
+  return {
+    units: model.units,
+    tasks: model.tasks,
+    planning_mode: model.planning_mode,
+    plan_advisor_calls: model.plan_advisor_calls,
+    single_unit_final_review_reuse: model.single_unit_final_review_reuse,
+    calls: {
+      ...model.calls,
     },
     formula:
       "plan_advisor? + units*(implementer + task reviewer) + final reviewer + fix_loops*(implementer + reviewer)",

@@ -26,6 +26,24 @@ test("nexus version prints the package version", () => {
   assert.equal(result.stdout.trim(), pkg.version);
 });
 
+test("nexus plan-check reports invalid JSON without a human-mode stack trace", () => {
+  const result = invoke([
+    "plan-check",
+    "--input",
+    path.join(repoRoot, "scripts", "nexus-plan-check.js"),
+  ]);
+  assert.equal(result.status, 2);
+  assert.match(result.stdout, /INVALID_JSON|unable to read JSON plan/i);
+  assert.doesNotMatch(`${result.stdout}\n${result.stderr}`, /TypeError|at file:/);
+});
+
+test("nexus plan-check reports missing option values as validation errors", () => {
+  const result = invoke(["plan-check", "--plan"]);
+  assert.equal(result.status, 2);
+  assert.match(result.stdout, /--plan requires a value/);
+  assert.doesNotMatch(`${result.stdout}\n${result.stderr}`, /TypeError|at file:/);
+});
+
 test("nexus help lists workflow commands", () => {
   const result = invoke(["help"]);
   assert.equal(result.status, 0, result.stderr);

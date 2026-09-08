@@ -69,7 +69,7 @@ nexus next                 # deterministic next orchestrator action
 nexus next --json
 nexus run inspect --run-id <id>
 nexus estimate --tasks 3
-nexus plan-check --json
+nexus run transition --to PLANNED --plan-check
 ```
 
 `task-*` identifiers remain accepted for V5 compatibility, but new plans should
@@ -82,3 +82,12 @@ advisor; standard planning uses one advisor call; deep planning uses one call
 and permits a second only for an explicit `CRITICAL_DISAGREEMENT`.
 
 `nexus next` (and the plugin’s injected **Nexus Next Action** block) tells the orchestrator what to do now — including `REQUIRED_DISPATCH: implementer|reviewer` when a Task dispatch is mandatory.
+
+The standalone `nexus plan-check` command is diagnostic. To authorize the
+`PLANNED` transition, use `nexus run transition --to PLANNED --plan-check` so
+the passing report is attached to durable run state.
+
+Before `PLANNED`, every actionable `plan-check` warning must have a matching
+`MERGED` or `KEEP_SEPARATE` disposition with a reason. This keeps heuristic
+decomposition findings advisory while making the final granularity decision
+explicit and auditable.

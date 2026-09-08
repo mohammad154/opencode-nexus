@@ -75,6 +75,19 @@ Why not fewer:
 Why not more:
 - <why implementation steps, tests, types, or setup stay with their behavior>
 
+## Plan Check Dispositions
+
+Add one disposition for every actionable warning reported by `nexus plan-check`.
+Use `KEEP_SEPARATE` when the boundary is intentional, and explain why. Use
+`MERGED` only to record that the warned scopes were combined in a plan
+revision; rerun `nexus plan-check` after that revision and remove any stale
+disposition for a warning that is no longer reported.
+
+- code: MERGE_CANDIDATE
+  units: unit-1, unit-2
+  decision: KEEP_SEPARATE
+  reason: Separate public contracts require independent review boundaries.
+
 ## Execution Unit breakdown (ordered, dependencies noted)
 ### Execution Unit 1: <title> (slug: <slug>)
 - id: unit-1
@@ -157,7 +170,7 @@ Label confidence honestly:
 - Prefer the minimum number of cohesive execution units that remain independently implementable, verifiable, reviewable, and safe.
 - An implementation step is not automatically an execution unit. Keep model/types/tests/setup with the behavior they support unless an independent boundary justifies separation.
 - For every plan, include `## Execution Unit Justification` with reasons why fewer and more units are not appropriate.
-- Run `nexus plan-check --json` before transitioning to `PLANNED`; fix errors and consciously review warnings.
+- Run `nexus plan-check --json` before transitioning to `PLANNED`; fix errors and add a disposition for every actionable warning.
 - Prefer minimal diffs and existing patterns — cite an exemplar file per task.
 - Do not start implementation in this skill.
 - Every task file must have:

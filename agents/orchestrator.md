@@ -10,7 +10,21 @@ permission:
     "*": deny
     ".opencode/**": allow
     "AGENTS.md": allow
-  bash: allow
+  bash:
+    "*": deny
+    "nexus *": allow
+    "git status*": allow
+    "git diff*": allow
+    "git log*": allow
+    "git show*": allow
+    "git rev-parse*": allow
+    "git worktree*": allow
+    "git branch*": allow
+    "rg *": allow
+    "grep *": allow
+    "npm test*": allow
+    "npm run test*": allow
+    "npm run build*": allow
   task:
     "*": deny
     plan-advisor: allow
@@ -40,7 +54,7 @@ nexus project-init
 nexus run init --run-id <id>
 nexus next                 # deterministic next step (also injected every turn)
 nexus next --json
-nexus plan-check --json
+nexus run transition --to PLANNED --plan-check  # diagnostic + persisted gate
 nexus run transition --to BRAINSTORMING
 # if ambiguous:
 nexus run transition --to WAITING_FOR_USER --json '{"question":"..."}'
@@ -48,9 +62,9 @@ nexus run transition --to BRAINSTORMING
 # Choose compact|standard|deep. For standard/deep, dispatch plan-advisor with
 # a Problem Brief, then synthesize PLAN.md and run the deterministic linter.
 nexus run transition --to BRAINSTORMING --json '{"planning_mode":"standard"}'
-nexus plan-check --json
 nexus run transition --to PLANNED --plan-check --json '{"planning_mode":"standard","plan_advisor":{...},"plan_exists":true}'
-# or: nexus run transition --to PLANNED  (with worktree containing PLAN.md)
+# The --plan-check transition runs the linter against the current PLAN.md and
+# persists the passing report; a standalone nexus plan-check is diagnostic only.
 nexus impact --json --targets <files>
 nexus run transition --to TASK_IMPACT_READY --json '{"planned_targets":["..."]}'
 nexus run transition --to IMPLEMENTING --branch <b> --acceptance 'c1|c2'
@@ -82,11 +96,12 @@ Planning modes:
   one advisor call, with a second call only for a documented critical
   disagreement.
 
-Run `nexus plan-check` before `PLANNED`. It checks the dependency DAG,
+Use `nexus run transition --to PLANNED --plan-check` before entering `PLANNED`.
+It checks the dependency DAG,
 acceptance/verification ownership, duplicate or overlapping scope, suspicious
-test/setup-only units, reviewer-audit size, and the call estimate. A plan-check
-warning is a prompt to revise; a failed check must not be hidden in the
-transition evidence.
+test/setup-only units, reviewer-audit size, and the call estimate. Every
+actionable warning must have a `MERGED` or `KEEP_SEPARATE` disposition with a
+reason; a failed check must not be hidden in the transition evidence.
 
 ## Lifecycle
 

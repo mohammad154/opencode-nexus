@@ -26,19 +26,6 @@ function planExists(worktree) {
   return fs.existsSync(path.join(worktree, ".opencode", "plans", "PLAN.md"));
 }
 
-function planHasExecutionUnits(worktree) {
-  if (!worktree) return false;
-  try {
-    const plan = fs.readFileSync(
-      path.join(worktree, ".opencode", "plans", "PLAN.md"),
-      "utf8",
-    );
-    return /^###\s+(?:Execution\s+Unit|Task)\s+/im.test(plan);
-  } catch {
-    return false;
-  }
-}
-
 function stateHasSingleUnit(runState) {
   const candidate =
     runState?.execution_units ?? runState?.units ?? runState?.tasks;
@@ -158,11 +145,11 @@ export function resolveNextAction(runState, opts = {}) {
           steps: [
             "If ambiguous: nexus run transition --to WAITING_FOR_USER --json '{\"question\":\"...\"}'",
             "Else: Load skill: writing-plans → create .opencode/plans/PLAN.md",
-            "nexus run transition --to PLANNED",
+            "nexus run transition --to PLANNED --plan-check",
           ],
         };
       }
-      if (planHasExecutionUnits(worktree) && !runState.plan_check) {
+      if (hasPlan && runState.plan_check?.ok !== true) {
         return {
           ok: true,
           run_id: runId,
@@ -170,12 +157,11 @@ export function resolveNextAction(runState, opts = {}) {
           action: "plan_check",
           agent: null,
           skill: "writing-plans",
-          command: "nexus plan-check --json",
+          command: "nexus run transition --to PLANNED --plan-check --json '{\"planning_mode\":\"…\",\"plan_advisor\":{...}}'",
           instruction:
-            "Run the deterministic plan-check, fix hard errors and review warnings, then transition to PLANNED with the plan-check report.",
+            "Run the integrated deterministic plan-check, fix hard errors and review warnings, then transition to PLANNED with its passing report.",
           steps: [
-            "nexus plan-check --json",
-            "Resolve errors; merge or split only when the linter evidence supports it",
+            "Resolve errors and add MERGED or KEEP_SEPARATE disposition for every actionable warning",
             "nexus run transition --to PLANNED --plan-check --json '{\"planning_mode\":\"…\",\"plan_advisor\":{...}}'",
           ],
         };
@@ -187,9 +173,9 @@ export function resolveNextAction(runState, opts = {}) {
         action: "transition",
         agent: null,
         skill: "writing-plans",
-        command: "nexus run transition --to PLANNED",
-        instruction: "PLAN.md exists. Transition to PLANNED.",
-        steps: ["nexus run transition --to PLANNED"],
+        command: "nexus run transition --to PLANNED --plan-check",
+        instruction: "PLAN.md exists. Run the integrated plan-check while transitioning to PLANNED.",
+        steps: ["nexus run transition --to PLANNED --plan-check"],
       };
 
     case "WAITING_FOR_USER":

@@ -8,6 +8,7 @@ const SCHEMAS_DIR = path.resolve(__dirname, "../../schemas");
 const HANDOFF_SCHEMA = {
   implementer: "handoff-implementer.schema.json",
   reviewer: "handoff-reviewer.schema.json",
+  "plan-advisor": "handoff-plan-advisor.schema.json",
   // Legacy aliases → reviewer schema (V5 broke dual/unified split)
   "unified-reviewer": "handoff-reviewer.schema.json",
   "spec-reviewer": "handoff-reviewer.schema.json",
@@ -40,7 +41,8 @@ function matchesType(data, type) {
 /**
  * Hand-rolled JSON Schema draft-07 subset validator.
  * Supports: type, enum, const, required, properties, additionalProperties,
- * items, oneOf, anyOf, allOf, minLength, minimum, $ref (local file set).
+ * items, oneOf, anyOf, allOf, minLength, maxLength, pattern, minimum, $ref
+ * (local file set).
  */
 export function validate(schema, data, options = {}) {
   const errors = [];
@@ -100,12 +102,26 @@ export function validate(schema, data, options = {}) {
       return;
     }
 
-    if (
-      typeof val === "string" &&
-      sch.minLength !== undefined &&
-      val.length < sch.minLength
-    ) {
-      fail(p, `string shorter than minLength ${sch.minLength}`);
+    if (typeof val === "string") {
+      if (sch.minLength !== undefined && val.length < sch.minLength) {
+        fail(p, `string shorter than minLength ${sch.minLength}`);
+      }
+      if (sch.maxLength !== undefined && val.length > sch.maxLength) {
+        fail(p, `string longer than maxLength ${sch.maxLength}`);
+      }
+      if (typeof sch.pattern === "string") {
+        let matches = false;
+        let patternError = false;
+        try {
+          matches = new RegExp(sch.pattern).test(val);
+        } catch {
+          patternError = true;
+          fail(p, `invalid schema pattern ${JSON.stringify(sch.pattern)}`);
+        }
+        if (!matches && !patternError) {
+          fail(p, `string does not match pattern ${JSON.stringify(sch.pattern)}`);
+        }
+      }
     }
 
     if (
@@ -212,6 +228,11 @@ export function validateHandoff(role, data) {
     document: schema,
     rootSchemas: loadAllSchemas(),
   });
+}
+
+/** Validate the planning-only handoff without applying implementer/reviewer migrations. */
+export function validatePlanAdvisorHandoff(data) {
+  return validateHandoff("plan-advisor", data);
 }
 
 export function validateRunState(data) {

@@ -6,6 +6,7 @@ import {
   validateBlastReport,
   validateDriftReport,
   validateImpactReport,
+  validatePlanAdvisorHandoff,
 } from "./schema-validate.js";
 import { isPlanCommitAcceptable } from "./drift.js";
 import { createDefaultProviders, getAgentCallBudget } from "./providers.js";
@@ -87,20 +88,6 @@ function nowIso() {
 
 function exists(p) {
   return !!p && fs.existsSync(p);
-}
-
-function planDeclaresExecutionUnits(ctx = {}) {
-  const planPath =
-    ctx.plan_path ||
-    (ctx.worktree && path.join(ctx.worktree, ".opencode", "plans", "PLAN.md"));
-  if (!planPath || !fs.existsSync(planPath)) return false;
-  try {
-    return /^###\s+(?:Execution\s+Unit|Task)\s+/im.test(
-      fs.readFileSync(planPath, "utf8"),
-    );
-  } catch {
-    return false;
-  }
 }
 
 export function sealImpactArtifact(report, worktreeHead = null) {
@@ -211,7 +198,7 @@ export function requiredEvidence(from, to) {
     "CREATED->BRAINSTORMING": [],
     "BRAINSTORMING->WAITING_FOR_USER": ["question"],
     "WAITING_FOR_USER->BRAINSTORMING": [],
-    "BRAINSTORMING->PLANNED": ["plan_path"],
+    "BRAINSTORMING->PLANNED": ["plan_path", "plan_check"],
     "PLANNED->TASK_IMPACT_READY": ["impact"],
     "TASK_IMPACT_READY->IMPLEMENTING": [
       "branch",
@@ -390,14 +377,18 @@ function planningModeFromContext(ctx = {}, state = {}) {
 
 function planAdvisorCallsFromContext(ctx = {}, state = {}) {
   const evidence = planAdvisorEvidence(ctx, state);
-  if (evidence?.called === false) return 0;
-  if (Number.isFinite(Number(ctx.plan_advisor_calls))) {
-    return Math.max(0, Math.floor(Number(ctx.plan_advisor_calls)));
-  }
   if (Number.isFinite(Number(evidence?.calls))) {
     return Math.max(0, Math.floor(Number(evidence.calls)));
   }
-  return evidence ? 1 : 0;
+  if (evidence?.called === false) return 0;
+  if (evidence) return 1;
+  if (Number.isFinite(Number(ctx.plan_advisor_calls))) {
+    return Math.max(0, Math.floor(Number(ctx.plan_advisor_calls)));
+  }
+  if (Number.isFinite(Number(state.plan_advisor_calls))) {
+    return Math.max(0, Math.floor(Number(state.plan_advisor_calls)));
+  }
+  return 0;
 }
 
 function hasCriticalPlanDisagreement(ctx = {}, advisor = null) {
@@ -420,14 +411,20 @@ function finalReviewReuseRequested(ctx = {}) {
 }
 
 function currentReviewTip(state, ctx = {}) {
-  return (
-    (ctx.worktree && gitRevParse(ctx.worktree, "HEAD")) ||
-    // In-memory callers may not have a worktree probe. Prefer the persisted
-    // post-implementation commit; head_commit is the pre-task base in V5.
-    state.implementer_commit ||
-    state.head_commit ||
-    null
+  // Final-review reuse is a provenance-sensitive shortcut. A persisted
+  // implementer commit is not a substitute for recomputing the current tip
+  // from the bound worktree.
+  return ctx.worktree ? gitRevParse(ctx.worktree, "HEAD") : null;
+}
+
+function reviewerWorkspaceMutationErrors(worktree) {
+  if (!worktree) return [];
+  const dirtyCode = gitDirtyPaths(worktree).filter(
+    (file) => !file.startsWith(".opencode/"),
   );
+  return dirtyCode.length > 0
+    ? [`reviewer approval rejected: workspace changed outside .opencode (${dirtyCode.join(", ")})`]
+    : [];
 }
 
 function stateUnitCount(state = {}) {
@@ -440,6 +437,11 @@ function stateUnitCount(state = {}) {
 
 function singleUnitReuseErrors(state, ctx, handoff, reviewPackage) {
   const errors = [];
+  if (!ctx.worktree) {
+    errors.push(
+      "single-unit final-review reuse requires a bound worktree for HEAD and digest verification",
+    );
+  }
   if (stateUnitCount(state) !== 1) {
     errors.push(
       "single-unit final-review reuse is allowed only when the run has exactly one execution unit",
@@ -523,6 +525,7 @@ function validateReviewerApproval(handoff, state, ctx, {
   if (canSelfApproveSafe(state, data, ctx)) {
     errors.push("no self-approval: reviewer agent matches implementer");
   }
+  errors.push(...reviewerWorkspaceMutationErrors(ctx.worktree));
   const pkgCheck = assertReviewPackageBound(pkg, {
     scope: expectedScope,
     worktree: ctx.worktree,
@@ -999,6 +1002,14 @@ export function canTransition(state, to, ctx = {}) {
       errors.push("compact planning must not spend a plan-advisor call");
     }
     if (advisor) {
+      const advisorSchema = validatePlanAdvisorHandoff(advisor);
+      if (!advisorSchema.ok) {
+        errors.push(
+          `plan-advisor handoff schema invalid: ${advisorSchema.errors
+            .map((error) => `${error.path} ${error.message}`)
+            .join("; ")}`,
+        );
+      }
       if (advisor.agent !== "plan-advisor") {
         errors.push(
           `plan advisor handoff agent must be "plan-advisor" (got "${advisor.agent || "missing"}")`,
@@ -1015,26 +1026,13 @@ export function canTransition(state, to, ctx = {}) {
       });
       if (!diversity.ok) errors.push(diversity.error);
     }
-    const plannedUnits =
-      ctx.execution_units ??
-      ctx.units ??
-      ctx.tasks ??
-      state.execution_units ??
-      state.units ??
-      state.tasks;
-    const hasExplicitUnits =
-      (Array.isArray(plannedUnits) && plannedUnits.length > 0) ||
-      (Number.isFinite(Number(plannedUnits)) && Number(plannedUnits) > 0) ||
-      planDeclaresExecutionUnits(ctx);
-    if (
-      (hasExplicitUnits || ctx.plan_check_required === true) &&
-      !(ctx.plan_check?.ok === true || state.plan_check?.ok === true)
-    ) {
+    const planCheck = ctx.plan_check || state.plan_check;
+    if (!adminSkip && planCheck?.ok !== true) {
       errors.push(
-        "PLANNED requires a passing deterministic plan-check report for execution units",
+        "PLANNED requires a passing deterministic plan-check report (use transition --plan-check)",
       );
     }
-    if (ctx.plan_check && ctx.plan_check.ok === false) {
+    if (!adminSkip && ctx.plan_check?.ok === false) {
       errors.push("PLANNED rejects a failed plan-check report");
     }
   }
@@ -1570,12 +1568,6 @@ export function transition(state, to, evidence = {}, providers = null) {
       next.plan_advisor = advisor;
       next.plan_advisor_handoff = advisor;
       next.plan_advisor_calls = planAdvisorCallsFromContext(ctx, state);
-    }
-    if (ctx.plan_advisor_calls != null) {
-      next.plan_advisor_calls = Math.max(
-        0,
-        Math.floor(Number(ctx.plan_advisor_calls) || 0),
-      );
     }
     if (ctx.plan_check != null) next.plan_check = ctx.plan_check;
     if (ctx.change_class) next.change_class = ctx.change_class;

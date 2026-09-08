@@ -270,7 +270,8 @@ nexus project-init
 nexus run init --run-id demo
 nexus classify --files 2 --lines 40 --class small-feature-with-tests --focused
 nexus estimate --tasks 3
-nexus plan-check --json
+nexus plan-check --json                 # diagnostic only
+nexus run transition --to PLANNED --plan-check  # persist the passing gate
 ```
 
 Impact analysis & baseline:
@@ -309,7 +310,7 @@ Only the **implementer** writes production code. Nexus uses one fixed V5 workflo
 
 - Every implementer dispatch requires fresh pre-impact evidence.
 - Standard/deep plans may use one independent `plan-advisor` call before synthesis; compact plans do not.
-- `nexus plan-check` deterministically validates the execution-unit DAG, acceptance/verification ownership, decomposition warnings, and call estimate.
+- `nexus run transition --to PLANNED --plan-check` runs the deterministic execution-unit DAG, acceptance/verification, decomposition-warning, and call-estimate gate and persists its passing report; standalone `nexus plan-check` is diagnostic.
 - Every task receives a task-scoped review package and reviewer after verification.
 - After the final task, a final review package and reviewer examine the whole run for multi-unit integration before final verification. A single-unit run may reuse its task review only with the explicit digest/HEAD-bound gate.
 - Impact risk controls verification-ladder intensity; it does not select a workflow profile or change the review roster.

@@ -63,6 +63,28 @@ function json(value) {
   return JSON.stringify(value);
 }
 
+const VALID_COMPACT_PLAN = `# Plan
+- Planning mode: compact
+
+## Execution Unit Justification
+Number of units: 1
+
+Why not fewer:
+- The behavior is one cohesive change.
+
+Why not more:
+- No independent implementation boundary is needed.
+
+## Execution Unit breakdown
+### Execution Unit 1: application behavior
+- id: unit-1
+- Allowed files: \`src/app.js\`
+- Acceptance criteria:
+  - [ ] hello returns the updated value.
+- Verification gates:
+  1. npm test
+`;
+
 after(() => {
   for (const root of temporaryRoots) fs.rmSync(root, { recursive: true, force: true });
 });
@@ -105,13 +127,17 @@ test("nexus-run completes a full CLI workflow in a temporary repository", () => 
     "BRAINSTORMING",
   ]);
   fs.mkdirSync(path.join(root, ".opencode", "plans"), { recursive: true });
-  fs.writeFileSync(path.join(root, ".opencode", "plans", "PLAN.md"), "# Plan\n\n## Goal\ne2e\n");
+  fs.writeFileSync(
+    path.join(root, ".opencode", "plans", "PLAN.md"),
+    VALID_COMPACT_PLAN,
+  );
   invoke(root, home, [
     "transition",
     "--run-id",
     runId,
     "--to",
     "PLANNED",
+    "--plan-check",
   ]);
 
   const impactReady = invoke(root, home, [
@@ -431,8 +457,11 @@ test("nexus CLI run forwards workflow in an external temporary repository", () =
 
   nexus(["transition", "--run-id", runId, "--to", "BRAINSTORMING"]);
   fs.mkdirSync(path.join(root, ".opencode", "plans"), { recursive: true });
-  fs.writeFileSync(path.join(root, ".opencode", "plans", "PLAN.md"), "# Plan\n\n## Goal\ne2e\n");
-  nexus(["transition", "--run-id", runId, "--to", "PLANNED"]);
+  fs.writeFileSync(
+    path.join(root, ".opencode", "plans", "PLAN.md"),
+    VALID_COMPACT_PLAN,
+  );
+  nexus(["transition", "--run-id", runId, "--to", "PLANNED", "--plan-check"]);
   const impactReady = nexus([
     "transition",
     "--run-id",

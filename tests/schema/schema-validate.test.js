@@ -4,6 +4,7 @@ import {
   validate,
   loadSchema,
   validateHandoff,
+  validatePlanAdvisorHandoff,
   validateRunState,
 } from "../../scripts/lib/schema-validate.js";
 import {
@@ -24,6 +25,20 @@ test("run-state rejects unknown state", () => {
   state.state = "NOT_A_STATE";
   const r = validateRunState(state);
   assert.equal(r.ok, false);
+});
+
+test("run-state enforces run_id pattern and maxLength", () => {
+  const pathLikeState = createEmptyRunState("valid-run");
+  pathLikeState.run_id = "../outside";
+  const pathLike = validateRunState(pathLikeState);
+  assert.equal(pathLike.ok, false);
+  assert.ok(pathLike.errors.some((error) => /pattern/i.test(error.message)));
+
+  const tooLongState = createEmptyRunState("valid-run");
+  tooLongState.run_id = "a".repeat(129);
+  const tooLong = validateRunState(tooLongState);
+  assert.equal(tooLong.ok, false);
+  assert.ok(tooLong.errors.some((error) => /maxLength/i.test(error.message)));
 });
 
 test("implementer handoff 1.1 validates", () => {
@@ -63,6 +78,36 @@ test("corrupt implementer handoff rejected", () => {
     status: "DONE_WRONG",
   });
   assert.equal(r.ok, false);
+});
+
+test("plan-advisor handoff has an independent read-only schema", () => {
+  const valid = {
+    schema_version: "1.0",
+    agent: "plan-advisor",
+    calls: 1,
+    read_only: true,
+    permission_profile: "read-only-bash-allowlist",
+    plan_verdict: "KEEP",
+    simpler_approach_available: false,
+    units: [
+      {
+        id: "unit-1",
+        verdict: "KEEP",
+        action: "KEEP",
+        with: null,
+        reason: "The boundary is cohesive.",
+      },
+    ],
+    missing_dependencies: [],
+    missing_edge_cases: [],
+    risk_misses: [],
+    recommended_unit_count: 1,
+    model: "openai/gpt-5-mini",
+  };
+  assert.equal(validateHandoff("plan-advisor", valid).ok, true);
+  assert.equal(validatePlanAdvisorHandoff(valid).ok, true);
+  const forged = { ...valid, read_only: false };
+  assert.equal(validatePlanAdvisorHandoff(forged).ok, false);
 });
 
 test("legacy 0.9 implementer migrates to 1.1 as legacy_unverified", () => {

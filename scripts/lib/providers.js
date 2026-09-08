@@ -8,6 +8,7 @@ import { fileURLToPath } from "url";
 import { createNexusImpactProvider } from "./providers/impact-provider.js";
 import { createVerificationProvider } from "./providers/verification-provider.js";
 import { createMemoryProvider } from "./providers/memory-provider.js";
+import { agentCostModel } from "./agent-estimate.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SUPPORTED_PROVIDER_MODE = "nexus-impact";
@@ -49,13 +50,21 @@ function normalizeMode(mode) {
  */
 export function getAgentCallBudget(options = {}) {
   const units = Math.max(1, Math.floor(Number(options.units) || 1));
-  const perTask = 2;
-  const fixHeadroom = Math.max(2, units); // one extra implementer+reviewer pair per task
-  const planningAdvisorCalls = Math.max(
-    0,
-    Math.floor(Number(options.planningAdvisorCalls ?? options.plan_advisor_calls) || 0),
-  );
-  const derivedMax = perTask * units + fixHeadroom + planningAdvisorCalls;
+  const rawAdvisorCalls = options.planningAdvisorCalls ?? options.plan_advisor_calls;
+  const hasExplicitAdvisorCalls = rawAdvisorCalls !== undefined && rawAdvisorCalls !== null;
+  const planningAdvisorCalls = hasExplicitAdvisorCalls
+    ? Math.max(0, Math.floor(Number(rawAdvisorCalls) || 0))
+    : undefined;
+  // Keep the runtime ceiling on the same canonical model used by
+  // scripts/nexus-estimate-calls.js. Reuse is an explicit execution choice;
+  // the initial run budget conservatively includes the final reviewer and
+  // simply leaves that allowance unused when reuse is later admitted.
+  const cost = agentCostModel({
+    units,
+    planningMode: options.planningMode || "compact",
+    ...(hasExplicitAdvisorCalls ? { advisorCalls: planningAdvisorCalls } : {}),
+  });
+  const derivedMax = cost.calls.budget_ceiling;
   const requestedMax = Number(options.maxCalls ?? options.max_calls);
   const maxCalls = Number.isFinite(requestedMax) && requestedMax >= 0
     ? Math.min(Math.floor(requestedMax), derivedMax)
@@ -75,7 +84,9 @@ export function getAgentCallBudget(options = {}) {
   };
   // Preserve the V5 budget shape for ordinary runs; expose the extra planning
   // allowance only when a planning advisor was actually charged.
-  if (planningAdvisorCalls > 0) budget.planning_advisor_calls = planningAdvisorCalls;
+  if (cost.plan_advisor_calls > 0) {
+    budget.planning_advisor_calls = cost.plan_advisor_calls;
+  }
   return budget;
 }
 

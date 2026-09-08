@@ -34,7 +34,10 @@ function driftOk(head = "base111") {
 function toPlanned(runId = "gate") {
   let s = createEmptyRunState(runId);
   s = transition(s, "BRAINSTORMING", {}).state;
-  s = transition(s, "PLANNED", { plan_exists: true }).state;
+  s = transition(s, "PLANNED", {
+    plan_exists: true,
+    plan_check: { ok: true, plan_check: "PASS", errors: [] },
+  }).state;
   return s;
 }
 

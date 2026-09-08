@@ -7,7 +7,7 @@
  * Commands:
  *   init --run-id <id>
  *   classify [--input file|--json '{}'] [classifier flags...]
- *   transition --to STATE [--evidence path] [--json '{}']
+ *   transition --to STATE [--evidence path] [--json '{}'] [--plan-check]
  *   validate-handoff --role ROLE --file path
  *   status [--run-id id]
  *   resume [--run-id id]

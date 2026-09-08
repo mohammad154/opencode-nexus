@@ -47,6 +47,9 @@ function isReviewerRoleName(role) {
 export function normalizeHandoff(role, raw) {
   const data = deepClone(raw && typeof raw === "object" ? raw : {});
   const migrated_from = raw?.schema_version || LEGACY_HANDOFF;
+  // The planning advisor has its own independent handoff contract. Do not
+  // coerce it into the implementer/reviewer envelope before validation.
+  if (role === "plan-advisor") return { data, migrated_from };
   const wasLegacy = isLegacyHandoffVersion(raw?.schema_version);
   const reviewerRole = isReviewerRoleName(role);
 

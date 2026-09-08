@@ -21,6 +21,15 @@ const GENERIC_TITLE_WORDS = new Set([
   "with",
 ]);
 
+const ACTIONABLE_WARNING_CODES = new Set([
+  "MERGE_CANDIDATE",
+  "TEST_ONLY_UNIT",
+  "SETUP_ONLY_UNIT",
+  "DUPLICATE_ALLOWED_FILE",
+  "OVERSIZED_UNIT",
+]);
+const WARNING_DISPOSITION_DECISIONS = new Set(["MERGED", "KEEP_SEPARATE"]);
+
 function clean(value) {
   return String(value ?? "").replace(/\r$/, "").trim();
 }
@@ -67,6 +76,59 @@ function extractPathTokens(value) {
     .map((item) => item.replace(/^[./]+(?=[A-Za-z])/, ""));
 }
 
+function normalizeWarningDispositions(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw.map((item) => {
+    const disposition = item && typeof item === "object" ? item : {};
+    const rawUnits = disposition.units ?? disposition.unit_ids ?? disposition.unit;
+    const units = Array.isArray(rawUnits)
+      ? rawUnits.map(clean).filter(Boolean)
+      : splitValues(rawUnits);
+    return {
+      ...disposition,
+      code: clean(disposition.code).toUpperCase(),
+      units: [...new Set(units)],
+      file: clean(disposition.file),
+      decision: clean(disposition.decision).toUpperCase(),
+      reason: clean(disposition.reason),
+    };
+  });
+}
+
+/** Parse the small YAML-like disposition block emitted by writing-plans. */
+function parseWarningDispositions(lines) {
+  const start = lines.findIndex((line) =>
+    /^##\s+(?:Plan\s+Check\s+)?(?:Warning\s+)?Dispositions\s*$/i.test(line),
+  );
+  if (start < 0) return [];
+  const end = lines.findIndex(
+    (line, index) => index > start && /^##\s+/.test(line),
+  );
+  const section = lines.slice(start + 1, end < 0 ? lines.length : end);
+  const raw = [];
+  let current = null;
+  for (const line of section) {
+    const code = line.match(/^\s*[-*]\s*code\s*:\s*(.+)$/i);
+    if (code) {
+      if (current) raw.push(current);
+      current = { code: unquote(code[1]) };
+      continue;
+    }
+    if (!current) continue;
+    const field = line.match(/^\s*[-*]?\s*(units?|unit_ids?|file|decision|reason)\s*:\s*(.*)$/i);
+    if (!field) continue;
+    const key = field[1].toLowerCase();
+    const value = unquote(field[2]);
+    if (key === "unit" || key === "units" || key === "unit_ids") {
+      current.units = splitValues(value);
+    } else {
+      current[key] = value;
+    }
+  }
+  if (current) raw.push(current);
+  return normalizeWarningDispositions(raw);
+}
+
 function headingSections(lines) {
   const matches = [];
   for (let i = 0; i < lines.length; i += 1) {
@@ -75,13 +137,14 @@ function headingSections(lines) {
     );
     if (match) matches.push({ index: i, title: clean(match[1]) });
   }
-  return matches.map((entry, index) => ({
-    ...entry,
-    lines: lines.slice(
-      entry.index + 1,
-      index + 1 < matches.length ? matches[index + 1].index : lines.length,
-    ),
-  }));
+  return matches.map((entry, index) => {
+    const nextUnit = index + 1 < matches.length ? matches[index + 1].index : lines.length;
+    const nextSection = lines.findIndex(
+      (line, candidate) => candidate > entry.index && /^##\s+/.test(line),
+    );
+    const end = Math.min(nextUnit, nextSection < 0 ? lines.length : nextSection);
+    return { ...entry, lines: lines.slice(entry.index + 1, end) };
+  });
 }
 
 function parseJustification(lines) {
@@ -251,6 +314,7 @@ export function parsePlanMarkdown(planText) {
     execution_units: units,
     tasks: units,
     justification: parseJustification(lines),
+    warning_dispositions: parseWarningDispositions(lines),
   };
 }
 
@@ -294,6 +358,9 @@ export function normalizePlan(plan) {
     execution_units: units,
     tasks: units,
     justification: raw.justification || raw.execution_unit_justification || null,
+    warning_dispositions: normalizeWarningDispositions(
+      raw.warning_dispositions ?? raw.warningDispositions,
+    ),
   };
 }
 
@@ -346,14 +413,136 @@ function describeCandidate(a, b, overlap) {
   const reasons = [];
   if (overlap.pairs.length > 0) reasons.push("overlapping allowed_files");
   if (sameFeatureOutcome(a, b)) reasons.push("same feature outcome language");
-  if (isTestOnly(a) && b.depends_on?.includes(a.id)) reasons.push("tests are only for the dependent unit");
-  if (isTestOnly(b) && a.depends_on?.includes(b.id)) reasons.push("tests are only for the dependent unit");
+  if (isTestOnly(a) && a.depends_on?.includes(b.id)) reasons.push("tests are only for the dependent unit");
+  if (isTestOnly(b) && b.depends_on?.includes(a.id)) reasons.push("tests are only for the dependent unit");
   return reasons;
 }
 
+function warningUnits(warning) {
+  if (Array.isArray(warning.units)) return warning.units.map(clean).filter(Boolean);
+  if (warning.unit) return [clean(warning.unit)];
+  return [];
+}
+
+function dispositionMatchesWarning(disposition, warning) {
+  if (disposition.code !== warning.code) return false;
+  if (warning.file && disposition.file !== warning.file) return false;
+  const expectedUnits = warningUnits(warning);
+  const actualUnits = Array.isArray(disposition.units)
+    ? disposition.units
+    : [];
+  if (expectedUnits.length === 0) return actualUnits.length === 0;
+  if (expectedUnits.length !== actualUnits.length) return false;
+  return expectedUnits.every((unit) => actualUnits.includes(unit));
+}
+
+function validateWarningDispositions(warnings, dispositions) {
+  const errors = [];
+  const actionable = warnings.filter((warning) =>
+    ACTIONABLE_WARNING_CODES.has(warning.code),
+  );
+  for (const warning of actionable) {
+    if (!dispositions.some((item) => dispositionMatchesWarning(item, warning))) {
+      const target = warningUnits(warning).join(", ") || warning.file || "plan";
+      errors.push({
+        code: "MISSING_WARNING_DISPOSITION",
+        warning_code: warning.code,
+        units: warning.units || (warning.unit ? [warning.unit] : undefined),
+        file: warning.file,
+        message: `${warning.code} for ${target} requires a MERGED or KEEP_SEPARATE disposition with a reason`,
+      });
+    }
+  }
+  for (const disposition of dispositions) {
+    if (!ACTIONABLE_WARNING_CODES.has(disposition.code)) {
+      errors.push({
+        code: "UNKNOWN_WARNING_DISPOSITION",
+        message: `warning disposition has unsupported code ${disposition.code || "(missing)"}`,
+      });
+      continue;
+    }
+    if (!WARNING_DISPOSITION_DECISIONS.has(disposition.decision)) {
+      errors.push({
+        code: "INVALID_WARNING_DISPOSITION",
+        warning_code: disposition.code,
+        message: `${disposition.code} disposition must use decision MERGED or KEEP_SEPARATE`,
+      });
+    }
+    if (!disposition.reason) {
+      errors.push({
+        code: "INVALID_WARNING_DISPOSITION",
+        warning_code: disposition.code,
+        message: `${disposition.code} disposition requires a reason`,
+      });
+    }
+    if (!actionable.some((warning) => dispositionMatchesWarning(disposition, warning))) {
+      errors.push({
+        code: "UNKNOWN_WARNING_DISPOSITION",
+        warning_code: disposition.code,
+        message: `${disposition.code} disposition does not match an actionable warning`,
+      });
+    }
+  }
+  return errors;
+}
+
 /**
- * Run the deterministic pre-finalization linter. Warnings are actionable but
- * do not fail normal mode; --strict can turn them into a hard planning gate.
+ * Return a maximum-cardinality set of disjoint candidate pairs for the
+ * decomposition suggestion. This intentionally suggests pair merges only;
+ * overlapping candidates are not subtracted once per edge.
+ */
+function maximumMergeMatchingSize(units, candidates) {
+  const index = new Map(units.map((unit, position) => [unit.id, position]));
+  const edges = candidates
+    .map((candidate) => (candidate.units || []).map((id) => index.get(id)))
+    .filter(([left, right]) => Number.isInteger(left) && Number.isInteger(right) && left !== right)
+    .map(([left, right]) => [Math.min(left, right), Math.max(left, right)])
+    .sort(([a, b], [c, d]) => a - c || b - d);
+  if (edges.length === 0) return 0;
+
+  // Exact memoized matching is practical for the small plans this linter is
+  // designed to advise on. Fall back to a deterministic maximal matching for
+  // unusually large plans rather than allowing the suggestion to dominate a
+  // lint run.
+  if (units.length > 18) {
+    const used = new Set();
+    let matched = 0;
+    for (const [left, right] of edges) {
+      if (used.has(left) || used.has(right)) continue;
+      used.add(left);
+      used.add(right);
+      matched += 1;
+    }
+    return matched;
+  }
+
+  const adjacency = Array.from({ length: units.length }, () => []);
+  for (const [left, right] of edges) {
+    adjacency[left].push(right);
+    adjacency[right].push(left);
+  }
+  const memo = new Map();
+  function solve(mask) {
+    if (mask === 0) return 0;
+    if (memo.has(mask)) return memo.get(mask);
+    const firstBit = mask & -mask;
+    const first = Math.log2(firstBit);
+    let best = solve(mask ^ firstBit);
+    for (const neighbor of adjacency[first]) {
+      const neighborBit = 1 << neighbor;
+      if ((mask & neighborBit) === 0) continue;
+      best = Math.max(best, 1 + solve(mask ^ firstBit ^ neighborBit));
+    }
+    memo.set(mask, best);
+    return best;
+  }
+  return solve((1 << units.length) - 1);
+}
+
+/**
+ * Run the deterministic pre-finalization linter. Decomposition warnings are
+ * advisory only after every actionable warning has an explicit disposition;
+ * use `requireWarningDispositions: false` for diagnostic-only callers.
  */
 export function checkPlan(plan, options = {}) {
   const normalized = normalizePlan(plan);
@@ -438,6 +627,21 @@ export function checkPlan(plan, options = {}) {
     }
   }
 
+  const warningDispositions = normalizeWarningDispositions(
+    normalized.warning_dispositions,
+  );
+  const dispositionErrors = validateWarningDispositions(
+    warnings,
+    warningDispositions,
+  );
+  const requireWarningDispositions = options.requireWarningDispositions !== false;
+  errors.push(
+    ...dispositionErrors.filter(
+      (error) =>
+        requireWarningDispositions || error.code !== "MISSING_WARNING_DISPOSITION",
+    ),
+  );
+
   const justification = normalized.justification;
   if (!justification) {
     errors.push({ code: "MISSING_UNIT_JUSTIFICATION", message: "plan must include ## Execution Unit Justification" });
@@ -468,13 +672,8 @@ export function checkPlan(plan, options = {}) {
         maxConcurrency: Math.max(1, Number(options.maxConcurrency) || 1),
       })
     : { ok: false };
-  const suggestedUnitCount = Math.max(
-    1,
-    Math.min(
-      units.length || 1,
-      units.length - mergeCandidates.length,
-    ),
-  );
+  const mergeMatchingSize = maximumMergeMatchingSize(units, mergeCandidates);
+  const suggestedUnitCount = Math.max(1, units.length - mergeMatchingSize);
   const strictFailure = options.strict === true && warnings.length > 0;
   return {
     ok: errors.length === 0 && !strictFailure,
@@ -487,6 +686,9 @@ export function checkPlan(plan, options = {}) {
     errors,
     warnings,
     merge_candidates: mergeCandidates,
+    warning_dispositions: warningDispositions,
+    disposition_errors: dispositionErrors,
+    merge_matching_size: mergeMatchingSize,
     suggested_unit_count: suggestedUnitCount,
     estimate,
     dag: schedule,
@@ -494,6 +696,31 @@ export function checkPlan(plan, options = {}) {
 }
 
 export function checkPlanFile(planPath, options = {}) {
+  if (typeof planPath !== "string" || planPath.trim() === "") {
+    return {
+      ok: false,
+      plan_check: "FAIL",
+      plan_path: planPath ?? null,
+      source: "invalid-path",
+      unit_count: 0,
+      execution_units: [],
+      tasks: [],
+      planning_mode: null,
+      errors: [
+        {
+          code: "INVALID_PLAN_PATH",
+          message: "plan path must be a non-empty string",
+        },
+      ],
+      warnings: [],
+      merge_candidates: [],
+      warning_dispositions: [],
+      disposition_errors: [],
+      merge_matching_size: 0,
+      suggested_unit_count: 0,
+      estimate: estimateAgentCalls({ units: 1 }),
+    };
+  }
   const absolute = path.resolve(planPath);
   if (!fs.existsSync(absolute)) {
     return {
@@ -508,6 +735,9 @@ export function checkPlanFile(planPath, options = {}) {
       errors: [{ code: "PLAN_NOT_FOUND", message: `plan file not found: ${planPath}` }],
       warnings: [],
       merge_candidates: [],
+      warning_dispositions: [],
+      disposition_errors: [],
+      merge_matching_size: 0,
       suggested_unit_count: 0,
       estimate: estimateAgentCalls({ units: 1 }),
     };

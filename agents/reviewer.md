@@ -9,7 +9,17 @@ permission:
   edit:
     "*": deny
     ".opencode/handoffs/**": allow
-  bash: allow
+  bash:
+    "*": deny
+    "git status*": allow
+    "git diff*": allow
+    "git log*": allow
+    "git show*": allow
+    "git rev-parse*": allow
+    "rg *": allow
+    "grep *": allow
+    "npm test*": allow
+    "npm run test*": allow
   task:
     "*": deny
 ---
@@ -37,6 +47,7 @@ Output:
 Hard requirements:
 
 - Never edit production code; Write only for handoff JSON under `.opencode/handoffs/`.
+- Nexus rejects reviewer approval when the bound workspace has changes outside `.opencode/`; Bash is limited to inspection and verification commands.
 - Never APPROVE your own implementation (you are not the implementer).
 - Do not escalate to dual review — there is only this reviewer. If unsure, REQUEST_CHANGES with concrete findings.
 - Do not APPROVE with empty acceptance, empty `files_reviewed`, or missing mandatory checks — Nexus will reject that at the gate.

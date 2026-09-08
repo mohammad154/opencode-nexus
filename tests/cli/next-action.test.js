@@ -70,7 +70,50 @@ test("BRAINSTORMING without plan asks to write plan", () => {
   fs.rmSync(wt, { recursive: true, force: true });
 });
 
-test("BRAINSTORMING with PLAN.md → transition PLANNED", () => {
+test("BRAINSTORMING standard planning dispatches the plan advisor first", () => {
+  const next = resolveNextAction({
+    run_id: "r-advisor",
+    state: "BRAINSTORMING",
+    planning_mode: "standard",
+  });
+  assert.equal(next.action, "dispatch_plan_advisor");
+  assert.equal(next.agent, "plan-advisor");
+  assert.match(next.instruction, /read-only/i);
+});
+
+test("BRAINSTORMING with execution units requests plan-check", (t) => {
+  const wt = tempDir("nexus-next-plan-check-");
+  t.after(() => fs.rmSync(wt, { recursive: true, force: true }));
+  const plan = path.join(wt, ".opencode", "plans", "PLAN.md");
+  fs.mkdirSync(path.dirname(plan), { recursive: true });
+  fs.writeFileSync(plan, "# Plan\n\n### Execution Unit 1: behavior\n");
+  const next = resolveNextAction(
+    { run_id: "r-plan-check", state: "BRAINSTORMING", planning_mode: "compact" },
+    { worktree: wt },
+  );
+  assert.equal(next.action, "plan_check");
+  assert.match(next.command || "", /transition .*--plan-check/);
+});
+
+test("BRAINSTORMING retries plan-check after a failed report", (t) => {
+  const wt = tempDir("nexus-next-plan-check-failed-");
+  t.after(() => fs.rmSync(wt, { recursive: true, force: true }));
+  const plan = path.join(wt, ".opencode", "plans", "PLAN.md");
+  fs.mkdirSync(path.dirname(plan), { recursive: true });
+  fs.writeFileSync(plan, "# Plan\n\n### Execution Unit 1: behavior\n");
+  const next = resolveNextAction(
+    {
+      run_id: "r-plan-check-failed",
+      state: "BRAINSTORMING",
+      planning_mode: "compact",
+      plan_check: { ok: false, errors: [{ code: "MISSING_ACCEPTANCE" }] },
+    },
+    { worktree: wt },
+  );
+  assert.equal(next.action, "plan_check");
+});
+
+test("BRAINSTORMING with any PLAN.md requests integrated plan-check", () => {
   const wt = tempDir("nexus-next-hasplan-");
   const plan = path.join(wt, ".opencode", "plans", "PLAN.md");
   fs.mkdirSync(path.dirname(plan), { recursive: true });
@@ -79,9 +122,26 @@ test("BRAINSTORMING with PLAN.md → transition PLANNED", () => {
     { run_id: "r1", state: "BRAINSTORMING" },
     { worktree: wt },
   );
-  assert.equal(next.action, "transition");
-  assert.match(next.command || "", /PLANNED/);
+  assert.equal(next.action, "plan_check");
+  assert.match(next.command || "", /transition .*--plan-check/);
   fs.rmSync(wt, { recursive: true, force: true });
+});
+
+test("REVIEWING distinguishes single-unit reuse from multi-unit final review", () => {
+  const single = resolveNextAction({
+    run_id: "r-single",
+    state: "REVIEWING",
+    execution_units: [{ id: "unit-1" }],
+  });
+  assert.match(single.instruction, /reuse/i);
+
+  const multi = resolveNextAction({
+    run_id: "r-multi",
+    state: "REVIEWING",
+    execution_units: [{ id: "unit-1" }, { id: "unit-2" }],
+  });
+  assert.match(multi.instruction, /FINAL_REVIEWING/i);
+  assert.doesNotMatch(multi.instruction, /single unit.*reuse/i);
 });
 
 test("buildRunGateReminder includes Nexus Next Action", () => {

@@ -230,3 +230,25 @@ test("agent permissions place catch-all '*' before specific rules", () => {
     }
   }
 });
+
+test("plan-advisor Bash permissions fail closed to read-only inspection", () => {
+  const agentsDir = path.resolve(import.meta.dirname, "../../agents");
+  const advisor = fs.readFileSync(path.join(agentsDir, "plan-advisor.md"), "utf8");
+  const bash = advisor.match(/\n  bash:\n((?:    .*\n)+)/)?.[1] || "";
+  assert.match(bash, /^    "\*": deny/m);
+  for (const command of [
+    "git status",
+    "git diff",
+    "git log",
+    "git show",
+    "git rev-parse",
+    "rg",
+  ]) {
+    assert.match(bash, new RegExp(`"${command}[^\"]*": allow`));
+  }
+  for (const file of ["reviewer.md", "orchestrator.md"]) {
+    const content = fs.readFileSync(path.join(agentsDir, file), "utf8");
+    const block = content.match(/\n  bash:\n((?:    .*\n)+)/)?.[1] || "";
+    assert.match(block, /^    "\*": deny/m, `${file} Bash must fail closed`);
+  }
+});

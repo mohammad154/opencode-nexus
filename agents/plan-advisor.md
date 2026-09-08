@@ -9,7 +9,15 @@ permission:
     "~/.cache/opencode/packages/@mohammad154/**": allow
   edit:
     "*": deny
-  bash: allow
+  bash:
+    "*": deny
+    "git status*": allow
+    "git diff*": allow
+    "git log*": allow
+    "git show*": allow
+    "git rev-parse*": allow
+    "rg *": allow
+    "grep *": allow
   task:
     "*": deny
 ---
@@ -28,7 +36,9 @@ Return JSON with this shape:
 {
   "schema_version": "1.0",
   "agent": "plan-advisor",
+  "calls": 1,
   "read_only": true,
+  "permission_profile": "read-only-bash-allowlist",
   "plan_verdict": "KEEP|REVISE",
   "simpler_approach_available": false,
   "units": [

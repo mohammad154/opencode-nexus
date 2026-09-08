@@ -19,6 +19,7 @@ import {
   sealedImpact,
   sealedVerification,
 } from "../helpers/gate-fixtures.js";
+import { checkPlan } from "../../scripts/lib/plan-check.js";
 import fs from "fs";
 import os from "os";
 import path from "path";
@@ -48,6 +49,7 @@ function advanceToPlanned(state, worktree = null) {
   const plan_path = worktree ? writePlan(worktree) : null;
   s = transition(s, "PLANNED", {
     plan_exists: true,
+    plan_check: { ok: true, plan_check: "PASS", errors: [] },
     ...(plan_path ? { plan_path, worktree } : {}),
   }).state;
   return s;
@@ -83,9 +85,37 @@ test("CREATED → BRAINSTORMING → PLANNED without classify requires PLAN.md", 
   r = transition(r.state || state, "PLANNED", { plan_exists: true });
   // state may still be BRAINSTORMING from failed transition
   state = transition(createEmptyRunState("t2b"), "BRAINSTORMING", {}).state;
-  r = transition(state, "PLANNED", { plan_exists: true });
+  r = transition(state, "PLANNED", {
+    plan_exists: true,
+    plan_check: { ok: true, plan_check: "PASS", errors: [] },
+  });
   assert.equal(r.ok, true, JSON.stringify(r.errors));
   assert.equal(r.state.state, "PLANNED");
+});
+
+test("PLANNED rejects a skeletal plan without a passing plan-check report", () => {
+  const state = transition(
+    createEmptyRunState("skeletal-plan"),
+    "BRAINSTORMING",
+    {},
+  ).state;
+  const failedCheck = checkPlan("# Plan\n\n## Goal\nOnly a sketch\n");
+  assert.equal(failedCheck.ok, false);
+  assert.ok(failedCheck.errors.some((error) => error.code === "NO_EXECUTION_UNITS"));
+
+  const missing = canTransition(state, "PLANNED", {
+    plan_exists: true,
+    plan_check_required: true,
+  });
+  assert.equal(missing.ok, false);
+  assert.match(missing.errors.join(" "), /plan-check/i);
+
+  const rejected = canTransition(state, "PLANNED", {
+    plan_exists: true,
+    plan_check: failedCheck,
+  });
+  assert.equal(rejected.ok, false);
+  assert.match(rejected.errors.join(" "), /failed plan-check|plan-check/i);
 });
 
 test("plan_skip rejected without admin compatibility mode", () => {

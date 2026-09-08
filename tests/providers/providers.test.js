@@ -99,18 +99,19 @@ test("default providers preserve the resolved run context in call budgets", () =
     execution_mode: "delegated",
     units: 2,
     category: "normal",
-    max_calls: 6,
-    derived_max_calls: 6,
+    max_calls: 7,
+    derived_max_calls: 7,
     source: "v5-default-workflow",
     used_calls: 0,
-    remaining_calls: 6,
+    remaining_calls: 7,
   });
 });
 
-test("agent-call budgets use V5 fixed formula and never escalate past derived max", () => {
-  assert.equal(getAgentCallBudget({ units: 1 }).max_calls, 4);
-  assert.equal(getAgentCallBudget({ units: 2 }).max_calls, 6);
-  assert.equal(getAgentCallBudget({ units: 1, maxCalls: 99 }).max_calls, 4);
+test("agent-call budgets include final review and never escalate past derived max", () => {
+  assert.equal(getAgentCallBudget({ units: 1 }).max_calls, 5);
+  assert.equal(getAgentCallBudget({ units: 2 }).max_calls, 7);
+  assert.equal(getAgentCallBudget({ units: 3 }).max_calls, 10);
+  assert.equal(getAgentCallBudget({ units: 1, maxCalls: 99 }).max_calls, 5);
   assert.equal(getAgentCallBudget({ units: 1, maxCalls: 1 }).max_calls, 1);
 });
 

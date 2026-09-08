@@ -134,6 +134,31 @@ export function planAdvisorCallCount(
   return normalized === "deep" && criticalDisagreement ? 2 : 1;
 }
 
+const KNOWN_MODEL_FAMILIES = [
+  ["gpt", /^gpt(?:[-_.]|$)/i],
+  ["claude", /^claude(?:[-_.]|$)/i],
+  ["gemini", /^gemini(?:[-_.]|$)/i],
+  ["deepseek", /^deepseek(?:[-_.]|$)/i],
+  ["minimax", /^minimax(?:[-_.]|$)/i],
+  ["qwen", /^qwen(?:[-_.]|$)/i],
+  ["llama", /^llama(?:[-_.]|$)/i],
+  ["mistral", /^mistral(?:[-_.]|$)/i],
+];
+
+/** Return the provider-independent family portion of a model identifier. */
+export function modelFamily(model) {
+  const identifier = String(model || "").trim().split("/").pop();
+  if (!identifier) return null;
+  const known = KNOWN_MODEL_FAMILIES.find(([, pattern]) => pattern.test(identifier));
+  return known ? known[0] : identifier.split(/[-_.]/)[0].toLowerCase();
+}
+
+function modelProviderNamespace(model) {
+  const value = String(model || "").trim();
+  if (!value) return null;
+  return value.includes("/") ? value.split("/")[0].toLowerCase() : null;
+}
+
 /**
  * Configuration guard used by the installer/doctor and by transition callers.
  * Missing model names are not treated as equal: providers may inject the
@@ -154,11 +179,16 @@ export function validatePlanAdvisorModelDiversity({
       error: "orchestrator.model must differ from plan-advisor.model",
     };
   }
-  const orchestratorFamily = orchestrator.split("/")[0];
-  const advisorFamily = advisor.split("/")[0];
+  const orchestratorFamily = modelFamily(orchestrator);
+  const advisorFamily = modelFamily(advisor);
+  const orchestratorProvider = modelProviderNamespace(orchestrator);
+  const advisorProvider = modelProviderNamespace(advisor);
   return {
     ok: true,
     different_family: orchestratorFamily !== advisorFamily,
+    different_provider_namespace: orchestratorProvider !== advisorProvider,
+    orchestrator_family: orchestratorFamily,
+    plan_advisor_family: advisorFamily,
     warning:
       orchestratorFamily === advisorFamily
         ? "orchestrator and plan-advisor use the same model family"
