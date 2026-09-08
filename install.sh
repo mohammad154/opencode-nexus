@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# OpenCode Nexus installer — V5 fixed three-agent pipeline for OpenCode
+# OpenCode Nexus installer — V5 fixed three-agent execution pipeline for OpenCode
 # Usage: ./install.sh [--prune-optional-agents] [--uninstall] [-h]
 # Deps: bash, jq; git optional.
 set -euo pipefail
@@ -10,6 +10,9 @@ WITH_OPTIONAL_AGENTS=0
 PRUNE_OPTIONAL_AGENTS=1
 # Canonical roster (V5).
 CANONICAL_AGENTS=(orchestrator implementer reviewer)
+# Planning-only specialist. It is not part of the execution roster and is only
+# dispatched for standard/deep planning when the orchestrator decides it helps.
+PLANNING_AGENTS=(plan-advisor)
 OPTIONAL_AGENTS=()
 RETIRED_AGENTS=(diagnostician unified-reviewer spec-reviewer code-reviewer integration-reviewer reconciler blast-analyzer)
 if [[ "${NEXUS_OPTIONAL_AGENTS:-}" == "1" ]]; then WITH_OPTIONAL_AGENTS=0; fi
@@ -26,6 +29,7 @@ Usage: ./install.sh [--prune-optional-agents]
   --uninstall             delegate to uninstall.sh
 
 Canonical agents (V5): orchestrator implementer reviewer
+Planning-only specialist: plan-advisor (conditional; never an execution agent)
 USAGE
       exit 0 ;;
     *)
@@ -38,6 +42,11 @@ done
 nexus_agent_basenames() {
   local a
   for a in "${CANONICAL_AGENTS[@]}"; do echo "$a"; done
+}
+
+nexus_planning_agent_basenames() {
+  local a
+  for a in "${PLANNING_AGENTS[@]}"; do echo "$a"; done
 }
 
 prune_optional_from_dir() {
@@ -56,6 +65,7 @@ CONFIG_FILE="$CONFIG_DIR/opencode.json"
 MODELS_FILE="$CONFIG_DIR/nexus.models.json"
 MANIFEST_FILE="$CONFIG_DIR/nexus-install-manifest.json"
 DEFAULT_MODELS="$SCRIPT_DIR/config/default-models.json"
+PLANNING_MODELS="$SCRIPT_DIR/config/planning-models.json"
 OPTIONAL_MODELS="$SCRIPT_DIR/config/optional-models.json"
 MODELS_EXAMPLE="$SCRIPT_DIR/config/models.example.json"
 PKG_JSON="$SCRIPT_DIR/package.json"
@@ -123,6 +133,14 @@ else
   cp "$MODELS_EXAMPLE" "$CONFIG_DIR/nexus.models.example.json"
   echo "  Created $CONFIG_DIR/nexus.models.example.json"
 fi
+PLANNING_JSON="$(cat "$PLANNING_MODELS")"
+if [[ -f "$MODELS_FILE" ]]; then
+  PLANNING_OVERRIDE="$(jq -c '. ["plan-advisor"] // .plan_advisor // {}' "$MODELS_FILE" 2>/dev/null || printf '{}')"
+  PLANNING_JSON="$(jq --argjson override "$PLANNING_OVERRIDE" '. ["plan-advisor"] = ((. ["plan-advisor"] // {}) + $override)' <<<"$PLANNING_JSON")"
+fi
+if [[ -n "${NEXUS_PLAN_ADVISOR_MODEL:-}" ]]; then
+  PLANNING_JSON="$(jq --arg model "$NEXUS_PLAN_ADVISOR_MODEL" '. ["plan-advisor"].model = $model' <<<"$PLANNING_JSON")"
+fi
 OPTIONAL_JSON="$(printf '%s\n' "${OPTIONAL_AGENTS[@]}" | jq -R . | jq -s .)"
 RETIRED_JSON="$(printf '%s\n' "${RETIRED_AGENTS[@]}" | jq -R . | jq -s .)"
 # Always strip underscore meta-keys and nested _comment so jq agent merge stays object+object
@@ -144,7 +162,7 @@ PRUNE_JSON="$RETIRED_JSON"
 TMP="$(mktemp)"
 # Keep object context: `.plugin=(...)` would pipe the array and break later merges
 # Only merge object-valued agent entries (skip any leftover non-objects)
-if ! jq --arg p "$PLUGIN_SPEC" --arg name "$PKG_NAME" --arg legacy "$LEGACY_GIT_SPEC" --argjson m "$MJ" --argjson prune "$PRUNE_JSON" '
+if ! jq --arg p "$PLUGIN_SPEC" --arg name "$PKG_NAME" --arg legacy "$LEGACY_GIT_SPEC" --arg plan_model "${NEXUS_PLAN_ADVISOR_MODEL:-}" --argjson m "$MJ" --argjson planning "$PLANNING_JSON" --argjson prune "$PRUNE_JSON" '
   .plugin = (
     ((.plugin // []) | map(select(
       . != $legacy
@@ -155,6 +173,8 @@ if ! jq --arg p "$PLUGIN_SPEC" --arg name "$PKG_NAME" --arg legacy "$LEGACY_GIT_
   | .agent = (.agent // {})
   | reduce (($m | to_entries[] | select(.value|type=="object")) ) as $e (.;
       .agent[$e.key] = ((.agent[$e.key] // {}) + $e.value))
+  | .agent["plan-advisor"] = (($planning["plan-advisor"] // {}) + (.agent["plan-advisor"] // {}))
+  | if $plan_model != "" then .agent["plan-advisor"].model = $plan_model else . end
   | reduce $prune[] as $k (.;
       if .agent[$k] then
         .agent |= del(.[$k])
@@ -162,6 +182,10 @@ if ! jq --arg p "$PLUGIN_SPEC" --arg name "$PKG_NAME" --arg legacy "$LEGACY_GIT_
   | if .agent.orchestrator then .agent.orchestrator.mode = "primary" else . end
   | if .agent.implementer then .agent.implementer.mode = "subagent" else . end
   | if .agent.reviewer then .agent.reviewer.mode = "subagent" else . end
+  | if .agent["plan-advisor"] then
+      .agent["plan-advisor"].mode = "subagent"
+      | .agent["plan-advisor"].planning_only = true
+    else . end
   | .permission = (.permission // {})
   | .permission.external_directory = (
       (.permission.external_directory // {})
@@ -177,25 +201,37 @@ if ! jq --arg p "$PLUGIN_SPEC" --arg name "$PKG_NAME" --arg legacy "$LEGACY_GIT_
   exit 1
 fi
 mv "$TMP" "$CONFIG_FILE"
+ORCHESTRATOR_MODEL="$(jq -r '.agent.orchestrator.model // empty' "$CONFIG_FILE")"
+PLAN_ADVISOR_MODEL="$(jq -r '.agent["plan-advisor"].model // empty' "$CONFIG_FILE")"
+if [[ -n "$ORCHESTRATOR_MODEL" && -n "$PLAN_ADVISOR_MODEL" && "$ORCHESTRATOR_MODEL" == "$PLAN_ADVISOR_MODEL" ]]; then
+  echo "  Warn: orchestrator and plan-advisor use the same model ($ORCHESTRATOR_MODEL); configure different models to reduce correlated planning blind spots." >&2
+fi
 while IFS= read -r ag; do
   src="$SCRIPT_DIR/agents/$ag.md"; [[ -f "$src" ]] || continue
   # Record the pristine pre-Nexus original exactly once, then install.
   manifest_record_original "$AGENTS_DIR/$ag.md"
   bak "$AGENTS_DIR/$ag.md"; cp "$src" "$AGENTS_DIR/$ag.md"
 done < <(nexus_agent_basenames)
+while IFS= read -r ag; do
+  src="$SCRIPT_DIR/agents/$ag.md"; [[ -f "$src" ]] || continue
+  manifest_record_original "$AGENTS_DIR/$ag.md"
+  bak "$AGENTS_DIR/$ag.md"; cp "$src" "$AGENTS_DIR/$ag.md"
+done < <(nexus_planning_agent_basenames)
 prune_optional_from_dir "$AGENTS_DIR"
-echo "  [opencode] V5 agents: orchestrator, implementer, reviewer"
+echo "  [opencode] V5 execution agents: orchestrator, implementer, reviewer"
+echo "  [opencode] Conditional planning agent: plan-advisor"
 echo "  [opencode] Done → $CONFIG_FILE agents: $AGENTS_DIR/"
 
 echo ""; echo "[scripts] Checking:"
-for s in nexus-impact.js nexus-blast.sh nexus-blast.js nexus-branch-cleanup.sh nexus-estimate-calls.js nexus-run.js nexus-classify.js; do if [[ -f "$SCRIPT_DIR/scripts/$s" ]]; then echo "  ✓ scripts/$s"; else echo "  ✗ missing $s"; fi; done
+for s in nexus-impact.js nexus-blast.sh nexus-blast.js nexus-branch-cleanup.sh nexus-estimate-calls.js nexus-plan-check.js nexus-run.js nexus-classify.js; do if [[ -f "$SCRIPT_DIR/scripts/$s" ]]; then echo "  ✓ scripts/$s"; else echo "  ✗ missing $s"; fi; done
 chmod +x "$SCRIPT_DIR/scripts/nexus-blast.sh" "$SCRIPT_DIR/scripts/nexus-branch-cleanup.sh" 2>/dev/null || true
-chmod a+r "$SCRIPT_DIR/scripts/nexus-blast.js" "$SCRIPT_DIR/scripts/nexus-estimate-calls.js" "$SCRIPT_DIR/scripts/nexus-run.js" "$SCRIPT_DIR/scripts/nexus-classify.js" 2>/dev/null || true
+chmod a+r "$SCRIPT_DIR/scripts/nexus-blast.js" "$SCRIPT_DIR/scripts/nexus-estimate-calls.js" "$SCRIPT_DIR/scripts/nexus-plan-check.js" "$SCRIPT_DIR/scripts/nexus-run.js" "$SCRIPT_DIR/scripts/nexus-classify.js" 2>/dev/null || true
 
 cat <<END
 
-Installation complete (Nexus V5 — fixed pipeline: brainstorm → plan → impact → implement → review).
-Canonical agents: orchestrator, implementer, reviewer.
+Installation complete (Nexus V5 — fixed execution pipeline: brainstorm → plan → impact → implement → review).
+Execution agents: orchestrator, implementer, reviewer.
+Plan Advisor: conditional planning-only specialist (standard/deep planning; not in the execution loop).
 Impact Engine is the default evidence provider.
 OpenCode → ~/.config/opencode/ (plugin + canonical agents)
 Next:

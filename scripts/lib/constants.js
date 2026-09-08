@@ -4,6 +4,9 @@ export const CANONICAL_AGENTS = Object.freeze([
   "reviewer",
 ]);
 
+/** Planning-time specialist; intentionally excluded from execution roster. */
+export const PLANNING_AGENTS = Object.freeze(["plan-advisor"]);
+
 /** @deprecated V5 has no optional agents; kept empty for install script compat. */
 export const OPTIONAL_AGENTS = Object.freeze([]);
 

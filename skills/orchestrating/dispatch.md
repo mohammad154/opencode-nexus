@@ -1,4 +1,4 @@
-# Subagent Dispatch (OpenCode) — V5 fixed pipeline
+# Subagent Dispatch (OpenCode) — V5 fixed execution pipeline
 
 Portable CLI:
 
@@ -7,15 +7,22 @@ nexus project-init
 nexus run init --run-id <id>
 nexus next
 nexus impact --json --targets <files>
-nexus estimate --tasks N
+nexus plan-check --json
+nexus estimate --units N --planning-mode standard
 ```
 
-Canonical roles (only these):
+Execution roles (only these):
 
 | Role         | Canonical key | When                                      |
 | ------------ | ------------- | ----------------------------------------- |
 | Implementer  | `implementer` | After fresh pre-impact + branch ready     |
 | Reviewer     | `reviewer`    | After VERIFYING for **every** task        |
+
+Planning-only role:
+
+| Role | Canonical key | When |
+|---|---|---|
+| Plan Advisor | `plan-advisor` | Once for standard/deep planning; never during execution |
 
 Deterministic ops (do **not** dispatch an agent):
 
@@ -25,7 +32,8 @@ Deterministic ops (do **not** dispatch an agent):
 | Run / gates | `nexus run <init\|transition\|validate-handoff\|status\|resume\|drift>` |
 | Impact    | `nexus impact --json --targets …` |
 | Cleanup   | `bash scripts/nexus-branch-cleanup.sh --base <base> --out <json> <branches...>` |
-| Call est. | `nexus estimate --tasks N` |
+| Plan lint  | `nexus plan-check --json` |
+| Call est. | `nexus estimate --units N --planning-mode standard` |
 
 Obey `REQUIRED_DISPATCH` from `nexus next` (or the injected **Nexus Next Action** block) before inventing other work.
 
@@ -52,10 +60,16 @@ jq '{verdict, review_scope, acceptance, checks, files_reviewed, findings}' .open
 4. Dispatch implementer with `review_findings`.
 5. VERIFYING → review-package → reviewer again until an **admissible** APPROVED.
 
-### APPROVED (task scope)
+### APPROVED (unit scope)
 
-- More tasks → next task `TASK_IMPACT_READY` with fresh impact (`next_task: true`).
+- More units → next unit `TASK_IMPACT_READY` with fresh impact (`next_task: true`).
 - No more tasks → `FINAL_REVIEWING` with the **task** handoff + task `review_package`.
+
+For a single unit only, the task reviewer evidence may be reused for final
+verification when the reviewed commit equals current HEAD, the package digest
+still matches, and no code changed after review. Pass
+`reuse_final_review: true`; the state machine validates the binding and does not
+silently skip the evidence checks.
 
 ### Final whole-branch review
 
@@ -72,5 +86,5 @@ jq '{verdict, review_scope, acceptance, checks, files_reviewed, findings}' .open
 - Waiting for the user to say "fix review issues"
 - Priming the reviewer toward APPROVED (expected outcomes, "should pass", sample verdict APPROVED)
 - Accepting APPROVED with empty acceptance / no checks / no files_reviewed
-- Skipping `nexus review-package` or jumping from last task APPROVED straight to `FINAL_VERIFYING`
-- Using `review_scope: task` for `FINAL_VERIFYING` (must be `final`)
+- Skipping `nexus review-package` or jumping from last task APPROVED straight to `FINAL_VERIFYING` without the explicit single-unit digest/HEAD reuse evidence
+- Using `review_scope: task` for ordinary `FINAL_VERIFYING` (only the explicit single-unit reuse path may retain task scope)

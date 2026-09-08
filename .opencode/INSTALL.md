@@ -1,9 +1,10 @@
 # Installing OpenCode Nexus V5
 
-Nexus V5 has a **fixed three-agent pipeline** and an OpenCode installer. The
-core owns workflow states, the Impact Engine, verification gates, handoffs, and
-always-on review. The installer writes native OpenCode agents and merges
-plugin/model config.
+Nexus V5 has a **fixed three-agent execution pipeline** and an OpenCode
+installer. The core owns workflow states, the Impact Engine, verification gates,
+handoffs, and always-on review. The installer writes native OpenCode agents and
+merges plugin/model config. A conditional `plan-advisor` is planning-only and
+never enters the execution loop.
 
 ## Prerequisites
 
@@ -32,9 +33,14 @@ nexus install
 | Agents | `~/.config/opencode/agents/*.md` |
 | Plugin and models | `~/.config/opencode/opencode.json` |
 
-Canonical agents (V5):
+Canonical execution agents (V5):
 
 `orchestrator`, `implementer`, `reviewer`.
+
+Planning-only specialist:
+
+`plan-advisor` — used once for `standard`/`deep` planning when warranted; it is
+read-only and cannot write code or change run state.
 
 ## Three invariants
 
@@ -48,6 +54,7 @@ Canonical agents (V5):
 nexus project-init
 nexus run init --run-id demo
 nexus estimate --tasks 3
+nexus plan-check --json
 ```
 
 See [docs/workflow.md](../docs/workflow.md) and the repository README.

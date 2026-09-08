@@ -1,14 +1,14 @@
 ---
 name: writing-plans
-description: Always create a concrete implementation plan after brainstorming — task breakdown for sequential orchestrator execution with verification gates and STOP conditions
+description: Always create a concrete implementation plan after brainstorming — cohesive execution units for sequential orchestrator execution with verification gates and STOP conditions
 compatibility: opencode
 ---
 
-# Writing Plans (V5)
+# Writing Plans (V5 execution units)
 
 **Always** create a plan after brainstorming. There is no "small enough to skip planning" path.
 
-Create or update `.opencode/plans/PLAN.md` — a self-contained, verification-gated plan. The orchestrator executes tasks **one by one** through the fixed pipeline (pre-impact → implementer → post-impact → reviewer).
+Create or update `.opencode/plans/PLAN.md` — a self-contained, verification-gated plan. The orchestrator executes cohesive execution units **one by one** through the fixed pipeline (pre-impact → implementer → post-impact → reviewer). `task-*` identifiers remain a compatibility alias.
 
 This skill borrows the three guarantees from shadcn/improve:
 - **Self-contained.** All context inlined — exact file paths, current-state excerpts, conventions with an exemplar, git commit stamped.
@@ -65,9 +65,19 @@ Write `.opencode/plans/PLAN.md` using the template below. Every section is manda
 Rejected / by-design (so next run doesn't re-flag):
 - [SEC-01] `src/proxy.ts:12` https_proxy SSRF – by-design, standard convention – from ADR-003
 
-## Task breakdown (ordered, dependencies noted)
-### Task 1: <title> (slug: <slug>)
-- id: task-1
+## Execution Unit Justification
+
+Number of units: <N>
+
+Why not fewer:
+- <why these units cannot safely be merged>
+
+Why not more:
+- <why implementation steps, tests, types, or setup stay with their behavior>
+
+## Execution Unit breakdown (ordered, dependencies noted)
+### Execution Unit 1: <title> (slug: <slug>)
+- id: unit-1
 - Effort: XS|S|M|L|XL  (XS=<30m, S=<2h, M=half-day, L=day, XL=split)
 - Confidence: LOW|MEDIUM|HIGH
 - Risk if wrong: LOW|MEDIUM|HIGH + one-liner why
@@ -94,25 +104,25 @@ Rejected / by-design (so next run doesn't re-flag):
   - Step 1: ...
   - Step 2: ...
 
-(Repeat for Task 2..N)
+(Repeat for Execution Unit 2..N)
 
 ## Execution order & dependency graph
-- Recommended order: task-1 → task-2 → task-3 (task-3 depends on task-1)
-- Parallelizable: task-2 and task-3 can run in isolated branches simultaneously if isolated policy
+- Recommended order: unit-1 → unit-2 → unit-3 (unit-3 depends on unit-1)
+- Parallelizable: unit-2 and unit-3 can run in isolated branches simultaneously if isolated policy
 - Mermaid:
 ```mermaid
 flowchart LR
-  t1[task-1] --> t3[task-3]
-  t2[task-2]
+  u1[unit-1] --> u3[unit-3]
+  u2[unit-2]
 ```
 
 ## Verification strategy (global)
 - Baseline: run verification commands on base_branch first, record result in handoff
-- Per-task: run same commands + task-specific checks
-- Final: full suite on base_branch after all tasks merged
+- Per-unit: run same commands + unit-specific checks
+- Final: full suite on base_branch after all units merged
 
 ## Rollback / safety
-- Each task is a feature branch; discard if blocked
+- Each execution unit is a feature branch; discard if blocked
 - No migration / data loss / forced push to base without explicit user confirmation
 
 ## Outcome memory
@@ -120,9 +130,12 @@ flowchart LR
 - On future plans, check LESSONS for patterns and avoid repeating mistakes
 ```
 
-## Step 2 — Generate task files
+## Step 2 — Generate execution-unit files
 
-Write `.opencode/tasks/task-N.md` for every task in the plan. New template — self-contained, drift-checked, with blast-radius placeholders and STOP conditions:
+Write `.opencode/tasks/task-N.md` for every execution unit in the plan. The
+directory and `task-N` filename remain compatibility paths. Use the same
+self-contained, drift-checked template with blast-radius placeholders and STOP
+conditions:
 
 Each task-N.md MUST include:
 - Frontmatter-like header: id, title, commit drift sha, base_branch, effort, confidence, dependencies
@@ -141,7 +154,10 @@ Label confidence honestly:
 
 ## Planning rules
 
-- Keep tasks small and independently reviewable against base_branch when isolated.
+- Prefer the minimum number of cohesive execution units that remain independently implementable, verifiable, reviewable, and safe.
+- An implementation step is not automatically an execution unit. Keep model/types/tests/setup with the behavior they support unless an independent boundary justifies separation.
+- For every plan, include `## Execution Unit Justification` with reasons why fewer and more units are not appropriate.
+- Run `nexus plan-check --json` before transitioning to `PLANNED`; fix errors and consciously review warnings.
 - Prefer minimal diffs and existing patterns — cite an exemplar file per task.
 - Do not start implementation in this skill.
 - Every task file must have:

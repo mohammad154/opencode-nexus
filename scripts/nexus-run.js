@@ -38,6 +38,7 @@ import { createDefaultProviders } from "./lib/providers.js";
 import { createVerificationProvider } from "./lib/providers/verification-provider.js";
 import { assessDrift } from "./lib/drift.js";
 import { assertValidRunId } from "./lib/policy.js";
+import { checkPlanFile } from "./lib/plan-check.js";
 import {
   appendTrajectoryStep,
   readTrajectory,
@@ -346,8 +347,8 @@ function cmdClassify(flags) {
 
 function resolvedRunUnits(state) {
   const candidate =
-    state?.units ??
     state?.execution_units ??
+    state?.units ??
     state?.classification?.units;
   if (Array.isArray(candidate)) return Math.max(1, candidate.length);
   const units = Number(candidate);
@@ -368,6 +369,23 @@ function cmdTransition(flags) {
     process.exit(2);
   }
   const evidence = loadEvidence(flags);
+  // Worktree binding is useful for digest-bound review reuse and never makes
+  // caller-supplied provider artifacts authoritative by itself.
+  evidence.worktree = evidence.worktree || worktree();
+  if (to === "PLANNED" && flags["plan-check"] === true) {
+    const planPath =
+      flags.plan || path.join(worktree(), ".opencode", "plans", "PLAN.md");
+    if (flags.plan) evidence.plan_path = planPath;
+    evidence.plan_check = checkPlanFile(
+      planPath,
+      {
+        planningMode:
+          evidence.planning_mode ||
+          evidence.planningMode ||
+          state.planning_mode,
+      },
+    );
+  }
   const providers = createDefaultProviders({
     worktree: worktree(),
     profile: state.profile || state.classification?.profile,

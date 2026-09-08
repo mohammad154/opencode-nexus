@@ -55,6 +55,7 @@ export function projectInit(worktree, options = {}) {
       blast: "nexus blast",
       classify: "nexus classify",
       estimate: "nexus estimate",
+      plan_check: "nexus plan-check",
       project_init: "nexus project-init",
     },
     pkg_root: pkgRoot,

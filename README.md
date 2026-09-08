@@ -10,25 +10,28 @@
   <a href="https://nodejs.org/"><img src="https://img.shields.io/badge/node-%E2%89%A520-3c873a?style=flat-square&logo=node.js&logoColor=white" alt="Node.js 20 or newer"></a>
 </p>
 
-<p align="center"><strong>Fixed three-agent development workflow for <a href="https://opencode.ai">OpenCode</a>.</strong></p>
+<p align="center"><strong>Fixed three-agent execution workflow with conditional planning advice for <a href="https://opencode.ai">OpenCode</a>.</strong></p>
 
-Nexus installs a predictable team into OpenCode: **orchestrator**, **implementer**, and **reviewer** — with the **Nexus Impact Engine**, TDD evidence, isolated worktrees, and durable run state under `.opencode/`.
+Nexus installs a predictable team into OpenCode: **orchestrator**, **implementer**, and **reviewer** for execution, plus the conditional planning-only **plan-advisor** — with the **Nexus Impact Engine**, TDD evidence, isolated worktrees, and durable run state under `.opencode/`.
 
 ```text
 you describe the work
         ↓
 orchestrator brainstorms → plans
         ↓
-(for each task) pre-impact → implementer → post-impact + verify → reviewer
+(standard/deep? plan-advisor → plan-check)
+        ↓
+(for each execution unit) pre-impact → implementer → post-impact + verify → reviewer
         ↓
 REQUEST_CHANGES? → fresh pre-impact → implementer → reviewer (auto)
         ↓
-final verify → finish
+multi-unit → final integration review → final verify → finish
+single-unit + unchanged review evidence → final verify → finish
 ```
 
 **Principle:** LLM proposes. Scripts measure. Tests prove. Independent reviewer approves. State machine decides.
 
-**Three invariants:** (1) brainstorm + plan every request (2) fresh impact before every implementer (3) reviewer APPROVED every task.
+**Three invariants:** (1) brainstorm + plan every request (2) fresh impact before every implementer (3) reviewer APPROVED every execution unit.
 
 Package: [`@mohammad154/opencode-nexus`](https://www.npmjs.com/package/@mohammad154/opencode-nexus) · Node 20+ · MIT
 
@@ -58,21 +61,22 @@ Nexus gives OpenCode a repeatable delivery loop with explicit ownership and evid
 
 | Capability | What it adds |
 |---|---|
-| **Orchestration** | Fixed pipeline: brainstorm → plan → per-task impact/implement/review loop |
+| **Orchestration** | Fixed execution pipeline: brainstorm → plan → per-unit impact/implement/review loop |
 | **Impact mapping** | Built-in Nexus Impact Engine (git + AST + imports + tests) before every implementer |
 | **Safe implementation** | Production edits only via implementer, with branch, worktree, and handoff context |
-| **Always-on review** | Single `reviewer` on every task; auto fix-loop on REQUEST_CHANGES |
+| **Always-on review** | Single `reviewer` on every execution unit; auto fix-loop on REQUEST_CHANGES |
 | **Durable state** | Stores plans, tasks, handoffs, impact reports, and run state so interrupted work can recover |
 
 ### Installed agents
 
-After install, OpenCode has three canonical agents:
+After install, OpenCode has three canonical execution agents plus one planning-only specialist:
 
 | Agent | Role |
 |---|---|
-| `orchestrator` | Owns the fixed workflow, plan, and task loop |
-| `implementer` | Implements one task and verifies it |
-| `reviewer` | Spec + correctness + quality + regression review every task |
+| `orchestrator` | Owns the fixed workflow, plan, and execution-unit loop |
+| `implementer` | Implements one execution unit and verifies it |
+| `reviewer` | Spec + correctness + quality + regression review every execution unit |
+| `plan-advisor` | Conditional read-only challenge for standard/deep plans; never executes code |
 
 Nexus also installs a plugin and model config, with the **Nexus Impact Engine** as the primary canonical evidence provider.
 
@@ -113,7 +117,7 @@ nexus doctor
 
 **4. Restart OpenCode**, pick the **orchestrator** agent, and describe the change you want.
 
-That is the normal path. The rest of this README is for setup details, profiles, and scripts.
+That is the normal path. The rest of this README is for setup details and scripts.
 
 ---
 
@@ -229,25 +233,17 @@ rm -rf /tmp/opencode-nexus
 |---|---|
 | Agents | `~/.config/opencode/agents/*.md` |
 | Plugin + models | `~/.config/opencode/opencode.json` |
-| Optional model overrides | `~/.config/opencode/nexus.models.json` |
+| Optional model overrides | `~/.config/opencode/nexus.models.json` (including `plan-advisor`) |
 
 Canonical agent files: `orchestrator`, `implementer`, `reviewer`.
 
 On Windows, set `OPENCODE_CONFIG_DIR` if your OpenCode config is not under `~/.config/opencode`.
 
-### Optional compatibility agent
+### V4 migration
 
-V5 does not install optional agents. Nexus Impact Engine (`nexus impact`) covers git, AST, and affected test evidence.
+V5 installs only `orchestrator`, `implementer`, and `reviewer` as execution agents. It also ships the conditional, planning-only `plan-advisor`; this specialist is used only for standard/deep planning and is never part of the execution loop. Every `nexus install` update automatically removes retired V4 agent configuration and files, including `blast-analyzer`, split reviewers, and `unified-reviewer`. Nexus Impact Engine (`nexus impact`) supplies the git, AST, and affected-test evidence those agents previously covered.
 
-```bash
-nexus install --with-optional-agents
-# from a clone:
-./install.sh --with-optional-agents
-```
-
-A later `nexus install` (without the flag) removes leftover `blast-analyzer` config and agent files, including copies written by older Nexus releases. To keep it, pass `--with-optional-agents` again on that update.
-
-To drop it explicitly:
+`--prune-optional-agents` remains available for migration scripts, but is normally unnecessary because pruning is automatic:
 
 ```bash
 nexus install --prune-optional-agents
@@ -261,19 +257,20 @@ Verification steps and notes: [`.opencode/INSTALL.md`](.opencode/INSTALL.md).
 
 1. Open your project in OpenCode.
 2. Select the **orchestrator** agent.
-3. Describe the change (feature, bugfix, refactor). The orchestrator classifies risk, plans, maps impact with the Nexus Impact Engine, then dispatches implementer and reviewers.
+3. Describe the change (feature, bugfix, refactor). The orchestrator chooses planning depth, optionally obtains a read-only Plan Advisor challenge, runs the deterministic plan check, maps impact with the Nexus Impact Engine, then dispatches implementer and reviewer.
 
 You usually do **not** need to run the scripts below by hand. They are the same gates the orchestrator uses.
 
 ### Workflow scripts (optional / debugging)
 
-Initialize a run, classify, and estimate agent calls:
+Initialize a run, optionally inspect advisory classification evidence, and estimate agent calls:
 
 ```bash
 nexus project-init
 nexus run init --run-id demo
 nexus classify --files 2 --lines 40 --class small-feature-with-tests --focused
-nexus estimate --tasks 3 --profile balanced
+nexus estimate --tasks 3
+nexus plan-check --json
 ```
 
 Impact analysis & baseline:
@@ -294,31 +291,28 @@ nexus run validate-handoff \
   --file .opencode/handoffs/<run>-implementer.json
 ```
 
-The exact transition sequence depends on the profile and whether the run is direct, delegated, or blocked. A stale or uncertain analysis must be verified before a direct path is allowed.
+V5 has one fixed workflow—there is no profile selection or direct/no-dispatch path. `nexus classify` is advisory; `nexus run classify --apply` records its evidence but does not advance run state. A stale or uncertain analysis must be revalidated before the affected gate can pass.
 
-Handoffs use **schema_version `1.1`** (shared envelope: `run_id`, `unit_or_task`, `agent`, `base_commit`, `created_at`). Legacy `1.0` / `0.9` handoffs migrate as `legacy_unverified` and cannot satisfy completion gates. Only `classify --apply` may authorize `direct_eligible`. Impact trust requires provider revalidation — a caller-supplied `trusted: true` label is not enough.
+Handoffs use **schema_version `1.1`** (shared envelope: `run_id`, `unit_or_task`, `agent`, `base_commit`, `created_at`). Legacy `1.0` / `0.9` handoffs migrate as `legacy_unverified` and cannot satisfy completion gates. Classification artifacts cannot authorize a state transition or bypass a required gate. Impact trust requires provider revalidation — a caller-supplied `trusted: true` label is not enough.
 
 ---
 
 ## How the workflow works
 
 ```text
-request → classify → plan → impact → baseline → implement → review → final-verify → finish
-                                       │
-                                       └─ stale or blocked → reconcile
+request → brainstorm → plan advisor? → plan-check → (per unit) pre-impact → implement → post-impact + verify → unit review → final review → final verify → finish
+                                                      │
+                                                      └─ stale or blocked → reconcile
 ```
 
-Only the **implementer** writes production code. Review shape comes from the profile and the change class:
+Only the **implementer** writes production code. Nexus uses one fixed V5 workflow:
 
-| Profile | When | Branching | Review |
-|---|---|---|---|
-| `fast` | Tiny, low-risk, high-confidence | One branch per request | Unified review, or skip for docs |
-| `balanced` (default) | Normal features | One branch per feature / execution unit | Risk-based |
-| `strict` | Security, migration, public API, credentials | One branch per task | Spec review, then code review |
-
-High-risk work always uses `strict` and dual review. A **HIGH** impact always escalates **review** to dual; the execution profile can stay `balanced` when impact analysis still says batching is safe.
-
-UNKNOWN impact evidence never classifies as `fast`. Direct (no-dispatch) work is narrow: small, focused, low-risk, and high classifier confidence.
+- Every implementer dispatch requires fresh pre-impact evidence.
+- Standard/deep plans may use one independent `plan-advisor` call before synthesis; compact plans do not.
+- `nexus plan-check` deterministically validates the execution-unit DAG, acceptance/verification ownership, decomposition warnings, and call estimate.
+- Every task receives a task-scoped review package and reviewer after verification.
+- After the final task, a final review package and reviewer examine the whole run for multi-unit integration before final verification. A single-unit run may reuse its task review only with the explicit digest/HEAD-bound gate.
+- Impact risk controls verification-ladder intensity; it does not select a workflow profile or change the review roster.
 
 Full policy: [`docs/workflow.md`](docs/workflow.md).
 
@@ -327,7 +321,7 @@ Full policy: [`docs/workflow.md`](docs/workflow.md).
 | Path | What |
 |---|---|
 | `.opencode/runs/<run-id>/state.json` | Durable state-machine state |
-| `.opencode/CONTEXT.md` | Active profile, branch, verification context |
+| `.opencode/CONTEXT.md` | Active run, branch, and verification context |
 | `.opencode/plans/PLAN.md` and `tasks/` | Plan and execution units |
 | `.opencode/handoffs/` | Implementer and reviewer results |
 | `.opencode/impact/` | Impact analysis reports |
@@ -359,6 +353,7 @@ One-off overrides (no file edit):
 | `NEXUS_ORCHESTRATOR_MODEL` | Orchestrator model |
 | `NEXUS_IMPLEMENTER_MODEL` | Implementer model |
 | `NEXUS_REVIEWER_MODEL` | Reviewer model |
+| `NEXUS_PLAN_ADVISOR_MODEL` | Planning-only advisor model; keep it different from the orchestrator model |
 | `NEXUS_IMPLEMENTER_VARIANT` / `NEXUS_IMPLEMENTER_REASONING_EFFORT` | Implementer reasoning effort |
 | `NEXUS_REVIEWER_VARIANT` / `NEXUS_REVIEWER_REASONING_EFFORT` | Reviewer reasoning effort |
 
@@ -402,22 +397,24 @@ npm test
 npm run test:install
 ```
 
-`npm test` runs the Node test suites. `npm run test:install` runs installer isolation and optional-agent checks. There are no separate build, lint, or typecheck scripts.
+`npm test` runs the Node test suites. `npm run test:install` runs installer isolation, retired-agent cleanup, and uninstall lifecycle checks. There are no separate build, lint, or typecheck scripts.
 
 Extra installer checks:
 
 ```bash
 bash scripts/test-install-only.sh
 bash scripts/test-optional-agents.sh
+bash scripts/test-uninstall-lifecycle.sh
 bash scripts/test-adapter-contract.sh
 bash -n install.sh uninstall.sh scripts/test-install-only.sh \
-  scripts/test-optional-agents.sh scripts/test-adapter-contract.sh
+  scripts/test-optional-agents.sh scripts/test-uninstall-lifecycle.sh \
+  scripts/test-adapter-contract.sh
 ```
 
 Confirm agents on disk:
 
 ```bash
-ls ~/.config/opencode/agents/{orchestrator,implementer,reviewer}.md
+ls ~/.config/opencode/agents/{orchestrator,implementer,reviewer,plan-advisor}.md
 ```
 
 ---
@@ -425,13 +422,13 @@ ls ~/.config/opencode/agents/{orchestrator,implementer,reviewer}.md
 ## Repository layout
 
 ```text
-agents/          canonical agent definitions
+agents/          canonical execution + planning-only agent definitions
 skills/          workflow skills the orchestrator loads
-config/          profiles and model defaults
-scripts/         impact, classify, state machine, estimate, cleanup
+config/          fixed V5 workflow and model defaults
+scripts/         impact, classify, state machine, plan-check, estimate, cleanup
 schemas/         handoff, impact, and run-state JSON schemas
 bin/nexus.js     npm CLI: install | update | uninstall | doctor
-docs/workflow.md V4 workflow reference
+docs/workflow.md V5 workflow reference
 install.sh       OpenCode installer
 uninstall.sh     matching cleanup
 ```
@@ -441,7 +438,7 @@ uninstall.sh     matching cleanup
 ## Further reading
 
 - [`.opencode/INSTALL.md`](.opencode/INSTALL.md) — installer behavior and verification
-- [`docs/workflow.md`](docs/workflow.md) — profiles, gates, handoffs, and review policy
+- [`docs/workflow.md`](docs/workflow.md) — V5 gates, handoffs, and review policy
 - [`docs/compatibility-v3.md`](docs/compatibility-v3.md) — legacy V3 migration notes
 - [`skills/using-nexus/SKILL.md`](skills/using-nexus/SKILL.md) — how the orchestrator routes skills
 - [OpenCode installation](https://opencode.ai/docs/installation/)

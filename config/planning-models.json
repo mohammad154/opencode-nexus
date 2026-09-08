@@ -1,0 +1,7 @@
+{
+  "plan-advisor": {
+    "mode": "subagent",
+    "model": "openai/gpt-5-mini",
+    "planning_only": true
+  }
+}

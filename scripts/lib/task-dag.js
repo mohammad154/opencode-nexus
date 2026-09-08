@@ -1,6 +1,8 @@
 /**
- * Task dependency DAG + parallel scheduler.
- * Only independent tasks (no shared unresolved deps / file conflicts) run together.
+ * Execution-unit dependency DAG + parallel scheduler.
+ *
+ * `task` remains in the function names and raw plan shape for V5 compatibility;
+ * callers may use the execution-unit aliases below for new plans.
  */
 import { globsOverlap } from "./impact/boundaries.js";
 
@@ -22,6 +24,11 @@ export function buildTaskDag(tasks = []) {
     }
   }
   return { byId, tasks: [...byId.values()] };
+}
+
+/** Preferred V6 terminology; behavior is identical to buildTaskDag. */
+export function buildExecutionUnitDag(units = []) {
+  return buildTaskDag(units);
 }
 
 export function detectCycle(dag) {
@@ -75,6 +82,11 @@ export function readyTasks(dag, { completed = new Set(), running = [] } = {}) {
   return out;
 }
 
+/** Preferred V6 terminology; behavior is identical to readyTasks. */
+export function readyExecutionUnits(dag, options = {}) {
+  return readyTasks(dag, options);
+}
+
 export function scheduleParallel(dag, { maxConcurrency = 2, completed = new Set() } = {}) {
   const cycle = detectCycle(dag);
   if (cycle) {
@@ -110,4 +122,9 @@ export function scheduleParallel(dag, { maxConcurrency = 2, completed = new Set(
     for (const t of selected) done.add(t.id);
   }
   return { ok: true, waves, maxConcurrency };
+}
+
+/** Preferred V6 terminology; behavior is identical to scheduleParallel. */
+export function scheduleExecutionUnits(dag, options = {}) {
+  return scheduleParallel(dag, options);
 }

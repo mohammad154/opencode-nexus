@@ -4,14 +4,14 @@ description: Use after tasks or execution units pass review to finalize the bran
 compatibility: opencode
 ---
 
-# Finishing a Development Branch (V3 – profiles + script cleanup)
+# Finishing a Development Branch (V5 fixed execution workflow + script cleanup)
 
 ## Checkpoint scope
 
-When `execution_mode: checkpoint` in `.opencode/CONTEXT.md`, run this skill after each **review unit** passes:
-
-- `strict`: after each task’s dual review
-- `balanced` / `fast`: after each execution unit’s review (unified or dual)
+When `execution_mode: checkpoint` in `.opencode/CONTEXT.md`, run this skill after
+each **execution unit** passes its task-scoped reviewer gate. V5 has one fixed
+execution workflow; planning depth does not change branch cleanup or review
+ownership.
 
 Scope to the **current feature branch** named in `.opencode/CONTEXT.md`.
 
@@ -32,8 +32,8 @@ After reviews pass:
      <feature-branch>
    ```
    For `discarded` unmerged branches only: add `--force-discard`.
-5. **Outcome memory**: follow `lessonPolicy` (`every-task` under strict; `noteworthy-only` under fast/balanced — see `outcome-memory`).
-6. If checkpoint mode, wait for explicit continue before the next unit/task.
+5. **Outcome memory**: follow `lessonPolicy` (the default is `noteworthy-only`; see `outcome-memory`).
+6. If checkpoint mode, wait for explicit continue before the next unit.
 
 ### `merge_policy: prompt` (opt-in only)
 
@@ -53,8 +53,8 @@ Present: merge locally / push PR / keep / discard. Map to dispositions below. Th
 ```yaml
 workflow: default
 task_branches:
-  - task: 1
-    branch: feature/oauth-refresh   # or feature/task-1-auth under strict
+  - task: 1              # compatibility alias; prefer execution_units
+    branch: feature/oauth-refresh
     disposition: merged
     deleted_at: 2026-07-27T12:00:00Z
 execution_units:

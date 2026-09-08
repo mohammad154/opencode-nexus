@@ -48,6 +48,23 @@ test("nexus help lists workflow commands", () => {
   }
 });
 
+test("nexus help advertises only the V5 workflow guidance", () => {
+  const result = invoke(["help"]);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /nexus estimate --tasks 3/);
+  assert.match(result.stdout, /--prune-optional-agents/);
+  assert.doesNotMatch(result.stdout, /--profile balanced/);
+  assert.doesNotMatch(result.stdout, /--with-optional-agents/);
+});
+
+test("nexus classify help describes the V5 advisory classifier", () => {
+  const result = invoke(["classify", "--help"]);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /compatibility input; does not select a V5 workflow/);
+  assert.match(result.stdout, /Classification is advisory in V5/);
+  assert.doesNotMatch(result.stdout, /dual review/);
+});
+
 test("nexus run help documents subcommands", () => {
   const result = invoke(["run", "help"]);
   assert.equal(result.status, 0, result.stderr);

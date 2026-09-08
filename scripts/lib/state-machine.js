@@ -29,6 +29,12 @@ import {
   isAcceptablePreImpact,
 } from "./policy.js";
 import {
+  normalizePlanningMode,
+  planningModeFromEvidence,
+  planAdvisorCallCount,
+  validatePlanAdvisorModelDiversity,
+} from "./planning.js";
+import {
   assertScopeLock,
   assertTransitionScopeLock,
 } from "./scope-lock.js";
@@ -81,6 +87,20 @@ function nowIso() {
 
 function exists(p) {
   return !!p && fs.existsSync(p);
+}
+
+function planDeclaresExecutionUnits(ctx = {}) {
+  const planPath =
+    ctx.plan_path ||
+    (ctx.worktree && path.join(ctx.worktree, ".opencode", "plans", "PLAN.md"));
+  if (!planPath || !fs.existsSync(planPath)) return false;
+  try {
+    return /^###\s+(?:Execution\s+Unit|Task)\s+/im.test(
+      fs.readFileSync(planPath, "utf8"),
+    );
+  } catch {
+    return false;
+  }
 }
 
 export function sealImpactArtifact(report, worktreeHead = null) {
@@ -171,6 +191,21 @@ function gitIsAncestor(worktree, ancestor, descendant) {
   return null;
 }
 
+function gitDirtyPaths(worktree) {
+  if (!worktree) return [];
+  const result = spawnSync(
+    "git",
+    ["status", "--porcelain", "--untracked-files=all"],
+    { cwd: worktree, encoding: "utf8" },
+  );
+  if (result.status !== 0) return [];
+  return String(result.stdout || "")
+    .split(/\r?\n/)
+    .map((line) => line.slice(3).trim())
+    .filter(Boolean)
+    .map((file) => file.replace(/^"|"$/g, ""));
+}
+
 export function requiredEvidence(from, to) {
   const map = {
     "CREATED->BRAINSTORMING": [],
@@ -188,6 +223,7 @@ export function requiredEvidence(from, to) {
     "VERIFYING->REVIEWING": ["provider_verification"],
     "REVIEWING->TASK_IMPACT_READY": ["review_handoff"],
     "REVIEWING->FINAL_REVIEWING": ["review_handoff", "review_package"],
+    "REVIEWING->FINAL_VERIFYING": ["review_handoff", "review_package"],
     "FINAL_REVIEWING->FINAL_VERIFYING": ["review_handoff", "review_package"],
     "FINAL_REVIEWING->TASK_IMPACT_READY": ["review_handoff"],
     "FINAL_VERIFYING->COMPLETED": ["final_verification"],
@@ -308,6 +344,147 @@ function wantsNextTask(ctx, state) {
     Boolean(ctx.next_unit) ||
     Boolean(ctx.current_unit && ctx.current_unit !== state.current_unit)
   );
+}
+
+function planAdvisorEvidence(ctx = {}, state = {}) {
+  return (
+    ctx.plan_advisor_handoff ||
+    ctx.plan_advisor ||
+    state.plan_advisor_handoff ||
+    state.plan_advisor ||
+    null
+  );
+}
+
+function planningModeFromContext(ctx = {}, state = {}) {
+  const classification = {
+    ...(state.classification || {}),
+    ...(ctx.classification || {}),
+  };
+  return planningModeFromEvidence({
+    ...classification,
+    ...state,
+    ...ctx,
+    planning_mode:
+      ctx.planning_mode ||
+      ctx.planningMode ||
+      state.planning_mode ||
+      ctx.plan_check?.planning_mode,
+    files_changed:
+      ctx.files_changed ??
+      ctx.filesChanged ??
+      classification.files_changed ??
+      classification.filesChanged,
+    estimated_lines:
+      ctx.estimated_lines ??
+      ctx.estimatedLines ??
+      classification.estimated_lines ??
+      classification.estimatedLines,
+    change_class:
+      ctx.change_class ||
+      ctx.changeClass ||
+      classification.change_class ||
+      state.change_class,
+  });
+}
+
+function planAdvisorCallsFromContext(ctx = {}, state = {}) {
+  const evidence = planAdvisorEvidence(ctx, state);
+  if (evidence?.called === false) return 0;
+  if (Number.isFinite(Number(ctx.plan_advisor_calls))) {
+    return Math.max(0, Math.floor(Number(ctx.plan_advisor_calls)));
+  }
+  if (Number.isFinite(Number(evidence?.calls))) {
+    return Math.max(0, Math.floor(Number(evidence.calls)));
+  }
+  return evidence ? 1 : 0;
+}
+
+function hasCriticalPlanDisagreement(ctx = {}, advisor = null) {
+  return Boolean(
+    ctx.critical_disagreement === true ||
+      ctx.criticalDisagreement === true ||
+      advisor?.critical_disagreement === true ||
+      advisor?.criticalDisagreement === true ||
+      advisor?.verdict === "CRITICAL_DISAGREEMENT" ||
+      advisor?.plan_verdict === "CRITICAL_DISAGREEMENT",
+  );
+}
+
+function finalReviewReuseRequested(ctx = {}) {
+  return Boolean(
+    ctx.reuse_final_review === true ||
+      ctx.single_unit_final_review_reuse === true ||
+      ctx.final_review_reuse === true,
+  );
+}
+
+function currentReviewTip(state, ctx = {}) {
+  return (
+    (ctx.worktree && gitRevParse(ctx.worktree, "HEAD")) ||
+    // In-memory callers may not have a worktree probe. Prefer the persisted
+    // post-implementation commit; head_commit is the pre-task base in V5.
+    state.implementer_commit ||
+    state.head_commit ||
+    null
+  );
+}
+
+function stateUnitCount(state = {}) {
+  const candidate = state.execution_units ?? state.units ?? state.tasks;
+  if (Array.isArray(candidate)) return candidate.length;
+  if (Number.isFinite(Number(candidate))) return Math.floor(Number(candidate));
+  if (Number.isFinite(Number(state.task_count))) return Math.floor(Number(state.task_count));
+  return null;
+}
+
+function singleUnitReuseErrors(state, ctx, handoff, reviewPackage) {
+  const errors = [];
+  if (stateUnitCount(state) !== 1) {
+    errors.push(
+      "single-unit final-review reuse is allowed only when the run has exactly one execution unit",
+    );
+  }
+  if (wantsNextTask(ctx, state)) {
+    errors.push("single-unit final-review reuse cannot be used when more tasks remain");
+  }
+  if (ctx.code_changed_after_review === true || ctx.digest_unchanged === false) {
+    errors.push("single-unit final-review reuse requires unchanged code after task review");
+  }
+  if (ctx.worktree) {
+    const dirtyCode = gitDirtyPaths(ctx.worktree).filter(
+      (file) => !file.startsWith(".opencode/"),
+    );
+    if (dirtyCode.length > 0) {
+      errors.push(
+        `single-unit final-review reuse rejected: code changed after review (${dirtyCode.join(", ")})`,
+      );
+    }
+  }
+  if (!reviewPackage || typeof reviewPackage !== "object") {
+    errors.push("single-unit final-review reuse requires the task review package");
+  } else {
+    if (reviewPackage.scope !== "task") {
+      errors.push('single-unit final-review reuse requires review_package.scope "task"');
+    }
+    if (!reviewPackage.digest_sha256) {
+      errors.push("single-unit final-review reuse requires review_package.digest_sha256");
+    }
+  }
+  const tip = currentReviewTip(state, ctx);
+  if (!tip) {
+    errors.push("single-unit final-review reuse requires a verifiable final HEAD");
+  } else if (!handoff?.reviewed_commit || handoff.reviewed_commit !== tip) {
+    errors.push(
+      `single-unit final-review reuse requires reviewed_commit to equal final HEAD (got ${handoff?.reviewed_commit || "missing"}, want ${tip})`,
+    );
+  }
+  if (reviewPackage?.head_commit && tip && reviewPackage.head_commit !== tip) {
+    errors.push(
+      `single-unit final-review reuse requires review_package.head_commit to equal final HEAD (got ${reviewPackage.head_commit}, want ${tip})`,
+    );
+  }
+  return errors;
 }
 
 function validateReviewerApproval(handoff, state, ctx, {
@@ -740,6 +917,9 @@ export function canTransition(state, to, ctx = {}) {
   if (from === "REVIEWING") {
     allowed.add("TASK_IMPACT_READY"); // REQUEST_CHANGES fix loop or next task
     allowed.add("FINAL_REVIEWING"); // last task APPROVED → whole-branch review
+    // A single-unit task review may be reused for final verification only
+    // after the caller explicitly opts in; all evidence checks still apply.
+    if (finalReviewReuseRequested(ctx)) allowed.add("FINAL_VERIFYING");
   }
   if (from === "FINAL_REVIEWING") {
     allowed.add("FINAL_VERIFYING"); // final-scope APPROVED
@@ -791,6 +971,71 @@ export function canTransition(state, to, ctx = {}) {
       errors.push(
         "PLANNED requires .opencode/plans/PLAN.md (plan_skip only with admin/compatibility mode)",
       );
+    }
+    const planningMode =
+      planningModeFromContext(ctx, state) ||
+      normalizePlanningMode(state.planning_mode, "compact");
+    const advisor = planAdvisorEvidence(ctx, state);
+    if (planningMode !== "compact" && !advisor) {
+      errors.push(
+        `planning mode ${planningMode} requires one independent plan-advisor handoff before PLANNED`,
+      );
+    }
+    const advisorCalls = planAdvisorCallsFromContext(ctx, state);
+    const allowedAdvisorCalls = planAdvisorCallCount(planningMode, {
+      criticalDisagreement: hasCriticalPlanDisagreement(ctx, advisor),
+    });
+    if (advisorCalls > allowedAdvisorCalls) {
+      errors.push(
+        `planning mode ${planningMode} permits ${allowedAdvisorCalls} plan-advisor call(s); got ${advisorCalls}`,
+      );
+    }
+    if (planningMode !== "compact" && advisorCalls < 1) {
+      errors.push(
+        `planning mode ${planningMode} requires at least one completed plan-advisor call`,
+      );
+    }
+    if (planningMode === "compact" && advisorCalls > 0) {
+      errors.push("compact planning must not spend a plan-advisor call");
+    }
+    if (advisor) {
+      if (advisor.agent !== "plan-advisor") {
+        errors.push(
+          `plan advisor handoff agent must be "plan-advisor" (got "${advisor.agent || "missing"}")`,
+        );
+      }
+      if (advisor.read_only !== true || advisor.wrote_production_code === true) {
+        errors.push("plan-advisor handoff must explicitly prove read_only=true and cannot write production code");
+      }
+      const diversity = validatePlanAdvisorModelDiversity({
+        orchestratorModel:
+          ctx.orchestrator_model || ctx.orchestratorModel || state.orchestrator_model,
+        planAdvisorModel:
+          advisor.model || ctx.plan_advisor_model || ctx.planAdvisorModel,
+      });
+      if (!diversity.ok) errors.push(diversity.error);
+    }
+    const plannedUnits =
+      ctx.execution_units ??
+      ctx.units ??
+      ctx.tasks ??
+      state.execution_units ??
+      state.units ??
+      state.tasks;
+    const hasExplicitUnits =
+      (Array.isArray(plannedUnits) && plannedUnits.length > 0) ||
+      (Number.isFinite(Number(plannedUnits)) && Number(plannedUnits) > 0) ||
+      planDeclaresExecutionUnits(ctx);
+    if (
+      (hasExplicitUnits || ctx.plan_check_required === true) &&
+      !(ctx.plan_check?.ok === true || state.plan_check?.ok === true)
+    ) {
+      errors.push(
+        "PLANNED requires a passing deterministic plan-check report for execution units",
+      );
+    }
+    if (ctx.plan_check && ctx.plan_check.ok === false) {
+      errors.push("PLANNED rejects a failed plan-check report");
     }
   }
 
@@ -1069,18 +1314,29 @@ export function canTransition(state, to, ctx = {}) {
   }
 
   if (to === "FINAL_VERIFYING") {
-    if (from !== "FINAL_REVIEWING" && from !== "BLOCKED") {
+    const reuse = from === "REVIEWING" && finalReviewReuseRequested(ctx);
+    if (!reuse && from !== "FINAL_REVIEWING" && from !== "BLOCKED") {
       errors.push("FINAL_VERIFYING must follow FINAL_REVIEWING");
     }
     const h =
       ctx.review_handoff || ctx.unified_handoff || state.last_review_handoff;
     const validated = validateReviewerApproval(h, state, ctx, {
-      expectedScope: "final",
-      label: "FINAL_VERIFYING",
+      expectedScope: reuse ? "task" : "final",
+      label: reuse ? "SINGLE_UNIT_FINAL_REVIEW_REUSE" : "FINAL_VERIFYING",
     });
     errors.push(...validated.errors);
+    if (reuse) {
+      errors.push(
+        ...singleUnitReuseErrors(
+          state,
+          ctx,
+          validated.data,
+          ctx.review_package || state.review_package,
+        ),
+      );
+    }
     if (
-      from === "FINAL_REVIEWING" &&
+      !reuse && from === "FINAL_REVIEWING" &&
       !state.last_task_review_handoff &&
       !ctx.task_review_handoff
     ) {
@@ -1152,8 +1408,19 @@ function unresolvedHighFromCtx(ctx, state) {
 
 function agentCallsForTransition(from, to, state, ctx) {
   // Charge when an agent phase completes / starts requiring a discrete agent call.
+  if (to === "PLANNED" && from === "BRAINSTORMING") {
+    const count = planAdvisorCallsFromContext(ctx, state);
+    return count > 0
+      ? { count, agent: "plan-advisor" }
+      : { count: 0, agent: null };
+  }
   if (to === "VERIFYING" && from === "IMPLEMENTING") {
     return { count: 1, agent: "implementer" };
+  }
+  if (to === "FINAL_VERIFYING" && from === "REVIEWING") {
+    // This is the task reviewer call; the final-review call is intentionally
+    // absent because the task package is being reused under strict binding.
+    return { count: 1, agent: "reviewer" };
   }
   if (
     to === "FINAL_VERIFYING" ||
@@ -1178,15 +1445,23 @@ function assertAgentCallBudget(state, to, ctx = {}) {
   const charge = agentCallsForTransition(from, to, state, ctx);
   if (!charge.count) return { ok: true, used: state.agent_calls_used || 0 };
 
-  const units =
-    (Array.isArray(state.units) && state.units.length) ||
-    (Array.isArray(state.execution_units) && state.execution_units.length) ||
-    (Array.isArray(state.tasks) && state.tasks.length) ||
-    state.task_count ||
-    1;
+  const unitCandidate =
+    to === "PLANNED"
+      ? ctx.execution_units ?? ctx.units ?? ctx.tasks ?? ctx.task_count
+      : state.execution_units ?? state.units ?? state.tasks ?? state.task_count;
+  const units = Array.isArray(unitCandidate)
+    ? unitCandidate.length || 1
+    : Number(unitCandidate) > 0
+      ? Math.floor(Number(unitCandidate))
+      : 1;
+  const planningAdvisorCalls = Math.max(
+    Number(state.plan_advisor_calls) || 0,
+    planAdvisorCallsFromContext(ctx, state),
+  );
   const budget = getAgentCallBudget({
     units,
     maxCalls: state.agent_call_budget?.max_calls,
+    planningAdvisorCalls,
   });
   const used = Number.isInteger(state.agent_calls_used) ? state.agent_calls_used : 0;
   if (used + charge.count > budget.max_calls) {
@@ -1265,6 +1540,17 @@ export function transition(state, to, evidence = {}, providers = null) {
 
   if (to === "BRAINSTORMING") {
     if (ctx.notes) next.brainstorm_notes = ctx.notes;
+    const planningMode = planningModeFromContext(ctx, state);
+    if (planningMode) next.planning_mode = planningMode;
+    if (ctx.classification) next.classification = ctx.classification;
+    if (ctx.change_class || ctx.changeClass) {
+      next.change_class = ctx.change_class || ctx.changeClass;
+    }
+    const advisor = planAdvisorEvidence(ctx, state);
+    if (advisor) {
+      next.plan_advisor = advisor;
+      next.plan_advisor_handoff = advisor;
+    }
     if (ctx.question || ctx.user_question) {
       next.last_user_question = ctx.question || ctx.user_question;
     }
@@ -1277,6 +1563,21 @@ export function transition(state, to, evidence = {}, providers = null) {
     if (ctx.tasks != null) next.tasks = ctx.tasks;
     if (ctx.units != null) next.units = ctx.units;
     if (ctx.execution_units != null) next.execution_units = ctx.execution_units;
+    const planningMode = planningModeFromContext(ctx, state);
+    if (planningMode) next.planning_mode = planningMode;
+    const advisor = planAdvisorEvidence(ctx, state);
+    if (advisor) {
+      next.plan_advisor = advisor;
+      next.plan_advisor_handoff = advisor;
+      next.plan_advisor_calls = planAdvisorCallsFromContext(ctx, state);
+    }
+    if (ctx.plan_advisor_calls != null) {
+      next.plan_advisor_calls = Math.max(
+        0,
+        Math.floor(Number(ctx.plan_advisor_calls) || 0),
+      );
+    }
+    if (ctx.plan_check != null) next.plan_check = ctx.plan_check;
     if (ctx.change_class) next.change_class = ctx.change_class;
     if (ctx.tdd_required === true) next.tdd_required = true;
     else next.tdd_required = requiresTdd(next);
@@ -1405,6 +1706,10 @@ export function transition(state, to, evidence = {}, providers = null) {
       next.last_review_handoff = data;
     }
     if (ctx.review_package) next.review_package = ctx.review_package;
+    if (state.state === "REVIEWING" && finalReviewReuseRequested(ctx)) {
+      next.final_review_reused = true;
+      next.last_final_review_handoff = next.last_review_handoff;
+    }
   }
   if (to === "VERIFYING") {
     const raw = ctx.implementer_handoff || ctx.handoff;

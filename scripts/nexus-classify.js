@@ -47,13 +47,13 @@ const USAGE = `Usage: node scripts/nexus-classify.js [options]
   --migration --credential-handling --high-blast
   --diff [BASE] | --from-diff [BASE]
   --no-diff (compatibility input; never authorizes direct execution)
-  --profile fast|balanced|strict
+  --profile VALUE (compatibility input; does not select a V5 workflow)
   --blast path.json (post-blast reclassification)
   --callers N
   --input path.json | --json '{...}'
-Note: --class public-api|authentication-security|database-migration
-      alone triggers hard strict + dual review. HIGH blast escalates review;
-      execution profile is re-scored from semantic + impact evidence.`;
+Note: Classification is advisory in V5 and does not advance run state or
+      change the fixed V5 reviewer roster. Impact risk informs verification
+      intensity; it does not select a profile or review roster.`;
 
 export function classifyFromArgs(argv = process.argv.slice(2), cwd = process.cwd()) {
   const args = parseArgs(argv);

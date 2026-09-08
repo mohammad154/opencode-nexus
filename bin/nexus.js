@@ -5,7 +5,11 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { projectInit } from "../scripts/lib/project-init.js";
-import { CANONICAL_AGENTS } from "../scripts/lib/constants.js";
+import {
+  CANONICAL_AGENTS,
+  PLANNING_AGENTS,
+} from "../scripts/lib/constants.js";
+import { validatePlanAdvisorModelDiversity } from "../scripts/lib/planning.js";
 
 const pkgRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const pkg = JSON.parse(fs.readFileSync(path.join(pkgRoot, "package.json"), "utf8"));
@@ -26,6 +30,7 @@ Commands:
   blast          Alias for impact (compatibility)
   classify       Risk classifier CLI
   estimate       Estimate minimum agent calls for a plan
+  plan-check     Deterministic PLAN.md linter (no LLM calls)
   review-package Build deterministic reviewer briefing (task|final)
   eval           Reviewer planted-defect eval harness (oracle/rubber suites)
   worktree       Manage task worktrees (create, list, remove)
@@ -47,15 +52,15 @@ Examples:
   nexus impact --json
   nexus baseline
   nexus verify --baseline
-  nexus estimate --tasks 3 --profile balanced
+  nexus estimate --tasks 3
+  nexus plan-check --json
   nexus review-package --scope task --json
   nexus eval reviewer --json
   nexus worktree create --task task-1 --base HEAD
   nexus doctor
 
-Install flags are forwarded to install.sh:
-  --with-optional-agents
-  --prune-optional-agents
+V5 migration flag forwarded to install.sh:
+  --prune-optional-agents  Remove retired V4 agent artifacts (normally automatic)
 
 Clone-dev fallback (inside this repo only):
   node scripts/nexus-run.js ...
@@ -255,6 +260,10 @@ function cmdEstimate(args) {
   runNodeScript("nexus-estimate-calls.js", args);
 }
 
+function cmdPlanCheck(args) {
+  runNodeScript("nexus-plan-check.js", args);
+}
+
 function cmdWorktree(args) {
   runNodeScript("nexus-worktree.js", args);
 }
@@ -329,6 +338,36 @@ function doctor() {
       ? `${canonical.length} canonical agents in ${agentsDir}`
       : `missing: ${missingAgents.join(", ")}`,
   ]);
+
+  const missingPlanningAgents = PLANNING_AGENTS.filter(
+    (name) => !fs.existsSync(path.join(agentsDir, `${name}.md`)),
+  );
+  rows.push([
+    "planning-agent",
+    missingPlanningAgents.length === 0,
+    missingPlanningAgents.length === 0
+      ? `${PLANNING_AGENTS.length} conditional planning agent in ${agentsDir}`
+      : `missing: ${missingPlanningAgents.join(", ")}`,
+  ]);
+
+  if (fs.existsSync(configFile)) {
+    try {
+      const config = JSON.parse(fs.readFileSync(configFile, "utf8"));
+      const diversity = validatePlanAdvisorModelDiversity({
+        orchestratorModel: config.agent?.orchestrator?.model,
+        planAdvisorModel: config.agent?.["plan-advisor"]?.model,
+      });
+      rows.push([
+        "planning-model",
+        diversity.ok,
+        diversity.ok
+          ? diversity.warning || "orchestrator and plan-advisor models differ"
+          : diversity.error,
+      ]);
+    } catch (err) {
+      rows.push(["planning-model", false, `unreadable: ${err.message}`]);
+    }
+  }
 
   if (isGitRepo(worktree)) {
     const opencodeDir = path.join(worktree, ".opencode");
@@ -424,6 +463,9 @@ switch (command) {
     break;
   case "estimate":
     cmdEstimate(args);
+    break;
+  case "plan-check":
+    cmdPlanCheck(args);
     break;
   case "review-package":
     runNodeScript("nexus-review-package.js", args);

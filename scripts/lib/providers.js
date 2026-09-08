@@ -44,18 +44,23 @@ function normalizeMode(mode) {
 
 /**
  * Resolve the hard maximum number of agent calls for a run.
- * V5: ~2 calls per task (implementer + reviewer), plus headroom for fix loops.
+ * V5/V6: ~2 calls per execution unit (implementer + reviewer), plus fix-loop
+ * headroom and any planning-only advisor calls.
  */
 export function getAgentCallBudget(options = {}) {
   const units = Math.max(1, Math.floor(Number(options.units) || 1));
   const perTask = 2;
   const fixHeadroom = Math.max(2, units); // one extra implementer+reviewer pair per task
-  const derivedMax = perTask * units + fixHeadroom;
+  const planningAdvisorCalls = Math.max(
+    0,
+    Math.floor(Number(options.planningAdvisorCalls ?? options.plan_advisor_calls) || 0),
+  );
+  const derivedMax = perTask * units + fixHeadroom + planningAdvisorCalls;
   const requestedMax = Number(options.maxCalls ?? options.max_calls);
   const maxCalls = Number.isFinite(requestedMax) && requestedMax >= 0
     ? Math.min(Math.floor(requestedMax), derivedMax)
     : derivedMax;
-  return {
+  const budget = {
     profile: "default",
     workflow: "default",
     change_class: String(options.changeClass || options.change_class || "task")
@@ -68,6 +73,10 @@ export function getAgentCallBudget(options = {}) {
     derived_max_calls: derivedMax,
     source: "v5-default-workflow",
   };
+  // Preserve the V5 budget shape for ordinary runs; expose the extra planning
+  // allowance only when a planning advisor was actually charged.
+  if (planningAdvisorCalls > 0) budget.planning_advisor_calls = planningAdvisorCalls;
+  return budget;
 }
 
 function unsupportedProviderResult(kind, mode) {

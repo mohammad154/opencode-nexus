@@ -1,5 +1,5 @@
 {
-  "_comment": "V5 single default workflow. No fast/balanced/strict profile matrix. Impact Engine risk still drives verification ladder intensity.",
+  "_comment": "V5 single default execution workflow. Planning depth and Plan Advisor use are adaptive; Impact Engine risk still drives verification ladder intensity.",
   "workflow": "default",
   "branchPolicy": "per-feature",
   "reviewPolicy": "always-reviewer",
@@ -7,7 +7,8 @@
   "impactPolicy": "rebuild-each-task",
   "cleanupPolicy": "script",
   "batchTasks": false,
-  "implementerPer": "task",
+  "implementerPer": "execution-unit",
+  "executionUnitPer": "execution-unit",
   "maxTasksPerBatch": 1,
   "maxParallelTasks": 1,
   "requireReviewerOn": ["*"],

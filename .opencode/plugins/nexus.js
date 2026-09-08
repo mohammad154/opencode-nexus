@@ -28,12 +28,12 @@ function buildCompactRouter() {
     "<EXTREMELY_IMPORTANT>",
     BOOTSTRAP_MARKER,
     "OpenCode Nexus V5 is installed. Keep this routing pointer compact and load detailed instructions only with the native skill tool when the phase requires them.",
-    "Route: start/orient → using-nexus; clarify only if ambiguous → brainstorming; always write a plan → writing-plans; before every implementer → impact-analysis (nexus impact); execute the plan → orchestrating; isolate work → using-feature-branches; finish → finishing-a-development-branch; stuck/BLOCKED → reconcile.",
+    "Route: start/orient → using-nexus; clarify only if ambiguous → brainstorming; always write a plan → writing-plans; standard/deep planning may dispatch plan-advisor once; run nexus plan-check before PLANNED; before every implementer → impact-analysis (nexus impact); execute cohesive units → orchestrating; isolate work → using-feature-branches; finish → finishing-a-development-branch; stuck/BLOCKED → reconcile.",
     "Three invariants: (1) brainstorm then PLAN.md for every request (2) fresh pre-impact before every implementer dispatch including REQUEST_CHANGES fix loops (3) every task needs independent reviewer APPROVED.",
     "Portable commands: nexus project-init | nexus next | nexus run ... | nexus impact ... | nexus estimate ...",
     "Use nexus run for state machine gates. Use nexus next (or the injected Nexus Next Action block) for the deterministic next step — including REQUIRED_DISPATCH agent. Do NOT assume repo-local scripts/ exists.",
-    "Agents only: orchestrator, implementer, reviewer. Orchestrator must Task-dispatch implementer for production code and reviewer after VERIFYING. Never self-implement. Never skip reviewer. Do not use legacy classify/blast/Graphify workflow routing, profile matrices, or dual review agents.",
-    "Lifecycle: CREATED → BRAINSTORMING ↔ WAITING_FOR_USER → PLANNED → TASK_IMPACT_READY → IMPLEMENTING → VERIFYING → REVIEWING → FINAL_REVIEWING → FINAL_VERIFYING → COMPLETED. After each VERIFYING: nexus review-package then reviewer (task scope). After last task APPROVED: review-package --scope final then reviewer (final / whole-branch).",
+    "Execution agents only: orchestrator, implementer, reviewer. plan-advisor is planning-only and conditional. Orchestrator must Task-dispatch implementer for production code and reviewer after VERIFYING. Never self-implement. Never skip reviewer. Do not use legacy classify/blast/Graphify workflow routing, profile matrices, or dual review agents.",
+    "Lifecycle: CREATED → BRAINSTORMING ↔ WAITING_FOR_USER → PLANNED → TASK_IMPACT_READY → IMPLEMENTING → VERIFYING → REVIEWING → FINAL_REVIEWING → FINAL_VERIFYING → COMPLETED. After each VERIFYING: nexus review-package then reviewer (task scope). After the last task APPROVED: multi-unit runs use review-package --scope final then reviewer; a single unit may use evidence-bound task-review reuse only when the state-machine checks pass.",
     "</EXTREMELY_IMPORTANT>",
   ].join("\n");
 }

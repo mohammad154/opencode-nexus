@@ -100,3 +100,18 @@ test("models.example.json is V5-only and does not reintroduce retired agents", (
     );
   }
 });
+
+test("published scripts allowlist excludes test-only harnesses", () => {
+  const pkg = JSON.parse(
+    fs.readFileSync(path.join(repoRoot, "package.json"), "utf8"),
+  );
+  const publishedScripts = pkg.files.filter((entry) => entry.startsWith("scripts/"));
+
+  assert.deepEqual(publishedScripts, [
+    "scripts/ensure-cli-on-path.js",
+    "scripts/lib/",
+    "scripts/nexus-*.js",
+    "scripts/nexus-*.sh",
+  ]);
+  assert.ok(!publishedScripts.includes("scripts/"));
+});

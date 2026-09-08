@@ -6,6 +6,7 @@
 
 import fs from "fs";
 import path from "path";
+import { planningModeFromEvidence } from "./planning.js";
 
 /**
  * @typedef {object} NextAction
@@ -23,6 +24,48 @@ import path from "path";
 function planExists(worktree) {
   if (!worktree) return false;
   return fs.existsSync(path.join(worktree, ".opencode", "plans", "PLAN.md"));
+}
+
+function planHasExecutionUnits(worktree) {
+  if (!worktree) return false;
+  try {
+    const plan = fs.readFileSync(
+      path.join(worktree, ".opencode", "plans", "PLAN.md"),
+      "utf8",
+    );
+    return /^###\s+(?:Execution\s+Unit|Task)\s+/im.test(plan);
+  } catch {
+    return false;
+  }
+}
+
+function stateHasSingleUnit(runState) {
+  const candidate =
+    runState?.execution_units ?? runState?.units ?? runState?.tasks;
+  if (Array.isArray(candidate)) return candidate.length === 1;
+  if (Number.isFinite(Number(candidate))) return Number(candidate) === 1;
+  if (runState?.task_count != null) return Number(runState.task_count) === 1;
+  return false;
+}
+
+function stateRunPlanningMode(runState) {
+  const explicit = String(runState?.planning_mode || "").trim().toLowerCase();
+  if (explicit) return explicit;
+  const classification = runState?.classification || {};
+  return (
+    planningModeFromEvidence({
+      ...classification,
+      ...runState,
+      change_class:
+        runState?.change_class || classification.change_class || classification.changeClass,
+      files_changed:
+        runState?.files_changed || classification.files_changed || classification.filesChanged,
+      estimated_lines:
+        runState?.estimated_lines ||
+        classification.estimated_lines ||
+        classification.estimatedLines,
+    }) || ""
+  );
 }
 
 /**
@@ -77,6 +120,30 @@ export function resolveNextAction(runState, opts = {}) {
       };
 
     case "BRAINSTORMING":
+      if (
+        (stateRunPlanningMode(runState) === "standard" ||
+          stateRunPlanningMode(runState) === "deep") &&
+        !runState.plan_advisor &&
+        !runState.plan_advisor_handoff
+      ) {
+        return {
+          ok: true,
+          run_id: runId,
+          state,
+          action: "dispatch_plan_advisor",
+          agent: "plan-advisor",
+          skill: "orchestrating",
+          command: null,
+          instruction:
+            "Task-dispatch plan-advisor once with the read-only Problem Brief. It may challenge decomposition but cannot write code or change state.",
+          steps: [
+            "Prepare Problem Brief: objective, constraints, risks, likely files, and verification boundary",
+            "Task-dispatch agent: plan-advisor (planning-only, independent model)",
+            "Synthesize the final plan in the orchestrator",
+            "Pass plan_advisor evidence and planning_mode to PLANNED",
+          ],
+        };
+      }
       if (!hasPlan) {
         return {
           ok: true,
@@ -92,6 +159,24 @@ export function resolveNextAction(runState, opts = {}) {
             "If ambiguous: nexus run transition --to WAITING_FOR_USER --json '{\"question\":\"...\"}'",
             "Else: Load skill: writing-plans → create .opencode/plans/PLAN.md",
             "nexus run transition --to PLANNED",
+          ],
+        };
+      }
+      if (planHasExecutionUnits(worktree) && !runState.plan_check) {
+        return {
+          ok: true,
+          run_id: runId,
+          state,
+          action: "plan_check",
+          agent: null,
+          skill: "writing-plans",
+          command: "nexus plan-check --json",
+          instruction:
+            "Run the deterministic plan-check, fix hard errors and review warnings, then transition to PLANNED with the plan-check report.",
+          steps: [
+            "nexus plan-check --json",
+            "Resolve errors; merge or split only when the linter evidence supports it",
+            "nexus run transition --to PLANNED --plan-check --json '{\"planning_mode\":\"…\",\"plan_advisor\":{...}}'",
           ],
         };
       }
@@ -135,10 +220,10 @@ export function resolveNextAction(runState, opts = {}) {
         command:
           "nexus impact --json --targets <planned files> && nexus run transition --to TASK_IMPACT_READY",
         instruction:
-          "Run fresh pre-impact for the next task, then transition to TASK_IMPACT_READY.",
+          "Run fresh pre-impact for the next execution unit, then transition to TASK_IMPACT_READY.",
         steps: [
           "Load skill: impact-analysis",
-          "nexus impact --json --targets <files for current task>",
+          "nexus impact --json --targets <files for current execution unit>",
           "nexus run transition --to TASK_IMPACT_READY --json '{...impact...}'",
         ],
       };
@@ -198,6 +283,26 @@ export function resolveNextAction(runState, opts = {}) {
       };
 
     case "REVIEWING":
+      if (stateHasSingleUnit(runState)) {
+        return {
+          ok: true,
+          run_id: runId,
+          state,
+          action: "dispatch_reviewer",
+          agent: "reviewer",
+          skill: "orchestrating",
+          command: "nexus review-package --scope task --json",
+          instruction:
+            "REQUIRED NOW: Generate the task review package and dispatch reviewer. For a single unit, reuse this evidence for final verification only if the reviewed commit equals current HEAD and the package digest is unchanged; otherwise use FINAL_REVIEWING.",
+          steps: [
+            "nexus review-package --scope task --json",
+            "Task-dispatch agent: reviewer (review_scope=task)",
+            "If APPROVED and digest/HEAD are unchanged: FINAL_VERIFYING with reuse_final_review=true",
+            "Otherwise: FINAL_REVIEWING for a whole-branch reviewer call",
+            "If REQUEST_CHANGES: fresh nexus impact → TASK_IMPACT_READY → implementer → reviewer",
+          ],
+        };
+      }
       return {
         ok: true,
         run_id: runId,
