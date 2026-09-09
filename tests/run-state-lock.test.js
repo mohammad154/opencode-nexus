@@ -144,6 +144,39 @@ test("withFileLock reaps stale lockfile older than staleMs", (t) => {
   assert.strictEqual(fs.existsSync(lockFile), false);
 });
 
+test("withFileLock preserves a replacement lock during stale reaping", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "nexus-lock-replacement-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+
+  const targetFile = path.join(dir, "data.txt");
+  const lockFile = `${targetFile}.lock`;
+  fs.writeFileSync(lockFile, "stale", "utf8");
+  const oldTime = (Date.now() - 20000) / 1000;
+  fs.utimesSync(lockFile, oldTime, oldTime);
+
+  const originalRename = fs.renameSync;
+  let injected = false;
+  fs.renameSync = (from, to) => {
+    if (from === lockFile && !injected) {
+      injected = true;
+      fs.rmSync(lockFile, { force: true });
+      fs.writeFileSync(lockFile, "replacement", "utf8");
+    }
+    return originalRename(from, to);
+  };
+  try {
+    assert.throws(
+      () => withFileLock(targetFile, () => {}, { retries: 1, staleMs: 5000 }),
+      /could not acquire lock/,
+    );
+  } finally {
+    fs.renameSync = originalRename;
+  }
+
+  assert.equal(fs.readFileSync(lockFile, "utf8"), "replacement");
+  fs.rmSync(lockFile, { force: true });
+});
+
 test("withFileLock throws when lock cannot be acquired within retries", (t) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "nexus-lock-unacq-"));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));

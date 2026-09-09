@@ -7,7 +7,9 @@ import { createEmptyRunState } from "../../scripts/lib/migrate-artifacts.js";
 import {
   canTransition,
   transition,
+  revalidateTransitionEvidence,
 } from "../../scripts/lib/state-machine.js";
+import { compareBaselines } from "../../scripts/lib/verification/compare.js";
 import { assertValidRunId } from "../../scripts/lib/policy.js";
 import { normalizeHandoff } from "../../scripts/lib/migrate-artifacts.js";
 import {
@@ -144,6 +146,72 @@ test("VERIFYING requires sealed provider verification path via gates", () => {
   });
   // May fail on provider verification / post-impact — must not silently pass
   assert.equal(r.ok, false);
+});
+
+test("baseline comparison allows pre-existing verification failures at the transition gate", () => {
+  const result = revalidateTransitionEvidence(
+    "VERIFYING",
+    {
+      baseline: {
+        results: [{ id: "test", command: "npm test", pass: false }],
+      },
+    },
+    {
+      verificationProvider: {
+        run() {
+          return {
+            ok: false,
+            results: [
+              {
+                id: "test",
+                command: "npm test",
+                exit_code: 1,
+                pass: false,
+              },
+            ],
+            plan: { steps: [] },
+          };
+        },
+        compare: compareBaselines,
+      },
+    },
+    {},
+  );
+
+  assert.deepEqual(result.errors, []);
+  assert.equal(result.ctx.provider_verification.ok, true);
+  assert.equal(
+    result.ctx.provider_verification.baseline_comparison.pre_existing_failures.length,
+    1,
+  );
+});
+
+test("baseline comparison cannot make an unavailable verification run pass", () => {
+  const result = revalidateTransitionEvidence(
+    "VERIFYING",
+    {
+      baseline: {
+        results: [{ id: "test", command: "npm test", pass: false }],
+      },
+    },
+    {
+      verificationProvider: {
+        run() {
+          return {
+            ok: false,
+            code: "VERIFICATION_UNAVAILABLE",
+            results: [],
+            plan: { steps: [] },
+          };
+        },
+        compare: compareBaselines,
+      },
+    },
+    {},
+  );
+
+  assert.equal(result.ctx.provider_verification.ok, false);
+  assert.equal(result.ctx.provider_verification.baseline_comparison.ok, true);
 });
 
 test("force_reimpact cannot bypass missing review_handoff on REVIEWING→TASK_IMPACT_READY", () => {

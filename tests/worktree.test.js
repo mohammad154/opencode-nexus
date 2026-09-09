@@ -145,6 +145,26 @@ test("createTaskWorktree fails on dirty worktree reuse", () => {
   }
 });
 
+test("task worktree IDs cannot escape and are not lossy-colliding", () => {
+  const { dir, commit1 } = createTestRepo();
+  const created = [];
+  try {
+    const traversal = createTaskWorktree(dir, "..", { baseCommit: commit1 });
+    assert.equal(traversal.ok, false);
+    assert.match(traversal.error, /invalid task id/);
+
+    const slash = createTaskWorktree(dir, "a/b", { baseCommit: commit1 });
+    const question = createTaskWorktree(dir, "a?b", { baseCommit: commit1 });
+    assert.equal(slash.ok, true, slash.error);
+    assert.equal(question.ok, true, question.error);
+    assert.notEqual(slash.path, question.path);
+    created.push("a/b", "a?b");
+  } finally {
+    for (const taskId of created) removeTaskWorktree(dir, taskId);
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("removeTaskWorktree and listTaskWorktrees work correctly", () => {
   const { dir, commit1 } = createTestRepo();
   try {

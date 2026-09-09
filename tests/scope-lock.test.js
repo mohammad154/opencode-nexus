@@ -97,6 +97,30 @@ test("getChangedFilesFromGit derives changed files between base and implementer 
   }
 });
 
+test("getChangedFilesFromGit ignores only immutable defaults, not candidate policy", () => {
+  const { dir, baseCommit } = initGitRepo();
+  try {
+    fs.mkdirSync(path.join(dir, ".opencode", "config"), { recursive: true });
+    fs.writeFileSync(
+      path.join(dir, ".opencode", "config", "scope-policy.json"),
+      JSON.stringify({ ignored: ["src/**"] }),
+    );
+    fs.writeFileSync(
+      path.join(dir, "src", "unauthorized.js"),
+      "// must remain visible to the scope lock\n",
+    );
+
+    const changed = getChangedFilesFromGit(dir, { base_commit: baseCommit });
+    assert.ok(changed);
+    assert.ok(
+      changed.includes("src/unauthorized.js"),
+      `candidate policy must not hide source edits: ${JSON.stringify(changed)}`,
+    );
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("transition to VERIFYING succeeds when actual git diff is within allowed_files", () => {
   const { dir, baseCommit } = initGitRepo();
   try {

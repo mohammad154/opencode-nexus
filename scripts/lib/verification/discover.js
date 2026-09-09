@@ -89,6 +89,16 @@ export function isSafeRelPath(rel) {
   return true;
 }
 
+function isWithinWorktree(root, candidate) {
+  const relative = path.relative(root, candidate);
+  return (
+    relative &&
+    relative !== ".." &&
+    !relative.startsWith(`..${path.sep}`) &&
+    !path.isAbsolute(relative)
+  );
+}
+
 function targetValue(value) {
   return typeof value === "string" ? value : value?.path || value?.file || "";
 }
@@ -123,15 +133,30 @@ export function resolveVerificationTarget(worktree, value, options = {}) {
     return { ok: false, path: rel, reason: "unsupported_target" };
   }
   const abs = path.resolve(worktree, rel);
-  const root = path.resolve(worktree);
-  if (!abs.startsWith(`${root}${path.sep}`) || !fs.existsSync(abs)) {
+  const lexicalRoot = path.resolve(worktree);
+  if (
+    !abs.startsWith(`${lexicalRoot}${path.sep}`) ||
+    !fs.existsSync(abs)
+  ) {
     return { ok: false, path: rel, reason: "missing_target" };
   }
+
+  let root;
+  let realAbs;
   try {
-    if (!fs.statSync(abs).isFile()) {
+    root = fs.realpathSync(worktree);
+    realAbs = fs.realpathSync(abs);
+  } catch {
+    return { ok: false, path: rel, reason: "unreadable_target" };
+  }
+  if (!isWithinWorktree(root, realAbs)) {
+    return { ok: false, path: rel, reason: "outside_worktree" };
+  }
+  try {
+    if (!fs.statSync(realAbs).isFile()) {
       return { ok: false, path: rel, reason: "not_a_file" };
     }
-    const sample = fs.readFileSync(abs).subarray(0, 4096);
+    const sample = fs.readFileSync(realAbs).subarray(0, 4096);
     if (sample.includes(0)) {
       return { ok: false, path: rel, reason: "binary_target" };
     }
@@ -170,6 +195,47 @@ function targetFromStep(step) {
   return "";
 }
 
+export function isTargetedVerificationStep(candidate) {
+  const marker = Array.isArray(candidate?.args)
+    ? candidate.args.indexOf("--")
+    : -1;
+  const explicitArgTarget =
+    candidate?.kind === "test" &&
+    marker >= 0 &&
+    typeof candidate.args[marker + 1] === "string" &&
+    !candidate.args[marker + 1].startsWith("-");
+  return (
+    candidate?.kind === "targeted-test" ||
+    candidate?.id?.startsWith("related:") ||
+    Boolean(candidate?.target) ||
+    explicitArgTarget
+  );
+}
+
+function canonicalizeTargetedStep(candidate, target) {
+  const args = Array.isArray(candidate?.args) ? candidate.args : [];
+  const marker = args.indexOf("--");
+  // The first -- is the explicit boundary used by package runners. Discard
+  // every unvalidated positional argument after it and insert only the path
+  // that was resolved and checked above.
+  let canonicalArgs;
+  if (marker >= 0) {
+    canonicalArgs = [...args.slice(0, marker + 1), target.path];
+  } else {
+    // Without an explicit delimiter there is no safe way to distinguish
+    // positional paths from runner-specific arguments. Preserve only the
+    // package script selector for the common package runners; all other
+    // targeted commands receive the validated path as their sole argument.
+    const command = path.basename(String(candidate?.command || "")).toLowerCase();
+    const packageRunner = new Set(["npm", "pnpm", "yarn", "bun"]).has(command);
+    canonicalArgs =
+      packageRunner && typeof args[0] === "string"
+        ? [args[0], "--", target.path]
+        : [target.path];
+  }
+  return { ...candidate, args: canonicalArgs, target: target.path };
+}
+
 /** Remove invalid targeted steps from caller-supplied or discovered plans. */
 export function filterVerificationPlan(worktree, plan = {}) {
   const policy = loadScopePolicy(worktree);
@@ -178,20 +244,7 @@ export function filterVerificationPlan(worktree, plan = {}) {
     ? [...plan.ignored_targets]
     : [];
   for (const candidate of Array.isArray(plan.steps) ? plan.steps : []) {
-    const marker = Array.isArray(candidate?.args)
-      ? candidate.args.indexOf("--")
-      : -1;
-    const explicitArgTarget =
-      candidate?.kind === "test" &&
-      marker >= 0 &&
-      typeof candidate.args[marker + 1] === "string" &&
-      !candidate.args[marker + 1].startsWith("-");
-    const targeted =
-      candidate?.kind === "targeted-test" ||
-      candidate?.id?.startsWith("related:") ||
-      Boolean(candidate?.target) ||
-      explicitArgTarget;
-    if (!targeted) {
+    if (!isTargetedVerificationStep(candidate)) {
       steps.push(candidate);
       continue;
     }
@@ -202,7 +255,7 @@ export function filterVerificationPlan(worktree, plan = {}) {
       ignored_targets.push(target);
       continue;
     }
-    steps.push(candidate);
+    steps.push(canonicalizeTargetedStep(candidate, target));
   }
   return { ...plan, steps, ignored_targets };
 }

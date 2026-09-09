@@ -1,6 +1,23 @@
 import fs from "fs";
 import path from "path";
 
+let staleQuarantineSequence = 0;
+
+function quarantinePath(lock) {
+  const sequence = staleQuarantineSequence++;
+  return `${lock}.${process.pid}.${Date.now()}.${sequence}.stale`;
+}
+
+function sameFileIdentity(left, right) {
+  return (
+    left.dev === right.dev &&
+    left.ino === right.ino &&
+    left.ctimeMs === right.ctimeMs &&
+    left.mtimeMs === right.mtimeMs &&
+    left.size === right.size
+  );
+}
+
 /**
  * Acquire a coarse advisory lockfile via O_EXCL (mode "wx").
  * Supports stale lock reaping, retry loop with backoff, and ensures
@@ -33,13 +50,41 @@ export function withFileLock(
 
       // Reap a stale lock (older than staleMs, default 10s) left by a crashed writer.
       try {
-        const age = Date.now() - fs.statSync(lock).mtimeMs;
-        if (age > staleMs) {
-          fs.rmSync(lock, { force: true });
+        const observed = fs.statSync(lock);
+        if (Date.now() - observed.mtimeMs > staleMs) {
+          // Move the observed inode away atomically before deleting it. A
+          // replacement lock created at the original path is then never the
+          // path passed to rmSync.
+          const stale = quarantinePath(lock);
+          try {
+            fs.renameSync(lock, stale);
+          } catch (renameError) {
+            if (renameError.code === "ENOENT") continue;
+            throw renameError;
+          }
+          // A release/reacquire can replace the path before rename. Verify
+          // that the quarantined inode is the one we actually observed; if it
+          // is not, restore it without overwriting a newer lock.
+          if (!sameFileIdentity(observed, fs.statSync(stale))) {
+            try {
+              fs.linkSync(stale, lock);
+              fs.rmSync(stale, { force: true });
+            } catch {
+              // Never delete either path when the replacement cannot be
+              // restored atomically.
+            }
+            continue;
+          }
+          try {
+            fs.rmSync(stale, { force: true });
+          } catch {
+            // The live lock path was already detached; do not touch it if
+            // cleanup of the quarantined inode is temporarily unavailable.
+          }
           continue;
         }
       } catch {
-        // Lock vanished between stat and rm — retry immediately
+        // Lock vanished while it was being inspected or quarantined — retry.
         continue;
       }
 

@@ -9,6 +9,7 @@ import { spawnSync } from "node:child_process";
 import {
   discoverVerification,
   filterVerificationPlan,
+  isTargetedVerificationStep,
 } from "../verification/discover.js";
 import { compareBaselines } from "../verification/compare.js";
 import { sealProviderArtifact, sha256Digest } from "../artifact-seal.js";
@@ -210,10 +211,7 @@ export function createVerificationProvider() {
       }
 
       const targetPlan = filterVerificationPlan(worktree, { steps: [step] });
-      const targeted =
-        step?.kind === "targeted-test" ||
-        step?.id?.startsWith("related:") ||
-        Boolean(step?.target);
+      const targeted = isTargetedVerificationStep(step);
       if (targeted && targetPlan.steps.length === 0) {
         const rejected = targetPlan.ignored_targets[0] || {
           reason: "invalid_target",

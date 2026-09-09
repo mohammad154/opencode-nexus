@@ -9,13 +9,58 @@ function run(cwd, args) {
   return spawnSync("git", args, { cwd, encoding: "utf8" });
 }
 
+const SAFE_TASK_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
+const MAX_TASK_ID_LENGTH = 128;
+const MAX_CANONICAL_TASK_ID_LENGTH = 240;
+
+/**
+ * Turn an opaque task ID into one filesystem path segment without lossy
+ * replacement. Safe IDs remain readable; other IDs are URI-encoded so that
+ * distinct values cannot silently share a worktree directory.
+ */
+export function canonicalTaskId(taskId) {
+  if (typeof taskId !== "string" || !taskId || taskId.length > MAX_TASK_ID_LENGTH) {
+    return null;
+  }
+  const normalized = taskId.replace(/\\/g, "/");
+  if (
+    normalized.startsWith("/") ||
+    /^[A-Za-z]:/.test(normalized) ||
+    normalized.split("/").some((part) => part === "." || part === "..") ||
+    normalized.includes("\0")
+  ) {
+    return null;
+  }
+  if (SAFE_TASK_ID_RE.test(taskId)) return taskId;
+  let encoded;
+  try {
+    encoded = `id-${encodeURIComponent(taskId)}`;
+  } catch {
+    return null;
+  }
+  return encoded.length <= MAX_CANONICAL_TASK_ID_LENGTH ? encoded : null;
+}
+
+function taskWorktree(repoRoot, taskId) {
+  const safe = canonicalTaskId(taskId);
+  if (!safe) {
+    return {
+      ok: false,
+      error:
+        `invalid task id "${String(taskId)}": must identify a non-traversal task`,
+    };
+  }
+  return { ok: true, safe, path: path.join(worktreeRoot(repoRoot), safe) };
+}
+
 export function worktreeRoot(repoRoot) {
   return path.join(repoRoot, ".opencode", "worktrees");
 }
 
 export function createTaskWorktree(repoRoot, taskId, { branch, baseCommit } = {}) {
-  const safe = String(taskId).replace(/[^A-Za-z0-9._-]/g, "-");
-  const dir = path.join(worktreeRoot(repoRoot), safe);
+  const task = taskWorktree(repoRoot, taskId);
+  if (!task.ok) return task;
+  const { safe, path: dir } = task;
   fs.mkdirSync(path.dirname(dir), { recursive: true });
   if (fs.existsSync(dir)) {
     const head = run(repoRoot, ["rev-parse", "HEAD"]);
@@ -67,8 +112,9 @@ export function createTaskWorktree(repoRoot, taskId, { branch, baseCommit } = {}
 }
 
 export function removeTaskWorktree(repoRoot, taskId) {
-  const safe = String(taskId).replace(/[^A-Za-z0-9._-]/g, "-");
-  const dir = path.join(worktreeRoot(repoRoot), safe);
+  const task = taskWorktree(repoRoot, taskId);
+  if (!task.ok) return { ...task, removed: false };
+  const { path: dir } = task;
   if (!fs.existsSync(dir)) return { ok: true, removed: false };
   const r = run(repoRoot, ["worktree", "remove", "--force", dir]);
   return { ok: r.status === 0, removed: r.status === 0, stderr: r.stderr ? r.stderr.trim() : undefined };

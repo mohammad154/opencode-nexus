@@ -658,6 +658,16 @@ function loadRunBaseline(state, ctx, worktree) {
   }
 }
 
+function hasExecutedVerificationCheck(run) {
+  return (
+    Array.isArray(run?.results) &&
+    run.results.some(
+      (result) =>
+        result && result.status !== "UNAVAILABLE" && result.exit_code != null,
+    )
+  );
+}
+
 /**
  * Revalidate impact via providers. Caller-supplied trusted labels are ignored.
  * Digests never establish authenticity — always recompute at safety gates.
@@ -806,7 +816,9 @@ export function revalidateTransitionEvidence(to, ctx, providers, state = {}) {
       });
       const baseline = loadRunBaseline(state, ctx, worktree);
       let baseline_comparison = null;
-      let ok = run?.ok === true;
+      // Baseline comparison may intentionally admit failures that were already
+      // present, but it must not turn an unavailable/empty run into a pass.
+      let ok = run?.ok === true && hasExecutedVerificationCheck(run);
       if (baseline && providers.verificationProvider.compare) {
         baseline_comparison = providers.verificationProvider.compare(
           baseline,
@@ -821,6 +833,10 @@ export function revalidateTransitionEvidence(to, ctx, providers, state = {}) {
               .map((r) => r.id || r.command)
               .join(", ") || "unknown"}`,
           );
+        } else if (hasExecutedVerificationCheck(run)) {
+          // The baseline contract is "no new regressions", so pre-existing
+          // failures do not keep the provider report red.
+          ok = true;
         }
       }
       const sealed = sealVerificationReport(

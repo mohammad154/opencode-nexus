@@ -1,5 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import {
   buildTaskDag,
   detectCycle,
@@ -13,7 +16,10 @@ import {
   unresolvedHighFindings,
 } from "../../scripts/lib/review-protocol.js";
 import { compareBaselines, verificationLadder } from "../../scripts/lib/verification/compare.js";
-import { discoverVerification } from "../../scripts/lib/verification/discover.js";
+import {
+  discoverVerification,
+  filterVerificationPlan,
+} from "../../scripts/lib/verification/discover.js";
 
 test("task DAG rejects cycles", () => {
   const dag = buildTaskDag([
@@ -105,6 +111,64 @@ test("malicious related test filenames are rejected", async () => {
   assert.ok(!plan.steps.some((s) => String(s.id).includes(";")));
   for (const step of plan.steps) {
     assert.ok(Array.isArray(step.args), "steps must use args arrays");
+  }
+});
+
+test("targeted plans execute the validated target and reject outside-worktree symlinks", () => {
+  const worktree = fs.mkdtempSync(path.join(os.tmpdir(), "nexus-targeted-plan-"));
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), "nexus-targeted-outside-"));
+  try {
+    fs.mkdirSync(path.join(worktree, "tests"), { recursive: true });
+    fs.writeFileSync(path.join(worktree, "tests", "good.test.js"), "// good\n");
+    fs.writeFileSync(path.join(worktree, "tests", "other.test.js"), "// other\n");
+    fs.writeFileSync(path.join(outside, "outside.test.js"), "// outside\n");
+    fs.symlinkSync(
+      path.join(outside, "outside.test.js"),
+      path.join(worktree, "tests", "linked.test.js"),
+    );
+
+    const canonical = filterVerificationPlan(worktree, {
+      steps: [
+        {
+          id: "related:tests/good.test.js",
+          command: "npm",
+          args: ["test", "--", "tests/other.test.js"],
+          kind: "targeted-test",
+          target: "tests/good.test.js",
+        },
+      ],
+    });
+    assert.equal(canonical.steps.length, 1);
+    assert.deepEqual(canonical.steps[0].args, ["test", "--", "tests/good.test.js"]);
+    assert.equal(canonical.steps[0].target, "tests/good.test.js");
+
+    const noMarker = filterVerificationPlan(worktree, {
+      steps: [
+        {
+          id: "related:tests/good.test.js",
+          command: "node",
+          args: ["tests/other.test.js"],
+          kind: "targeted-test",
+        },
+      ],
+    });
+    assert.deepEqual(noMarker.steps[0].args, ["tests/good.test.js"]);
+
+    const symlink = filterVerificationPlan(worktree, {
+      steps: [
+        {
+          id: "related:tests/linked.test.js",
+          command: "npm",
+          args: ["test", "--", "tests/linked.test.js"],
+          kind: "targeted-test",
+        },
+      ],
+    });
+    assert.equal(symlink.steps.length, 0);
+    assert.equal(symlink.ignored_targets[0].reason, "outside_worktree");
+  } finally {
+    fs.rmSync(worktree, { recursive: true, force: true });
+    fs.rmSync(outside, { recursive: true, force: true });
   }
 });
 

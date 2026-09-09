@@ -230,21 +230,19 @@ function cmdInit(flags) {
   const id = explicit ? String(explicit) : defaultRunId();
   assertValidRunId(id);
   // Refuse to clobber an existing run unless --force is explicitly supplied.
-  const existing = (() => {
-    try {
-      return readRunState(worktree(), id);
-    } catch {
-      return null;
+  if (!flags.force) {
+    // A malformed existing state is not equivalent to an absent state. Let
+    // readRunState throw so init cannot silently destroy evidence of corruption.
+    const existing = readRunState(worktree(), id);
+    if (existing) {
+      console.error(
+        JSON.stringify({
+          ok: false,
+          error: `run_id already exists: ${id} (state=${existing.state}). Use a new --run-id or pass --force to overwrite.`,
+        }),
+      );
+      process.exit(2);
     }
-  })();
-  if (existing && !flags.force) {
-    console.error(
-      JSON.stringify({
-        ok: false,
-        error: `run_id already exists: ${id} (state=${existing.state}). Use a new --run-id or pass --force to overwrite.`,
-      }),
-    );
-    process.exit(2);
   }
   const state = createEmptyRunState(id, {
     workflow: "default",

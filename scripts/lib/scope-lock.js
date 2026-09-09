@@ -4,7 +4,6 @@ import {
   DEFAULT_IGNORE_PATTERNS,
   filterPathEntries,
   isIgnoredPath,
-  loadScopePolicy,
 } from "./path-filter.js";
 
 /** Nexus/runtime paths are not implementer scope — same policy as diff-evidence. */
@@ -41,8 +40,10 @@ export function getChangedFilesFromGit(
   if (!worktree) return null;
   const base = base_commit;
   const head = implementer_commit || head_commit;
-  const policy = loadScopePolicy(worktree);
-  const ignoredPatterns = policy.ignored_patterns;
+  // The candidate worktree is mutable by the implementer. Never load a scope
+  // policy from it while deriving the authoritative diff; custom patterns
+  // could otherwise hide an out-of-scope edit before the lock checks it.
+  const ignoredPatterns = DEFAULT_IGNORE_PATTERNS;
 
   const files = new Set();
   let gotAny = false;

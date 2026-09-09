@@ -45,3 +45,21 @@ test("nexus run init refuses to overwrite an existing run without --force", (t) 
   const forced = invoke(root, ["init", "--run-id", "dup", "--force"]);
   assert.equal(forced.status, 0, forced.stderr);
 });
+
+test("nexus run init preserves corrupt state unless --force is explicit", (t) => {
+  const root = makeRepo();
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const statePath = path.join(root, ".opencode", "runs", "corrupt", "state.json");
+  fs.mkdirSync(path.dirname(statePath), { recursive: true });
+  const corrupt = "{ this is not valid JSON\n";
+  fs.writeFileSync(statePath, corrupt, "utf8");
+
+  const refused = invoke(root, ["init", "--run-id", "corrupt"]);
+  assert.notEqual(refused.status, 0);
+  assert.match(`${refused.stdout}\n${refused.stderr}`, /JSON|Unexpected token|invalid/i);
+  assert.equal(fs.readFileSync(statePath, "utf8"), corrupt);
+
+  const forced = invoke(root, ["init", "--run-id", "corrupt", "--force"]);
+  assert.equal(forced.status, 0, forced.stderr);
+  assert.equal(JSON.parse(fs.readFileSync(statePath, "utf8")).run_id, "corrupt");
+});
