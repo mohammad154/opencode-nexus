@@ -2,6 +2,11 @@
  * Git evidence for Nexus Impact Engine — scripts measure; agents do not invent diffs.
  */
 import { spawnSync } from "node:child_process";
+import {
+  filterPathEntries,
+  loadScopePolicy,
+  PATH_FILTER_VERSION,
+} from "../path-filter.js";
 
 function runGit(worktree, args) {
   const r = spawnSync("git", args, {
@@ -67,8 +72,11 @@ export function collectGitEvidence(worktree, options = {}) {
   const nameStatus = runGit(worktree, nameStatusArgs);
   const numstat = runGit(worktree, numstatArgs);
   const u0 = runGit(worktree, u0Args);
+  const policy = loadScopePolicy(worktree);
+  const ignoredPatterns = options.ignoredPatterns || policy.ignored_patterns;
 
   const changed_files = [];
+  const ignored_files = [];
   let added_lines = 0;
   let deleted_lines = 0;
 
@@ -80,11 +88,22 @@ export function collectGitEvidence(worktree, options = {}) {
       if (status.startsWith("R") || status.startsWith("C")) {
         const oldPath = (parts[1] || "").replace(/\\/g, "/");
         const newPath = (parts[2] || parts[parts.length - 1] || "").replace(/\\/g, "/");
-        if (oldPath) changed_files.push({ status: "D", path: oldPath, renamed_to: newPath });
-        if (newPath) changed_files.push({ status: "A", path: newPath, renamed_from: oldPath });
+        const entries = [];
+        if (oldPath) entries.push({ status: "D", path: oldPath, renamed_to: newPath });
+        if (newPath) entries.push({ status: "A", path: newPath, renamed_from: oldPath });
+        const filtered = filterPathEntries(entries, { ignoredPatterns });
+        changed_files.push(...filtered.included);
+        ignored_files.push(...filtered.ignored);
       } else {
         const file = parts[parts.length - 1];
-        if (file) changed_files.push({ status, path: file.replace(/\\/g, "/") });
+        if (file) {
+          const filtered = filterPathEntries(
+            [{ status, path: file.replace(/\\/g, "/") }],
+            { ignoredPatterns },
+          );
+          changed_files.push(...filtered.included);
+          ignored_files.push(...filtered.ignored);
+        }
       }
     }
   }
@@ -92,7 +111,12 @@ export function collectGitEvidence(worktree, options = {}) {
   if (numstat.ok && numstat.stdout) {
     for (const line of numstat.stdout.split("\n")) {
       if (!line.trim()) continue;
-      const [a, d] = line.split(/\t/);
+      const parts = line.split(/\t/);
+      const [a, d] = parts;
+      const file = parts.slice(2).join("\t").replace(/\\/g, "/");
+      if (file && filterPathEntries([file], { ignoredPatterns }).ignored.length) {
+        continue;
+      }
       if (a !== "-" && Number.isFinite(Number(a))) added_lines += Number(a);
       if (d !== "-" && Number.isFinite(Number(d))) deleted_lines += Number(d);
     }
@@ -105,8 +129,12 @@ export function collectGitEvidence(worktree, options = {}) {
       for (const file of untracked.stdout.split("\n")) {
         if (!file.trim()) continue;
         const path = file.replace(/\\/g, "/");
-        if (!changed_files.some((f) => f.path === path)) {
-          changed_files.push({ status: "A", path });
+        const filtered = filterPathEntries([{ status: "A", path }], {
+          ignoredPatterns,
+        });
+        ignored_files.push(...filtered.ignored);
+        if (filtered.included.length && !changed_files.some((f) => f.path === path)) {
+          changed_files.push(filtered.included[0]);
         }
       }
     }
@@ -119,7 +147,19 @@ export function collectGitEvidence(worktree, options = {}) {
     changed_files,
     added_lines,
     deleted_lines,
+    ignored_files: dedupeIgnored(ignored_files),
+    path_filter_version: PATH_FILTER_VERSION,
     unified_diff_u0: u0.ok ? u0.stdout : "",
     source: "git",
   };
+}
+
+function dedupeIgnored(entries) {
+  const seen = new Set();
+  return entries.filter((entry) => {
+    const key = `${entry.path}:${entry.pattern || entry.reason}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }

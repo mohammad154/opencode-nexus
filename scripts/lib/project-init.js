@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { DEFAULT_SCOPE_POLICY } from "./path-filter.js";
 
 const DEFAULT_CONTEXT = `# Nexus Context
 
@@ -9,6 +10,7 @@ branch_cleanup_policy: always
 `;
 
 const PROJECT_DIRS = [
+  ".opencode/config",
   ".opencode/plans",
   ".opencode/tasks",
   ".opencode/handoffs",
@@ -45,6 +47,21 @@ export function projectInit(worktree, options = {}) {
     contextCreated = true;
   }
 
+  const scopePolicyPath = path.join(
+    worktree,
+    ".opencode",
+    "config",
+    "scope-policy.json",
+  );
+  let scopePolicyCreated = false;
+  if (!fs.existsSync(scopePolicyPath)) {
+    fs.writeFileSync(
+      scopePolicyPath,
+      `${JSON.stringify(DEFAULT_SCOPE_POLICY, null, 2)}\n`,
+    );
+    scopePolicyCreated = true;
+  }
+
   const nexusJsonPath = path.join(worktree, ".opencode", "nexus.json");
   const nexusJson = {
     schema_version: "1.0",
@@ -69,6 +86,8 @@ export function projectInit(worktree, options = {}) {
     created_dirs: createdDirs,
     context_created: contextCreated,
     context_path: contextPath,
+    scope_policy_created: scopePolicyCreated,
+    scope_policy_path: scopePolicyPath,
     nexus_json_path: nexusJsonPath,
   };
 }

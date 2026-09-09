@@ -1,5 +1,11 @@
 import { spawnSync } from "node:child_process";
 import { scopeExpansionNeeded, normalizeAllowedFiles } from "./impact/boundaries.js";
+import {
+  DEFAULT_IGNORE_PATTERNS,
+  filterPathEntries,
+  isIgnoredPath,
+  loadScopePolicy,
+} from "./path-filter.js";
 
 /** Nexus/runtime paths are not implementer scope — same policy as diff-evidence. */
 export function isNexusRuntimePath(file) {
@@ -9,14 +15,18 @@ export function isNexusRuntimePath(file) {
     normalized === ".opencode" ||
     normalized.startsWith(".opencode/") ||
     normalized === "graphify-out" ||
-    normalized.startsWith("graphify-out/")
+    normalized.startsWith("graphify-out/") ||
+    normalized === ".antigravity" ||
+    normalized.startsWith(".antigravity/")
   );
 }
 
-function collectGitNameOnly(stdout, files) {
+function collectGitNameOnly(stdout, files, ignoredPatterns) {
   for (const line of String(stdout || "").split(/\r?\n/)) {
     const f = line.trim().replace(/\\/g, "/");
-    if (f && !isNexusRuntimePath(f)) files.add(f);
+    if (f && !isNexusRuntimePath(f) && !isIgnoredPath(f, ignoredPatterns)) {
+      files.add(f);
+    }
   }
 }
 
@@ -31,6 +41,8 @@ export function getChangedFilesFromGit(
   if (!worktree) return null;
   const base = base_commit;
   const head = implementer_commit || head_commit;
+  const policy = loadScopePolicy(worktree);
+  const ignoredPatterns = policy.ignored_patterns;
 
   const files = new Set();
   let gotAny = false;
@@ -42,7 +54,7 @@ export function getChangedFilesFromGit(
     });
     if (r.status === 0) {
       gotAny = true;
-      collectGitNameOnly(r.stdout, files);
+      collectGitNameOnly(r.stdout, files, ignoredPatterns);
     }
   } else if (base) {
     const r = spawnSync("git", ["diff", "--name-only", base], {
@@ -51,7 +63,7 @@ export function getChangedFilesFromGit(
     });
     if (r.status === 0) {
       gotAny = true;
-      collectGitNameOnly(r.stdout, files);
+      collectGitNameOnly(r.stdout, files, ignoredPatterns);
     }
   }
 
@@ -62,7 +74,7 @@ export function getChangedFilesFromGit(
   });
   if (wtDiff.status === 0) {
     gotAny = true;
-    collectGitNameOnly(wtDiff.stdout, files);
+    collectGitNameOnly(wtDiff.stdout, files, ignoredPatterns);
   }
 
   const untracked = spawnSync(
@@ -75,7 +87,7 @@ export function getChangedFilesFromGit(
   );
   if (untracked.status === 0) {
     gotAny = true;
-    collectGitNameOnly(untracked.stdout, files);
+    collectGitNameOnly(untracked.stdout, files, ignoredPatterns);
   }
 
   if (!gotAny) return null;
@@ -96,14 +108,25 @@ export function assertScopeLock({
         "allowed_files must be non-empty for scope lock — empty scope fails closed",
     };
   }
-  const check = scopeExpansionNeeded(allowed, changed_files);
+  const filtered = filterPathEntries(changed_files, {
+    ignoredPatterns: DEFAULT_IGNORE_PATTERNS,
+  });
+  const measuredChangedFiles = filtered.included.map((entry) =>
+    typeof entry === "string" ? entry : entry.path,
+  );
+  const check = scopeExpansionNeeded(allowed, measuredChangedFiles);
   if (!check.needed) {
-    return { ok: true, allowed_files: allowed };
+    return {
+      ok: true,
+      allowed_files: allowed,
+      ignored_files: filtered.ignored,
+    };
   }
   return {
     ok: false,
     code: "SCOPE_EXPANSION_REQUIRED",
     extras: check.extras,
+    ignored_files: filtered.ignored,
     message:
       "Implementer attempted out-of-scope edits; STOP, request scope expansion, rerun impact",
   };

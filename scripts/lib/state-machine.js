@@ -552,6 +552,31 @@ function assertVerificationGates(data, state, errors, ctx = {}) {
   const exempt = verificationPolicyExempt(state);
 
   if (!exempt) {
+    if (!Array.isArray(data.verification_gates) || data.verification_gates.length === 0) {
+      errors.push("VERIFYING requires non-empty verification_gates");
+    } else {
+      const failedGate = data.verification_gates.find(
+        (gate) => !gate || typeof gate !== "object" || gate.pass !== true,
+      );
+      if (failedGate) {
+        errors.push("all verification_gates must have pass: true");
+      }
+    }
+    if (data.tests && !Array.isArray(data.tests) && data.tests.passed !== true) {
+      errors.push("tests.passed must be true when tests is an object");
+    }
+    if (
+      Array.isArray(data.tests) &&
+      data.tests.some(
+        (test) =>
+          test &&
+          typeof test === "object" &&
+          Object.prototype.hasOwnProperty.call(test, "passed") &&
+          test.passed !== true,
+      )
+    ) {
+      errors.push("all structured tests must have passed: true");
+    }
     assertProviderVerification(ctx, state, errors, { phase: "implementer" });
     assertPostImpactEvidence(ctx, state, errors);
     const impactOk =
@@ -1477,12 +1502,51 @@ function assertAgentCallBudget(state, to, ctx = {}) {
 }
 
 /**
+ * Validate the implementer contract before any VERIFYING provider is run.
+ * This prevents malformed handoffs from triggering tests or post-impact work.
+ */
+export function preflightImplementerHandoff(ctx = {}) {
+  const raw = ctx.implementer_handoff || ctx.handoff;
+  if (!raw) return ["VERIFYING requires implementer handoff"];
+  const normalized = normalizeAndValidateHandoff("implementer", raw);
+  const errors = normalized.ok
+    ? []
+    : [
+        `implementer handoff invalid: ${(normalized.errors || [])
+          .map((error) => error.message)
+          .join("; ")}`,
+      ];
+  if (
+    normalized.ok &&
+    !["DONE", "DONE_WITH_CONCERNS"].includes(normalized.data?.status)
+  ) {
+    errors.push(
+      `implementer status must be DONE*, got ${normalized.data?.status}`,
+    );
+  }
+  return errors;
+}
+
+/**
  * Apply transition; returns { ok, state, errors }.
  */
 export function transition(state, to, evidence = {}, providers = null) {
   const prov = providers || createDefaultProviders();
   let ctx = { ...evidence };
   if (to === "IMPACT_READY") to = "TASK_IMPACT_READY";
+
+  if (to === "VERIFYING") {
+    const preflightErrors = preflightImplementerHandoff(ctx);
+    if (preflightErrors.length) {
+      return {
+        ok: false,
+        state,
+        errors: preflightErrors,
+        blocked_from: state?.state || null,
+        block_code: "INVALID_IMPLEMENTER_HANDOFF",
+      };
+    }
+  }
 
   if (to === "TASK_IMPACT_READY" || to === "VERIFYING" || to === "COMPLETED") {
     const revalidated = revalidateTransitionEvidence(to, ctx, prov, state);

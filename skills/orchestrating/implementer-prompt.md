@@ -36,7 +36,27 @@ Write JSON including ALL of:
 - files_changed[], tests[], tasks_completed[] (batch), notes_for_reviewer, scope_extras[]
 - verification_gates: [{ id, cmd, pass: true }] — non-empty unless run verification_policy.exempt
 - drift_check: { plan_commit, current_head, pass: true }
-- blast: { risk, verified: true, artifact_digest? }
+- impact: { risk, verified: true, artifact_digest? } (legacy `blast.verified` is accepted)
+
+Canonical minimum handoff shape:
+
+```json
+{
+  "schema_version": "1.1",
+  "run_id": "<run-id>",
+  "unit_or_task": "<execution-unit>",
+  "agent": "implementer",
+  "base_commit": "<pre-implementation-head>",
+  "created_at": "<ISO-8601>",
+  "status": "DONE",
+  "commit": "<implementation-commit>",
+  "files_changed": ["src/example.js"],
+  "tests": { "passed": true, "commands": ["npm test"] },
+  "verification_gates": [{ "id": "unit-tests", "cmd": "npm test", "pass": true }],
+  "drift_check": { "plan_commit": "<plan-commit>", "current_head": "<implementation-commit>", "pass": true },
+  "impact": { "risk": "LOW", "verified": true }
+}
+```
 
 Do NOT set verification_exempt — exemptions come only from run state verification_policy.
 

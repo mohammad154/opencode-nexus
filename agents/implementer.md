@@ -23,7 +23,13 @@ Requirements:
 - For behavioral changes / bug fixes: TDD red then green; put `tdd.red` / `tdd.green` in the handoff.
 - Run verification gates exactly; never claim pass without commands.
 - Stay on the assigned feature branch / worktree; never commit to base.
-- Write handoff JSON to `.opencode/handoffs/<id>-implementer.json` with `schema_version: "1.1"`, envelope fields, `commit`, `verification_gates`, `drift_check`. Prefer `impact.verified`. Do not set `verification_exempt`.
+- Write handoff JSON to `.opencode/handoffs/<id>-implementer.json` with
+  `schema_version: "1.1"` and all contract fields: `run_id`, `unit_or_task`,
+  `agent`, `base_commit`, `created_at`, `status`, `commit`, `files_changed`,
+  `tests`, `verification_gates`, and `drift_check`. Include measured
+  `impact: { verified: true, ... }` (or the compatible `blast.verified` field).
+  `verification_gates` must be non-empty and every gate must have `pass: true`.
+  Do not set `verification_exempt`.
 - Never delete branches; cleanup is orchestrator/script only.
 - Never write reviewer handoffs or self-approve.
 

@@ -10,18 +10,34 @@ import {
   fileHash,
   getCachedSymbols,
   putCachedSymbols,
+  pruneCache,
 } from "./symbols.js";
+import {
+  filterPathEntries,
+  isIgnoredPath,
+  loadScopePolicy,
+  PATH_FILTER_VERSION,
+} from "../path-filter.js";
 
-function walkSourceFiles(root, { maxFiles = 5000 } = {}) {
+function walkSourceFiles(root, { maxFiles = 5000, ignoredPatterns } = {}) {
   const out = [];
+  const policy = loadScopePolicy(root);
+  const patterns = ignoredPatterns || policy.ignored_patterns;
   const skip = new Set([
     "node_modules",
     ".git",
     "graphify-out",
     ".opencode",
+    ".node_modules",
+    ".venv",
+    "venv",
+    "__pycache__",
     "dist",
     "build",
     "coverage",
+    ".cache",
+    ".tmp",
+    ".antigravity",
   ]);
 
   function walk(dir) {
@@ -36,9 +52,15 @@ function walkSourceFiles(root, { maxFiles = 5000 } = {}) {
       if (out.length >= maxFiles) return;
       if (skip.has(ent.name)) continue;
       const full = path.join(dir, ent.name);
+      const rel = path.relative(root, full).replace(/\\/g, "/");
+      if (
+        isIgnoredPath(rel, patterns) ||
+        (ent.isDirectory() && isIgnoredPath(`${rel}/.nexus-filter-probe`, patterns))
+      ) {
+        continue;
+      }
       if (ent.isDirectory()) walk(full);
       else if (ent.isFile()) {
-        const rel = path.relative(root, full).replace(/\\/g, "/");
         const lang = languageForPath(rel);
         if (adapterSupports(lang) || lang !== "unknown") out.push(rel);
       }
@@ -66,23 +88,42 @@ function resolveImportPath(fromFile, spec, worktree, options = {}) {
   ];
   for (const c of candidates) {
     if (fs.existsSync(c) && fs.statSync(c).isFile()) {
-      return path.relative(worktree, c).replace(/\\/g, "/");
+      const rel = path.relative(worktree, c).replace(/\\/g, "/");
+      if (isIgnoredPath(rel, options.ignoredPatterns)) return null;
+      return rel;
     }
   }
   if (options.allowMissing) {
     const rel = path.relative(worktree, path.extname(base) ? base : `${base}.js`);
-    return rel.replace(/\\/g, "/");
+    const normalized = rel.replace(/\\/g, "/");
+    if (isIgnoredPath(normalized, options.ignoredPatterns)) return null;
+    return normalized;
   }
   return null;
 }
 
 export function buildImportIndex(worktree, options = {}) {
   const cache = loadCache(worktree);
-  const files = options.files || walkSourceFiles(worktree);
+  const policy = loadScopePolicy(worktree);
+  const ignoredPatterns = options.ignoredPatterns || policy.ignored_patterns;
+  const rawFiles = options.files || walkSourceFiles(worktree, { ignoredPatterns });
+  const filtered = filterPathEntries(rawFiles, { ignoredPatterns });
+  const files = [
+    ...new Set(
+      filtered.included
+        .map((entry) => (typeof entry === "string" ? entry : entry.path))
+        .filter((rel) => {
+          const lang = languageForPath(rel);
+          return adapterSupports(lang) || lang !== "unknown";
+        }),
+    ),
+  ];
   const byFile = {};
   let unsupported = 0;
   let parsed = 0;
   let cacheHits = 0;
+
+  pruneCache(cache, files);
 
   for (const rel of files) {
     const full = path.join(worktree, rel);
@@ -112,14 +153,30 @@ export function buildImportIndex(worktree, options = {}) {
   const importers = {};
   for (const [file, symbols] of Object.entries(byFile)) {
     for (const imp of symbols.imports || []) {
-      const resolved = resolveImportPath(file, imp.source, worktree);
+      const resolved = resolveImportPath(file, imp.source, worktree, {
+        ignoredPatterns,
+      });
       if (!resolved) continue;
       if (!importers[resolved]) importers[resolved] = [];
       importers[resolved].push({ from: file, line: imp.line, spec: imp.source });
     }
   }
 
-  return { byFile, importers, stats: { parsed, cacheHits, unsupported, files: files.length } };
+  return {
+    byFile,
+    importers,
+    stats: {
+      parsed,
+      cacheHits,
+      unsupported,
+      files: files.length,
+      ignored: filtered.ignored.length,
+      ignored_files: filtered.ignored,
+      cache_invalidated: cache.cache_invalidated === true,
+      cache_invalidation_reason: cache.cache_invalidation_reason || null,
+      path_filter_version: PATH_FILTER_VERSION,
+    },
+  };
 }
 
 export function findSymbolReferences(index, symbolName, definitionFile) {

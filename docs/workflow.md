@@ -1,5 +1,8 @@
 # Nexus V5 workflow
 
+For implementation details and operational recovery, see
+[`architecture.md`](architecture.md) and [`troubleshooting.md`](troubleshooting.md).
+
 Nexus is a **fixed** three-agent execution workflow for OpenCode. The orchestrator coordinates; the implementer codes; the reviewer stays read-only; **scripts own measurement and gates**. A conditional `plan-advisor` may challenge standard/deep plans, but it is planning-only and never enters the execution loop.
 
 ## Three invariants

@@ -74,6 +74,7 @@ export function normalizeHandoff(role, raw) {
   if (data.run_id == null || data.run_id === "") {
     data.run_id = wasLegacy ? "legacy-unbound" : data.run_id;
   }
+  if (!data.unit_or_task && data.unit) data.unit_or_task = String(data.unit);
   if (!data.unit_or_task) {
     data.unit_or_task =
       data.task_id || (wasLegacy ? "legacy-unbound" : data.unit_or_task);
@@ -90,7 +91,10 @@ export function normalizeHandoff(role, raw) {
       data.files_changed = data.files_changed
         ? [String(data.files_changed)]
         : [];
-    if (!Array.isArray(data.tests))
+    if (
+      !Array.isArray(data.tests) &&
+      !(data.tests && typeof data.tests === "object")
+    )
       data.tests = data.tests ? [].concat(data.tests) : [];
     if (!Array.isArray(data.tasks_completed)) data.tasks_completed = [];
     if (!Array.isArray(data.scope_extras)) data.scope_extras = [];
@@ -104,12 +108,20 @@ export function normalizeHandoff(role, raw) {
       };
     }
     if (!("commit" in data)) data.commit = null;
+    if (!data.impact && Object.prototype.hasOwnProperty.call(data, "impact_verified")) {
+      data.impact = { verified: data.impact_verified };
+    }
     if (!data.blast || typeof data.blast !== "object") {
       data.blast = {
         risk: "UNKNOWN",
         verified: data.blast_verified ?? null,
         callers_checked: [],
       };
+    } else if (
+      Object.prototype.hasOwnProperty.call(data, "blast_verified") &&
+      !Object.prototype.hasOwnProperty.call(data.blast, "verified")
+    ) {
+      data.blast.verified = data.blast_verified;
     }
     if (data.notes_for_reviewer == null) data.notes_for_reviewer = "";
   }
@@ -150,7 +162,65 @@ export function normalizeHandoff(role, raw) {
 export function normalizeAndValidateHandoff(role, raw) {
   const { data, migrated_from } = normalizeHandoff(role, raw);
   const result = validateHandoff(role, data);
-  return { ...result, data, migrated_from };
+  const contractErrors =
+    role === "implementer" ? rawImplementerContractErrors(raw) : [];
+  return {
+    ...result,
+    ok: result.ok && contractErrors.length === 0,
+    errors: [...(result.errors || []), ...contractErrors],
+    data,
+    migrated_from,
+  };
+}
+
+function rawImplementerContractErrors(raw) {
+  if (!raw || typeof raw !== "object" || isLegacyHandoffVersion(raw.schema_version)) {
+    return [];
+  }
+  const errors = [];
+  const required = [
+    "schema_version",
+    "run_id",
+    "agent",
+    "base_commit",
+    "created_at",
+    "status",
+    "commit",
+    "files_changed",
+    "tests",
+    "verification_gates",
+    "drift_check",
+  ];
+  for (const key of required) {
+    if (!Object.prototype.hasOwnProperty.call(raw, key)) {
+      errors.push({
+        path: `$.${key}`,
+        message: `required current implementer handoff property missing: ${key}`,
+      });
+    }
+  }
+  if (
+    !Object.prototype.hasOwnProperty.call(raw, "unit_or_task") &&
+    !Object.prototype.hasOwnProperty.call(raw, "task_id") &&
+    !Object.prototype.hasOwnProperty.call(raw, "unit")
+  ) {
+    errors.push({
+      path: "$.unit_or_task",
+      message: "required current implementer handoff property missing: unit_or_task",
+    });
+  }
+  const hasImpactEvidence =
+    (raw.impact && Object.prototype.hasOwnProperty.call(raw.impact, "verified")) ||
+    (raw.blast && Object.prototype.hasOwnProperty.call(raw.blast, "verified")) ||
+    Object.prototype.hasOwnProperty.call(raw, "impact_verified") ||
+    Object.prototype.hasOwnProperty.call(raw, "blast_verified");
+  if (!hasImpactEvidence) {
+    errors.push({
+      path: "$.impact.verified",
+      message: "current implementer handoff requires impact.verified or blast.verified",
+    });
+  }
+  return errors;
 }
 
 export function runsDir(worktree) {

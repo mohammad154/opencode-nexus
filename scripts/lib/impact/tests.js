@@ -3,6 +3,7 @@
  */
 import fs from "fs";
 import path from "path";
+import { isIgnoredPath, loadScopePolicy } from "../path-filter.js";
 
 function isTestPath(p) {
   const n = p.replace(/\\/g, "/");
@@ -18,9 +19,14 @@ function stem(filePath) {
   return base.replace(/\.[^.]+$/, "");
 }
 
-export function discoverRelatedTests(worktree, { changed_files = [], direct_dependents = [] } = {}) {
+export function discoverRelatedTests(
+  worktree,
+  { changed_files = [], direct_dependents = [], ignoredPatterns } = {},
+) {
   const related = new Set();
   const candidates = [];
+  const policy = loadScopePolicy(worktree);
+  const patterns = ignoredPatterns || policy.ignored_patterns;
 
   function walk(dir) {
     let entries;
@@ -30,11 +36,27 @@ export function discoverRelatedTests(worktree, { changed_files = [], direct_depe
       return;
     }
     for (const ent of entries) {
-      if (["node_modules", ".git", "graphify-out", ".opencode"].includes(ent.name)) continue;
+      if ([
+        "node_modules",
+        ".git",
+        "graphify-out",
+        ".opencode",
+        ".node_modules",
+        ".venv",
+        "venv",
+        "__pycache__",
+        ".cache",
+        ".tmp",
+        ".antigravity",
+      ].includes(ent.name)) continue;
       const full = path.join(dir, ent.name);
+      const rel = path.relative(worktree, full).replace(/\\/g, "/");
+      if (
+        isIgnoredPath(rel, patterns) ||
+        (ent.isDirectory() && isIgnoredPath(`${rel}/.nexus-filter-probe`, patterns))
+      ) continue;
       if (ent.isDirectory()) walk(full);
       else if (ent.isFile()) {
-        const rel = path.relative(worktree, full).replace(/\\/g, "/");
         if (isTestPath(rel)) candidates.push(rel);
       }
     }

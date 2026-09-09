@@ -8,10 +8,17 @@ import { discoverRelatedTests, discoverAffectedPackages } from "./tests.js";
 import { computeConfidence, verificationModeForConfidence } from "./confidence.js";
 import { computeRisk } from "./risk.js";
 import { languageForPath, adapterSupports } from "./adapters.js";
+import {
+  filterPathEntries,
+  loadScopePolicy,
+  PATH_FILTER_VERSION,
+} from "../path-filter.js";
 
 export function analyzeImpact(worktree, options = {}) {
+  const policy = loadScopePolicy(worktree);
   let git = collectGitEvidence(worktree, {
     base: options.base || "HEAD",
+    ignoredPatterns: policy.ignored_patterns,
   });
   if (!git.ok) {
     return {
@@ -26,12 +33,20 @@ export function analyzeImpact(worktree, options = {}) {
     };
   }
 
-  const plannedTargets = normalizePlannedTargets(
+  const plannedTargetEntries = normalizePlannedTargets(
     options.planned_targets ||
       options.targets ||
       options.allowed_files ||
       options.files,
   );
+  const plannedFilter = filterPathEntries(plannedTargetEntries, {
+    ignoredPatterns: policy.ignored_patterns,
+  });
+  const plannedTargets = plannedFilter.included;
+  const ignoredFiles = dedupeIgnored([
+    ...(git.ignored_files || []),
+    ...plannedFilter.ignored,
+  ]);
   const hasDiff = (git.changed_files || []).length > 0;
   const preImpact = !hasDiff && plannedTargets.length > 0;
   if (preImpact) {
@@ -65,6 +80,7 @@ export function analyzeImpact(worktree, options = {}) {
   const related_tests = discoverRelatedTests(worktree, {
     changed_files: git.changed_files,
     direct_dependents,
+    ignoredPatterns: policy.ignored_patterns,
   });
   const affected_packages = discoverAffectedPackages(worktree, git.changed_files);
 
@@ -96,6 +112,7 @@ export function analyzeImpact(worktree, options = {}) {
 
   const riskInfo = computeRisk({
     changed_files: git.changed_files,
+    ignored_files: ignoredFiles,
     changed_symbols,
     direct_dependents,
     confidence,
@@ -116,6 +133,7 @@ export function analyzeImpact(worktree, options = {}) {
     head_commit: git.head_commit,
     worktree_head: git.head_commit,
     changed_files: git.changed_files,
+    ignored_files: ignoredFiles,
     added_lines: git.added_lines,
     deleted_lines: git.deleted_lines,
     changed_symbols,
@@ -144,8 +162,23 @@ export function analyzeImpact(worktree, options = {}) {
       tests: related_tests.length,
     },
     index_stats: index.stats,
+    path_filter: {
+      version: PATH_FILTER_VERSION,
+      ignored_patterns: policy.ignored_patterns,
+      ignored_files: ignoredFiles,
+    },
     placeholder_fields: [],
   };
+}
+
+function dedupeIgnored(entries) {
+  const seen = new Set();
+  return entries.filter((entry) => {
+    const key = `${entry.path}:${entry.pattern || entry.reason}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 export { collectGitEvidence };

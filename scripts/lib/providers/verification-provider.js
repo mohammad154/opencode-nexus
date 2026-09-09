@@ -6,7 +6,10 @@ import fs from "fs";
 import path from "path";
 import os from "node:os";
 import { spawnSync } from "node:child_process";
-import { discoverVerification } from "../verification/discover.js";
+import {
+  discoverVerification,
+  filterVerificationPlan,
+} from "../verification/discover.js";
 import { compareBaselines } from "../verification/compare.js";
 import { sealProviderArtifact, sha256Digest } from "../artifact-seal.js";
 
@@ -67,8 +70,21 @@ export function createVerificationProvider() {
     },
     run(ctx = {}) {
       const worktree = ctx.worktree || process.cwd();
-      const plan = ctx.plan || discoverVerification(worktree, ctx);
+      const rawPlan = ctx.plan || discoverVerification(worktree, ctx);
+      const plan = filterVerificationPlan(worktree, rawPlan);
       const results = [];
+      for (const skipped of plan.ignored_targets || []) {
+        results.push({
+          id: `skipped:${skipped.path}`,
+          command: null,
+          argv: [],
+          pass: null,
+          status: "SKIPPED",
+          reason: skipped.reason,
+          path: skipped.path,
+          pattern: skipped.pattern || null,
+        });
+      }
       for (const step of plan.steps || []) {
         if (step.status === "UNAVAILABLE") {
           results.push({
@@ -193,6 +209,34 @@ export function createVerificationProvider() {
         };
       }
 
+      const targetPlan = filterVerificationPlan(worktree, { steps: [step] });
+      const targeted =
+        step?.kind === "targeted-test" ||
+        step?.id?.startsWith("related:") ||
+        Boolean(step?.target);
+      if (targeted && targetPlan.steps.length === 0) {
+        const rejected = targetPlan.ignored_targets[0] || {
+          reason: "invalid_target",
+          path: "",
+        };
+        const rejectedReport = {
+          schema_version: "1.0",
+          test_id: step?.id || "test",
+          command: [step?.command, ...(step?.args || [])],
+          error: `verification target rejected: ${rejected.reason}`,
+          red: { commit: baseCommit || null, exit_code: 1, output_digest: sha256Digest(rejected.reason) },
+          green: { commit: implementerCommit || null, exit_code: 1, output_digest: sha256Digest(rejected.reason) },
+          ok: false,
+        };
+        const rejectedHead =
+          ctx.worktree_head ||
+          (worktree ? gitRevParse(worktree, "HEAD") : null) ||
+          implementerCommit ||
+          null;
+        return sealProviderArtifact(rejectedReport, rejectedHead);
+      }
+      step = targetPlan.steps[0] || step;
+
       const runner = ctx.runner || ctx.runStep || runStep;
 
       let redResult;
@@ -316,4 +360,3 @@ export function createVerificationProvider() {
 export function sealTddArtifact(report, worktreeHead = null) {
   return sealProviderArtifact(report, worktreeHead);
 }
-

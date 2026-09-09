@@ -8,20 +8,71 @@
   "required": [
     "schema_version",
     "run_id",
-    "unit_or_task",
     "agent",
     "base_commit",
     "created_at",
     "status",
     "commit",
+    "files_changed",
+    "tests",
     "verification_gates",
     "drift_check"
+  ],
+  "anyOf": [
+    {
+      "type": "object",
+      "required": ["impact"],
+      "properties": {
+        "impact": {
+          "type": "object",
+          "required": ["verified"],
+          "properties": {
+            "verified": { "type": ["boolean", "null"] }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": ["blast"],
+      "properties": {
+        "blast": {
+          "type": "object",
+          "required": ["verified"],
+          "properties": {
+            "verified": { "type": ["boolean", "null"] }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": ["impact_verified"],
+      "properties": {
+        "impact_verified": { "type": ["boolean", "null"] }
+      }
+    },
+    {
+      "type": "object",
+      "required": ["blast_verified"],
+      "properties": {
+        "blast_verified": { "type": ["boolean", "null"] }
+      }
+    },
+    {
+      "type": "object",
+      "required": ["legacy_unverified"],
+      "properties": {
+        "legacy_unverified": { "const": true }
+      }
+    }
   ],
   "properties": {
     "schema_version": { "type": "string", "enum": ["1.1"] },
     "agent": { "type": "string", "minLength": 1 },
     "run_id": { "type": "string", "minLength": 1 },
     "task_id": { "type": "string" },
+    "unit": { "type": "string", "minLength": 1 },
     "unit_or_task": { "type": "string", "minLength": 1 },
     "reviewed_commit": { "type": ["string", "null"] },
     "base_commit": { "type": ["string", "null"] },
@@ -33,7 +84,25 @@
     },
     "commit": { "type": ["string", "null"] },
     "files_changed": { "type": "array", "items": { "type": "string" } },
-    "tests": { "type": "array", "items": { "type": ["string", "object"] } },
+    "tests": {
+      "anyOf": [
+        { "type": "array", "items": { "type": ["string", "object"] } },
+        {
+          "type": "object",
+          "required": ["passed"],
+          "properties": { "passed": { "type": "boolean" } }
+        }
+      ]
+    },
+    "impact": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "risk": { "type": "string" },
+        "verified": { "type": ["boolean", "null"] },
+        "callers_checked": { "type": "array", "items": { "type": "string" } }
+      }
+    },
     "blast_verified": { "type": ["boolean", "null"] },
     "impact_verified": { "type": ["boolean", "null"] },
     "tdd_required": { "type": "boolean" },
@@ -65,6 +134,7 @@
       "items": {
         "type": "object",
         "additionalProperties": true,
+        "required": ["id", "pass"],
         "properties": {
           "id": { "type": "string" },
           "cmd": { "type": "string" },
