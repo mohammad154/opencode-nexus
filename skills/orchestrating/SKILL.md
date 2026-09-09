@@ -25,6 +25,10 @@ Planning depth is adaptive:
 - `deep`: migration/refactor/security/public-contract work; dispatch it once,
   and permit a second call only for a documented `CRITICAL_DISAGREEMENT`.
 
+If the advisor cannot start because its model is missing, stop and fix
+`plan-advisor.model` in OpenCode config. Do not forge advisor evidence and do
+not silently downgrade to `compact` unless the change really is tiny.
+
 Before `PLANNED`, run `nexus plan-check --json`. It is deterministic and checks
 the execution-unit DAG, acceptance and verification ownership, scope overlap,
 merge candidates, oversized/test-only/setup-only units, and estimated calls.

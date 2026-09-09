@@ -161,7 +161,9 @@ MJ="$(jq --argjson skip "$RETIRED_JSON" 'reduce $skip[] as $k (.; del(.[$k]))' <
 PRUNE_JSON="$RETIRED_JSON"
 TMP="$(mktemp)"
 # Keep object context: `.plugin=(...)` would pipe the array and break later merges
-# Only merge object-valued agent entries (skip any leftover non-objects)
+# Only merge object-valued agent entries (skip any leftover non-objects).
+# Defaults fill missing keys; existing user model/variant values win. Modes are
+# forced below so custom models cannot accidentally reappear as primary agents.
 if ! jq --arg p "$PLUGIN_SPEC" --arg name "$PKG_NAME" --arg legacy "$LEGACY_GIT_SPEC" --arg plan_model "${NEXUS_PLAN_ADVISOR_MODEL:-}" --argjson m "$MJ" --argjson planning "$PLANNING_JSON" --argjson prune "$PRUNE_JSON" '
   .plugin = (
     ((.plugin // []) | map(select(
@@ -172,7 +174,7 @@ if ! jq --arg p "$PLUGIN_SPEC" --arg name "$PKG_NAME" --arg legacy "$LEGACY_GIT_
   )
   | .agent = (.agent // {})
   | reduce (($m | to_entries[] | select(.value|type=="object")) ) as $e (.;
-      .agent[$e.key] = ((.agent[$e.key] // {}) + $e.value))
+      .agent[$e.key] = ($e.value + (.agent[$e.key] // {})))
   | .agent["plan-advisor"] = (($planning["plan-advisor"] // {}) + (.agent["plan-advisor"] // {}))
   | if $plan_model != "" then .agent["plan-advisor"].model = $plan_model else . end
   | reduce $prune[] as $k (.;
@@ -184,7 +186,7 @@ if ! jq --arg p "$PLUGIN_SPEC" --arg name "$PKG_NAME" --arg legacy "$LEGACY_GIT_
   | if .agent.reviewer then .agent.reviewer.mode = "subagent" else . end
   | if .agent["plan-advisor"] then
       .agent["plan-advisor"].mode = "subagent"
-      | .agent["plan-advisor"].planning_only = true
+      | del(.agent["plan-advisor"].planning_only)
     else . end
   | .permission = (.permission // {})
   | .permission.external_directory = (

@@ -96,6 +96,11 @@ Planning modes:
   one advisor call, with a second call only for a documented critical
   disagreement.
 
+If `plan-advisor` fails to start (`Model not found`), do not invent a handoff.
+Set `.agent["plan-advisor"].model` in `opencode.json` or `nexus.models.json` to
+a model you actually have, then retry. Use `compact` only when the work is
+genuinely tiny — not as a workaround for a missing model.
+
 Use `nexus run transition --to PLANNED --plan-check` before entering `PLANNED`.
 It checks the dependency DAG,
 acceptance/verification ownership, duplicate or overlapping scope, suspicious

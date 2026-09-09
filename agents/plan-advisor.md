@@ -1,7 +1,6 @@
 ---
 description: Conditional planning-only challenger. Proposes cohesive execution units and risks; never edits production code or controls Nexus state.
 mode: subagent
-model: openai/gpt-5-mini
 permission:
   external_directory:
     "/usr/local/lib/node_modules/@mohammad154/opencode-nexus/**": allow

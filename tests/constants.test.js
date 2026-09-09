@@ -28,6 +28,34 @@ test("all canonical agents have corresponding markdown files in agents/", () => 
   }
 });
 
+test("agent markdown does not pin a model (OpenCode markdown model overrides opencode.json)", () => {
+  const agentsDir = path.join(repoRoot, "agents");
+  const files = fs.readdirSync(agentsDir).filter((name) => name.endsWith(".md"));
+  assert.ok(files.includes("plan-advisor.md"));
+  for (const file of files) {
+    const body = fs.readFileSync(path.join(agentsDir, file), "utf8");
+    const frontmatter = body.split(/^---\s*$/m)[1] || "";
+    assert.equal(
+      /^\s*model\s*:/m.test(frontmatter),
+      false,
+      `${file} must not pin model: OpenCode prefers agent markdown over opencode.json`,
+    );
+  }
+});
+
+test("planning-models.json does not use a stale OpenAI mini id or unknown keys", () => {
+  const planning = JSON.parse(
+    fs.readFileSync(
+      path.join(repoRoot, "config", "planning-models.json"),
+      "utf8",
+    ),
+  );
+  assert.equal(planning["plan-advisor"].mode, "subagent");
+  assert.equal(planning["plan-advisor"].planning_only, undefined);
+  assert.notEqual(planning["plan-advisor"].model, "openai/gpt-5-mini");
+  assert.match(planning["plan-advisor"].model, /^(opencode|opencode-go)\//);
+});
+
 test("orchestrator is primary; implementer and reviewer are subagents", () => {
   for (const agent of CANONICAL_AGENTS) {
     const body = fs.readFileSync(
@@ -79,7 +107,12 @@ test("models.example.json is V5-only and does not reintroduce retired agents", (
     ),
   );
   const keys = Object.keys(example).filter((k) => !k.startsWith("_"));
-  assert.deepEqual(keys.sort(), ["implementer", "orchestrator", "reviewer"]);
+  assert.deepEqual(keys.sort(), [
+    "implementer",
+    "orchestrator",
+    "plan-advisor",
+    "reviewer",
+  ]);
   assert.notEqual(
     example.implementer.model.split("/")[0],
     example.reviewer.model.split("/")[0],

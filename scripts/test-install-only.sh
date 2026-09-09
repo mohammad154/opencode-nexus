@@ -31,7 +31,14 @@ if find "$HOME" -iname '*nexus*' ! -path "$HOME/.config/opencode/*" -print -quit
 fi
 test "$(ls "$HOME/.config/opencode/agents" 2>/dev/null | wc -l)" -gt 0
 test ! -f "$HOME/.config/opencode/agents/blast-analyzer.md"
+test -f "$HOME/.config/opencode/agents/plan-advisor.md"
+if grep -q '^model:' "$HOME/.config/opencode/agents/plan-advisor.md"; then
+  echo "FAIL: plan-advisor.md must not pin a model (OpenCode markdown overrides opencode.json)" >&2
+  exit 1
+fi
 jq -e '(.agent | has("blast-analyzer")) | not' "$HOME/.config/opencode/opencode.json" >/dev/null
+jq -e '.agent["plan-advisor"].mode == "subagent"' "$HOME/.config/opencode/opencode.json" >/dev/null
+jq -e '(.agent["plan-advisor"] | has("planning_only")) | not' "$HOME/.config/opencode/opencode.json" >/dev/null
 echo "PASS: installer writes only OpenCode artifacts"
 
 echo "== rejected unknown flags =="
@@ -104,6 +111,16 @@ jq -e '.agent | has("reviewer")' "$UPG_HOME/.config/opencode/opencode.json" >/de
 jq -e '.agent.orchestrator.mode == "primary"' "$UPG_HOME/.config/opencode/opencode.json" >/dev/null
 jq -e '.agent.implementer.mode == "subagent"' "$UPG_HOME/.config/opencode/opencode.json" >/dev/null
 jq -e '.agent.reviewer.mode == "subagent"' "$UPG_HOME/.config/opencode/opencode.json" >/dev/null
+jq -e '.agent.orchestrator.model == "x"' "$UPG_HOME/.config/opencode/opencode.json" >/dev/null
+jq -e '.agent.implementer.model == "x"' "$UPG_HOME/.config/opencode/opencode.json" >/dev/null
+jq -e '.agent["plan-advisor"].mode == "subagent"' "$UPG_HOME/.config/opencode/opencode.json" >/dev/null
+jq -e '(.agent["plan-advisor"] | has("planning_only")) | not' "$UPG_HOME/.config/opencode/opencode.json" >/dev/null
+test -f "$UPG_HOME/.config/opencode/agents/plan-advisor.md"
+if grep -q '^model:' "$UPG_HOME/.config/opencode/agents/plan-advisor.md"; then
+  echo "FAIL: upgraded plan-advisor.md must not pin a model" >&2
+  rm -rf "$UPG_HOME"
+  exit 1
+fi
 jq -e '
   .permission.external_directory["/usr/local/lib/node_modules/@mohammad154/opencode-nexus/**"] == "allow"
   and .permission.external_directory["/usr/local/lib/node_modules/@mohammad154/opencode-nexus/schemas/*"] == "allow"

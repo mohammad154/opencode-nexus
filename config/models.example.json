@@ -14,5 +14,9 @@
     "mode": "subagent",
     "model": "anthropic/claude-sonnet-4-20250514",
     "variant": "high"
+  },
+  "plan-advisor": {
+    "mode": "subagent",
+    "model": "opencode-go/deepseek-v4-pro"
   }
 }
