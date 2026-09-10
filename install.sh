@@ -6,20 +6,16 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-WITH_OPTIONAL_AGENTS=0
 PRUNE_OPTIONAL_AGENTS=1
 # Canonical roster (V5).
 CANONICAL_AGENTS=(orchestrator implementer reviewer)
 # Planning-only specialist. It is not part of the execution roster and is only
 # dispatched for standard/deep planning when the orchestrator decides it helps.
 PLANNING_AGENTS=(plan-advisor)
-OPTIONAL_AGENTS=()
 RETIRED_AGENTS=(diagnostician unified-reviewer spec-reviewer code-reviewer integration-reviewer reconciler blast-analyzer)
-if [[ "${NEXUS_OPTIONAL_AGENTS:-}" == "1" ]]; then WITH_OPTIONAL_AGENTS=0; fi
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --with-optional-agents) WITH_OPTIONAL_AGENTS=1; shift ;;
     --prune-optional-agents) PRUNE_OPTIONAL_AGENTS=1; shift ;;
     --uninstall) exec "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/uninstall.sh" "${@:2}" ;;
     -h|--help)
@@ -66,7 +62,6 @@ MODELS_FILE="$CONFIG_DIR/nexus.models.json"
 MANIFEST_FILE="$CONFIG_DIR/nexus-install-manifest.json"
 DEFAULT_MODELS="$SCRIPT_DIR/config/default-models.json"
 PLANNING_MODELS="$SCRIPT_DIR/config/planning-models.json"
-OPTIONAL_MODELS="$SCRIPT_DIR/config/optional-models.json"
 MODELS_EXAMPLE="$SCRIPT_DIR/config/models.example.json"
 PKG_JSON="$SCRIPT_DIR/package.json"
 LEGACY_GIT_SPEC="nexus@git+https://github.com/mohammad154/opencode-nexus.git"
@@ -124,9 +119,6 @@ PLUGIN_SPEC="${NEXUS_PLUGIN_SPEC:-${PKG_NAME}@${PKG_VERSION}}"
 mkdir -p "$CONFIG_DIR" "$AGENTS_DIR"
 if [[ -f "$CONFIG_FILE" ]]; then bak "$CONFIG_FILE"; else printf '{\n  "$schema": "https://opencode.ai/config.json"\n}\n' >"$CONFIG_FILE"; fi
 MJ="$(cat "$DEFAULT_MODELS")"
-if (( WITH_OPTIONAL_AGENTS )) && [[ -f "$OPTIONAL_MODELS" ]]; then
-  MJ="$(jq -s '.[0] * .[1]' "$DEFAULT_MODELS" "$OPTIONAL_MODELS")"
-fi
 if [[ -f "$MODELS_FILE" ]]; then
   MJ="$(jq -s 'def strip: with_entries(select(.key|startswith("_")|not)); .[0]*(.[1]|strip)' <(printf '%s\n' "$MJ") "$MODELS_FILE")"
 else
@@ -141,7 +133,6 @@ fi
 if [[ -n "${NEXUS_PLAN_ADVISOR_MODEL:-}" ]]; then
   PLANNING_JSON="$(jq --arg model "$NEXUS_PLAN_ADVISOR_MODEL" '. ["plan-advisor"].model = $model' <<<"$PLANNING_JSON")"
 fi
-OPTIONAL_JSON="$(printf '%s\n' "${OPTIONAL_AGENTS[@]}" | jq -R . | jq -s .)"
 RETIRED_JSON="$(printf '%s\n' "${RETIRED_AGENTS[@]}" | jq -R . | jq -s .)"
 # Always strip underscore meta-keys and nested _comment so jq agent merge stays object+object
 MJ="$(jq 'def strip: with_entries(select(.key|startswith("_")|not));

@@ -56,7 +56,8 @@ export function detectCycle(dag) {
 function sharesFiles(a, b) {
   const filesA = a.files || [];
   const filesB = b.files || [];
-  if (filesA.length === 0 || filesB.length === 0) return false;
+  // Unknown/empty allowlists cannot be proven disjoint — serialize them.
+  if (filesA.length === 0 || filesB.length === 0) return true;
   for (const fa of filesA) {
     for (const fb of filesB) {
       if (fa === fb || fa === "*" || fb === "*") return true;

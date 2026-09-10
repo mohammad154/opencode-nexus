@@ -104,6 +104,30 @@ test("createTaskWorktree respects custom branch and existing branch checkout", (
   }
 });
 
+test("createTaskWorktree does not check out a stale existing branch over baseCommit", () => {
+  const { dir, commit1, commit2 } = createTestRepo();
+  try {
+    const first = createTaskWorktree(dir, "unit-a", {
+      branch: "nexus/unit-a",
+      baseCommit: commit1,
+    });
+    assert.equal(first.ok, true, first.error);
+    removeTaskWorktree(dir, "unit-a");
+    const second = createTaskWorktree(dir, "unit-a", {
+      branch: "nexus/unit-a",
+      baseCommit: commit2,
+    });
+    assert.equal(second.ok, true, second.error);
+    const head = spawnSync("git", ["rev-parse", "HEAD"], {
+      cwd: second.path,
+      encoding: "utf8",
+    });
+    assert.equal(head.stdout.trim(), commit2);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("createTaskWorktree compares trimmed SHA for reused worktrees", () => {
   const { dir, commit1, commit2 } = createTestRepo();
   try {

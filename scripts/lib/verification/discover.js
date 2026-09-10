@@ -4,6 +4,7 @@
  */
 import fs from "fs";
 import path from "path";
+import { spawnSync } from "node:child_process";
 import { verificationLadder } from "./compare.js";
 import {
   isIgnoredPath,
@@ -73,9 +74,19 @@ function isGeneratedPath(rel) {
   );
 }
 
-function hasCmd(worktree, bin) {
-  // Soft check: package scripts or lockfiles imply toolchain presence
-  return true;
+function hasCmd(bin) {
+  if (!bin || typeof bin !== "string") return false;
+  if (/[\\/]/.test(bin) || bin.includes("\0")) return false;
+  try {
+    const finder = process.platform === "win32" ? "where" : "which";
+    const r = spawnSync(finder, [bin], {
+      encoding: "utf8",
+      timeout: 3000,
+    });
+    return r.status === 0;
+  } catch {
+    return false;
+  }
 }
 
 /** Reject path traversal and shell metacharacters in related test paths. */
@@ -290,6 +301,26 @@ function filterStepsByLadder(steps, options = {}) {
   });
 }
 
+function relatedTestSteps(ecosystem, targets = []) {
+  const steps = [];
+  for (const rel of targets) {
+    const id = `related:${rel}`;
+    if (ecosystem === "node") {
+      steps.push(step(id, "npm", ["test", "--", rel], "targeted-test", { target: rel }));
+    } else if (ecosystem === "python") {
+      steps.push(step(id, "pytest", [rel], "targeted-test", { target: rel }));
+    } else if (ecosystem === "go") {
+      const slash = rel.lastIndexOf("/");
+      const dir = slash >= 0 ? rel.slice(0, slash) : ".";
+      const pkg = dir === "." || dir === "" ? "." : `./${dir}`;
+      steps.push(step(id, "go", ["test", pkg], "targeted-test", { target: rel }));
+    } else if (ecosystem === "rust") {
+      steps.push(step(id, "cargo", ["test", "--", rel], "targeted-test", { target: rel }));
+    }
+  }
+  return steps;
+}
+
 export function discoverVerification(worktree, options = {}) {
   const steps = [];
   const policy = loadScopePolicy(worktree);
@@ -315,11 +346,7 @@ export function discoverVerification(worktree, options = {}) {
     if (scripts.build) {
       steps.push(step("build", "npm", ["run", "build"], "build"));
     }
-    for (const rel of relatedResolution.targets) {
-      steps.push(
-        step(`related:${rel}`, "npm", ["test", "--", rel], "targeted-test"),
-      );
-    }
+    steps.push(...relatedTestSteps("node", relatedResolution.targets));
     return {
       ecosystem: "node",
       steps: filterStepsByLadder(steps, options),
@@ -336,7 +363,21 @@ export function discoverVerification(worktree, options = {}) {
       ecosystem: "python",
       steps: filterStepsByLadder([
         step("test", "pytest", [], "test"),
-        step("lint", "ruff", ["check", "."], "lint", { status: "UNAVAILABLE" }),
+        step(
+          "lint",
+          "ruff",
+          ["check", "."],
+          "lint",
+          hasCmd("ruff") ? {} : { status: "UNAVAILABLE" },
+        ),
+        step(
+          "typecheck",
+          "mypy",
+          ["."],
+          "typecheck",
+          hasCmd("mypy") ? {} : { status: "UNAVAILABLE" },
+        ),
+        ...relatedTestSteps("python", relatedResolution.targets),
       ], options),
       related_tests: relatedResolution.targets,
       ignored_targets: relatedResolution.ignored,
@@ -348,6 +389,7 @@ export function discoverVerification(worktree, options = {}) {
       steps: filterStepsByLadder([
         step("test", "cargo", ["test"], "test"),
         step("check", "cargo", ["check"], "typecheck"),
+        ...relatedTestSteps("rust", relatedResolution.targets),
       ], options),
       related_tests: relatedResolution.targets,
       ignored_targets: relatedResolution.ignored,
@@ -359,6 +401,7 @@ export function discoverVerification(worktree, options = {}) {
       steps: filterStepsByLadder([
         step("test", "go", ["test", "./..."], "test"),
         step("vet", "go", ["vet", "./..."], "lint"),
+        ...relatedTestSteps("go", relatedResolution.targets),
       ], options),
       related_tests: relatedResolution.targets,
       ignored_targets: relatedResolution.ignored,

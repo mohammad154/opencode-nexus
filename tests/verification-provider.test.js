@@ -44,6 +44,23 @@ test("verification succeeds when at least one check passes and others are UNAVAI
   assert.strictEqual(res.results.length, 2);
 });
 
+test("verification fails when a spawn-missing check is mixed with a passing check", () => {
+  const prov = createVerificationProvider();
+  const res = prov.run({
+    plan: {
+      steps: [
+        { id: "lint", command: "definitely-not-a-nexus-binary", args: ["."], kind: "lint" },
+        { id: "test", command: process.execPath, args: ["-e", "process.exit(0)"], kind: "test" },
+      ],
+    },
+  });
+  assert.equal(res.ok, false);
+  const lint = res.results.find((r) => r.id === "lint");
+  assert.equal(lint.status, "FAILED");
+  assert.equal(lint.pass, false);
+  assert.equal(lint.exit_code, null);
+});
+
 test("verification fails when an executed check fails", () => {
   const prov = createVerificationProvider();
   const res = prov.run({

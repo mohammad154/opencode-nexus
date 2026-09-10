@@ -80,7 +80,23 @@ export function collectGitEvidence(worktree, options = {}) {
   let added_lines = 0;
   let deleted_lines = 0;
 
-  if (nameStatus.ok && nameStatus.stdout) {
+  if (!nameStatus.ok) {
+    return {
+      ok: false,
+      error: nameStatus.stderr || "git diff --name-status failed",
+      base_commit,
+      head_commit,
+      changed_files: [],
+      added_lines: 0,
+      deleted_lines: 0,
+      ignored_files: [],
+      path_filter_version: PATH_FILTER_VERSION,
+      unified_diff_u0: "",
+      source: "git",
+    };
+  }
+
+  if (nameStatus.stdout) {
     for (const line of nameStatus.stdout.split("\n")) {
       if (!line.trim()) continue;
       const parts = line.split(/\t/);

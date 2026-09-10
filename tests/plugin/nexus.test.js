@@ -162,6 +162,35 @@ test("chat transform injects IMPLEMENTING dispatch gate", async () => {
   assert.match(injected, /REQUIRED_DISPATCH: implementer/);
 });
 
+test("plugin prefers the active-run pointer over a newer non-terminal run", async () => {
+  const worktree = tempDir("nexus-plugin-active-ptr-");
+  writeJson(path.join(worktree, ".opencode", "runs", "older", "state.json"), {
+    run_id: "older",
+    state: "IMPLEMENTING",
+    workflow: "default",
+    updated_at: "2026-07-30T10:00:00.000Z",
+  });
+  writeJson(path.join(worktree, ".opencode", "runs", "newer", "state.json"), {
+    run_id: "newer",
+    state: "BRAINSTORMING",
+    workflow: "default",
+    updated_at: "2026-07-30T12:00:00.000Z",
+  });
+  fs.writeFileSync(path.join(worktree, ".opencode", "active-run"), "older\n");
+
+  const plugin = await NexusPlugin({ worktree });
+  const output = {
+    messages: [
+      { info: { role: "user" }, parts: [{ type: "text", text: "continue" }] },
+    ],
+  };
+  await plugin["experimental.chat.messages.transform"]({}, output);
+  const injected = output.messages[0].parts.map((p) => p.text || "").join("\n");
+  assert.match(injected, /IMPLEMENTING/);
+  assert.match(injected, /run_id: older/);
+  assert.match(injected, /REQUIRED_DISPATCH: implementer/);
+});
+
 test("compaction includes delegation gate for active run", async () => {
   const worktree = tempDir("nexus-plugin-compact-gate-");
   writeJson(path.join(worktree, ".opencode", "runs", "active", "state.json"), {

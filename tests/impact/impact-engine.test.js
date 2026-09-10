@@ -142,3 +142,36 @@ test("sealed inline report is never accepted as provenance", async () => {
   assert.ok(result.report.changed_files?.some((f) => f.path === "src/a.js"));
   fs.rmSync(root, { recursive: true, force: true });
 });
+
+test("parse errors mark impact analysis CONSERVATIVE rather than PRECISE", () => {
+  const root = tempRepo();
+  fs.writeFileSync(
+    path.join(root, "src", "a.js"),
+    "export function a() { return 1; }\0broken",
+  );
+  const report = analyzeImpact(root, { base: "HEAD" });
+  assert.equal(report.ok, true);
+  assert.equal(report.analysis_quality, "CONSERVATIVE");
+  assert.equal(report.graph_quality, "CONSERVATIVE");
+  assert.equal(report.analysis_complete, false);
+  assert.equal(report.trusted, false);
+  assert.ok(report.uncertainties.includes("parse_errors"));
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test("failed git diff is not reported as a clean successful tree", () => {
+  const root = tempRepo();
+  const blob = spawnSync("git", ["hash-object", "src/a.js"], {
+    cwd: root,
+    encoding: "utf8",
+  });
+  assert.equal(blob.status, 0);
+  const report = analyzeImpact(root, { base: blob.stdout.trim() });
+  assert.equal(report.ok, false);
+  assert.equal(report.risk, "UNKNOWN");
+  assert.match(
+    String(report.error || ""),
+    /git diff|failed|not a tree|blob|bad revision|unknown revision/i,
+  );
+  fs.rmSync(root, { recursive: true, force: true });
+});

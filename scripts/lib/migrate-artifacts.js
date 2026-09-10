@@ -437,6 +437,7 @@ export function writeRunState(worktree, state) {
     const next = { ...rest, _revision: nextRevision, updated_at: nowIso() };
     fs.writeFileSync(tmp, JSON.stringify(next, null, 2) + "\n", "utf8");
     fs.renameSync(tmp, target);
+    persistActiveRunPointer(worktree, next);
     return next;
   });
 }
@@ -596,6 +597,75 @@ export function latestRunState(worktree) {
   for (const id of ids) {
     const s = readRunState(worktree, id);
     if (!best || (s.updated_at || "") > (best.updated_at || "")) best = s;
+  }
+  return best;
+}
+
+export const TERMINAL_RUN_STATES = new Set(["COMPLETED", "FAILED"]);
+
+export function activeRunPointerPath(worktree) {
+  return path.join(worktree, ".opencode", "active-run");
+}
+
+function persistActiveRunPointer(worktree, state) {
+  const pointer = activeRunPointerPath(worktree);
+  fs.mkdirSync(path.dirname(pointer), { recursive: true });
+  if (TERMINAL_RUN_STATES.has(state.state)) {
+    try {
+      if (fs.existsSync(pointer)) {
+        const current = fs.readFileSync(pointer, "utf8").trim();
+        if (!current || current === state.run_id) fs.rmSync(pointer, { force: true });
+      }
+    } catch {
+      /* ignore pointer cleanup races */
+    }
+    return;
+  }
+  fs.writeFileSync(pointer, `${state.run_id}\n`, "utf8");
+}
+
+function recencyMs(state) {
+  const parsed = Date.parse(state?.updated_at || "");
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function readRunStateJsonQuiet(worktree, id) {
+  try {
+    const p = runStatePath(worktree, id);
+    if (!fs.existsSync(p)) return null;
+    const data = JSON.parse(fs.readFileSync(p, "utf8"));
+    return data && typeof data === "object" ? data : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Newest non-terminal run, honoring `.opencode/active-run` when it is still live. */
+export function latestActiveRunState(worktree) {
+  const pointer = activeRunPointerPath(worktree);
+  if (fs.existsSync(pointer)) {
+    try {
+      const id = fs.readFileSync(pointer, "utf8").trim();
+      if (id) {
+        const pointed = readRunStateJsonQuiet(worktree, id);
+        if (pointed && !TERMINAL_RUN_STATES.has(pointed.state)) return pointed;
+      }
+    } catch {
+      /* fall through to recency scan */
+    }
+  }
+  const ids = listRunIds(worktree);
+  let best = null;
+  for (const id of ids) {
+    const s = readRunStateJsonQuiet(worktree, id);
+    if (!s || TERMINAL_RUN_STATES.has(s.state)) continue;
+    if (
+      !best ||
+      recencyMs(s) > recencyMs(best) ||
+      (recencyMs(s) === recencyMs(best) && String(s.run_id || "") > String(best.run_id || ""))
+    ) {
+      best = s;
+    }
   }
   return best;
 }

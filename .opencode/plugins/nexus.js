@@ -3,13 +3,13 @@ import os from "os";
 import path from "path";
 import { fileURLToPath } from "url";
 import { buildRunGateReminder } from "../../scripts/lib/run-gate.js";
+import { latestActiveRunState } from "../../scripts/lib/migrate-artifacts.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const skillsDir = path.resolve(__dirname, "../../skills");
 
 const BOOTSTRAP_MARKER = "NEXUS_ROUTER_V5";
 const GATE_MARKER = "NEXUS_DELEGATION_GATE";
-const TERMINAL_RUN_STATES = new Set(["COMPLETED", "FAILED"]);
 const KNOWLEDGE_RELEVANT_STATES = new Set([
   "BRAINSTORMING",
   "WAITING_FOR_USER",
@@ -56,22 +56,9 @@ function readPlanFile(worktree) {
 }
 
 function readRunStateSummary(worktree) {
-  const runsRoot = path.join(worktree, ".opencode", "runs");
-  if (!fs.existsSync(runsRoot)) return null;
+  const best = latestActiveRunState(worktree);
+  if (!best) return null;
   try {
-    const dirs = fs
-      .readdirSync(runsRoot, { withFileTypes: true })
-      .filter((d) => d.isDirectory())
-      .map((d) => d.name);
-    let best = null;
-    for (const id of dirs) {
-      const p = path.join(runsRoot, id, "state.json");
-      if (!fs.existsSync(p)) continue;
-      const s = JSON.parse(fs.readFileSync(p, "utf8"));
-      if (TERMINAL_RUN_STATES.has(s.state)) continue;
-      if (!best || (s.updated_at || "") > (best.updated_at || "")) best = s;
-    }
-    if (!best) return null;
     const lines = [
       "## Nexus Run State",
       `- run_id: ${best.run_id}`,

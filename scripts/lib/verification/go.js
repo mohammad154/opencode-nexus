@@ -1,6 +1,6 @@
 export function goSteps() {
   return [
-    { id: "test", command: "go test ./..." },
-    { id: "vet", command: "go vet ./..." },
+    { id: "test", command: "go", args: ["test", "./..."] },
+    { id: "vet", command: "go", args: ["vet", "./..."] },
   ];
 }

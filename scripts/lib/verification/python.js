@@ -1,7 +1,7 @@
 export function pythonSteps() {
   return [
-    { id: "test", command: "pytest" },
-    { id: "lint", command: "ruff check ." },
-    { id: "typecheck", command: "mypy ." },
+    { id: "test", command: "pytest", args: [] },
+    { id: "lint", command: "ruff", args: ["check", "."] },
+    { id: "typecheck", command: "mypy", args: ["."] },
   ];
 }

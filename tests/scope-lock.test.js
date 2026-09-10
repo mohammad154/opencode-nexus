@@ -66,7 +66,7 @@ test("assertScopeLock unit checks", () => {
   // Glob pattern support
   const globScope = assertScopeLock({
     allowed_files: ["src/**/*.js", "docs/*.md"],
-    changed_files: ["src/components/button.js", "docs/readme.md"],
+    changed_files: ["src/components/button.js", "src/foo.js", "docs/readme.md"],
   });
   assert.equal(globScope.ok, true);
 });

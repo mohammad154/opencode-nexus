@@ -11,12 +11,30 @@ export function normalizeAllowedFiles(files = []) {
 
 export function globToRegExp(glob) {
   const normalized = String(glob || "").replace(/\\/g, "/");
-  if (normalized === "*") return /^.*$/;
-  const escaped = normalized
-    .split("*")
-    .map((part) => part.replace(/[.+?^${}()|[\]\\]/g, "\\$&"))
-    .join(".*");
-  return new RegExp(`^${escaped}$`);
+  if (normalized === "*" || normalized === "**") return /^.*$/;
+  let out = "^";
+  for (let i = 0; i < normalized.length; i += 1) {
+    const char = normalized[i];
+    const next = normalized[i + 1];
+    if (char === "*" && next === "*") {
+      const after = normalized[i + 2];
+      if (after === "/") {
+        // `**/` matches zero or more directory segments.
+        out += "(?:|.*/)";
+        i += 2;
+        continue;
+      }
+      out += ".*";
+      i += 1;
+    } else if (char === "*") {
+      out += "[^/]*";
+    } else if (char === "?") {
+      out += "[^/]";
+    } else {
+      out += char.replace(/[.+?^${}()|[\]\\]/g, "\\$&");
+    }
+  }
+  return new RegExp(`${out}$`);
 }
 
 export function pathMatchesGlob(path, glob) {

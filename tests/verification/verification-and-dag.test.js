@@ -98,6 +98,29 @@ test("discoverVerification finds npm test in node projects", () => {
   assert.deepEqual(testStep.args, ["test"]);
 });
 
+test("discoverVerification schedules related tests for Python projects", () => {
+  const worktree = fs.mkdtempSync(path.join(os.tmpdir(), "nexus-py-discover-"));
+  try {
+    fs.writeFileSync(path.join(worktree, "pyproject.toml"), "[project]\nname='x'\n");
+    fs.mkdirSync(path.join(worktree, "tests"));
+    fs.writeFileSync(path.join(worktree, "tests", "test_app.py"), "def test_ok():\n    assert True\n");
+    const plan = discoverVerification(worktree, {
+      related_tests: ["tests/test_app.py"],
+    });
+    assert.equal(plan.ecosystem, "python");
+    assert.deepEqual(plan.related_tests, ["tests/test_app.py"]);
+    const related = plan.steps.find((s) => s.id === "related:tests/test_app.py");
+    assert.ok(related);
+    assert.equal(related.command, "pytest");
+    assert.deepEqual(related.args, ["tests/test_app.py"]);
+    const lint = plan.steps.find((s) => s.id === "lint");
+    assert.ok(lint);
+    assert.deepEqual(lint.args, ["check", "."]);
+  } finally {
+    fs.rmSync(worktree, { recursive: true, force: true });
+  }
+});
+
 test("malicious related test filenames are rejected", async () => {
   const { isSafeRelPath, discoverVerification: discover } = await import(
     "../../scripts/lib/verification/discover.js"

@@ -6,7 +6,7 @@ import {
   scheduleParallel,
   readyTasks,
 } from "../scripts/lib/task-dag.js";
-import { globsOverlap } from "../scripts/lib/impact/boundaries.js";
+import { globsOverlap, pathMatchesGlob } from "../scripts/lib/impact/boundaries.js";
 
 test("buildTaskDag throws on duplicate task IDs", () => {
   assert.throws(
@@ -46,16 +46,23 @@ test("scheduleParallel handles completed as array with unknown IDs", () => {
 
 test("scheduleParallel correctly schedules waves with dependencies", () => {
   const dag = buildTaskDag([
-    { id: "a" },
-    { id: "b", depends_on: ["a"] },
-    { id: "c", depends_on: ["a"] },
-    { id: "d", depends_on: ["b", "c"] },
+    { id: "a", files: ["a.js"] },
+    { id: "b", depends_on: ["a"], files: ["b.js"] },
+    { id: "c", depends_on: ["a"], files: ["c.js"] },
+    { id: "d", depends_on: ["b", "c"], files: ["d.js"] },
   ]);
   const plan = scheduleParallel(dag, { maxConcurrency: 2 });
   assert.equal(plan.ok, true);
   assert.deepEqual(plan.waves[0], ["a"]);
   assert.deepEqual(plan.waves[1].sort(), ["b", "c"].sort());
   assert.deepEqual(plan.waves[2], ["d"]);
+});
+
+test("pathMatchesGlob treats ** as zero or more directories", () => {
+  assert.equal(pathMatchesGlob("src/foo.js", "src/**/*.js"), true);
+  assert.equal(pathMatchesGlob("src/a/foo.js", "src/**/*.js"), true);
+  assert.equal(pathMatchesGlob("lib/foo.js", "src/**/*.js"), false);
+  assert.equal(pathMatchesGlob("docs/readme.md", "docs/*.md"), true);
 });
 
 test("globsOverlap matches identical and universal wildcards", () => {
@@ -110,6 +117,18 @@ test("parallel scheduler prevents parallel execution of tasks with overlapping w
   const plan = scheduleParallel(dag, { maxConcurrency: 2 });
   assert.equal(plan.ok, true);
   // Because files overlap, they cannot run in the same wave
+  assert.equal(plan.waves.length, 2);
+  assert.equal(plan.waves[0].length, 1);
+  assert.equal(plan.waves[1].length, 1);
+});
+
+test("parallel scheduler serializes tasks with empty file lists", () => {
+  const dag = buildTaskDag([
+    { id: "a", files: [] },
+    { id: "b", files: [] },
+  ]);
+  const plan = scheduleParallel(dag, { maxConcurrency: 2 });
+  assert.equal(plan.ok, true);
   assert.equal(plan.waves.length, 2);
   assert.equal(plan.waves[0].length, 1);
   assert.equal(plan.waves[1].length, 1);

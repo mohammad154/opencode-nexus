@@ -126,7 +126,7 @@ export function extractJsSymbols(source, filePath = "file.js") {
 
 export function extractSymbols(source, filePath) {
   const language = languageForPath(filePath);
-  if (!adapterSupports(language)) {
+  if (typeof source === "string" && source.includes("\0")) {
     return {
       file: filePath,
       language,
@@ -135,11 +135,42 @@ export function extractSymbols(source, filePath) {
       exports: [],
       imports: [],
       references: [],
-      supported: false,
+      supported: adapterSupports(language),
       coverage: 0,
+      parseError: true,
+      error: "binary_or_nul",
     };
   }
-  return { ...extractJsSymbols(source, filePath), supported: true, coverage: 1 };
+  try {
+    if (!adapterSupports(language)) {
+      return {
+        file: filePath,
+        language,
+        parser_version: PARSER_VERSION,
+        definitions: [],
+        exports: [],
+        imports: [],
+        references: [],
+        supported: false,
+        coverage: 0,
+      };
+    }
+    return { ...extractJsSymbols(source, filePath), supported: true, coverage: 1 };
+  } catch (error) {
+    return {
+      file: filePath,
+      language,
+      parser_version: PARSER_VERSION,
+      definitions: [],
+      exports: [],
+      imports: [],
+      references: [],
+      supported: adapterSupports(language),
+      coverage: 0,
+      parseError: true,
+      error: String(error?.message || error),
+    };
+  }
 }
 
 export { PARSER_VERSION };

@@ -95,6 +95,22 @@ test("verifyTdd records failure (ok === false) when base commit test passes (not
   assert.strictEqual(verifySealedArtifact(tddReport), true);
 });
 
+test("verifyTdd fails closed when the green run is signal-killed", () => {
+  const prov = createVerificationProvider();
+  const tddReport = prov.verifyTdd({
+    base_commit: "base",
+    implementer_commit: "impl",
+    command: ["npm", "test"],
+    runner(_step, _worktree, _commit, phase) {
+      if (phase === "red") return { status: 1, stdout: "FAIL", stderr: "" };
+      return { status: null, signal: "SIGKILL", stdout: "", stderr: "" };
+    },
+  });
+  assert.equal(tddReport.ok, false);
+  assert.equal(tddReport.red.exit_code, 1);
+  assert.equal(tddReport.green.exit_code, 1);
+});
+
 test("verifyTdd records failure (ok === false) when implementer commit test fails (not green)", () => {
   const prov = createVerificationProvider();
   const tddReport = prov.verifyTdd({

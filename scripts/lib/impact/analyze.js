@@ -122,6 +122,8 @@ export function analyzeImpact(worktree, options = {}) {
     deleted_lines: git.deleted_lines,
   });
 
+  const quality = unsupportedFiles > 0 || parseErrors > 0 ? "CONSERVATIVE" : "PRECISE";
+
   const verification_mode = verificationModeForConfidence(confidence);
 
   return {
@@ -148,14 +150,17 @@ export function analyzeImpact(worktree, options = {}) {
     confidence,
     verification_mode,
     trusted:
-      !preImpact && confidence >= 0.75 && riskInfo.risk !== "UNKNOWN",
-    analysis_quality: unsupportedFiles > 0 ? "CONSERVATIVE" : "PRECISE",
-    graph_quality: unsupportedFiles > 0 ? "CONSERVATIVE" : "PRECISE",
-    analysis_complete: true,
+      !preImpact && confidence >= 0.75 && riskInfo.risk !== "UNKNOWN" && parseErrors === 0,
+    analysis_quality: quality,
+    graph_quality: quality,
+    analysis_complete: parseErrors === 0,
     pre_impact: preImpact,
     phase: git.phase || (preImpact ? "pre" : "post"),
     graph_freshness: { valid: true, current_head: git.head_commit },
-    uncertainties: unsupportedFiles > 0 ? ["unsupported_language_coverage"] : [],
+    uncertainties: [
+      ...(unsupportedFiles > 0 ? ["unsupported_language_coverage"] : []),
+      ...(parseErrors > 0 ? ["parse_errors"] : []),
+    ],
     dimensions: {
       symbols: changed_symbols.length,
       dependents: direct_dependents.length,

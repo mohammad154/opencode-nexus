@@ -127,11 +127,37 @@ export function buildImportIndex(worktree, options = {}) {
 
   for (const rel of files) {
     const full = path.join(worktree, rel);
-    if (!fs.existsSync(full)) continue;
+    if (!fs.existsSync(full)) {
+      byFile[rel] = {
+        file: rel,
+        language: languageForPath(rel),
+        parseError: true,
+        error: "missing",
+        supported: adapterSupports(languageForPath(rel)),
+        coverage: 0,
+        definitions: [],
+        exports: [],
+        imports: [],
+        references: [],
+      };
+      continue;
+    }
     let content;
     try {
       content = fs.readFileSync(full, "utf8");
     } catch {
+      byFile[rel] = {
+        file: rel,
+        language: languageForPath(rel),
+        parseError: true,
+        error: "unreadable",
+        supported: adapterSupports(languageForPath(rel)),
+        coverage: 0,
+        definitions: [],
+        exports: [],
+        imports: [],
+        references: [],
+      };
       continue;
     }
     const hash = fileHash(content);

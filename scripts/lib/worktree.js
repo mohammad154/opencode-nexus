@@ -99,14 +99,35 @@ export function createTaskWorktree(repoRoot, taskId, { branch, baseCommit } = {}
   const startPoint = (baseCommit ? String(baseCommit).trim() : "") || "HEAD";
   const r = run(repoRoot, ["worktree", "add", "-b", branchName, dir, startPoint]);
   if (r.status !== 0) {
-    // Branch may exist — try without -b
-    const r2 = run(repoRoot, ["worktree", "add", dir, branchName]);
+    // Branch may already exist. Never check it out in place of the requested
+    // start point — attach a detached worktree at startPoint instead.
+    const r2 = run(repoRoot, ["worktree", "add", "--detach", dir, startPoint]);
     if (r2.status !== 0) {
       return {
         ok: false,
         error: (r2.stderr || r.stderr || "worktree add failed").trim(),
       };
     }
+    const wtSha = (run(dir, ["rev-parse", "HEAD"]).stdout || "").trim();
+    if (baseCommit) {
+      const expected = (run(repoRoot, ["rev-parse", String(baseCommit).trim()]).stdout || "").trim();
+      if (expected && wtSha && wtSha !== expected) {
+        run(repoRoot, ["worktree", "remove", "--force", dir]);
+        return {
+          ok: false,
+          error: `worktree HEAD ${wtSha} != expected base ${expected}`,
+          path: dir,
+        };
+      }
+    }
+    return {
+      ok: true,
+      path: dir,
+      branch: branchName,
+      reused: false,
+      detached: true,
+      head: wtSha || null,
+    };
   }
   return { ok: true, path: dir, branch: branchName, reused: false };
 }

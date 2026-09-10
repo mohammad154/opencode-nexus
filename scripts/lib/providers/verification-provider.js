@@ -106,9 +106,26 @@ function gitRevParse(worktree, rev = "HEAD") {
 }
 
 function formatCommand(step) {
-
   const args = Array.isArray(step.args) ? step.args : [];
   return [step.command, ...args].join(" ");
+}
+
+/** Map a spawnSync-like result to an exit code. Missing/killed processes fail closed. */
+function spawnWasKilledOrMissing(result) {
+  if (!result || typeof result !== "object") return true;
+  if (result.timed_out === true) return false;
+  if (result.error && result.status == null) return true;
+  if (result.signal && result.status == null) return true;
+  return false;
+}
+
+function resolvedSpawnExit(result, failDefault) {
+  if (!result || typeof result !== "object") return failDefault;
+  if (result.timed_out === true) return failDefault;
+  if (spawnWasKilledOrMissing(result)) return failDefault;
+  if (result.status != null) return result.status;
+  if (result.exit_code != null) return result.exit_code;
+  return failDefault;
 }
 
 export function runStep(step, worktree, timeoutMs = null) {
@@ -219,16 +236,19 @@ export function createVerificationProvider(providerOptions = {}) {
         onProgress?.({ type: "start", index: index + 1, total: totalSteps, step, timeout_ms: timeoutMs });
         const startedAt = Date.now();
         const r = runStep(step, worktree, timeoutMs);
+        const spawnFailed = Boolean(r.error) && r.status == null && !r.timed_out;
         const result = {
           id: step.id,
           command: formatCommand(step),
           argv: [step.command, ...(step.args || [])],
           exit_code: r.status,
-          pass: r.status === 0 && !r.timed_out,
-          status: r.timed_out ? "TIMED_OUT" : r.status === 0 ? "PASSED" : "FAILED",
+          pass: r.status === 0 && !r.timed_out && !spawnFailed,
+          status: r.timed_out ? "TIMED_OUT" : r.status === 0 && !spawnFailed ? "PASSED" : "FAILED",
           timed_out: r.timed_out === true,
           timeout_ms: timeoutMs,
           duration_ms: Date.now() - startedAt,
+          error_code: r.error?.code || null,
+          signal: r.signal || null,
           stdout_tail: String(r.stdout || "").slice(-2000),
           stderr_tail: String(r.stderr || r.error || "").slice(-2000),
         };
@@ -241,9 +261,7 @@ export function createVerificationProvider(providerOptions = {}) {
         }
       }
       const executed = results.filter(
-        (r) =>
-          r.status !== "UNAVAILABLE" &&
-          (r.exit_code != null || r.timed_out === true || r.status === "REUSED"),
+        (r) => r.status !== "UNAVAILABLE" && r.status !== "SKIPPED",
       );
       const hasExecutedChecks = executed.length > 0;
       const allPassed =
@@ -450,18 +468,8 @@ export function createVerificationProvider(providerOptions = {}) {
         }
       }
 
-      const redExit =
-        redResult.status != null
-          ? redResult.status
-          : redResult.exit_code != null
-          ? redResult.exit_code
-          : 1;
-      const greenExit =
-        greenResult.status != null
-          ? greenResult.status
-          : greenResult.exit_code != null
-          ? greenResult.exit_code
-          : 0;
+      const redExit = resolvedSpawnExit(redResult, 1);
+      const greenExit = resolvedSpawnExit(greenResult, 1);
 
       const redOut =
         String(redResult.stdout || "") +
@@ -493,7 +501,8 @@ export function createVerificationProvider(providerOptions = {}) {
           redExit !== 0 &&
           greenExit === 0 &&
           redResult?.timed_out !== true &&
-          greenResult?.timed_out !== true,
+          greenResult?.timed_out !== true &&
+          !spawnWasKilledOrMissing(greenResult),
         timed_out:
           redResult?.timed_out === true || greenResult?.timed_out === true,
       };
