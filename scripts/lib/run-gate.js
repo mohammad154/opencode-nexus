@@ -68,11 +68,16 @@ export function buildRunGateReminder(activeRun, opts = {}) {
       "Dispatch implementer now. Orchestrator must NOT edit production code.",
       "Only .opencode/** edits are allowed from the orchestrator turn.",
     ].join("\n");
+  } else if (state === "VERIFYING" || state === "FINAL_VERIFYING") {
+    gate = [
+      "## Nexus Delegation Gate",
+      `Active run ${runId || "unknown"} is in ${state}.`,
+      "Do not implement production code, dispatch a reviewer, or advance the state until the deterministic verification status is PASSED.",
+      "Follow Nexus Next: run or resume `nexus verify`; timeout never means redispatch implementer.",
+    ].join("\n");
   } else if (
-    state === "VERIFYING" ||
     state === "REVIEWING" ||
     state === "FINAL_REVIEWING" ||
-    state === "FINAL_VERIFYING" ||
     state === "BLOCKED"
   ) {
     gate = [

@@ -14,12 +14,36 @@ Nexus is a **fixed** three-agent execution workflow for OpenCode. The orchestrat
 ## Lifecycle
 
 ```text
-request → brainstorm → (optional plan-advisor) → plan → plan-check → (per execution unit) pre-impact → implement → post-impact+verify → review → final verify → finish
+request → brainstorm → (optional plan-advisor) → plan → plan-check → (per execution unit) pre-impact → implement → VERIFYING → deterministic verify → review → FINAL_VERIFYING → deterministic final verify → finish
 ```
 
 Durable state: `.opencode/runs/<run-id>/state.json`
 
 States: `CREATED` → `BRAINSTORMING` ↔ `WAITING_FOR_USER` → `PLANNED` → `TASK_IMPACT_READY` → `IMPLEMENTING` → `VERIFYING` → `REVIEWING` → (`TASK_IMPACT_READY` on REQUEST_CHANGES / next unit) → `FINAL_REVIEWING` → `FINAL_VERIFYING` → `COMPLETED`
+
+```text
+Implementer
+    ↓
+IMPLEMENTING → VERIFYING (PENDING)
+    ↓ nexus verify
+Deterministic verification (not an LLM agent)
+    ↓ PASSED
+REVIEWING → Reviewer (independent LLM agent)
+    ↓
+FINAL_REVIEWING → FINAL_VERIFYING (PENDING)
+    ↓ nexus verify
+Deterministic final verification → COMPLETED
+```
+
+The two transitions into verification states are fast and persist only the
+handoff binding plus `verification_status: PENDING`. `nexus verify` owns fresh
+post-impact, plan discovery, checks, timeouts, progress, and sealed evidence;
+it does not transition to `REVIEWING` or `COMPLETED` itself.
+
+Use `nexus next` for the exact action. In particular, `PENDING` means
+`nexus verify`, `RUNNING`/`TIMED_OUT` mean `nexus verify --resume`, `FAILED`
+means inspect and repair without dispatching a reviewer, and `PASSED` means run
+the corresponding authorization transition.
 
 ## Impact Engine
 
@@ -28,11 +52,14 @@ nexus impact --json
 nexus run transition --to TASK_IMPACT_READY
 ```
 
-Pre-impact before every implementer (including fix loops). Post-impact during VERIFYING.
+Pre-impact before every implementer (including fix loops). `nexus verify` runs
+fresh post-impact while the run remains in `VERIFYING` or `FINAL_VERIFYING`.
 
 ## Review
 
-Always: `nexus review-package --scope task` then dispatch `reviewer` after VERIFYING.
+Only after task verification is `PASSED`: run `nexus review-package --scope task`
+then dispatch `reviewer`. A pending, failed, running, or timed-out verification
+never dispatches a reviewer.
 
 After the last task APPROVED: `nexus review-package --scope final` then dispatch `reviewer` again (`review_scope: final`) before `FINAL_VERIFYING`. Final packages use immutable `run_base_commit..HEAD` (whole branch), not the last task’s pre-head.
 

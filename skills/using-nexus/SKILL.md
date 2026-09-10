@@ -44,8 +44,8 @@ justifies the call; compact plans may omit it.
 
 ```text
 CREATED → BRAINSTORMING ↔ WAITING_FOR_USER → PLANNED
-  → TASK_IMPACT_READY → IMPLEMENTING → VERIFYING → REVIEWING
-  → (REQUEST_CHANGES → TASK_IMPACT_READY) | FINAL_VERIFYING → COMPLETED
+  → TASK_IMPACT_READY → IMPLEMENTING → VERIFYING → `nexus verify` → REVIEWING
+  → (REQUEST_CHANGES → TASK_IMPACT_READY) | FINAL_REVIEWING → FINAL_VERIFYING → `nexus verify` → COMPLETED
 ```
 
 ```bash
@@ -58,3 +58,6 @@ nexus run inspect --run-id <id>
 
 Execution agents: **orchestrator**, **implementer**, **reviewer**. Planning-only
 advisor: **plan-advisor** (conditional; never in the implementation loop).
+Verification is deterministic provider execution, not a fourth agent. Follow
+`nexus next`: it sends `PENDING` to `nexus verify`, timeouts to
+`nexus verify --resume`, and only a `PASSED` task verification to the reviewer.

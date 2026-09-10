@@ -69,11 +69,13 @@ nexus impact --json --targets <files>
 nexus run transition --to TASK_IMPACT_READY --json '{"planned_targets":["..."]}'
 nexus run transition --to IMPLEMENTING --branch <b> --acceptance 'c1|c2'
 nexus run transition --to VERIFYING --json '{"implementer_handoff":{...}}'
+nexus verify                         # persists VERIFYING/PASSED; does not dispatch reviewer
 nexus run transition --to REVIEWING
 # multi-unit last task APPROVED → whole-branch review; single-unit runs may use
 # the explicit digest-bound task-review reuse path when all checks pass:
 nexus run transition --to FINAL_REVIEWING --json '{"review_handoff":{...},"review_package":{...}}'
 nexus run transition --to FINAL_VERIFYING --json '{"review_handoff":{...},"review_package":{...}}'
+nexus verify                         # persists FINAL_VERIFYING/PASSED
 # OR REQUEST_CHANGES / next task:
 nexus run transition --to TASK_IMPACT_READY --json '{"review_handoff":{...},"impact":{...}}'
 nexus run transition --to COMPLETED
@@ -116,8 +118,10 @@ reason; a failed check must not be hidden in the transition evidence.
 
 - Follow the injected **Nexus Next Action** / `nexus next` output. When it lists `REQUIRED_DISPATCH`, Task-dispatch that agent immediately.
 - During execution dispatch only `implementer` and `reviewer`; `plan-advisor` is allowed only in the planning gate above.
+- `VERIFYING` and `FINAL_VERIFYING` are deterministic measurement states, never a verifier subagent. Enter them quickly, then run `nexus verify`.
+- Dispatch the reviewer only after `nexus next` reports `transition_to_reviewing`. If verification is `RUNNING` or `TIMED_OUT`, run `nexus verify --resume`; if `FAILED`, inspect/repair it without redispatching implementer or reviewer automatically.
 - Fresh implementer per execution unit; isolated worktree; `allowed_files` scope lock.
 - Pass pre-impact (dependents, callers, related tests) into the implementer prompt.
-- On reviewer `REQUEST_CHANGES`: extract findings → **fresh pre-impact** → implementer → post-impact → tests → reviewer. Do not wait for the user to say "fix review".
+- On reviewer `REQUEST_CHANGES`: extract findings → **fresh pre-impact** → implementer → VERIFYING → `nexus verify` → reviewer. Do not wait for the user to say "fix review".
 - Agent claims are never evidence — re-run verification at gates.
 - No self-approval; unresolved HIGH findings block final verify.

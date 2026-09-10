@@ -1,6 +1,6 @@
 ---
 name: orchestrating
-description: Execute a plan through the V5 fixed state machine — adaptive planning, optional plan-advisor, cohesive execution units, pre-impact, implementer, post-impact, reviewer, auto fix-loop
+description: Execute a plan through the V5 fixed state machine — adaptive planning, cohesive execution units, deterministic verification, independent review, and fix loops
 compatibility: opencode
 ---
 
@@ -45,7 +45,7 @@ merge candidates, oversized/test-only/setup-only units, and estimated calls.
 ```text
 CREATED → BRAINSTORMING ↔ WAITING_FOR_USER → PLANNED
   → TASK_IMPACT_READY (pre-impact per unit)
-  → IMPLEMENTING → VERIFYING (provider tests + post-impact)
+  → IMPLEMENTING → VERIFYING (PENDING) → `nexus verify` → VERIFYING (PASSED)
   → REVIEWING
        ├── REQUEST_CHANGES → TASK_IMPACT_READY (fresh impact) → …
        └── APPROVED → next unit TASK_IMPACT_READY | FINAL_REVIEWING → FINAL_VERIFYING → COMPLETED
@@ -63,19 +63,35 @@ nexus impact --json --targets <planned files>
 nexus run transition --to TASK_IMPACT_READY --json '{"planned_targets":["src/foo.js"]}'
 nexus run transition --to IMPLEMENTING --branch <b> --acceptance 'c1|c2'
 nexus run transition --to VERIFYING --json '{"implementer_handoff":{...}}'
+nexus verify
 nexus run transition --to REVIEWING
 # Multi-unit: FINAL_REVIEWING → final reviewer → FINAL_VERIFYING.
 # Single-unit reuse is explicit and requires the bound task package evidence:
 nexus run transition --to FINAL_VERIFYING --json '{"reuse_final_review":true,"review_handoff":{...},"review_package":{...}}'
+nexus verify
 nexus run transition --to COMPLETED
 ```
+
+## Verification boundary
+
+`IMPLEMENTING → VERIFYING` and `FINAL_REVIEWING → FINAL_VERIFYING` are fast
+authorization transitions. They persist a commit binding and `PENDING`; they
+must not run post-impact, tests, lint, build, type checks, or create a verifier
+Task. `nexus verify` is deterministic provider execution, not an LLM agent.
+
+It writes durable progress to `.opencode/runs/<run-id>/verification.json`.
+On `TIMED_OUT` or `RUNNING`, use `nexus verify --resume`; never return to
+`IMPLEMENTING` merely because a check timed out. `REVIEWING` requires a sealed
+task verification `PASSED`; `COMPLETED` requires sealed final verification
+`PASSED`.
 
 ## Delegation gate
 
 1. Missing `.opencode/` → `nexus project-init` then `nexus run init`.
 2. Before `IMPLEMENTING` → complete brainstorm → plan → **pre-impact**. Do not edit production files.
 3. At `IMPLEMENTING` → only dispatch **implementer** via Task tool.
-4. After VERIFYING → always dispatch **reviewer** (see [`reviewer-prompt.md`](reviewer-prompt.md)).
+4. In `VERIFYING` / `FINAL_VERIFYING` → follow `nexus next`: run deterministic `nexus verify`, resume a timeout with `nexus verify --resume`, and transition only after `PASSED`.
+5. After `VERIFYING/PASSED → REVIEWING` → dispatch **reviewer** (see [`reviewer-prompt.md`](reviewer-prompt.md)).
 5. On `REQUEST_CHANGES` → extract findings → fresh pre-impact → implementer → verify → reviewer. Do not ask the user to "fix review issues".
 
 ## Next action (deterministic)
@@ -96,8 +112,8 @@ For each execution unit (the `task-*` state/file alias is retained):
 
 1. Pre-impact (`nexus impact`) → `TASK_IMPACT_READY`
 2. Dispatch implementer with impact context (dependents, callers, related tests)
-3. VERIFYING (post-impact + provider verification)
-4. Dispatch reviewer
+3. Fast transition to VERIFYING, then `nexus verify` (post-impact + provider verification)
+4. Only after verification PASSED: transition to REVIEWING and dispatch reviewer
 5. If REQUEST_CHANGES → go to step 1 with findings
 6. If APPROVED → next unit or FINAL_REVIEWING. For one unit, the task review
    may reach `FINAL_VERIFYING` directly only with evidence-bound reuse: approved

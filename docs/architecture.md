@@ -17,9 +17,11 @@ git evidence
     │
     ├── pre-impact ──> TASK_IMPACT_READY ──> IMPLEMENTING
     │
-    └── post-impact ──> verification target resolver ──> sealed provider evidence
-                                                        │
-                                                        └── VERIFYING gate
+    └── IMPLEMENTING ──> fast VERIFYING handoff ──> `nexus verify`
+                                                       │
+                                                       ├── fresh post-impact
+                                                       ├── verification target resolver
+                                                       └── sealed provider evidence ──> REVIEWING gate
 ```
 
 ## Impact index and cache
@@ -72,3 +74,32 @@ Nexus validates this contract before entering `VERIFYING`. A malformed handoff
 leaves the run in its current state and no post-impact or verification provider
 is invoked. The orchestrator may then transition explicitly to `BLOCKED` with
 `INVALID_IMPLEMENTER_HANDOFF` after recording a reason.
+
+## Verification lifecycle
+
+`VERIFYING` and `FINAL_VERIFYING` are durable waiting states, not agents and
+not aliases for a reviewer dispatch. Entering either state is a fast
+authorization operation: Nexus binds the handoff/reviewed commit, clears stale
+verification evidence, and writes `verification.status = PENDING`.
+
+`nexus verify` performs the deterministic measurement phase without advancing
+the state machine:
+
+```text
+VERIFYING / FINAL_VERIFYING
+  → verify expected HEAD binding
+  → fresh post-impact
+  → risk-based verification plan
+  → per-step checks (and task TDD when policy requires it)
+  → seal evidence and persist PASSED | FAILED | TIMED_OUT
+```
+
+Progress lives in `.opencode/runs/<run-id>/verification.json`; `state.json`
+stores only its digest, path, HEAD, phase, status, and counters. A resumed run
+can reuse passed steps only when the artifact digest, HEAD, plan digest, and
+verification-configuration digest still match. A changed HEAD is rejected,
+never reused.
+
+`VERIFYING → REVIEWING` and `FINAL_VERIFYING → COMPLETED` are pure gates. They
+consume only the durable `PASSED` summary plus the matching sealed post-impact
+and provider evidence. They never execute a test or provider command.

@@ -8,7 +8,7 @@ compatibility: opencode
 
 **Always** create a plan after brainstorming. There is no "small enough to skip planning" path.
 
-Create or update `.opencode/plans/PLAN.md` — a self-contained, verification-gated plan. The orchestrator executes cohesive execution units **one by one** through the fixed pipeline (pre-impact → implementer → post-impact → reviewer). `task-*` identifiers remain a compatibility alias.
+Create or update `.opencode/plans/PLAN.md` — a self-contained, verification-gated plan. The orchestrator executes cohesive execution units **one by one** through the fixed pipeline (pre-impact → implementer → VERIFYING → deterministic `nexus verify` → reviewer). `task-*` identifiers remain a compatibility alias.
 
 This skill borrows the three guarantees from shadcn/improve:
 - **Self-contained.** All context inlined — exact file paths, current-state excerpts, conventions with an exemplar, git commit stamped.

@@ -24,6 +24,28 @@ import {
   mockTrustProviders,
 } from "./helpers/gate-fixtures.js";
 
+function passedTaskVerificationState(runId, overrides = {}) {
+  return {
+    ...createEmptyRunState(runId),
+    state: "VERIFYING",
+    review_level: "unified",
+    execution_mode: "delegated",
+    current_unit: "u1",
+    head_commit: "base111",
+    classification: { change_class: "bug-fix", review_level: "unified" },
+    tdd_required: true,
+    verification_status: "PASSED",
+    verification: {
+      ...createEmptyRunState(`${runId}-summary`).verification,
+      status: "PASSED",
+      phase: "TASK",
+    },
+    provider_verification: sealedVerification(),
+    post_impact: sealedImpact({ phase: "post" }),
+    ...overrides,
+  };
+}
+
 test("verifyTdd records red at base commit and green at implementation commit", () => {
   const prov = createVerificationProvider();
   const baseCommit = "abc1111";
@@ -144,7 +166,7 @@ test("verifyTdd discovers test command from project when no explicit command is 
   }
 });
 
-test("state machine rejects transition to VERIFYING for bug-fix when sealed TDD evidence is missing", () => {
+test("state machine enters VERIFYING for bug-fix before TDD measurement", () => {
   const state = {
     ...createEmptyRunState("tdd-run-1"),
     state: "IMPLEMENTING",
@@ -157,8 +179,6 @@ test("state machine rejects transition to VERIFYING for bug-fix when sealed TDD 
   };
 
   const r = canTransition(state, "VERIFYING", {
-    provider_verification: sealedVerification(),
-    post_impact: sealedImpact({ phase: "post" }),
     implementer_handoff: goodImplementerHandoff({
       run_id: "tdd-run-1",
       unit_or_task: "u1",
@@ -167,61 +187,28 @@ test("state machine rejects transition to VERIFYING for bug-fix when sealed TDD 
     }),
   });
 
-  assert.strictEqual(r.ok, false);
-  assert.ok(
-    r.errors.some((e) => /TDD/i.test(e) && /sealed|evidence/i.test(e)),
-    `Expected TDD error, got: ${r.errors.join("; ")}`,
-  );
+  assert.strictEqual(r.ok, true, `Expected fast handoff gate, got: ${r.errors.join("; ")}`);
 });
 
-test("state machine rejects fabricated handoff TDD when sealed provider evidence is missing", () => {
-  const state = {
-    ...createEmptyRunState("tdd-run-2"),
-    state: "IMPLEMENTING",
-    review_level: "unified",
-    execution_mode: "delegated",
-    current_unit: "u1",
-    head_commit: "base111",
-    classification: { change_class: "bug-fix", review_level: "unified" },
-    tdd_required: true,
-  };
-
-  // Agent self-attests red and green exit codes directly in handoff, but no sealed evidence
-  const handoff = goodImplementerHandoff({
-    run_id: "tdd-run-2",
-    unit_or_task: "u1",
-    base_commit: "base111",
-    commit: "c1",
-    tdd: {
-      red: { exit_code: 1, stdout: "failed" },
-      green: { exit_code: 0, stdout: "passed" },
+test("state machine rejects caller-supplied TDD evidence at REVIEWING", () => {
+  const state = passedTaskVerificationState("tdd-run-2");
+  const r = canTransition(state, "REVIEWING", {
+    tdd_evidence: {
+      red: { exit_code: 1 },
+      green: { exit_code: 0 },
+      ok: true,
     },
   });
 
-  const r = canTransition(state, "VERIFYING", {
-    provider_verification: sealedVerification(),
-    post_impact: sealedImpact({ phase: "post" }),
-    implementer_handoff: handoff,
-  });
-
   assert.strictEqual(r.ok, false);
   assert.ok(
-    r.errors.some((e) => /TDD/i.test(e)),
-    `Expected rejection of self-attested TDD handoff, got: ${r.errors.join("; ")}`,
+    r.errors.some((e) => /caller-supplied tdd_evidence/i.test(e)),
+    `Expected caller TDD rejection, got: ${r.errors.join("; ")}`,
   );
 });
 
 test("state machine rejects unsealed or tampered caller-supplied tdd_evidence", () => {
-  const state = {
-    ...createEmptyRunState("tdd-run-3"),
-    state: "IMPLEMENTING",
-    review_level: "unified",
-    execution_mode: "delegated",
-    current_unit: "u1",
-    head_commit: "base111",
-    classification: { change_class: "bug-fix", review_level: "unified" },
-    tdd_required: true,
-  };
+  const state = passedTaskVerificationState("tdd-run-3");
 
   // Tampered artifact with invalid digest
   const tamperedTdd = {
@@ -235,37 +222,16 @@ test("state machine rejects unsealed or tampered caller-supplied tdd_evidence", 
     artifact_digest: "sha256:invalid_digest_tampered",
   };
 
-  const r = canTransition(state, "VERIFYING", {
-    provider_verification: sealedVerification(),
-    post_impact: sealedImpact({ phase: "post" }),
-    implementer_handoff: goodImplementerHandoff({
-      run_id: "tdd-run-3",
-      unit_or_task: "u1",
-      base_commit: "base111",
-      commit: "c1",
-    }),
-    tdd_evidence: tamperedTdd,
-  });
+  const r = canTransition(state, "REVIEWING", { tdd_evidence: tamperedTdd });
 
   assert.strictEqual(r.ok, false);
   assert.ok(
-    r.errors.some((e) => /tdd_evidence/i.test(e) && /sealed/i.test(e)),
+    r.errors.some((e) => /caller-supplied tdd_evidence/i.test(e)),
     `Expected unsealed tdd_evidence error, got: ${r.errors.join("; ")}`,
   );
 });
 
 test("state machine rejects provider-sealed TDD evidence when red exit_code is 0", () => {
-  const state = {
-    ...createEmptyRunState("tdd-run-4"),
-    state: "IMPLEMENTING",
-    review_level: "unified",
-    execution_mode: "delegated",
-    current_unit: "u1",
-    head_commit: "base111",
-    classification: { change_class: "bug-fix", review_level: "unified" },
-    tdd_required: true,
-  };
-
   const badRedTdd = sealProviderArtifact({
     schema_version: "1.0",
     test_id: "test",
@@ -274,18 +240,8 @@ test("state machine rejects provider-sealed TDD evidence when red exit_code is 0
     green: { commit: "c1", exit_code: 0, output_digest: "sha256:2" },
     ok: false,
   });
-
-  const r = canTransition(state, "VERIFYING", {
-    provider_verification: sealedVerification(),
-    post_impact: sealedImpact({ phase: "post" }),
-    implementer_handoff: goodImplementerHandoff({
-      run_id: "tdd-run-4",
-      unit_or_task: "u1",
-      base_commit: "base111",
-      commit: "c1",
-    }),
-    tdd_evidence: badRedTdd,
-  });
+  const state = passedTaskVerificationState("tdd-run-4", { tdd_evidence: badRedTdd });
+  const r = canTransition(state, "REVIEWING", {});
 
   assert.strictEqual(r.ok, false);
   assert.ok(
@@ -295,17 +251,6 @@ test("state machine rejects provider-sealed TDD evidence when red exit_code is 0
 });
 
 test("state machine rejects provider-sealed TDD evidence when green exit_code is non-zero", () => {
-  const state = {
-    ...createEmptyRunState("tdd-run-5"),
-    state: "IMPLEMENTING",
-    review_level: "unified",
-    execution_mode: "delegated",
-    current_unit: "u1",
-    head_commit: "base111",
-    classification: { change_class: "bug-fix", review_level: "unified" },
-    tdd_required: true,
-  };
-
   const badGreenTdd = sealProviderArtifact({
     schema_version: "1.0",
     test_id: "test",
@@ -314,18 +259,8 @@ test("state machine rejects provider-sealed TDD evidence when green exit_code is
     green: { commit: "c1", exit_code: 1, output_digest: "sha256:2" }, // NOT GREEN!
     ok: false,
   });
-
-  const r = canTransition(state, "VERIFYING", {
-    provider_verification: sealedVerification(),
-    post_impact: sealedImpact({ phase: "post" }),
-    implementer_handoff: goodImplementerHandoff({
-      run_id: "tdd-run-5",
-      unit_or_task: "u1",
-      base_commit: "base111",
-      commit: "c1",
-    }),
-    tdd_evidence: badGreenTdd,
-  });
+  const state = passedTaskVerificationState("tdd-run-5", { tdd_evidence: badGreenTdd });
+  const r = canTransition(state, "REVIEWING", {});
 
   assert.strictEqual(r.ok, false);
   assert.ok(
@@ -334,18 +269,7 @@ test("state machine rejects provider-sealed TDD evidence when green exit_code is
   );
 });
 
-test("state machine accepts transition to VERIFYING when valid provider-sealed TDD evidence is provided", () => {
-  const state = {
-    ...createEmptyRunState("tdd-run-6"),
-    state: "IMPLEMENTING",
-    review_level: "unified",
-    execution_mode: "delegated",
-    current_unit: "u1",
-    head_commit: "base111",
-    classification: { change_class: "bug-fix", review_level: "unified" },
-    tdd_required: true,
-  };
-
+test("state machine admits REVIEWING when persisted provider-sealed TDD evidence is valid", () => {
   const validTdd = sealProviderArtifact({
     schema_version: "1.0",
     test_id: "test",
@@ -355,22 +279,13 @@ test("state machine accepts transition to VERIFYING when valid provider-sealed T
     ok: true,
   });
 
-  const r = canTransition(state, "VERIFYING", {
-    provider_verification: sealedVerification(),
-    post_impact: sealedImpact({ phase: "post" }),
-    implementer_handoff: goodImplementerHandoff({
-      run_id: "tdd-run-6",
-      unit_or_task: "u1",
-      base_commit: "base111",
-      commit: "c1",
-    }),
-    tdd_evidence: validTdd,
-  });
+  const state = passedTaskVerificationState("tdd-run-6", { tdd_evidence: validTdd });
+  const r = canTransition(state, "REVIEWING", {});
 
   assert.strictEqual(r.ok, true, `Expected ok: true, got errors: ${r.errors.join("; ")}`);
 });
 
-test("state machine transition revalidates TDD using verification provider verifyTdd", () => {
+test("state machine transition defers TDD provider execution to nexus verify", () => {
   const state = {
     ...createEmptyRunState("tdd-run-7"),
     state: "IMPLEMENTING",
@@ -421,11 +336,9 @@ test("state machine transition revalidates TDD using verification provider verif
   );
 
   assert.strictEqual(res.ok, true, `Transition should succeed: ${res.errors.join("; ")}`);
-  assert.strictEqual(verifyTddCalled, true, "verifyTdd should have been called");
-  assert.ok(res.state.tdd_evidence, "tdd_evidence should be persisted in state");
-  assert.strictEqual(verifySealedArtifact(res.state.tdd_evidence), true);
-  assert.strictEqual(res.state.tdd_evidence.red.exit_code, 1);
-  assert.strictEqual(res.state.tdd_evidence.green.exit_code, 0);
+  assert.strictEqual(verifyTddCalled, false, "fast transition must not call verifyTdd");
+  assert.equal(res.state.verification_status, "PENDING");
+  assert.equal(res.state.tdd_evidence, undefined);
 });
 
 test("verifyTdd runs in a real git repository with detached base worktree", () => {

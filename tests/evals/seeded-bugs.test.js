@@ -101,31 +101,26 @@ test("caller-shaped final_verification is not trusted without seal", async () =>
   assert.equal(r.ok, false);
 });
 
-test("omitted tdd_required still enforces policy for bug-fix", async () => {
+test("omitted tdd_required still enforces policy for bug-fix before REVIEWING", async () => {
   const { canTransition } = await import("../../scripts/lib/state-machine.js");
   const { createEmptyRunState } = await import("../../scripts/lib/migrate-artifacts.js");
-  const { goodImplementerHandoff, sealedVerification, sealedImpact } = await import(
+  const { sealedVerification, sealedImpact } = await import(
     "../helpers/gate-fixtures.js"
   );
   const state = {
     ...createEmptyRunState("eval-tdd"),
-    state: "IMPLEMENTING",
+    state: "VERIFYING",
     review_level: "unified",
     execution_mode: "delegated",
     current_unit: "u1",
     head_commit: "base",
     classification: { change_class: "bug-fix", review_level: "unified" },
-  };
-  const r = canTransition(state, "VERIFYING", {
+    verification_status: "PASSED",
+    verification: { ...createEmptyRunState("tmp").verification, status: "PASSED", phase: "TASK" },
     provider_verification: sealedVerification(),
     post_impact: sealedImpact({ phase: "post" }),
-    implementer_handoff: goodImplementerHandoff({
-      run_id: "eval-tdd",
-      unit_or_task: "u1",
-      base_commit: "base",
-      commit: "c1",
-    }),
-  });
+  };
+  const r = canTransition(state, "REVIEWING", {});
   assert.equal(r.ok, false);
   assert.ok(r.errors.some((e) => /TDD/i.test(e)));
 });

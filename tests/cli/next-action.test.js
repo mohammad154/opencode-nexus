@@ -39,6 +39,31 @@ test("resolveNextAction maps REVIEWING → dispatch reviewer", () => {
   assert.equal(next.agent, "reviewer");
 });
 
+test("resolveNextAction makes task and final verification status deterministic", () => {
+  const cases = [
+    ["VERIFYING", "TASK", "PENDING", "run_verification", "nexus verify"],
+    ["VERIFYING", "TASK", "RUNNING", "resume_verification", "nexus verify --resume"],
+    ["VERIFYING", "TASK", "TIMED_OUT", "resume_verification", "nexus verify --resume"],
+    ["VERIFYING", "TASK", "FAILED", "report_failed_verification", "nexus run inspect"],
+    ["VERIFYING", "TASK", "PASSED", "transition_to_reviewing", "nexus run transition --to REVIEWING"],
+    ["FINAL_VERIFYING", "FINAL", "PENDING", "run_verification", "nexus verify"],
+    ["FINAL_VERIFYING", "FINAL", "TIMED_OUT", "resume_verification", "nexus verify --resume"],
+    ["FINAL_VERIFYING", "FINAL", "FAILED", "report_failed_verification", "nexus run inspect"],
+    ["FINAL_VERIFYING", "FINAL", "PASSED", "transition_to_completed", "nexus run transition --to COMPLETED"],
+  ];
+  for (const [state, phase, status, action, command] of cases) {
+    const next = resolveNextAction({
+      run_id: `next-${state}-${status}`,
+      state,
+      verification_status: status,
+      verification: { status, phase },
+    });
+    assert.equal(next.action, action, `${state}/${status}`);
+    assert.equal(next.command, command, `${state}/${status}`);
+    assert.equal(next.agent, null, `${state}/${status}`);
+  }
+});
+
 test("resolveNextAction maps PLANNED → pre_impact", () => {
   const next = resolveNextAction({ run_id: "r1", state: "PLANNED" });
   assert.equal(next.action, "pre_impact");
@@ -151,6 +176,18 @@ test("buildRunGateReminder includes Nexus Next Action", () => {
   });
   assert.match(text, /Nexus Next Action/);
   assert.match(text, /REQUIRED_DISPATCH: implementer/);
+});
+
+test("buildRunGateReminder keeps a pending verification run out of reviewer dispatch", () => {
+  const text = buildRunGateReminder({
+    state: "VERIFYING",
+    run_id: "verify-pending",
+    verification_status: "PENDING",
+    verification: { phase: "TASK", status: "PENDING" },
+  });
+  assert.match(text, /Do not .*dispatch a reviewer/i);
+  assert.match(text, /nexus verify/);
+  assert.match(text, /run_verification/);
 });
 
 test("nexus next --json works with no run", () => {

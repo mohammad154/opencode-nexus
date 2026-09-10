@@ -6,6 +6,7 @@ import fs from "fs";
 import path from "path";
 import os from "node:os";
 import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import {
   discoverVerification,
   filterVerificationPlan,
@@ -13,6 +14,82 @@ import {
 } from "../verification/discover.js";
 import { compareBaselines } from "../verification/compare.js";
 import { sealProviderArtifact, sha256Digest } from "../artifact-seal.js";
+
+const DEFAULT_TIMEOUTS_SECONDS = Object.freeze({
+  targetedTest: 300,
+  fullTest: 900,
+  lint: 300,
+  typecheck: 600,
+  build: 900,
+});
+
+const TIMEOUT_ENV = Object.freeze({
+  targetedTest: "NEXUS_VERIFY_TIMEOUT_TARGETED_TEST",
+  fullTest: "NEXUS_VERIFY_TIMEOUT_TEST",
+  lint: "NEXUS_VERIFY_TIMEOUT_LINT",
+  typecheck: "NEXUS_VERIFY_TIMEOUT_TYPECHECK",
+  build: "NEXUS_VERIFY_TIMEOUT_BUILD",
+});
+
+function readJson(file) {
+  try {
+    return JSON.parse(fs.readFileSync(file, "utf8"));
+  } catch {
+    return {};
+  }
+}
+
+function defaultWorkflowPath() {
+  const packageRoot = process.env.NEXUS_PKG_ROOT;
+  if (packageRoot) return path.join(packageRoot, "config", "default-workflow.json");
+  return fileURLToPath(
+    new URL("../../../config/default-workflow.json", import.meta.url),
+  );
+}
+
+function finitePositiveSeconds(value) {
+  const seconds = Number(value);
+  return Number.isFinite(seconds) && seconds > 0 ? seconds : null;
+}
+
+/**
+ * Resolve verification step timeouts. Package defaults may be overridden by
+ * `.opencode/config/workflow.json`, then environment variables, then an
+ * explicit provider/context override (useful for hosts and tests).
+ */
+export function resolveVerificationTimeouts(worktree, overrides = {}) {
+  const packageConfig = readJson(defaultWorkflowPath());
+  const projectConfig = readJson(
+    path.join(worktree || process.cwd(), ".opencode", "config", "workflow.json"),
+  );
+  const configured = {
+    ...DEFAULT_TIMEOUTS_SECONDS,
+    ...(packageConfig.verificationTimeouts || {}),
+    ...(projectConfig.verificationTimeouts || projectConfig.verification_timeouts || {}),
+    ...(overrides.timeouts || overrides.verificationTimeouts || {}),
+  };
+  const seconds = {};
+  for (const [key, fallback] of Object.entries(DEFAULT_TIMEOUTS_SECONDS)) {
+    const envValue = process.env[TIMEOUT_ENV[key]];
+    seconds[key] =
+      finitePositiveSeconds(envValue) ?? finitePositiveSeconds(configured[key]) ?? fallback;
+  }
+  return Object.fromEntries(
+    Object.entries(seconds).map(([key, value]) => [key, Math.max(1, Math.round(value * 1000))]),
+  );
+}
+
+function timeoutKeyForStep(step = {}) {
+  if (step.kind === "targeted-test" || String(step.id || "").startsWith("related:")) {
+    return "targetedTest";
+  }
+  if (step.kind === "lint" || step.id === "lint" || step.id === "vet") return "lint";
+  if (step.kind === "typecheck" || step.id === "typecheck" || step.id === "check") {
+    return "typecheck";
+  }
+  if (step.kind === "build" || step.id === "build") return "build";
+  return "fullTest";
+}
 
 function gitRevParse(worktree, rev = "HEAD") {
   if (!worktree) return null;
@@ -34,7 +111,7 @@ function formatCommand(step) {
   return [step.command, ...args].join(" ");
 }
 
-function runStep(step, worktree) {
+export function runStep(step, worktree, timeoutMs = null) {
   if (!step.command || typeof step.command !== "string") {
     return {
       status: 1,
@@ -56,15 +133,26 @@ function runStep(step, worktree) {
     encoding: "utf8",
     shell: false,
     env: process.env,
+    ...(Number.isFinite(timeoutMs) && timeoutMs > 0 ? { timeout: timeoutMs } : {}),
   });
-  return r;
+  return {
+    ...r,
+    timed_out: r?.error?.code === "ETIMEDOUT",
+    timeout_ms: Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : null,
+  };
 }
 
-export function createVerificationProvider() {
+export function createVerificationProvider(providerOptions = {}) {
   return {
     mode: "nexus-verification",
     supported: true,
     capability: "verification",
+    resolveTimeouts(worktree = process.cwd(), overrides = {}) {
+      return resolveVerificationTimeouts(worktree, {
+        ...providerOptions,
+        ...overrides,
+      });
+    },
     discover(ctx = {}) {
       const worktree = ctx.worktree || process.cwd();
       return discoverVerification(worktree, ctx);
@@ -74,6 +162,19 @@ export function createVerificationProvider() {
       const rawPlan = ctx.plan || discoverVerification(worktree, ctx);
       const plan = filterVerificationPlan(worktree, rawPlan);
       const results = [];
+      const timeouts = resolveVerificationTimeouts(worktree, {
+        ...providerOptions,
+        ...ctx,
+      });
+      const reusable = new Map(
+        (ctx.reuse_results || ctx.reuseResults || [])
+          .filter((result) => result?.id && result.pass === true)
+          .map((result) => [result.id, result]),
+      );
+      const onProgress = typeof ctx.onProgress === "function" ? ctx.onProgress : null;
+      const totalSteps = (plan.steps || []).length;
+      let timedOut = false;
+      let executedStepCount = 0;
       for (const skipped of plan.ignored_targets || []) {
         results.push({
           id: `skipped:${skipped.path}`,
@@ -86,39 +187,77 @@ export function createVerificationProvider() {
           pattern: skipped.pattern || null,
         });
       }
-      for (const step of plan.steps || []) {
+      for (const [index, step] of (plan.steps || []).entries()) {
         if (step.status === "UNAVAILABLE") {
-          results.push({
+          const result = {
             ...step,
             command: formatCommand(step),
             pass: null,
             status: "UNAVAILABLE",
-          });
+          };
+          results.push(result);
+          onProgress?.({ type: "complete", index: index + 1, total: totalSteps, step, result });
           continue;
         }
-        const r = runStep(step, worktree);
-        results.push({
+        const cached = reusable.get(step.id);
+        if (cached) {
+          const result = {
+            ...cached,
+            id: step.id,
+            command: formatCommand(step),
+            argv: [step.command, ...(step.args || [])],
+            pass: true,
+            status: "REUSED",
+            reused: true,
+          };
+          results.push(result);
+          executedStepCount += 1;
+          onProgress?.({ type: "reuse", index: index + 1, total: totalSteps, step, result });
+          continue;
+        }
+        const timeoutMs = timeouts[timeoutKeyForStep(step)];
+        onProgress?.({ type: "start", index: index + 1, total: totalSteps, step, timeout_ms: timeoutMs });
+        const startedAt = Date.now();
+        const r = runStep(step, worktree, timeoutMs);
+        const result = {
           id: step.id,
           command: formatCommand(step),
           argv: [step.command, ...(step.args || [])],
           exit_code: r.status,
-          pass: r.status === 0,
+          pass: r.status === 0 && !r.timed_out,
+          status: r.timed_out ? "TIMED_OUT" : r.status === 0 ? "PASSED" : "FAILED",
+          timed_out: r.timed_out === true,
+          timeout_ms: timeoutMs,
+          duration_ms: Date.now() - startedAt,
           stdout_tail: String(r.stdout || "").slice(-2000),
           stderr_tail: String(r.stderr || r.error || "").slice(-2000),
-        });
+        };
+        results.push(result);
+        executedStepCount += 1;
+        onProgress?.({ type: "complete", index: index + 1, total: totalSteps, step, result });
+        if (r.timed_out) {
+          timedOut = true;
+          break;
+        }
       }
       const executed = results.filter(
-        (r) => r.status !== "UNAVAILABLE" && r.exit_code != null,
+        (r) =>
+          r.status !== "UNAVAILABLE" &&
+          (r.exit_code != null || r.timed_out === true || r.status === "REUSED"),
       );
       const hasExecutedChecks = executed.length > 0;
       const allPassed =
-        hasExecutedChecks && executed.every((x) => x.pass === true);
+        !timedOut && hasExecutedChecks && executed.every((x) => x.pass === true);
 
       return {
         ok: allPassed,
         ...(hasExecutedChecks ? {} : { code: "VERIFICATION_UNAVAILABLE" }),
         results,
         plan,
+        timed_out: timedOut,
+        executed_steps: executedStepCount,
+        total_steps: totalSteps,
+        timeouts,
       };
     },
     baseline(ctx = {}) {
@@ -235,7 +374,16 @@ export function createVerificationProvider() {
       }
       step = targetPlan.steps[0] || step;
 
-      const runner = ctx.runner || ctx.runStep || runStep;
+      const runner =
+        ctx.runner ||
+        ctx.runStep ||
+        ((candidate, targetWorktree) =>
+          runStep(
+            candidate,
+            targetWorktree,
+            ctx.timeout_ms ||
+              resolveVerificationTimeouts(worktree, ctx)[timeoutKeyForStep(candidate)],
+          ));
 
       let redResult;
       let greenResult;
@@ -341,7 +489,13 @@ export function createVerificationProvider() {
           exit_code: greenExit,
           output_digest: greenDigest,
         },
-        ok: redExit !== 0 && greenExit === 0,
+        ok:
+          redExit !== 0 &&
+          greenExit === 0 &&
+          redResult?.timed_out !== true &&
+          greenResult?.timed_out !== true,
+        timed_out:
+          redResult?.timed_out === true || greenResult?.timed_out === true,
       };
 
       const worktreeHead =

@@ -1,6 +1,6 @@
 # Reviewer dispatch prompt (V5)
 
-Use after VERIFYING (**task** scope) and again after the last task is approved (**final** / whole-branch scope). One reviewer role; two scopes.
+Use only after `VERIFYING/PASSED` (**task** scope) and again after the last task is approved (**final** / whole-branch scope). One reviewer role; two scopes.
 
 ## Before every dispatch
 
@@ -91,7 +91,7 @@ Findings: set `blocking: true|false` explicitly. Severity describes impact; `blo
 
 ### Scope rules
 
-- `task` — after VERIFYING for the current unit. Last-task APPROVED → orchestrator transitions to `FINAL_REVIEWING` (not `FINAL_VERIFYING`).
+- `task` — after `VERIFYING/PASSED` for the current unit. Last-task APPROVED → orchestrator transitions to `FINAL_REVIEWING` (not `FINAL_VERIFYING`).
 - `final` — whole-branch / cross-task review while in `FINAL_REVIEWING`. APPROVED → `FINAL_VERIFYING`.
 
 On `REQUEST_CHANGES`, the orchestrator must automatically: fresh pre-impact → implementer → post-impact → verify → reviewer again. Do not wait for the user to ask for fixes.

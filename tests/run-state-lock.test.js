@@ -144,6 +144,40 @@ test("withFileLock reaps stale lockfile older than staleMs", (t) => {
   assert.strictEqual(fs.existsSync(lockFile), false);
 });
 
+test("withFileLock does not reap a live owner merely because a long operation exceeds staleMs", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "nexus-lock-live-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+
+  const targetFile = path.join(dir, "data.txt");
+  const lockFile = `${targetFile}.lock`;
+  fs.writeFileSync(lockFile, JSON.stringify({ pid: process.pid }) + "\n", "utf8");
+  const oldTime = (Date.now() - 20000) / 1000;
+  fs.utimesSync(lockFile, oldTime, oldTime);
+
+  assert.throws(
+    () => withFileLock(targetFile, () => {}, { retries: 1, staleMs: 1 }),
+    /could not acquire lock/,
+  );
+  assert.equal(fs.existsSync(lockFile), true);
+});
+
+test("withFileLock immediately reaps a fresh lock whose recorded owner is dead", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "nexus-lock-dead-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+
+  const targetFile = path.join(dir, "data.txt");
+  const lockFile = `${targetFile}.lock`;
+  fs.writeFileSync(lockFile, JSON.stringify({ pid: 999999999 }) + "\n", "utf8");
+
+  const result = withFileLock(
+    targetFile,
+    () => "recovered",
+    { retries: 1, staleMs: 60_000 },
+  );
+  assert.equal(result, "recovered");
+  assert.equal(fs.existsSync(lockFile), false);
+});
+
 test("withFileLock preserves a replacement lock during stale reaping", (t) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "nexus-lock-replacement-"));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));

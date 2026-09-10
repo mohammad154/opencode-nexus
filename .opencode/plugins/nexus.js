@@ -32,8 +32,8 @@ function buildCompactRouter() {
     "Three invariants: (1) brainstorm then PLAN.md for every request (2) fresh pre-impact before every implementer dispatch including REQUEST_CHANGES fix loops (3) every task needs independent reviewer APPROVED.",
     "Portable commands: nexus project-init | nexus next | nexus run ... | nexus impact ... | nexus estimate ...",
     "Use nexus run for state machine gates. Use nexus next (or the injected Nexus Next Action block) for the deterministic next step — including REQUIRED_DISPATCH agent. Do NOT assume repo-local scripts/ exists.",
-    "Execution agents only: orchestrator, implementer, reviewer. plan-advisor is planning-only and conditional. Orchestrator must Task-dispatch implementer for production code and reviewer after VERIFYING. Never self-implement. Never skip reviewer. Do not use legacy classify/blast/Graphify workflow routing, profile matrices, or dual review agents.",
-    "Lifecycle: CREATED → BRAINSTORMING ↔ WAITING_FOR_USER → PLANNED → TASK_IMPACT_READY → IMPLEMENTING → VERIFYING → REVIEWING → FINAL_REVIEWING → FINAL_VERIFYING → COMPLETED. After each VERIFYING: nexus review-package then reviewer (task scope). After the last task APPROVED: multi-unit runs use review-package --scope final then reviewer; a single unit may use evidence-bound task-review reuse only when the state-machine checks pass.",
+    "Execution: orchestrator, implementer, reviewer only; plan-advisor is planning-only. Dispatch reviewer only after VERIFYING/PASSED. Verification is deterministic, never a verifier subagent. Never self-implement or skip reviewer. No legacy classify/blast/Graphify routing.",
+    "Lifecycle: CREATED → BRAINSTORMING ↔ WAITING_FOR_USER → PLANNED → TASK_IMPACT_READY → IMPLEMENTING → VERIFYING (nexus verify: PENDING/RUNNING/PASSED/FAILED/TIMED_OUT) → REVIEWING → FINAL_REVIEWING → FINAL_VERIFYING (nexus verify) → COMPLETED. Follow nexus next: resume timeout; never reviewer before PASSED. Task PASSED → review-package → reviewer; final approval → final package/reviewer (or evidence-bound single-unit reuse).",
     "</EXTREMELY_IMPORTANT>",
   ].join("\n");
 }
@@ -80,6 +80,16 @@ function readRunStateSummary(worktree) {
       `- current_unit: ${best.current_unit || "n/a"}`,
       `- transitions: ${(best.transitions || []).length}`,
     ];
+    if (best.verification?.status || best.verification_status) {
+      lines.push(
+        `- verification: ${(best.verification?.phase || "n/a")} / ${best.verification?.status || best.verification_status}`,
+      );
+      if (best.verification?.current_step != null && best.verification?.total_steps != null) {
+        lines.push(
+          `- verification_progress: ${best.verification.current_step}/${best.verification.total_steps}`,
+        );
+      }
+    }
     return { text: lines.join("\n"), state: best };
   } catch {
     return null;

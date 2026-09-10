@@ -11,6 +11,7 @@
  *   validate-handoff --role ROLE --file path
  *   status [--run-id id]
  *   resume [--run-id id]
+ *   verify [--run-id id] [--resume]
  */
 import fs from "fs";
 import path from "path";
@@ -36,6 +37,7 @@ import {
 } from "./lib/state-machine.js";
 import { createDefaultProviders } from "./lib/providers.js";
 import { createVerificationProvider } from "./lib/providers/verification-provider.js";
+import { runVerificationLifecycle } from "./lib/verification-lifecycle.js";
 import { assessDrift } from "./lib/drift.js";
 import { assertValidRunId } from "./lib/policy.js";
 import { checkPlanFile } from "./lib/plan-check.js";
@@ -658,9 +660,101 @@ function cmdVerify(flags) {
   if (flags.baseline) {
     return cmdBaseline(flags);
   }
-  const provider = createVerificationProvider();
   const wt = worktree();
   const state = resolveRun(flags);
+  const machineReadable = flags.json === true || flags.json === "true";
+
+  if (state && ["VERIFYING", "FINAL_VERIFYING"].includes(state.state)) {
+    const progress = (event) => {
+      if (machineReadable) return;
+      if (event.type === "run_start") {
+        console.log(`Verification run: ${state.run_id}`);
+        console.log(`HEAD: ${event.head || "unavailable"}`);
+        console.log(`Phase: ${event.phase}`);
+        return;
+      }
+      if (event.type === "plan_ready") {
+        console.log(`Risk: ${event.risk || "UNKNOWN"}`);
+        console.log(`Checks: ${event.executable_steps ?? "?"} executable / ${event.total || "?"} total steps`);
+        return;
+      }
+      if (event.type === "step_start") {
+        const total = event.total || "?";
+        console.log(`[${event.index}/${total}] ${event.step?.id || "verification"} ... RUNNING`);
+        return;
+      }
+      if (event.type === "step_reused") {
+        const total = event.total || "?";
+        console.log(`[${event.index}/${total}] ${event.step?.id || "verification"} ... REUSED`);
+        return;
+      }
+      if (event.type === "step_complete") {
+        const total = event.total || "?";
+        const duration = event.result?.duration_ms;
+        const suffix = Number.isFinite(duration) ? ` ${(duration / 1000).toFixed(1)}s` : "";
+        console.log(
+          `[${event.index}/${total}] ${event.step?.id || "verification"} ... ${event.result?.status || "DONE"}${suffix}`,
+        );
+      }
+    };
+    const result = runVerificationLifecycle({
+      worktree: wt,
+      state,
+      resume: flags.resume === true,
+      onProgress: progress,
+    });
+    recordTrajectory(
+      flags,
+      { command: "verify", resume: flags.resume === true, phase: result.phase || null },
+      {
+        ok: result.ok,
+        code: result.code || null,
+        error: result.error || null,
+        verification_status: result.state?.verification_status || null,
+      },
+      result.state || state,
+    );
+    const body = {
+      ok: result.ok,
+      ...(result.code ? { code: result.code } : {}),
+      ...(result.error ? { error: result.error } : {}),
+      state: result.state || state,
+      verification: result.verification || null,
+      artifact: result.artifact || null,
+    };
+    if (machineReadable) {
+      console.log(JSON.stringify(body, null, 2));
+    } else if (result.ok) {
+      console.log(`Verification PASSED`);
+      const summary = result.state?.verification;
+      if (summary?.total_steps != null) {
+        console.log(`${summary.completed_steps || 0}/${summary.total_steps} verification steps completed`);
+      }
+      console.log(`Evidence sealed at HEAD ${result.state?.verification?.worktree_head || "unavailable"}`);
+    } else {
+      console.error(`Verification incomplete (${result.code || "VERIFICATION_FAILED"})`);
+      console.error(`State remains ${result.state?.state || state.state}`);
+      if (result.code === "VERIFICATION_TIMED_OUT") {
+        console.error("Retry: nexus verify --resume");
+      }
+    }
+    if (!result.ok) process.exit(2);
+    return;
+  }
+
+  if (flags.resume === true) {
+    console.error(
+      JSON.stringify({
+        ok: false,
+        error: "nexus verify --resume requires an active run in VERIFYING or FINAL_VERIFYING",
+      }),
+    );
+    process.exit(2);
+  }
+
+  // Preserve the standalone measurement command for projects that have not
+  // initialized a Nexus run. It is deliberately not an authorization step.
+  const provider = createVerificationProvider();
   const runId = state?.run_id || (flags["run-id"] ? String(flags["run-id"]) : null);
   const run = provider.run({ worktree: wt, runId });
   if (flags.compare) {

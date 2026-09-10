@@ -27,7 +27,43 @@ are missing `files_changed`, `tests`, `verification_gates`, `drift_check`, or
 - `drift_check.pass` is `true`.
 
 The preflight gate runs before post-impact and test providers. Fix the handoff
-or explicitly block the run; do not bypass the provider evidence requirement.
+or explicitly block the run. After the fast transition succeeds, run
+`nexus verify`; do not attempt to attach provider-shaped evidence to a later
+transition.
+
+## Verification times out or is interrupted
+
+The run remains in `VERIFYING` (or `FINAL_VERIFYING`), never returns to
+`IMPLEMENTING`. Progress is written after every step in
+`.opencode/runs/<run-id>/verification.json` and summarized in `state.json`.
+
+```bash
+nexus next                         # should say resume_verification
+nexus verify --resume
+```
+
+Passed steps are reused only if the verification artifact digest, current
+HEAD, plan digest, and timeout/configuration digest all still match. If HEAD
+changed, Nexus refuses to verify it under the old handoff; restore the expected
+commit or start the normal repair workflow rather than reusing evidence.
+
+Project-level timeout defaults live in `.opencode/config/workflow.json` under
+`verificationTimeouts`; environment overrides include
+`NEXUS_VERIFY_TIMEOUT_TEST` and `NEXUS_VERIFY_TIMEOUT_BUILD`. A timeout is a
+failure state, never a passing check.
+
+## Verification is FAILED
+
+Inspect the durable evidence before changing code:
+
+```bash
+nexus run inspect --run-id <id>
+nexus next
+```
+
+Do not dispatch a reviewer and do not bypass the state gate. Repair through the
+normal impact/implementer loop when code must change, then run a fresh
+`nexus verify`.
 
 ## Scope expansion is reported
 

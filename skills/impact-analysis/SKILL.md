@@ -11,7 +11,7 @@ node scripts/nexus-impact.js --json --base HEAD --targets <files>
 ## When
 
 - **Pre-impact** — before **every** implementer dispatch (first attempt and every REQUEST_CHANGES fix).
-- **Post-impact** — during VERIFYING after implementation (detects scope expansion vs plan).
+- **Post-impact** — run by `nexus verify` while the durable run is in VERIFYING after implementation (detects scope expansion vs plan).
 
 Evidence includes git diff, changed symbols, imports/dependents, related tests, **risk**, and **confidence** (separate fields).
 

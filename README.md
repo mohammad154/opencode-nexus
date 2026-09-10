@@ -279,6 +279,7 @@ Impact analysis & baseline:
 ```bash
 nexus impact --json
 nexus baseline
+nexus verify
 nexus verify --baseline
 ```
 
@@ -301,7 +302,7 @@ Handoffs use **schema_version `1.1`** (shared envelope: `run_id`, `unit_or_task`
 ## How the workflow works
 
 ```text
-request → brainstorm → plan advisor? → plan-check → (per unit) pre-impact → implement → post-impact + verify → unit review → final review → final verify → finish
+request → brainstorm → plan advisor? → plan-check → (per unit) pre-impact → implement → VERIFYING → deterministic verify → unit review → final review → FINAL_VERIFYING → deterministic final verify → finish
                                                       │
                                                       └─ stale or blocked → reconcile
 ```
@@ -314,6 +315,8 @@ Only the **implementer** writes production code. Nexus uses one fixed V5 workflo
 - Every task receives a task-scoped review package and reviewer after verification.
 - After the final task, a final review package and reviewer examine the whole run for multi-unit integration before final verification. A single-unit run may reuse its task review only with the explicit digest/HEAD-bound gate.
 - Impact risk controls verification-ladder intensity; it does not select a workflow profile or change the review roster.
+- `IMPLEMENTING → VERIFYING` and `FINAL_REVIEWING → FINAL_VERIFYING` are fast authorization transitions. They persist `verification_status: PENDING`; they do not execute tests.
+- Run `nexus verify` in either verification state to measure fresh post-impact, discover the risk-based ladder, execute checks, and seal evidence. Only `verification_status: PASSED` authorizes the next review/completion transition. A timeout stays in the same state; use `nexus verify --resume`.
 
 Full policy: [`docs/workflow.md`](docs/workflow.md).
 
@@ -322,6 +325,7 @@ Full policy: [`docs/workflow.md`](docs/workflow.md).
 | Path | What |
 |---|---|
 | `.opencode/runs/<run-id>/state.json` | Durable state-machine state |
+| `.opencode/runs/<run-id>/verification.json` | Durable per-step verification progress and sealed-evidence summary |
 | `.opencode/CONTEXT.md` | Active run, branch, and verification context |
 | `.opencode/plans/PLAN.md` and `tasks/` | Plan and execution units |
 | `.opencode/handoffs/` | Implementer and reviewer results |

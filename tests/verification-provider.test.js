@@ -3,7 +3,10 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import fs from "node:fs";
 import os from "node:os";
-import { createVerificationProvider } from "../scripts/lib/providers/verification-provider.js";
+import {
+  createVerificationProvider,
+  resolveVerificationTimeouts,
+} from "../scripts/lib/providers/verification-provider.js";
 import { discoverVerification } from "../scripts/lib/verification/discover.js";
 
 test("verification fails closed when zero executable checks exist", () => {
@@ -52,6 +55,45 @@ test("verification fails when an executed check fails", () => {
   });
   assert.strictEqual(res.ok, false);
   assert.strictEqual(res.code, undefined);
+});
+
+test("verification timeouts are configurable and a timed-out step fails closed", () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "nexus-verif-timeout-"));
+  const oldTimeout = process.env.NEXUS_VERIFY_TIMEOUT_TEST;
+  try {
+    fs.mkdirSync(path.join(tmp, ".opencode", "config"), { recursive: true });
+    fs.writeFileSync(
+      path.join(tmp, ".opencode", "config", "workflow.json"),
+      JSON.stringify({ verificationTimeouts: { fullTest: 0.08, build: 12 } }),
+    );
+    process.env.NEXUS_VERIFY_TIMEOUT_TEST = "0.05";
+    const resolved = resolveVerificationTimeouts(tmp);
+    assert.equal(resolved.fullTest, 50, "environment override wins over project config");
+    assert.equal(resolved.build, 12000, "project config overrides package default");
+
+    const provider = createVerificationProvider({ timeouts: { fullTest: 0.05 } });
+    const result = provider.run({
+      worktree: tmp,
+      plan: {
+        steps: [
+          {
+            id: "test",
+            command: process.execPath,
+            args: ["-e", "setTimeout(() => {}, 1000)"],
+            kind: "test",
+          },
+        ],
+      },
+    });
+    assert.equal(result.ok, false);
+    assert.equal(result.timed_out, true);
+    assert.equal(result.results[0].status, "TIMED_OUT");
+    assert.equal(result.results[0].timed_out, true);
+  } finally {
+    if (oldTimeout == null) delete process.env.NEXUS_VERIFY_TIMEOUT_TEST;
+    else process.env.NEXUS_VERIFY_TIMEOUT_TEST = oldTimeout;
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
 });
 
 test("discoverVerification filters steps based on risk ladder", () => {

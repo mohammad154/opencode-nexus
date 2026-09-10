@@ -3,6 +3,7 @@ import path from "path";
 import { validateHandoff, validateRunState } from "./schema-validate.js";
 import { assertValidRunId } from "./policy.js";
 import { withFileLock } from "./lock.js";
+import { verifySealedArtifact } from "./artifact-seal.js";
 
 const RUN_STATE_VERSION = "1.0";
 const HANDOFF_VERSION = "1.1";
@@ -20,6 +21,68 @@ function nowIso() {
 
 function deepClone(v) {
   return JSON.parse(JSON.stringify(v));
+}
+
+const VERIFICATION_STATUSES = new Set([
+  "PENDING",
+  "RUNNING",
+  "PASSED",
+  "FAILED",
+  "TIMED_OUT",
+]);
+
+function inferredVerificationPhase(state) {
+  if (state === "VERIFYING") return "TASK";
+  if (state === "FINAL_VERIFYING") return "FINAL";
+  return null;
+}
+
+/**
+ * Add the durable verification summary to legacy run state without inventing a
+ * pass. A sealed successful provider report is the only legacy signal that can
+ * infer PASSED; an unsealed/corrupt report remains PENDING and must be rerun.
+ */
+export function normalizeRunState(raw) {
+  const state = deepClone(raw && typeof raw === "object" ? raw : {});
+  const previous = state.verification && typeof state.verification === "object"
+    ? state.verification
+    : {};
+  const phase = inferredVerificationPhase(state.state) || previous.phase || null;
+  const artifactField = phase === "FINAL" ? "final_verification" : "provider_verification";
+  const artifact = state[artifactField];
+  const artifactPassed = verifySealedArtifact(artifact) && artifact.ok === true;
+  const requestedStatus = previous.status || state.verification_status;
+  const status =
+    requestedStatus === "PASSED"
+      ? artifactPassed
+        ? "PASSED"
+        : "PENDING"
+      : VERIFICATION_STATUSES.has(requestedStatus)
+        ? requestedStatus
+        : artifactPassed
+          ? "PASSED"
+          : "PENDING";
+
+  state.verification_status = status;
+  state.verification = {
+    status,
+    phase,
+    worktree_head: previous.worktree_head || artifact?.worktree_head || null,
+    started_at: previous.started_at || null,
+    completed_at:
+      previous.completed_at || (status === "PASSED" ? artifact?.validated_at || null : null),
+    plan_digest: previous.plan_digest || null,
+    configuration_digest: previous.configuration_digest || null,
+    artifact_path: previous.artifact_path || null,
+    artifact_digest: previous.artifact_digest || artifact?.artifact_digest || null,
+    current_step: Number.isInteger(previous.current_step) ? previous.current_step : 0,
+    total_steps: Number.isInteger(previous.total_steps) ? previous.total_steps : 0,
+    completed_steps: Number.isInteger(previous.completed_steps)
+      ? previous.completed_steps
+      : 0,
+    failure_reason: previous.failure_reason || null,
+  };
+  return state;
 }
 
 function isLegacyHandoffVersion(version) {
@@ -277,6 +340,22 @@ export function createEmptyRunState(runId, overrides = {}) {
     verification_policy: { exempt: false, reason: null },
     compatibility_mode: null,
     require_post_impact: true,
+    verification_status: "PENDING",
+    verification: {
+      status: "PENDING",
+      phase: null,
+      worktree_head: null,
+      started_at: null,
+      completed_at: null,
+      plan_digest: null,
+      configuration_digest: null,
+      artifact_path: null,
+      artifact_digest: null,
+      current_step: 0,
+      total_steps: 0,
+      completed_steps: 0,
+      failure_reason: null,
+    },
     blocked_from: null,
     resume_state: null,
     block_reason: null,
@@ -294,7 +373,7 @@ export function createEmptyRunState(runId, overrides = {}) {
 export function readRunState(worktree, runId) {
   const p = runStatePath(worktree, runId);
   if (!fs.existsSync(p)) return null;
-  const data = JSON.parse(fs.readFileSync(p, "utf8"));
+  const data = normalizeRunState(JSON.parse(fs.readFileSync(p, "utf8")));
   const v = validateRunState(data);
   if (!v.ok) {
     const err = new Error(
@@ -307,8 +386,9 @@ export function readRunState(worktree, runId) {
 }
 
 export function writeRunState(worktree, state) {
-  assertValidRunId(state.run_id);
-  const v = validateRunState(state);
+  const normalizedState = normalizeRunState(state);
+  assertValidRunId(normalizedState.run_id);
+  const v = validateRunState(normalizedState);
   if (!v.ok) {
     const err = new Error(
       `cannot write invalid run state: ${v.errors.map((e) => e.message).join("; ")}`,
@@ -316,7 +396,7 @@ export function writeRunState(worktree, state) {
     err.validation = v;
     throw err;
   }
-  const dir = path.dirname(runStatePath(worktree, state.run_id));
+  const dir = path.dirname(runStatePath(worktree, normalizedState.run_id));
   fs.mkdirSync(dir, { recursive: true });
   const target = path.join(dir, "state.json");
 
@@ -326,8 +406,8 @@ export function writeRunState(worktree, state) {
     // another agent wrote first and this write is rejected so its changes are
     // not silently destroyed. Callers without a base revision (fresh init) skip
     // the check.
-    const expectedRevision = Number.isInteger(state._revision)
-      ? state._revision
+    const expectedRevision = Number.isInteger(normalizedState._revision)
+      ? normalizedState._revision
       : null;
     if (expectedRevision !== null && fs.existsSync(target)) {
       let current = null;
@@ -341,7 +421,7 @@ export function writeRunState(worktree, state) {
         : 0;
       if (currentRevision !== expectedRevision) {
         const err = new Error(
-          `run state revision conflict for ${state.run_id}: expected ${expectedRevision}, found ${currentRevision} (concurrent write)`,
+          `run state revision conflict for ${normalizedState.run_id}: expected ${expectedRevision}, found ${currentRevision} (concurrent write)`,
         );
         err.code = "REVISION_CONFLICT";
         err.expected = expectedRevision;
@@ -351,8 +431,8 @@ export function writeRunState(worktree, state) {
     }
 
     const nextRevision =
-      (Number.isInteger(state._revision) ? state._revision : 0) + 1;
-    const { _revision: _drop, ...rest } = state;
+      (Number.isInteger(normalizedState._revision) ? normalizedState._revision : 0) + 1;
+    const { _revision: _drop, ...rest } = normalizedState;
     const tmp = `${target}.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}.tmp`;
     const next = { ...rest, _revision: nextRevision, updated_at: nowIso() };
     fs.writeFileSync(tmp, JSON.stringify(next, null, 2) + "\n", "utf8");

@@ -9,14 +9,15 @@ import {
   getChangedFilesFromGit,
   isNexusRuntimePath,
 } from "../scripts/lib/scope-lock.js";
-import { createEmptyRunState } from "../scripts/lib/migrate-artifacts.js";
+import {
+  createEmptyRunState,
+  writeRunState,
+} from "../scripts/lib/migrate-artifacts.js";
 import { transition, canTransition } from "../scripts/lib/state-machine.js";
-import { createVerificationProvider } from "../scripts/lib/providers/verification-provider.js";
-import { discoverVerification } from "../scripts/lib/verification/discover.js";
+import { runVerificationLifecycle } from "../scripts/lib/verification-lifecycle.js";
 import {
   goodImplementerHandoff,
   sealedVerification,
-  sealedImpact,
   mockTrustProviders,
 } from "./helpers/gate-fixtures.js";
 
@@ -129,9 +130,13 @@ test("BLOCKED resume_state forge is ignored; only blocked_from is allowed", () =
   assert.ok(forged.errors.some((e) => /illegal transition/i.test(e)));
 });
 
-test("state-machine discover path receives risk for ladder filtering", () => {
+test("verification lifecycle passes post-impact risk to the verification plan", () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "nexus-risk-wire-"));
   try {
+    execFileSync("git", ["init"], { cwd: tmp });
+    execFileSync("git", ["config", "user.name", "t"], { cwd: tmp });
+    execFileSync("git", ["config", "user.email", "t@t"], { cwd: tmp });
+    fs.mkdirSync(path.join(tmp, "src"), { recursive: true });
     fs.writeFileSync(
       path.join(tmp, "package.json"),
       JSON.stringify({
@@ -139,99 +144,71 @@ test("state-machine discover path receives risk for ladder filtering", () => {
         scripts: { test: "node -e process.exit(0)", build: "echo build" },
       }),
     );
-    const plan = discoverVerification(tmp, { risk: "LOW" });
-    const ids = plan.steps.map((s) => s.id);
-    assert.ok(ids.includes("test"));
-    assert.ok(!ids.includes("build"));
+    fs.writeFileSync(path.join(tmp, "src", "app.js"), "export const value = 1;\n");
+    execFileSync("git", ["add", "."], { cwd: tmp });
+    execFileSync("git", ["commit", "-m", "base"], { cwd: tmp });
+    const base = execFileSync("git", ["rev-parse", "HEAD"], {
+      cwd: tmp,
+      encoding: "utf8",
+    }).trim();
+    fs.writeFileSync(path.join(tmp, "src", "app.js"), "export const value = 2;\n");
+    execFileSync("git", ["add", "."], { cwd: tmp });
+    execFileSync("git", ["commit", "-m", "implementation"], { cwd: tmp });
+    const head = execFileSync("git", ["rev-parse", "HEAD"], {
+      cwd: tmp,
+      encoding: "utf8",
+    }).trim();
 
     let sawRisk = false;
     const providers = {
-      ...mockTrustProviders(),
+      impactProvider: {
+        analyze() {
+          return { ok: true, report: { ok: true, risk: "LOW", related_tests: [] } };
+        },
+      },
       verificationProvider: {
-        ...createVerificationProvider(),
+        resolveTimeouts() {
+          return { targetedTest: 1, fullTest: 1, lint: 1, typecheck: 1, build: 1 };
+        },
         discover(ctx) {
           sawRisk = Boolean(ctx.risk || ctx.risk_tier);
-          return discoverVerification(ctx.worktree || tmp, ctx);
+          return {
+            steps: [{ id: "test", command: process.execPath, args: ["-e", "process.exit(0)"], kind: "test" }],
+          };
         },
         run(ctx) {
-          return createVerificationProvider().run({
-            ...ctx,
-            worktree: ctx.worktree || tmp,
-          });
+          assert.equal(ctx.risk, "LOW");
+          return {
+            ok: true,
+            results: [{ id: "test", exit_code: 0, pass: true, status: "PASSED" }],
+            plan: ctx.plan,
+          };
         },
+        compare() { return { ok: true, new_regressions: [] }; },
       },
     };
 
     const state = {
       ...createEmptyRunState("risk-wire"),
-      state: "IMPLEMENTING",
+      state: "VERIFYING",
       worktree: tmp,
       allowed_files: ["package.json"],
-      head_commit: "base",
-      impact: { risk: "LOW", level: "LOW", related_tests: [] },
+      head_commit: base,
+      implementer_commit: head,
       current_unit: "u1",
-      verification_policy: { exempt: false },
-    };
-    // Without git commits this may fail scope evidence; we only need revalidate path.
-    // Use exempt to isolate risk wiring.
-    state.verification_policy = { exempt: true };
-    const r = transition(
-      state,
-      "VERIFYING",
-      {
-        worktree: tmp,
-        implementer_handoff: goodImplementerHandoff({
-          run_id: "risk-wire",
-          unit_or_task: "u1",
-          allowed_files: ["package.json"],
-        }),
-      },
-      providers,
-    );
-    // Exempt path skips provider run — force non-exempt with sealed verification via canTransition
-    assert.ok(r.ok || Array.isArray(r.errors));
-
-    const state2 = {
-      ...state,
-      verification_policy: { exempt: false },
-      provider_verification: sealedVerification(),
-    };
-    canTransition(state2, "VERIFYING", {
-      worktree: tmp,
-      provider_verification: sealedVerification(),
-      post_impact: sealedImpact({ phase: "post", risk: "LOW" }),
-      implementer_handoff: goodImplementerHandoff({
+      last_implementer_handoff: goodImplementerHandoff({
         run_id: "risk-wire",
         unit_or_task: "u1",
-        allowed_files: ["package.json"],
-        files_changed: [],
+        base_commit: base,
+        commit: head,
+        files_changed: ["src/app.js"],
       }),
-    });
-    // Direct unit check: revalidate with providers
-    const t = transition(
-      {
-        ...createEmptyRunState("risk-wire-2"),
-        state: "IMPLEMENTING",
-        worktree: tmp,
-        allowed_files: ["package.json"],
-        current_unit: "u1",
-        impact: sealedImpact({ risk: "LOW", level: "LOW" }),
-        verification_policy: { exempt: false },
-      },
-      "VERIFYING",
-      {
-        worktree: tmp,
-        changed_files: [],
-        implementer_handoff: goodImplementerHandoff({
-          run_id: "risk-wire-2",
-          unit_or_task: "u1",
-          allowed_files: ["package.json"],
-          files_changed: [],
-        }),
-      },
-      providers,
-    );
-    assert.equal(sawRisk, true, `risk should be passed to discover; transition=${JSON.stringify(t.errors)}`);
+      verification_policy: { exempt: false },
+    };
+    writeRunState(tmp, state);
+    const result = runVerificationLifecycle({ worktree: tmp, state, providers });
+    assert.equal(result.ok, true, result.error);
+    assert.equal(sawRisk, true, "risk should be passed to discover");
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }

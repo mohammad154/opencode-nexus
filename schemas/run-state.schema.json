@@ -42,6 +42,32 @@
     "units": { "type": ["array", "null"], "items": { "type": "object", "additionalProperties": true } },
     "compatibility_mode": { "type": ["string", "null"] },
     "require_post_impact": { "type": "boolean" },
+    "verification_status": {
+      "type": ["string", "null"],
+      "enum": ["PENDING", "RUNNING", "PASSED", "FAILED", "TIMED_OUT", null]
+    },
+    "verification": {
+      "type": ["object", "null"],
+      "additionalProperties": true,
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["PENDING", "RUNNING", "PASSED", "FAILED", "TIMED_OUT"]
+        },
+        "phase": { "type": ["string", "null"], "enum": ["TASK", "FINAL", null] },
+        "worktree_head": { "type": ["string", "null"] },
+        "started_at": { "type": ["string", "null"] },
+        "completed_at": { "type": ["string", "null"] },
+        "plan_digest": { "type": ["string", "null"] },
+        "configuration_digest": { "type": ["string", "null"] },
+        "artifact_path": { "type": ["string", "null"] },
+        "artifact_digest": { "type": ["string", "null"] },
+        "current_step": { "type": "integer", "minimum": 0 },
+        "total_steps": { "type": "integer", "minimum": 0 },
+        "completed_steps": { "type": "integer", "minimum": 0 },
+        "failure_reason": { "type": ["string", "null"] }
+      }
+    },
     "current_unit": { "type": ["string", "null"] },
     "pending_review_findings": {
       "type": ["array", "null"],

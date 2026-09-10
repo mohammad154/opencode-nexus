@@ -122,6 +122,13 @@ test("BLOCKED resuming to REVIEWING succeeds when provider_verification is seale
     resume_state: "REVIEWING",
     block_code: "MANUAL_CHECK",
     provider_verification: sealedVerification({ ok: true }),
+    post_impact: sealedImpact({ phase: "post", ok: true }),
+    verification_status: "PASSED",
+    verification: {
+      ...createEmptyRunState("r1-summary").verification,
+      status: "PASSED",
+      phase: "TASK",
+    },
   };
   const r = transition(state, "REVIEWING", {});
   assert.strictEqual(r.ok, true);
@@ -251,5 +258,5 @@ test("BLOCKED resuming to REVIEWING rejects unsealed caller-supplied provider_ve
     provider_verification: { ok: true, unsealed: true },
   });
   assert.strictEqual(r.ok, false);
-  assert.ok(r.errors.some((e) => /provider-sealed/i.test(e)));
+  assert.ok(r.errors.some((e) => /caller-supplied provider_verification|nexus verify/i.test(e)));
 });

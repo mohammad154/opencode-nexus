@@ -55,6 +55,14 @@ function stateRunPlanningMode(runState) {
   );
 }
 
+function verificationStatus(runState, phase) {
+  const record = runState?.verification;
+  if (record && typeof record === "object" && (!record.phase || record.phase === phase)) {
+    return record.status || runState?.verification_status || "PENDING";
+  }
+  return runState?.verification_status || "PENDING";
+}
+
 /**
  * @param {object|null|undefined} runState - run state.json or { state, run_id }
  * @param {{ worktree?: string|null }} [opts]
@@ -251,22 +259,65 @@ export function resolveNextAction(runState, opts = {}) {
       };
 
     case "VERIFYING":
-      return {
-        ok: true,
-        run_id: runId,
-        state,
-        action: "transition",
-        agent: null,
-        skill: "orchestrating",
-        command: "nexus run transition --to REVIEWING",
-        instruction:
-          "Verification/post-impact is in progress or done. Transition to REVIEWING, then dispatch reviewer.",
-        steps: [
-          "Ensure VERIFYING gates passed (provider verification + post-impact)",
-          "nexus run transition --to REVIEWING",
-          "Next: Task-dispatch agent: reviewer",
-        ],
-      };
+      switch (verificationStatus(runState, "TASK")) {
+        case "PASSED":
+          return {
+            ok: true,
+            run_id: runId,
+            state,
+            action: "transition_to_reviewing",
+            agent: null,
+            skill: "orchestrating",
+            command: "nexus run transition --to REVIEWING",
+            instruction:
+              "Task verification passed. Authorize REVIEWING, then dispatch the independent reviewer.",
+            steps: [
+              "nexus run transition --to REVIEWING",
+              "nexus review-package --scope task --json",
+              "Task-dispatch agent: reviewer (review_scope=task)",
+            ],
+          };
+        case "RUNNING":
+        case "TIMED_OUT":
+          return {
+            ok: true,
+            run_id: runId,
+            state,
+            action: "resume_verification",
+            agent: null,
+            skill: "orchestrating",
+            command: "nexus verify --resume",
+            instruction:
+              "Verification is incomplete. Resume deterministic verification; do not redispatch the implementer or reviewer.",
+            steps: ["nexus verify --resume", "After PASSED: nexus run transition --to REVIEWING"],
+          };
+        case "FAILED":
+          return {
+            ok: true,
+            run_id: runId,
+            state,
+            action: "report_failed_verification",
+            agent: null,
+            skill: "orchestrating",
+            command: "nexus run inspect",
+            instruction:
+              "Verification failed. Inspect the sealed evidence and repair the failure; do not dispatch a reviewer or silently re-enter IMPLEMENTING.",
+            steps: ["nexus run inspect", "Fix the reported failure under normal workflow controls", "Run nexus verify again"],
+          };
+        default:
+          return {
+            ok: true,
+            run_id: runId,
+            state,
+            action: "run_verification",
+            agent: null,
+            skill: "orchestrating",
+            command: "nexus verify",
+            instruction:
+              "Run deterministic post-impact and verification. VERIFYING is not an LLM agent and does not dispatch the reviewer yet.",
+            steps: ["nexus verify", "After PASSED: nexus run transition --to REVIEWING"],
+          };
+      }
 
     case "REVIEWING":
       if (stateHasSingleUnit(runState)) {
@@ -328,21 +379,61 @@ export function resolveNextAction(runState, opts = {}) {
       };
 
     case "FINAL_VERIFYING":
-      return {
-        ok: true,
-        run_id: runId,
-        state,
-        action: "transition",
-        agent: null,
-        skill: "finishing-a-development-branch",
-        command: "nexus run transition --to COMPLETED",
-        instruction:
-          "Run final verification and transition to COMPLETED, then finish the branch.",
-        steps: [
-          "nexus run transition --to COMPLETED",
-          "Load skill: finishing-a-development-branch",
-        ],
-      };
+      switch (verificationStatus(runState, "FINAL")) {
+        case "PASSED":
+          return {
+            ok: true,
+            run_id: runId,
+            state,
+            action: "transition_to_completed",
+            agent: null,
+            skill: "finishing-a-development-branch",
+            command: "nexus run transition --to COMPLETED",
+            instruction:
+              "Final deterministic verification passed. Authorize COMPLETED, then finish the branch.",
+            steps: ["nexus run transition --to COMPLETED", "Load skill: finishing-a-development-branch"],
+          };
+        case "RUNNING":
+        case "TIMED_OUT":
+          return {
+            ok: true,
+            run_id: runId,
+            state,
+            action: "resume_verification",
+            agent: null,
+            skill: "orchestrating",
+            command: "nexus verify --resume",
+            instruction:
+              "Final verification is incomplete. Resume it; do not mark the run completed.",
+            steps: ["nexus verify --resume", "After PASSED: nexus run transition --to COMPLETED"],
+          };
+        case "FAILED":
+          return {
+            ok: true,
+            run_id: runId,
+            state,
+            action: "report_failed_verification",
+            agent: null,
+            skill: "orchestrating",
+            command: "nexus run inspect",
+            instruction:
+              "Final verification failed. Inspect the sealed evidence; COMPLETED remains forbidden.",
+            steps: ["nexus run inspect", "Repair through the normal workflow", "Run nexus verify again"],
+          };
+        default:
+          return {
+            ok: true,
+            run_id: runId,
+            state,
+            action: "run_verification",
+            agent: null,
+            skill: "orchestrating",
+            command: "nexus verify",
+            instruction:
+              "Run deterministic final verification before attempting COMPLETED.",
+            steps: ["nexus verify", "After PASSED: nexus run transition --to COMPLETED"],
+          };
+      }
 
     case "COMPLETED":
       return {

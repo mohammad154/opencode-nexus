@@ -10,6 +10,7 @@ import {
   createEmptyRunState,
   listRunIds,
 } from "../../scripts/lib/migrate-artifacts.js";
+import { sealProviderArtifact } from "../../scripts/lib/artifact-seal.js";
 
 function tmpWorktree() {
   return fs.mkdtempSync(path.join(os.tmpdir(), "nexus-migrate-"));
@@ -58,4 +59,45 @@ test("inferRunFromContext sees implementer DONE as VERIFYING", () => {
   );
   const inferred = inferRunFromContext(wt);
   assert.equal(inferred.state, "VERIFYING");
+});
+
+test("legacy sealed successful verification migrates to PASSED", () => {
+  const wt = tmpWorktree();
+  const runId = "legacy-verified";
+  const state = {
+    ...createEmptyRunState(runId),
+    state: "VERIFYING",
+    provider_verification: sealProviderArtifact({ ok: true, results: [{ pass: true }] }, "abc123"),
+  };
+  delete state.verification;
+  delete state.verification_status;
+  const file = path.join(wt, ".opencode", "runs", runId, "state.json");
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, JSON.stringify(state, null, 2), "utf8");
+
+  const migrated = readRunState(wt, runId);
+  assert.equal(migrated.verification_status, "PASSED");
+  assert.equal(migrated.verification.status, "PASSED");
+  assert.equal(migrated.verification.phase, "TASK");
+  assert.equal(migrated.verification.worktree_head, "abc123");
+});
+
+test("legacy invalid or missing verification never migrates to PASSED", () => {
+  const wt = tmpWorktree();
+  for (const [runId, provider_verification] of [
+    ["legacy-missing", undefined],
+    ["legacy-tampered", { ok: true, provider_validated: true, artifact_digest: "sha256:forged" }],
+  ]) {
+    const state = { ...createEmptyRunState(runId), state: "VERIFYING" };
+    if (provider_verification) state.provider_verification = provider_verification;
+    delete state.verification;
+    delete state.verification_status;
+    const file = path.join(wt, ".opencode", "runs", runId, "state.json");
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, JSON.stringify(state, null, 2), "utf8");
+
+    const migrated = readRunState(wt, runId);
+    assert.equal(migrated.verification_status, "PENDING", runId);
+    assert.equal(migrated.verification.status, "PENDING", runId);
+  }
 });

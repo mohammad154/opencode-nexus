@@ -30,6 +30,13 @@
   "requireReviewerOn": ["*"],
   "requirePreImpactBeforeImplementer": true,
   "requirePostImpactBeforeReview": true,
+  "verificationTimeouts": {
+    "targetedTest": 300,
+    "fullTest": 900,
+    "lint": 300,
+    "typecheck": 600,
+    "build": 900
+  },
   "agentCallsPerTask": {
     "implementer": 1,
     "reviewer": 1,

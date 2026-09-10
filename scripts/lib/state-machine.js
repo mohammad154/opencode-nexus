@@ -117,41 +117,138 @@ export function sealBlastArtifact(report, worktreeHead = null) {
   return sealImpactArtifact(report, worktreeHead);
 }
 
-function assertProviderVerification(ctx, state, errors, { phase = "implementer" } = {}) {
-  const field = phase === "final" ? "final_verification" : "provider_verification";
-  const candidate = ctx[field] || (phase === "final" ? state.final_verification : state.provider_verification);
-  if (ctx[field] && !verifySealedArtifact(ctx[field])) {
-    errors.push(`caller-supplied ${field} rejected — must be provider-sealed`);
+const VERIFICATION_STATUSES = new Set([
+  "PENDING",
+  "RUNNING",
+  "PASSED",
+  "FAILED",
+  "TIMED_OUT",
+]);
+
+function verificationPhaseRecord(state, phase) {
+  const record = state?.verification;
+  if (!record || typeof record !== "object") return null;
+  if (record.phase && record.phase !== phase) return null;
+  return record;
+}
+
+function verificationStatusFor(state, phase) {
+  const record = verificationPhaseRecord(state, phase);
+  const status = record?.status || state?.verification_status;
+  if (VERIFICATION_STATUSES.has(status)) return status;
+
+  // Read-only compatibility inference for pre-lifecycle runs. Migration writes
+  // the explicit status on the next state write, but a valid sealed artifact is
+  // sufficient to avoid stranding a historical run in memory.
+  const field = phase === "FINAL" ? "final_verification" : "provider_verification";
+  const artifact = state?.[field];
+  return verifySealedArtifact(artifact) && artifact.ok === true
+    ? "PASSED"
+    : "PENDING";
+}
+
+function assertTddEvidenceForReview(state, ctx, errors) {
+  if (!requiresTdd(state) || verificationPolicyExempt(state)) return;
+  if (ctx.tdd_evidence) {
+    errors.push("caller-supplied tdd_evidence rejected — run nexus verify");
+  }
+  const tddEvidence = state.tdd_evidence;
+  if (!tddEvidence || !verifySealedArtifact(tddEvidence)) {
+    errors.push("TDD requires provider-sealed TDD evidence report");
     return;
   }
-  if (!verifySealedArtifact(candidate)) {
-    errors.push(`${phase === "final" ? "FINAL_VERIFYING" : "VERIFYING"} requires provider-run sealed verification`);
-    return;
+  if (
+    !tddEvidence.red ||
+    tddEvidence.red.exit_code === 0 ||
+    tddEvidence.red.exit_code == null
+  ) {
+    errors.push("TDD requires red evidence with non-zero exit_code before fix");
   }
-  if (candidate.ok !== true) {
-    errors.push("provider verification failed");
+  if (!tddEvidence.green || tddEvidence.green.exit_code !== 0) {
+    errors.push("TDD requires green evidence with exit_code 0 after fix");
   }
-  const worktree = ctx.worktree;
-  if (worktree && candidate.worktree_head) {
+  if (tddEvidence.ok !== true) {
+    errors.push("provider TDD verification failed");
+  }
+  const worktree = ctx.worktree || state.worktree;
+  if (worktree && tddEvidence.worktree_head) {
     const head = gitRevParse(worktree, "HEAD");
-    if (head && candidate.worktree_head !== head) {
-      errors.push(`${field} worktree_head mismatch with current HEAD`);
+    if (head && tddEvidence.worktree_head !== head) {
+      errors.push("tdd_evidence worktree_head mismatch with current HEAD");
     }
   }
 }
 
-function assertPostImpactEvidence(ctx, state, errors) {
-  const post = ctx.post_impact || state.post_impact;
-  if (!verifySealedArtifact(post)) {
-    errors.push("VERIFYING requires sealed post-impact analysis");
-    return;
+/**
+ * Authorization gates consume only evidence durably written by `nexus verify`.
+ * In particular, a caller cannot smuggle a digest-shaped provider artifact into
+ * a transition: an artifact digest proves integrity, not producer identity.
+ */
+function assertCompletedVerification(state, ctx, errors, { phase = "TASK" } = {}) {
+  const verificationField = phase === "FINAL" ? "final_verification" : "provider_verification";
+  const impactField = phase === "FINAL" ? "final_post_impact" : "post_impact";
+  if (ctx[verificationField]) {
+    errors.push(`caller-supplied ${verificationField} rejected — run nexus verify`);
   }
-  const worktree = ctx.worktree;
-  if (worktree && post.worktree_head) {
+  if (ctx[impactField]) {
+    errors.push(`caller-supplied ${impactField} rejected — run nexus verify`);
+  }
+
+  const status = verificationStatusFor(state, phase);
+  if (status !== "PASSED") {
+    errors.push(`${phase === "FINAL" ? "FINAL_VERIFYING" : "VERIFYING"} verification status must be PASSED (got ${status})`);
+  }
+
+  const verification = verificationPhaseRecord(state, phase);
+  const artifact = state?.[verificationField];
+  if (!verifySealedArtifact(artifact) || artifact.ok !== true) {
+    errors.push(`${phase === "FINAL" ? "COMPLETED" : "REVIEWING"} requires sealed ${verificationField}.ok from nexus verify`);
+  }
+
+  const postImpact = state?.[impactField];
+  if (!verifySealedArtifact(postImpact)) {
+    errors.push(`${phase === "FINAL" ? "COMPLETED" : "REVIEWING"} requires sealed ${impactField} from nexus verify`);
+  }
+
+  const worktree = ctx.worktree || state?.worktree;
+  if (worktree) {
     const head = gitRevParse(worktree, "HEAD");
-    if (head && post.worktree_head !== head) {
-      errors.push("post-impact worktree_head mismatch with current HEAD");
+    for (const [label, candidate] of [
+      [verificationField, artifact],
+      [impactField, postImpact],
+    ]) {
+      if (head && candidate?.worktree_head !== head) {
+        errors.push(`${label} worktree_head mismatch with current HEAD`);
+      }
     }
+    if (head && verification?.worktree_head && verification.worktree_head !== head) {
+      errors.push("verification worktree_head mismatch with current HEAD");
+    }
+  }
+
+  if (
+    verification?.worktree_head &&
+    artifact?.worktree_head &&
+    verification.worktree_head !== artifact.worktree_head
+  ) {
+    errors.push("verification summary does not match provider verification HEAD");
+  }
+  if (
+    verification?.worktree_head &&
+    postImpact?.worktree_head &&
+    verification.worktree_head !== postImpact.worktree_head
+  ) {
+    errors.push("verification summary does not match post-impact HEAD");
+  }
+
+  if (phase === "TASK") assertTddEvidenceForReview(state, ctx, errors);
+  if (
+    phase === "TASK" &&
+    state.tdd_evidence &&
+    verification?.worktree_head &&
+    state.tdd_evidence.worktree_head !== verification.worktree_head
+  ) {
+    errors.push("verification summary does not match TDD evidence HEAD");
   }
 }
 
@@ -577,8 +674,6 @@ function assertVerificationGates(data, state, errors, ctx = {}) {
     ) {
       errors.push("all structured tests must have passed: true");
     }
-    assertProviderVerification(ctx, state, errors, { phase: "implementer" });
-    assertPostImpactEvidence(ctx, state, errors);
     const impactOk =
       (data.impact && data.impact.verified === true) ||
       (data.blast && data.blast.verified === true);
@@ -594,79 +689,11 @@ function assertVerificationGates(data, state, errors, ctx = {}) {
     }
   }
 
-  const tddRequired = requiresTdd(state) && !exempt;
-  if (tddRequired) {
-    const tddEvidence =
-      ctx.tdd_evidence ||
-      state.tdd_evidence ||
-      data.tdd_evidence;
-
-    if (ctx.tdd_evidence && !verifySealedArtifact(ctx.tdd_evidence)) {
-      errors.push(
-        "caller-supplied tdd_evidence rejected — must be provider-sealed",
-      );
-      return;
-    }
-
-    if (!tddEvidence || !verifySealedArtifact(tddEvidence)) {
-      errors.push("TDD requires provider-sealed TDD evidence report");
-      return;
-    }
-
-    if (
-      !tddEvidence.red ||
-      tddEvidence.red.exit_code === 0 ||
-      tddEvidence.red.exit_code == null
-    ) {
-      errors.push(
-        "TDD requires red evidence with non-zero exit_code before fix",
-      );
-    }
-    if (!tddEvidence.green || tddEvidence.green.exit_code !== 0) {
-      errors.push("TDD requires green evidence with exit_code 0 after fix");
-    }
-    if (tddEvidence.ok !== true) {
-      errors.push("provider TDD verification failed");
-    }
-    const worktree = ctx.worktree || state.worktree;
-    if (worktree && tddEvidence.worktree_head) {
-      const head = gitRevParse(worktree, "HEAD");
-      if (head && tddEvidence.worktree_head !== head) {
-        errors.push("tdd_evidence worktree_head mismatch with current HEAD");
-      }
-    }
-  }
+  // Provider execution, post-impact, and TDD measurement deliberately happen
+  // after the fast state transition via `nexus verify`. Their sealed evidence
+  // is consumed only by the later VERIFYING → REVIEWING authorization gate.
 }
 
-
-function loadRunBaseline(state, ctx, worktree) {
-  if (ctx.baseline && typeof ctx.baseline === "object") return ctx.baseline;
-  if (state.baseline && typeof state.baseline === "object") return state.baseline;
-  if (!worktree || !state.run_id) return null;
-  const p = path.join(
-    worktree,
-    ".opencode",
-    "runs",
-    state.run_id,
-    "baseline.json",
-  );
-  if (!fs.existsSync(p)) return null;
-  try {
-    return JSON.parse(fs.readFileSync(p, "utf8"));
-  } catch {
-    return null;
-  }
-}
-
-function hasExecutedVerificationCheck(run) {
-  return (
-    Array.isArray(run?.results) &&
-    run.results.some(
-      (result) =>
-        result && result.status !== "UNAVAILABLE" && result.exit_code != null,
-    )
-  );
-}
 
 /**
  * Revalidate impact via providers. Caller-supplied trusted labels are ignored.
@@ -759,146 +786,6 @@ export function revalidateTransitionEvidence(to, ctx, providers, state = {}) {
           trusted: false,
           fabricated: true,
         };
-      }
-    }
-  }
-
-  if (to === "VERIFYING" || (to === "COMPLETED" && state.state === "FINAL_VERIFYING")) {
-    const exempt = verificationPolicyExempt(state);
-    if (!exempt && providers?.impactProvider?.analyze && to === "VERIFYING") {
-      const analyzed = providers.impactProvider.analyze({
-        worktree,
-        base: ctx.base || state.head_commit || state.plan_commit,
-        change_class: state.classification?.change_class,
-        phase: "post",
-        post_impact: true,
-        force_recompute: true,
-      });
-      const report = analyzed?.report || analyzed;
-      if (report && typeof report === "object") {
-        next.post_impact = sealImpactArtifact(report, head);
-        next.require_post_impact = false;
-      } else {
-        errors.push(
-          `post-impact provider rejected artifact: ${analyzed?.error || "not ok"}`,
-        );
-      }
-    }
-    if (!exempt && providers?.verificationProvider?.run) {
-      const field =
-        to === "COMPLETED" ? "final_verification" : "provider_verification";
-      const related =
-        next.post_impact?.related_tests ||
-        state.post_impact?.related_tests ||
-        state.impact?.related_tests ||
-        [];
-      const risk =
-        next.post_impact?.risk ||
-        next.post_impact?.level ||
-        state.post_impact?.risk ||
-        state.post_impact?.level ||
-        state.impact?.risk ||
-        state.impact?.level ||
-        state.classification?.risk ||
-        ctx.risk ||
-        null;
-      const discoverOpts = {
-        worktree,
-        related_tests: related,
-        ...(risk ? { risk, risk_tier: risk } : {}),
-      };
-      const run = providers.verificationProvider.run({
-        worktree,
-        related_tests: related,
-        risk,
-        risk_tier: risk,
-        plan: providers.verificationProvider.discover?.(discoverOpts),
-      });
-      const baseline = loadRunBaseline(state, ctx, worktree);
-      let baseline_comparison = null;
-      // Baseline comparison may intentionally admit failures that were already
-      // present, but it must not turn an unavailable/empty run into a pass.
-      let ok = run?.ok === true && hasExecutedVerificationCheck(run);
-      if (baseline && providers.verificationProvider.compare) {
-        baseline_comparison = providers.verificationProvider.compare(
-          baseline,
-          run,
-        );
-        if (baseline_comparison.ok !== true) {
-          ok = false;
-          errors.push(
-            `new verification regressions vs baseline: ${(
-              baseline_comparison.new_regressions || []
-            )
-              .map((r) => r.id || r.command)
-              .join(", ") || "unknown"}`,
-          );
-        } else if (hasExecutedVerificationCheck(run)) {
-          // The baseline contract is "no new regressions", so pre-existing
-          // failures do not keep the provider report red.
-          ok = true;
-        }
-      }
-      const sealed = sealVerificationReport(
-        {
-          ok,
-          results: run?.results || [],
-          plan: run?.plan,
-          source: "verification-provider",
-          baseline_comparison,
-        },
-        head,
-      );
-      next[field] = sealed;
-    } else if (!exempt && to === "COMPLETED") {
-      if (ctx.skip_final_verification === true) {
-        errors.push("skip_final_verification is not allowed");
-      }
-      if (
-        ctx.final_verification &&
-        !verifySealedArtifact(ctx.final_verification)
-      ) {
-        errors.push(
-          "caller-supplied final_verification rejected — must be provider-sealed",
-        );
-      }
-    }
-
-    if (!exempt && to === "VERIFYING" && requiresTdd(state)) {
-      if (providers?.verificationProvider?.verifyTdd) {
-        const raw =
-          ctx.implementer_handoff ||
-          ctx.handoff ||
-          state.last_implementer_handoff;
-        let handoffData = null;
-        if (raw) {
-          const norm = normalizeAndValidateHandoff("implementer", raw);
-          handoffData = norm.data || raw;
-        }
-        const related =
-          next.post_impact?.related_tests ||
-          state.post_impact?.related_tests ||
-          state.impact?.related_tests ||
-          [];
-        const tddReport = providers.verificationProvider.verifyTdd({
-          worktree,
-          base_commit: handoffData?.base_commit || state.head_commit,
-          implementer_commit:
-            handoffData?.commit || state.implementer_commit || head,
-          related_tests: related,
-          ...(ctx.tdd_options || {}),
-        });
-        if (tddReport) {
-          next.tdd_evidence = tddReport;
-        }
-      } else if (ctx.tdd_evidence) {
-        if (!verifySealedArtifact(ctx.tdd_evidence)) {
-          errors.push(
-            "caller-supplied tdd_evidence rejected — must be provider-sealed",
-          );
-        } else {
-          next.tdd_evidence = ctx.tdd_evidence;
-        }
       }
     }
   }
@@ -1312,19 +1199,7 @@ export function canTransition(state, to, ctx = {}) {
 
   if (to === "REVIEWING") {
     if (!verificationPolicyExempt(state)) {
-      const pv = ctx.provider_verification || state.provider_verification;
-      if (
-        ctx.provider_verification &&
-        !verifySealedArtifact(ctx.provider_verification)
-      ) {
-        errors.push(
-          "caller-supplied provider_verification rejected — must be provider-sealed",
-        );
-      } else if (!verifySealedArtifact(pv) || pv.ok !== true) {
-        errors.push(
-          "REVIEWING requires sealed provider_verification from VERIFYING",
-        );
-      }
+      assertCompletedVerification(state, ctx, errors, { phase: "TASK" });
     }
   }
 
@@ -1401,14 +1276,7 @@ export function canTransition(state, to, ctx = {}) {
       errors.push("skip_final_verification is not allowed");
     }
     if (from === "FINAL_VERIFYING") {
-      const finalOk =
-        verifySealedArtifact(ctx.final_verification) &&
-        ctx.final_verification.ok === true;
-      if (!finalOk) {
-        errors.push(
-          "FINAL_VERIFYING → COMPLETED requires provider-sealed final_verification.ok",
-        );
-      }
+      assertCompletedVerification(state, ctx, errors, { phase: "FINAL" });
     }
   }
 
@@ -1564,7 +1432,9 @@ export function transition(state, to, evidence = {}, providers = null) {
     }
   }
 
-  if (to === "TASK_IMPACT_READY" || to === "VERIFYING" || to === "COMPLETED") {
+  // Transitions authorize state only. Expensive post-impact, TDD, and test
+  // execution are owned by the explicit, resumable `nexus verify` command.
+  if (to === "TASK_IMPACT_READY") {
     const revalidated = revalidateTransitionEvidence(to, ctx, prov, state);
     ctx = revalidated.ctx;
     if (revalidated.errors.length) {
@@ -1782,6 +1652,23 @@ export function transition(state, to, evidence = {}, providers = null) {
       next.final_review_reused = true;
       next.last_final_review_handoff = next.last_review_handoff;
     }
+    delete next.final_verification;
+    delete next.final_post_impact;
+    next.verification_status = "PENDING";
+    next.verification = {
+      status: "PENDING",
+      phase: "FINAL",
+      worktree_head: gitRevParse(ctx.worktree || state.worktree, "HEAD"),
+      started_at: null,
+      completed_at: null,
+      plan_digest: null,
+      configuration_digest: null,
+      artifact_path: null,
+      artifact_digest: null,
+      current_step: 0,
+      total_steps: 0,
+      completed_steps: 0,
+    };
   }
   if (to === "VERIFYING") {
     const raw = ctx.implementer_handoff || ctx.handoff;
@@ -1790,17 +1677,31 @@ export function transition(state, to, evidence = {}, providers = null) {
       next.last_implementer_handoff = data;
       if (data.commit) next.implementer_commit = data.commit;
     }
-    if (ctx.provider_verification) {
-      next.provider_verification = ctx.provider_verification;
-    }
-    if (ctx.post_impact) next.post_impact = ctx.post_impact;
-    if (ctx.tdd_evidence) next.tdd_evidence = ctx.tdd_evidence;
-    if (ctx.require_post_impact === false) next.require_post_impact = false;
+    // Never carry evidence forward from a previous implementation attempt.
+    // The new lifecycle only accepts artifacts written by `nexus verify` at
+    // this exact implementation HEAD.
+    delete next.provider_verification;
+    delete next.post_impact;
+    delete next.tdd_evidence;
+    next.require_post_impact = true;
+    next.verification_status = "PENDING";
+    next.verification = {
+      status: "PENDING",
+      phase: "TASK",
+      worktree_head:
+        next.implementer_commit || gitRevParse(ctx.worktree || state.worktree, "HEAD"),
+      started_at: null,
+      completed_at: null,
+      plan_digest: null,
+      configuration_digest: null,
+      artifact_path: null,
+      artifact_digest: null,
+      current_step: 0,
+      total_steps: 0,
+      completed_steps: 0,
+    };
   }
 
-  if (to === "COMPLETED" && ctx.final_verification) {
-    next.final_verification = ctx.final_verification;
-  }
   if (to === "BLOCKED") {
     next.blocked_from =
       state.state === "BLOCKED" ? state.blocked_from || "BLOCKED" : state.state;

@@ -227,6 +227,15 @@ test("nexus-run completes a full CLI workflow in a temporary repository", () => 
     "--json",
     json({ implementer_handoff: implementer }),
   ]);
+  const taskVerification = invoke(root, home, [
+    "verify",
+    "--run-id",
+    runId,
+    "--json",
+  ]);
+  assert.equal(taskVerification.ok, true, JSON.stringify(taskVerification));
+  assert.equal(taskVerification.state.state, "VERIFYING");
+  assert.equal(taskVerification.state.verification_status, "PASSED");
   invoke(root, home, [
     "transition",
     "--run-id",
@@ -356,6 +365,16 @@ test("nexus-run completes a full CLI workflow in a temporary repository", () => 
     "--json",
     json({ review_handoff: finalHandoff, review_package: finalPackage }),
   ]);
+
+  const finalVerification = invoke(root, home, [
+    "verify",
+    "--run-id",
+    runId,
+    "--json",
+  ]);
+  assert.equal(finalVerification.ok, true, JSON.stringify(finalVerification));
+  assert.equal(finalVerification.state.state, "FINAL_VERIFYING");
+  assert.equal(finalVerification.state.verification_status, "PASSED");
 
   const completed = invoke(root, home, [
     "transition",

@@ -7,9 +7,7 @@ import { createEmptyRunState } from "../../scripts/lib/migrate-artifacts.js";
 import {
   canTransition,
   transition,
-  revalidateTransitionEvidence,
 } from "../../scripts/lib/state-machine.js";
-import { compareBaselines } from "../../scripts/lib/verification/compare.js";
 import { assertValidRunId } from "../../scripts/lib/policy.js";
 import { normalizeHandoff } from "../../scripts/lib/migrate-artifacts.js";
 import {
@@ -20,7 +18,6 @@ import {
   finalVerifyingEvidence,
   mockTrustProviders,
   sealedImpact,
-  sealedVerification,
 } from "../helpers/gate-fixtures.js";
 
 function driftOk(head = "base111") {
@@ -132,8 +129,8 @@ test("normalizeHandoff remaps legacy unified-reviewer agent to reviewer", () => 
   assert.equal(data.schema_version, "1.2");
 });
 
-test("VERIFYING requires sealed provider verification path via gates", () => {
-  let state = {
+test("IMPLEMENTING → VERIFYING is a fast handoff gate and never calls providers", () => {
+  const state = {
     ...createEmptyRunState("g-ver"),
     state: "IMPLEMENTING",
     head_commit: "base111",
@@ -141,77 +138,36 @@ test("VERIFYING requires sealed provider verification path via gates", () => {
     allowed_files: ["src/app.js"],
     require_post_impact: true,
   };
-  const r = canTransition(state, "VERIFYING", {
-    implementer_handoff: goodImplementerHandoff({ run_id: "g-ver" }),
-  });
-  // May fail on provider verification / post-impact — must not silently pass
-  assert.equal(r.ok, false);
-});
-
-test("baseline comparison allows pre-existing verification failures at the transition gate", () => {
-  const result = revalidateTransitionEvidence(
+  let calls = 0;
+  const providers = {
+    impactProvider: {
+      analyze() {
+        calls += 1;
+        throw new Error("post-impact must not run during transition");
+      },
+    },
+    verificationProvider: {
+      discover() {
+        calls += 1;
+        throw new Error("discover must not run during transition");
+      },
+      run() {
+        calls += 1;
+        throw new Error("verification must not run during transition");
+      },
+    },
+    telemetry: { emit() {} },
+  };
+  const r = transition(
+    state,
     "VERIFYING",
-    {
-      baseline: {
-        results: [{ id: "test", command: "npm test", pass: false }],
-      },
-    },
-    {
-      verificationProvider: {
-        run() {
-          return {
-            ok: false,
-            results: [
-              {
-                id: "test",
-                command: "npm test",
-                exit_code: 1,
-                pass: false,
-              },
-            ],
-            plan: { steps: [] },
-          };
-        },
-        compare: compareBaselines,
-      },
-    },
-    {},
+    { implementer_handoff: goodImplementerHandoff({ run_id: "g-ver" }) },
+    providers,
   );
-
-  assert.deepEqual(result.errors, []);
-  assert.equal(result.ctx.provider_verification.ok, true);
-  assert.equal(
-    result.ctx.provider_verification.baseline_comparison.pre_existing_failures.length,
-    1,
-  );
-});
-
-test("baseline comparison cannot make an unavailable verification run pass", () => {
-  const result = revalidateTransitionEvidence(
-    "VERIFYING",
-    {
-      baseline: {
-        results: [{ id: "test", command: "npm test", pass: false }],
-      },
-    },
-    {
-      verificationProvider: {
-        run() {
-          return {
-            ok: false,
-            code: "VERIFICATION_UNAVAILABLE",
-            results: [],
-            plan: { steps: [] },
-          };
-        },
-        compare: compareBaselines,
-      },
-    },
-    {},
-  );
-
-  assert.equal(result.ctx.provider_verification.ok, false);
-  assert.equal(result.ctx.provider_verification.baseline_comparison.ok, true);
+  assert.equal(r.ok, true, JSON.stringify(r.errors));
+  assert.equal(r.state.state, "VERIFYING");
+  assert.equal(r.state.verification_status, "PENDING");
+  assert.equal(calls, 0);
 });
 
 test("force_reimpact cannot bypass missing review_handoff on REVIEWING→TASK_IMPACT_READY", () => {

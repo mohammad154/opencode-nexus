@@ -35,7 +35,7 @@ Commands:
   eval           Reviewer planted-defect eval harness (oracle/rubber suites)
   worktree       Manage task worktrees (create, list, remove)
   baseline       Capture verification baseline for current project / run
-  verify         Run verification checks (--baseline, --compare)
+  verify         Run deterministic verification (--baseline, --compare, --resume)
   version        Print the package version
   doctor         Check local prerequisites and project readiness
   help           Show this message
@@ -51,6 +51,8 @@ Examples:
   nexus classify --files 2 --lines 40 --class small-feature-with-tests --focused
   nexus impact --json
   nexus baseline
+  nexus verify
+  nexus verify --resume
   nexus verify --baseline
   nexus estimate --tasks 3
   nexus plan-check --json
@@ -81,7 +83,7 @@ Subcommands:
   inspect           Trajectory + artifact digests + gate failures
   worktree          Manage task worktrees (create, list, remove)
   baseline          Capture verification baseline (--run-id <id>)
-  verify            Run verification checks (--baseline, --compare)
+  verify            Run deterministic verification (--baseline, --compare, --resume)
 
 Exit codes: 0 ok, 2 validation failure, 3 illegal transition
 `;
