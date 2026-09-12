@@ -1,0 +1,28 @@
+{
+  "schema_version": "1.0",
+  "ok": true,
+  "scope": "task",
+  "run_id": "santiment-onchain-20260910",
+  "unit_or_task": "task",
+  "run_base_commit": "39c66ff3fbd6ac930962f24183cdf27cecfbbf0d",
+  "base_commit": "4f5d98b8aea1945ea1e65868ac4f5aa8bbbdf848",
+  "head_commit": "604bec312dda9daab013ba7186915747bb3dac96",
+  "path": ".opencode/reviews/santiment-onchain-20260910-task-task-review-package.md",
+  "absolute_path": "/home/danaee/trading_platform/.opencode/reviews/santiment-onchain-20260910-task-task-review-package.md",
+  "meta_path": ".opencode/reviews/santiment-onchain-20260910-task-task-review-package.json",
+  "changed_files": [
+    "gpu_fuzzy_trader/data/onchain_pipeline.py",
+    "tests/unit/test_onchain_pipeline.py"
+  ],
+  "production_files": [
+    "gpu_fuzzy_trader/data/onchain_pipeline.py"
+  ],
+  "acceptance_criteria": [
+    "fix partial boundary buckets 20-30 phase",
+    "preserve semantic NaN no blanket ffill",
+    "add boundary-phase and final-frame regression tests",
+    "retain all unit-1 acceptance"
+  ],
+  "digest_sha256": "bb97c680e9ac28870ed26ee5729f0c473713491626bf623b46bf02cc809db15f",
+  "generated_at": "2026-09-10T12:58:14.572Z"
+}

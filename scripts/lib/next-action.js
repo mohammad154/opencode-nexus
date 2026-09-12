@@ -55,6 +55,36 @@ function stateRunPlanningMode(runState) {
   );
 }
 
+function exhaustedAgentCallBudget(runState) {
+  const used = Number(runState?.agent_calls_used);
+  const max = Number(runState?.agent_call_budget?.max_calls);
+  return Number.isFinite(used) && Number.isFinite(max) && max >= 0 && used >= max
+    ? { used, max }
+    : null;
+}
+
+function agentBudgetBlock(runId, state, budget) {
+  const reason = `agent-call budget is exhausted (${budget.used}/${budget.max}) before implementer dispatch`;
+  return {
+    ok: true,
+    run_id: runId,
+    state,
+    action: "block_for_agent_budget",
+    agent: null,
+    skill: "reconcile",
+    command:
+      `nexus run transition --to BLOCKED --run-id ${runId || "<id>"} ` +
+      `--json '{"block_code":"AGENT_CALL_BUDGET_EXCEEDED","block_reason":"${reason}"}'`,
+    instruction:
+      `${reason}. Do not Task-dispatch an implementer; record the block and reconcile the plan or run budget.`,
+    steps: [
+      "Do not Task-dispatch implementer",
+      "Transition to BLOCKED with AGENT_CALL_BUDGET_EXCEEDED",
+      "Load reconcile and reduce/replan the remaining work before resuming",
+    ],
+  };
+}
+
 function verificationStatus(runState, phase) {
   const record = runState?.verification;
   if (record && typeof record === "object" && (!record.phase || record.phase === phase)) {
@@ -92,6 +122,11 @@ export function resolveNextAction(runState, opts = {}) {
         "nexus run transition --to BRAINSTORMING",
       ],
     };
+  }
+
+  const budget = exhaustedAgentCallBudget(runState);
+  if (budget && (state === "TASK_IMPACT_READY" || state === "IMPLEMENTING")) {
+    return agentBudgetBlock(runId, state, budget);
   }
 
   switch (state) {

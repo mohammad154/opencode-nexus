@@ -1,0 +1,32 @@
+{
+  "schema_version": "1.0",
+  "ok": true,
+  "scope": "task",
+  "run_id": "santiment-onchain-20260910",
+  "unit_or_task": "unit-2",
+  "run_base_commit": "39c66ff3fbd6ac930962f24183cdf27cecfbbf0d",
+  "base_commit": "604bec312dda9daab013ba7186915747bb3dac96",
+  "head_commit": "5fed2f16b8dadecfc1ab4048a5148a2eeef53ad7",
+  "path": ".opencode/reviews/santiment-onchain-20260910-unit-2-task-review-package.md",
+  "absolute_path": "/home/danaee/trading_platform/.opencode/reviews/santiment-onchain-20260910-unit-2-task-review-package.md",
+  "meta_path": ".opencode/reviews/santiment-onchain-20260910-unit-2-task-review-package.json",
+  "changed_files": [
+    ".gitignore",
+    "gpu_fuzzy_trader/data/onchain_pipeline.py",
+    "scripts/build_onchain_dataset.py",
+    "tests/unit/test_onchain_dataset_builder.py"
+  ],
+  "production_files": [
+    ".gitignore",
+    "gpu_fuzzy_trader/data/onchain_pipeline.py",
+    "scripts/build_onchain_dataset.py"
+  ],
+  "acceptance_criteria": [
+    "backward as-of invisible before available",
+    "preserve rows order keys OHLCV 18 add 12",
+    "deterministic manifest digest excludes clock",
+    "staged verify replace-only-with-flag failure-leaves-originals"
+  ],
+  "digest_sha256": "a9cbf61b30a434c052b5a0e23372b72276cc7d8817c8cdbea9df5e916da87ab4",
+  "generated_at": "2026-09-10T15:07:36.190Z"
+}

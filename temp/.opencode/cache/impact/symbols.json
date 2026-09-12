@@ -1,0 +1,3106 @@
+{
+  "gpu_fuzzy_trader/__init__.py": {
+    "hash": "c2444266d843afd51c6764f6b021c14cee969389656d8c275fa452a664b81918",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/__init__.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/__main__.py": {
+    "hash": "1035cb1dafbe4a3128358c1142e0764e275b19e9cdf73824082c6814578fd3a7",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/__main__.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/_gpu_runtime.py": {
+    "hash": "572e919d085eaee20b6d0def89199c1fe6c263555e6dc3d8680967590f657ab8",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/_gpu_runtime.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/_jax_env.py": {
+    "hash": "e888ecb6e3483fd649d9e1e3332a7e764d4c0fbe537a029dad9f84f06a71da14",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/_jax_env.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/_memory.py": {
+    "hash": "4db5f85403a98749465bd4af1e65a0001e4776793c70ef4c1df303f964097f3d",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/_memory.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/backtest/__init__.py": {
+    "hash": "c50d037762a595e7d446053628acdcd810f5afebdc9c3120c40112e200834983",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/backtest/__init__.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/backtest/barrier.py": {
+    "hash": "f16b7f341e899ba2de60c95fe26db41387f9d74cf24483c26b4bba191e8d2e77",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/backtest/barrier.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/backtest/condition_cache.py": {
+    "hash": "5c6e3ec53572ccb24c6633ec264b313534af979bae286a199f3130ac85074392",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/backtest/condition_cache.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/backtest/cpu_engine.py": {
+    "hash": "3f1dc55d544f4d4b157aba0ef4edaab120ee541c20022d3864cc395eff0b2d1c",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/backtest/cpu_engine.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/backtest/df_slim.py": {
+    "hash": "ea84daf9307288213f1801af35135275fdc6d34d309bb9497e425906aa39126b",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/backtest/df_slim.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/backtest/gpu_engine.py": {
+    "hash": "1f8b42094b384c04bfb88f802edf6ad43de51ead4dc13a7a4f17ebd436eceead",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/backtest/gpu_engine.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/backtest/jax_compat.py": {
+    "hash": "77af59f969ee7392cf5f5922f2cf5410fdff2733a8ceaa7f23135af9888769bb",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/backtest/jax_compat.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/backtest/joint_engine.py": {
+    "hash": "62cc2e2ef0482763f6c8b41206e93274bb65df0762d15ee7b3c82c684cb42c56",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/backtest/joint_engine.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/backtest/symbol_conditions.py": {
+    "hash": "0df2b68b46ff2309c6375159d0a36a2ae37e7b29682aaf1bbc4508ee9d835cc3",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/backtest/symbol_conditions.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/config.py": {
+    "hash": "ff05e3627dcc17e89e92150b7be6abc844ac65d0261a402b8c07268834db0c2e",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/config.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/dashboard.py": {
+    "hash": "5f7ce67c5b4a4617760ba0d5b7778f19a6ba7b1eeeb0a95dd5c3dc8e702f1807",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/dashboard.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/data/__init__.py": {
+    "hash": "323f84389fb0bcd581d22217afa6cbf4713ea7e51fc682339d44f6ce8e5e2fbb",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/data/__init__.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/data/labels.py": {
+    "hash": "e7907575266a6a8b595fca2fec6e4691d6fb40cfe3c35282dd6f4605d5450e7c",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/data/labels.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/data/loader.py": {
+    "hash": "45f01b05d7e522b4ad599adf53b08da0d8cf4e81e68adcf2d1bf7321035229f0",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/data/loader.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/data/multi_timeframe.py": {
+    "hash": "1661caabe94ec03573dd9ea0fc1b5311b61b334c16e55f3428c6aab0c5ea7ca6",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/data/multi_timeframe.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/data/splitter.py": {
+    "hash": "7f3378643e81bdc99daf936cafc51fe98a3f89ad22ad383153b741be7e575eb8",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/data/splitter.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/evolution/__init__.py": {
+    "hash": "a1fbacd13e9fac0103ba863720807d74ef74262ba8b57cab37c16b7e1fa1e628",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/evolution/__init__.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/evolution/constraints.py": {
+    "hash": "7af21eeb07b5a67ee5b27399c2662ff55b2127ae9b061c6c662a2fad91ea06b0",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/evolution/constraints.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/evolution/directional_evaluator.py": {
+    "hash": "1fe7385c7d010dbb111bafa9ade2c89555a1b8b036621b0c37095593833edb2c",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/evolution/directional_evaluator.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/evolution/evox_runner.py": {
+    "hash": "db463736ac03d26e5cd41c9964215718fd21a36598c825d27b2df961ec9888dc",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/evolution/evox_runner.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/evolution/numba_ops.py": {
+    "hash": "d71567dbfef4532ed6d0595b1f4c3565393d637c9ea7c5a7465a5adfe00517d8",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/evolution/numba_ops.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/features/__init__.py": {
+    "hash": "a1bad118a30cbf779daaef0394a39c7a3fed7c05c589e2f3eaa2045fca307a06",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/features/__init__.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/features/catalog.py": {
+    "hash": "216a87335af530465327f439eb10daf94561ac65a346dc25451c39a325234505",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/features/catalog.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/features/detector.py": {
+    "hash": "4b23523ffe153cd3a1a92500d290297e0d374133a683102b2dfbe26f0599802f",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/features/detector.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/features/encoder.py": {
+    "hash": "4df86aed7b055c2f12d26562bd5a0467819faa4890f5d1f71e385da59bd61c1f",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/features/encoder.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/features/fuzzy_scaling.py": {
+    "hash": "dbfbcde4b9c8dc70b063a268be78dd53e94fab25c70932c07c36fbea033eaff1",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/features/fuzzy_scaling.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/log_progress.py": {
+    "hash": "923397d913e85d3f6c7a714d941c93189eecf68d4a383cc9c8d28ded4d7c89f9",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/log_progress.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/mtf/__init__.py": {
+    "hash": "74074ef904ff9fa0ed4efd3aee2ca3adf1901f8fcdf9b74793ea5d6fa753ca35",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/mtf/__init__.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/mtf/archives.py": {
+    "hash": "68d83d56fdbcc6387ebb5ba1495af7e67e991f23161d26904b9a02b162a7c4cd",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/mtf/archives.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/mtf/candidate.py": {
+    "hash": "81198ba0e561cbd6e86c63bd5c17c0a8f1ce05a8e879448d024b261fcfac0849",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/mtf/candidate.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/mtf/composer.py": {
+    "hash": "2fe7555214a1b5317e142c66ff31304089ba577735a975b066985f5a85ca6f87",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/mtf/composer.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/mtf/cross_fitting.py": {
+    "hash": "25cf816a1029aecc94c9368cbf1a2a10a8eae3af9af1dbea64be4d2dfdf6ab6b",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/mtf/cross_fitting.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/mtf/diagnostics.py": {
+    "hash": "d51b3c28b9539b2c5e4a56fe1e47c0d707d5282b3629da6733ce943c78da9923",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/mtf/diagnostics.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/mtf/discovery.py": {
+    "hash": "83b28a109a9ebfb5f4b40594f183a88d3c62ce51419fcd8f06807b8feeeb939c",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/mtf/discovery.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/mtf/ensembler.py": {
+    "hash": "c31ff8c60922e15b77d4037fee70cbd09011a1149ca7478e263887a6bd6ac2d2",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/mtf/ensembler.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/mtf/runtime.py": {
+    "hash": "6655187f8ec163be4e58193084b2f6ac02ba6c4ec7bfe2622aebfc728934588f",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/mtf/runtime.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/optuna_search.py": {
+    "hash": "787c47822ccdb606c49844791a350d87ae6835f5e853a8d4e8cc7fb79da7f39e",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/optuna_search.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/output/__init__.py": {
+    "hash": "ce6c721457d2e6e8b1288c49b6deeb565f55f642a5e817cf53088817f618ab07",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/output/__init__.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/output/writer.py": {
+    "hash": "3ef5a93bde405d6ac1adb1c0eb5d04070d1342526107058e2a47ddac5a6e9397",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/output/writer.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/phases/__init__.py": {
+    "hash": "9df01fdcf76cebbd7c5ed791fa1ddc36e8218cc79ba5407533ab14c71949ec24",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/phases/__init__.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/phases/phase2_init.py": {
+    "hash": "784494192f576f0e1527b32a22233d0d4e923721ae7341d13137bbc02170e9f3",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/phases/phase2_init.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/phases/phase2_rule_pool.py": {
+    "hash": "dd8e1fe249adc2cbd3dff094fccaabba2c7d1e002684af7a90dec12db546b4ac",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/phases/phase2_rule_pool.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/phases/phase2_sparse_encoding.py": {
+    "hash": "3c958a7074166b34a688e8844c8f5d598b7a5fab3784502133f4d250d22ea31d",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/phases/phase2_sparse_encoding.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/phases/phase2_stage.py": {
+    "hash": "46d6db79056bc319a4dfef7dc612544e008611e672b4eca6a6c70ab7441442e7",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/phases/phase2_stage.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/phases/phase2_support.py": {
+    "hash": "7c5baad2bcf8899e92c875b167f3d9d7cca5d928c71c8b0ca3fb2dfdfd345006",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/phases/phase2_support.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/phases/phase5_oos.py": {
+    "hash": "c8d7f2683c9a312eced2a5ce5ee1193c978fe4d2e12ad7b34ab3966532f503b6",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/phases/phase5_oos.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/phases/rule_identity.py": {
+    "hash": "493bf03ba73b51bbce9ec7bc1150c6f980bebd19d34695f65f944d43ce292fb0",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/phases/rule_identity.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/portfolio/allocation.py": {
+    "hash": "be42be1d4838647ecc88f0f8457291d9034c9d4ee16281905e2bd95d2e8da251",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/portfolio/allocation.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/portfolio/clustering.py": {
+    "hash": "09bc5a7f6cb80b32f00b3db513c57eebd9a358abc075d69f52fa99df01ad97a4",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/portfolio/clustering.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/portfolio/correlation.py": {
+    "hash": "69155fefb354868423d1e471fd6edd17b33c821feeb5d9922685e70b8ecb72b2",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/portfolio/correlation.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/portfolio/marginal.py": {
+    "hash": "1fca0969c8a6a1b616c52a3ed2d1e9a22499af0050b74769d6b789efc12f4365",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/portfolio/marginal.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/portfolio/redundancy.py": {
+    "hash": "185776f8da5532883451d4b89cbcfe945746cb0b0b8ffc109e730aabe4196df3",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/portfolio/redundancy.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/rb_governor.py": {
+    "hash": "3ec3e367a5dbcc3d7845d1d5eb46138fb9e717c5700f88c5eb44960ce94b1bcf",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/rb_governor.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/reporting/__init__.py": {
+    "hash": "e82414a77a47478ddf92a85e32a417b4f900ff9d00cd28218a2f1446e394958e",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/reporting/__init__.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/reporting/reporter.py": {
+    "hash": "26845534a1b99bd8d89d53d72eae66b387f9648b2831e460be4e752f9c97b5ce",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/reporting/reporter.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/research_integrity.py": {
+    "hash": "75acad802a8cfe0b7ec3d254005569997a21cbdf64faf6a90719516bbff1675b",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/research_integrity.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/research_profile.py": {
+    "hash": "fb3b0eb376df8bab1cc947f01da804f3ccf403e23755e3f0a667c54857c07203",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/research_profile.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/run_pipeline.py": {
+    "hash": "ed451704b60db57e353b8cb4f4306a3b17cc2934d4858af1bc048479da9132db",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/run_pipeline.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/scoring/__init__.py": {
+    "hash": "c588fe7ccdd9a7d1a9e5af9ffaca3c7bacacefb28d20f5107881e7c571905748",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/scoring/__init__.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/scoring/evaluator_health.py": {
+    "hash": "e0b1b48ba2cc22cabf96519f86c069727bc36ba0562fc847f874f717f8cc6166",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/scoring/evaluator_health.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/scoring/gates.py": {
+    "hash": "7a8858fb33159b6abcb5ef0927a3dc2901496d602a6d93a32d3f8f48fe7b25f5",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/scoring/gates.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/validation/__init__.py": {
+    "hash": "f8b2abceedd3a083c80243ccf79ebea455d50f98627d289d299397876cf94550",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/validation/__init__.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/validation/baselines.py": {
+    "hash": "04508c91072bc9ae74e40a434b1d1f9c7457ad1f36c66b67b5df5920e3177c16",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/validation/baselines.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/validation/cost_stress.py": {
+    "hash": "c47ed68d76b15da5b5ea5d80ae868aaeb56e8db3d8a4825c2be9f3c9de16b3b2",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/validation/cost_stress.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/validation/execution_stress.py": {
+    "hash": "bc7df3000ef61afef298fb840b37261de1b66eb491c9467ada1567c359a4d865",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/validation/execution_stress.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/validation/fold_gates.py": {
+    "hash": "adb7f0c1052e5d3e7b816f9e00a39b450cc0e575b6a8ca67201f533e54e803c2",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/validation/fold_gates.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/validation/monthly_windows.py": {
+    "hash": "b9b501613220f204823faf062e0fab1c95fe68f129ac65e521dcba41ac48c237",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/validation/monthly_windows.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/validation/multiplicity.py": {
+    "hash": "9e43a06093619a71c8952ddb59806a023f6d2af2a6bf35556c908e2bdb6343d2",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/validation/multiplicity.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/validation/nested_walk_forward.py": {
+    "hash": "e4ead4127201d90e07444026a65cf211fcf2dd76959b5f194d14066d1ac63406",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/validation/nested_walk_forward.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/validation/regime_robustness.py": {
+    "hash": "8cd899d5a8a2e827e82ceaea04b1b9a29562dc1c36aece668051978ef58c0e63",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/validation/regime_robustness.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/validation/uncertainty.py": {
+    "hash": "e1618a9a5779a7e25f4d550066a8fc9c3cc475078f4049f6c4e2cfd11b2e5261",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/validation/uncertainty.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/validation/walk_forward_stability_report.py": {
+    "hash": "05f9d24ea85a4183f883e06b0711379868676e73bb81c8bbf70a77471238143f",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/validation/walk_forward_stability_report.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "scripts/benchmark_t4.py": {
+    "hash": "8816c7fa1848c864385582d6b0c6d2df59338cfb5c4c0ab014c75c3158fb861f",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "scripts/benchmark_t4.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "scripts/horizon_sweep.py": {
+    "hash": "becf673b9d9e95aa25cfd5c485b42ea29e2cf0394e8f3529c0795c45da38b329",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "scripts/horizon_sweep.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/benchmark/test_phase2_gpu_throughput.py": {
+    "hash": "c1be5edede15a9dd1661c642b76fb152d5748318ec7090ed660cb0831337453f",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/benchmark/test_phase2_gpu_throughput.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/benchmark/test_phase2_numba_warmup.py": {
+    "hash": "e126a38c5e0d1cce4db2e2a4ab6f4cc03b6395c830443e6a8ab2ebc4962b3ee8",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/benchmark/test_phase2_numba_warmup.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/conftest.py": {
+    "hash": "3e7cf6176a2e16f6f44060a9d87b4bc82796576c7f72314a580c687d14b83bbf",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/conftest.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/property/__init__.py": {
+    "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/property/__init__.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/property/hypothesis_config.py": {
+    "hash": "2dde78c5be5e0a71dc3278c807ad6c9befb2fe2f8fe642e7840de0df2c9cb32e",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/property/hypothesis_config.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/property/test_cpu_engine_properties.py": {
+    "hash": "5e1741c7ecdc19c9b2ebf6f9d6d15b5ddac42037a18d6828b26bb086768c8a60",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/property/test_cpu_engine_properties.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/property/test_crash_fix_properties.py": {
+    "hash": "127780f7540e529a2e10f41d031bd3ac67c50af89cbe883adb3f6f40d8aaca13",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/property/test_crash_fix_properties.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/property/test_data_loader_properties.py": {
+    "hash": "878158d7b57f9518b2b9e5b9b7f3727b74fd576f674bcce670f83bef78f06393",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/property/test_data_loader_properties.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/property/test_data_splitter_properties.py": {
+    "hash": "76161df8e0448c8aff944c79042f11c06913be9d8cb2106c0ccd1d874b2ba6b6",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/property/test_data_splitter_properties.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/property/test_encoder_properties.py": {
+    "hash": "a81c45b9d7c53c5e9e1e92f43ff82587d23a5d3a51f5f5a29c66e808c6c5be31",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/property/test_encoder_properties.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/property/test_feature_detector_properties.py": {
+    "hash": "4f0af897e064652ce32ecab5fb7b0680ac65d49513da9a189fc51c51f582747a",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/property/test_feature_detector_properties.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/property/test_gpu_engine_properties.py": {
+    "hash": "99f26495367c027a3ec84697e0133b0d6b9baba5b956b1b4b434014d0aa33d60",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/property/test_gpu_engine_properties.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/property/test_output_writer_properties.py": {
+    "hash": "45e978668d74cce36a6d927ec399057ca3390c43fde9e46296eb41f5d4a95b4c",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/property/test_output_writer_properties.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/property/test_phase2_rule_pool_properties.py": {
+    "hash": "d99995880212cca40c5bb88847d845ed789586cc7f9c45cf77e5d2d307cb7715",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/property/test_phase2_rule_pool_properties.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/property/test_phase5_oos_properties.py": {
+    "hash": "a0804c0e114d98ce4fcfc5b56bd78d1fb7926d18780f3ddf80e0be35b3c7ec46",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/property/test_phase5_oos_properties.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/property/test_reporter_properties.py": {
+    "hash": "155cddd1613d1390a8180b4a5cb33ab38457c7e6e3f32bca2c4677a89dc86afd",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/property/test_reporter_properties.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/__init__.py": {
+    "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/__init__.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_anti_overfit_config.py": {
+    "hash": "8fa55bf0318ae1bb745f3a29f8f332cbc8b00281fd46ed0b7e8c6365fb508943",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_anti_overfit_config.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_baselines.py": {
+    "hash": "9fff124515f2ab42af4aa33b41a6506bc75002506cdc93fe8b6fc433b43631f9",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_baselines.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_certificate_first_selection.py": {
+    "hash": "ac800e0725d1a023abffefe942b3a4b2ddde2c6572d94f5604249fbf909ac084",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_certificate_first_selection.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_colab_gpu_defaults.py": {
+    "hash": "8765c4328f5e03f9f0ff38a0a22a0f5893b178213badbf17bf33e0f0525f1b2e",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_colab_gpu_defaults.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_condition_cache.py": {
+    "hash": "9d8c5097dfa225f88d286468775b799b5e7504544118456d07c0bc7f6ac8e9cd",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_condition_cache.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_config_additions.py": {
+    "hash": "9055df70841f5113ff7e7cb7c69d01e75a3fb384a1aab4bc36eccf755e2a152f",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_config_additions.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_config_trade_scaling.py": {
+    "hash": "725b06c3a51f9858e72015a9e606192d2e3666fd349db5b20e1d38c401d3c4e2",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_config_trade_scaling.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_config_validation.py": {
+    "hash": "54411e21e00d8c383a8d61c9ec8837159b452566b6b43868a649e3374bdb7f5f",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_config_validation.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_constraints.py": {
+    "hash": "0118e7d35cf39ee62345c32565917629293d9e6699dd7856d09d41f3ae441599",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_constraints.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_cpu_engine.py": {
+    "hash": "cac7f8e1f063f3b23c7294485002b2b6568424650c13b62219aba640bbcf7b73",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_cpu_engine.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_crash_fix_and_run_logging.py": {
+    "hash": "8faf71dc03b6940f18ccd4c194e9f721711c6a25ec6be2ebbf1115466e8c9694",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_crash_fix_and_run_logging.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_dashboard.py": {
+    "hash": "9b769e162444fb78d8c71f796d3bbae7b9d54df1c779952821f4a5f06d20ee57",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_dashboard.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_data_layer_fixes.py": {
+    "hash": "d4d94b7adfde9495891be1bc89858c1fc8c3a95758f907056f12105f23fd6f53",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_data_layer_fixes.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_data_loader.py": {
+    "hash": "3576f017c4602f68474f3de2828fe7222d1b37209fdd21c0a84bcf5a3f720719",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_data_loader.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_data_splitter.py": {
+    "hash": "defad42f913c1a0e49c275a80b7b0671a3d9d1d4e573af50990d8d3e1447baf3",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_data_splitter.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_df_slim.py": {
+    "hash": "75ca93c10127443bc7c4f21a7534a61e7e003b03bb52e9d03b068e1f2275e8ff",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_df_slim.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_directional_evaluator.py": {
+    "hash": "1c331dfe0e81b7aced00458d0544e5f7c39397ff7fe61d515664e4fc132328fb",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_directional_evaluator.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_elite_preservation.py": {
+    "hash": "1103af712f64a39e47734126d73992e25fc25a74cbc679d5d818336729b24eef",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_elite_preservation.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_encoder.py": {
+    "hash": "8f5c0547880f85c7b4af66d0fa07b0a05bf19567bb5c2a1c4ce140b7b198e492",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_encoder.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_evaluator_clean_writer.py": {
+    "hash": "d0f15420ecaa02fbee652fc60bc2c9485739a6ce6e4f4299677db5a8eae7525a",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_evaluator_clean_writer.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_evaluator_health.py": {
+    "hash": "ba8483945321bb385cac41d9deb4fc31da38067476a428976822391d2e32370a",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_evaluator_health.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_evolution_convergence.py": {
+    "hash": "46c7202a40ceece1946946013d70a4b00667c3007cea584888b82504519212fd",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_evolution_convergence.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_evox_runner.py": {
+    "hash": "139bd3f50f87b03a75fe2276ca316ba015af9d4fe5be8791dcfb8090c3a48b63",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_evox_runner.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_experiment_ledger.py": {
+    "hash": "303a98b7b27c6c66c392cf4175b97a951dc6aae311ac712bc9c4c068648d6cc0",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_experiment_ledger.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_feature_catalog.py": {
+    "hash": "293bd1108ecb0d01392693dca2a7c8a9acc411941b690cda097b3c53ef83b64f",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_feature_catalog.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_feature_detector.py": {
+    "hash": "83a556746d035409cbe12d5155f3869420911d694f947dd5e7361a866797ec35",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_feature_detector.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_fold_gates.py": {
+    "hash": "4b36f5a819614fbe3de51a4f0f6c4a9a1840d9ce2e00f4ad55f3554d86c3f53b",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_fold_gates.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_fuzzy_scaling.py": {
+    "hash": "a4d5d68f0f351e288b9b5d9e7e06b4192b4ffafb334e90bfb1a30477de03da8c",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_fuzzy_scaling.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_gpu_engine.py": {
+    "hash": "5a136a59a4c484138c94acb53160b5eee33b58d042959511fc2748aa5a244ec0",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_gpu_engine.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_gpu_engine_jax_failure.py": {
+    "hash": "9333d70bc19acf3fbeb01aaf80386f2d55e8c5a213c4b265cc1ad1be9caa3147",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_gpu_engine_jax_failure.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_gpu_rule_set_batch.py": {
+    "hash": "7766436546ec8cdd6c722dbb8a8b43637c783cb7b0689b20c78b9d562e6861ae",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_gpu_rule_set_batch.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_jax_compat.py": {
+    "hash": "a0ad2c45541ef2d861b333f260c81454beee5f2afcff4f2970b4bebbf811b09c",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_jax_compat.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_labels.py": {
+    "hash": "032f730093732ce2b01a2f6d1edfff716f5eae7456dcc8556f7202c4d8f26aea",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_labels.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_log_progress.py": {
+    "hash": "275599a748bd33b19a65c772991e03596f3a3b9050c7c381403f0e042b2e4946",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_log_progress.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_low_memory_harness.py": {
+    "hash": "a07564c30f3bebd8ed4c55b748529f3ffadc579b3fa6b21cb665633ab9d75be9",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_low_memory_harness.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_marginal.py": {
+    "hash": "791e4c85add42782c1a6b98843e0d83b04d804631b1171afe4ad1110c9c21504",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_marginal.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_memory_utils.py": {
+    "hash": "08a1afcaa366602cab6a00a5283dd0bcc3c02cfd5e6466eadfc1a1ad4dcd9cab",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_memory_utils.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_monthly_windows.py": {
+    "hash": "f533793bdecb287c1c9c0d89bb93f286203949f6be49deee12a1e24e0e04dd58",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_monthly_windows.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_mtf_audit_fixes.py": {
+    "hash": "bcec6820c7bfaca7c06d1baa1a32f207c285105d3ecbfe7e3d1925ede7340b93",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_mtf_audit_fixes.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_mtf_composer.py": {
+    "hash": "7900d57e87cf665f9ab0a23cdab974e6dd539d7e3bad4aaf0f38583f3e61f6c3",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_mtf_composer.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_mtf_cross_fitting.py": {
+    "hash": "41e2c7f9bdf77655e0c024914618ee817249160208774728f0c9f9972f7f5735",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_mtf_cross_fitting.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_mtf_ensembler.py": {
+    "hash": "2dda98319074d2b7f243b8e5b5343ce902097e321bea1e284b5e187b08f495e6",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_mtf_ensembler.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_mtf_pipeline_integration.py": {
+    "hash": "355f812a3b4dc3f78ae487444eb51d5f297e938aaea763b0f51fe62d9397d547",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_mtf_pipeline_integration.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_multi_timeframe.py": {
+    "hash": "a6046df8044de4edc3ae0440f2159b9e512caf7240d2737d617fceccea07b816",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_multi_timeframe.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_multiplicity.py": {
+    "hash": "9565e6e7cd29c94f376e37808dffd4e9d214f2099453b5b3b9267a5bc5c68241",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_multiplicity.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_nsga2_selection.py": {
+    "hash": "b81106938c1145ff415dba8fa5cf8b67388401a9ab12b6e8ddaa097b992db41b",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_nsga2_selection.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_nsga3_selection.py": {
+    "hash": "9a4177cbd063740ddd206468eeba16ee40460bb99ba02aff7efca0975bf98b84",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_nsga3_selection.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_numba_ops.py": {
+    "hash": "5ce0d4bd7d22dc63c85cab19fa5d2384c3b5eeda422037851242576cadfb8903",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_numba_ops.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_optuna_search.py": {
+    "hash": "72980a3cebeabae1056d873d2782a9380f91fab25424875feefda01be5a6497f",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_optuna_search.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_output_writer.py": {
+    "hash": "66382c21222474efa4e092e08ca8ae41e02afa9432b8ab096e8e26d6bdcbfbbb",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_output_writer.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_phase2_batch_evaluator_parity.py": {
+    "hash": "0d3300726514936c5abc4c3a8e5d60bd3561ceb5f4d346877b52953456f16603",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_phase2_batch_evaluator_parity.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_phase2_corr_warn_gate.py": {
+    "hash": "b9c07ed668c72670ca31895e9ca11a5b3668a3fcc0d671a76b9857c04aceb29a",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_phase2_corr_warn_gate.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_phase2_import.py": {
+    "hash": "0020ee3007c390582dd70c7e367515fa67180ed5fdeb25372ab6da13bd872c46",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_phase2_import.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_phase2_init.py": {
+    "hash": "1f76d71834e67c35c2ea69cb10777685ab8dbaf503e7b307bad2c90220cbf08f",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_phase2_init.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_phase2_monthly_admission.py": {
+    "hash": "0ad945d9e85680063c4a584630beca3880f5248d3fbb646c471503049b8c174f",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_phase2_monthly_admission.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_phase2_offspring_batch.py": {
+    "hash": "92692a14968af70f40e03f9dc83fe342e527fe1a4d9b4821b2ebae950ea42ea7",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_phase2_offspring_batch.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_phase2_plateau_restart.py": {
+    "hash": "a45a5649c1a7109de0e12f19c1bbbaa5489de71290552799f32b52362ea3bb63",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_phase2_plateau_restart.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_phase2_post_restart_stop.py": {
+    "hash": "74e35a22e1870891d2026701afc3a969912fba04300cdc7cb456f2b3699989ed",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_phase2_post_restart_stop.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_phase2_rule_pool.py": {
+    "hash": "d26fed5a0c38e0e952dd04f9cac7291995689ef8916efdc34ef5c4334f59c635",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_phase2_rule_pool.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_phase2_sparse_encoding.py": {
+    "hash": "be81efd610aa1113e692a2afe6174d97493347538016880ac1f79067cd8f412b",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_phase2_sparse_encoding.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_phase2_stage.py": {
+    "hash": "71409ac6d73e6a79072750e373698c1466ccfa3cf0ff7f4ba5fcdaef33379444",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_phase2_stage.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_phase2_support.py": {
+    "hash": "51a7b60bf22c56226311d5c946488498cdcb8e20ff01663fb684fcc753f733b0",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_phase2_support.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_phase2_use_gpu_flag.py": {
+    "hash": "d8f312836dba795de6c47f6381201e91f9c6f8009c9bc2cd3919f9c0719e1cb9",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_phase2_use_gpu_flag.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_phase2_val_sim_interval.py": {
+    "hash": "586d35ed06bda12d4c75f94b6c14b6d33cbdb9ed9f7c369ed416bfb5485f7fb6",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_phase2_val_sim_interval.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_phase2_window_rotation.py": {
+    "hash": "e522b1ed11bd37c03c59a7ab09fbd86dd48522c761de0e49c1b05e82ddc294e9",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_phase2_window_rotation.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_phase5_oos.py": {
+    "hash": "74eac39b77f499a54e605c593c8065db9be08a43cd34235ca79ea00eeb270738",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_phase5_oos.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_plateau_state_leak.py": {
+    "hash": "1785e52b9885bda93ab36e9173e8559266a532872bdd81b4d0f1787676bff22f",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_plateau_state_leak.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_positive_good_gate.py": {
+    "hash": "8e7ac803195971f2d568279e477924a282c1b0dd79b56749cb9072d1438e171e",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_positive_good_gate.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_purge_leakage.py": {
+    "hash": "8cccfdeec35015e31cdd92be6bb1ba34a048aa298a1a58f9259315ea6b89eab4",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_purge_leakage.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_rb_capital_normalization.py": {
+    "hash": "bcb44bdceb8d82186263edad139c54d06df9ef90d95a121a8de59ac6c63ed5eb",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_rb_capital_normalization.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_rb_compose_gates.py": {
+    "hash": "11d95980efb678c1a1d120737664e0c0fd83e3a027e0b6adf752b255ae6c39a5",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_rb_compose_gates.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_rb_concentration_tail_fail_closed.py": {
+    "hash": "8601bab885529d5fa8f627822443c8ca19a123561c55ef56d3a9a4e0af4833a3",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_rb_concentration_tail_fail_closed.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_rb_correlation.py": {
+    "hash": "2c2bf7ba0fe76a822049efbba023264abb0f64dd2803feb622d09ea845f705e1",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_rb_correlation.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_rb_fail_closed.py": {
+    "hash": "5a5a20e1f5032d88e99af6a9956c363be2e181975b5521ebd6e93050ba9afc06",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_rb_fail_closed.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_rb_full_validation_recovery.py": {
+    "hash": "e6037ad99a199d54277f8b268f0969cf8e411cc552c3162fa7c469f63a384fe4",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_rb_full_validation_recovery.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_rb_governor_cv_folds.py": {
+    "hash": "a3428d3889c4d4f6052ac20d23814bc117892ab055c5374f7f0490f15e8bf92b",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_rb_governor_cv_folds.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_rb_governor_tail_holdout.py": {
+    "hash": "5acdd48d2a4372de181a0d64ed5e4a8f6b45eb82000ee3f5d2f6ab9589275c0c",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_rb_governor_tail_holdout.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_rb_island_source_symbols.py": {
+    "hash": "99e7d78d804b8f9da56ab235db49683bb4289a80c1855785286dfab682983152",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_rb_island_source_symbols.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_rb_min_symbols.py": {
+    "hash": "f72f2814cd70ba73c100f2806d5d33e20ef34c91c66ade1abc1dd9c4fbffa925",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_rb_min_symbols.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_rb_univariate_baselines.py": {
+    "hash": "9f03cd0862983a4098272f21e5344da038e165dd36df0c8eecd734cdd9524c3b",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_rb_univariate_baselines.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_release_indices.py": {
+    "hash": "9d2142d55d68542476a82dd2239f347f932be63c9cdfc27e50bb9c8bfc778362",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_release_indices.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_reporter.py": {
+    "hash": "2341747ae175643c33137a508a5b233846b22be5f01afb4092a8704b3ad7cd6a",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_reporter.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_reporter_equity_date_axis.py": {
+    "hash": "8864003638b753cc0e74cfc8df08dc5db484b1ce416348c0055326356bef93e4",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_reporter_equity_date_axis.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_research_integrity.py": {
+    "hash": "63de17609a1747618c4fb7e1373b939df244569bc6e18081dab078fea58cc87e",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_research_integrity.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_robustness.py": {
+    "hash": "25bd03f6179f37354edf5cc0299455344d4d30b13680ffa9f2445dee6f60173f",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_robustness.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_rolling_cv.py": {
+    "hash": "a894d405da6badcab3f555cc1c57584eb39b584264de2f5095e0400540618414",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_rolling_cv.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_run_pipeline.py": {
+    "hash": "2e013dfebc9517ece021c41a33d8a7e8c0698b66f332be6d33df18aac9c27f40",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_run_pipeline.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_t4_profile.py": {
+    "hash": "e8ad3972f3e640799186dad8fbcfd8b888c06e108a83323c6cd4de4fc5178107",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_t4_profile.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_uncertainty.py": {
+    "hash": "f86ed0cc3cf20cb34c0286282611d2fdcf22001a39aa3d27a8424a2226343911",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_uncertainty.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_unified_folds.py": {
+    "hash": "6f7cf8b55c5817028dcecb790346d4405f9694ba30798f910f9862cad4e3000c",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_unified_folds.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/data/onchain_pipeline.py": {
+    "hash": "08d811487e02b3906ab61a223c6f6f0692a452067e5be838d8e44573e8794aec",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/data/onchain_pipeline.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "gpu_fuzzy_trader/data/onchain_registry.py": {
+    "hash": "8211d7d1d24f764cc4e756b772e9218b1ad5f5a7803f225570f1b85c8f5144ea",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "gpu_fuzzy_trader/data/onchain_registry.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_onchain_pipeline.py": {
+    "hash": "818cb4b31c5285e2a7eb419184f1ba82fe26a24fd82630f47b997bffbd093531",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_onchain_pipeline.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_onchain_registry.py": {
+    "hash": "f56810f7caefe9a32424f7ce6423bfe4ccd76c739bd29b445ff6040908e9e8a1",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_onchain_registry.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "scripts/build_onchain_dataset.py": {
+    "hash": "6260072cf39d3995e3de39aa3d83d54d3370b5b81be66c322639fba9d5e04b7d",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "scripts/build_onchain_dataset.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_onchain_dataset_builder.py": {
+    "hash": "9b9ae710d458464acfeec13514a6a08eff8e0e3bea87725d269d72a8ec518a96",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_onchain_dataset_builder.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_onchain_feature_contract.py": {
+    "hash": "fe8dc0795ca2da23c8b0dba338982d122fddbb5e180ce9070ce6abf97a268ff7",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_onchain_feature_contract.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  },
+  "tests/unit/test_phase2_symbol_modes.py": {
+    "hash": "683c07375e5081470c6f0717074f36bbcee7a70218eee05ff75c3e70cba6debe",
+    "parser_version": "nexus-js-symbols-1.1",
+    "language": "python",
+    "symbols": {
+      "file": "tests/unit/test_phase2_symbol_modes.py",
+      "language": "python",
+      "parser_version": "nexus-js-symbols-1.1",
+      "definitions": [],
+      "exports": [],
+      "imports": [],
+      "references": [],
+      "supported": false,
+      "coverage": 0
+    }
+  }
+}

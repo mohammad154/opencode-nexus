@@ -1,0 +1,149 @@
+{
+  "schema_version": "1.2",
+  "run_id": "santiment-onchain-20260910",
+  "unit_or_task": "unit-1",
+  "agent": "reviewer",
+  "base_commit": "4f5d98b8aea1945ea1e65868ac4f5aa8bbbdf848",
+  "created_at": "2026-09-10T17:30:00Z",
+  "review_scope": "task",
+  "reviewed_commit": "604bec312dda9daab013ba7186915747bb3dac96",
+  "review_package_digest": "bb97c680e9ac28870ed26ee5729f0c473713491626bf623b46bf02cc809db15f",
+  "files_reviewed": [
+    "gpu_fuzzy_trader/data/onchain_pipeline.py",
+    "gpu_fuzzy_trader/data/onchain_registry.py",
+    "tests/unit/test_onchain_pipeline.py",
+    "tests/unit/test_onchain_registry.py"
+  ],
+  "acceptance": [
+    {
+      "id": "AC-1",
+      "status": "PASS",
+      "evidence": [
+        {
+          "file": "gpu_fuzzy_trader/data/onchain_pipeline.py",
+          "line": 127,
+          "reason": "The hourly path advances the first boundary with ceil(1h), computes the last complete boundary from max+15 minutes, slices before resampling, and then enforces four observations only on retained buckets. This discards the supplied 20:30 start and 20:15 end partial buckets without filling from future data."
+        },
+        {
+          "file": "tests/unit/test_onchain_pipeline.py",
+          "line": 291,
+          "reason": "The phase-shifted 20:30-to-20:15 fixture asserts the first retained bucket is 21:00 and the last is 19:00; the suffix-completion test also checks that a newly completed final bucket does not change earlier aggregates. A source with no complete hourly bucket still fails closed at production line 129."
+        }
+      ]
+    },
+    {
+      "id": "AC-2",
+      "status": "PASS",
+      "evidence": [
+        {
+          "file": "gpu_fuzzy_trader/data/onchain_pipeline.py",
+          "line": 277,
+          "reason": "Each transformed feature is kept as a release-indexed Series. Reindexing that Series to the global availability timeline carries the latest release only; an explicit semantic NaN remains an actual value at its release timestamp and is not replaced by a blanket DataFrame ffill. pct_change also disables pandas' implicit fill at line 229."
+        },
+        {
+          "file": "tests/unit/test_onchain_pipeline.py",
+          "line": 320,
+          "reason": "The regression builds a complete frame after a valid warm-up interval followed by a constant zero-scale tail and asserts the final age-consumed values remain NaN. This exercises build_symbol_feature_frame, not only transform_metric."
+        }
+      ]
+    },
+    {
+      "id": "AC-3",
+      "status": "PASS",
+      "evidence": [
+        {
+          "file": "tests/unit/test_onchain_pipeline.py",
+          "line": 291,
+          "reason": "The patch adds boundary-phase aggregation, suffix invariance, interior-gap rejection, post-warm-up semantic-NaN, and phase-shifted source-frame tests."
+        },
+        {
+          "file": "tests/unit/test_onchain_pipeline.py",
+          "line": 372,
+          "reason": "The real BTC/ETH source regression is present and the checked-in data/Onchain-Data directory exists in this workspace, so its skip guard does not suppress the test here. A checkout without that data would lose this particular coverage, but that is not the current workspace condition."
+        }
+      ]
+    },
+    {
+      "id": "AC-4",
+      "status": "PASS",
+      "evidence": [
+        {
+          "file": "gpu_fuzzy_trader/data/onchain_registry.py",
+          "line": 33,
+          "reason": "The unchanged registry still defines version 1.0.0 and twelve ordered ff_oc_* specs with the required metric policies, windows, and minimum history through line 181; only Funding has allow_funding_gap=True at lines 72-84."
+        },
+        {
+          "file": "gpu_fuzzy_trader/data/onchain_pipeline.py",
+          "line": 94,
+          "reason": "Funding remains a capped past-only ffill repair with the eight-hour limit and unresolved-gap failure. The builder still invokes it before aggregation at lines 270-275, and the module contains no bfill, interpolate, or fillna(0). Existing tests retain the 25-row, over-eight-hour, release-delay, aggregation, scaling, range, warm-up, constant, and suffix checks."
+        },
+        {
+          "file": "tests/unit/test_onchain_pipeline.py",
+          "line": 120,
+          "reason": "The retained tests assert the exact 25-row past-only Funding carry and failure beyond eight hours; lines 140-288 cover metric aggregation, release timing, prior-only bounded transforms, warm-up, constant-series behavior, and suffix invariance."
+        }
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "category": "correctness",
+      "status": "PASS",
+      "evidence": "The boundary trim is causal and preserves interior count checks at gpu_fuzzy_trader/data/onchain_pipeline.py:127-149. The release-indexed alignment at lines 277-293 preserves explicit semantic NaNs while carrying only prior releases. The deterministic verification package reports the targeted suite passed, and source inspection covers the realistic 20:30/20:15 and post-warm-up zero-scale cases."
+    },
+    {
+      "category": "test_quality",
+      "status": "PASS",
+      "evidence": "The new tests invoke production aggregate_metric and build_symbol_feature_frame. They include real checked-in BTC/ETH sources at tests/unit/test_onchain_pipeline.py:372-388, a boundary completion comparison at lines 301-310, an interior gap at lines 313-317, and a post-warm-up NaN assertion at lines 320-349. The package verification reports the related suite passed."
+    },
+    {
+      "category": "impact",
+      "status": "PASS",
+      "evidence": "The review package diff contains only gpu_fuzzy_trader/data/onchain_pipeline.py and tests/unit/test_onchain_pipeline.py. Graph tracing finds build_symbol_feature_frame as the only current production caller within the new module and no external production dependents; the changed behavior is confined to this future-consumer core."
+    }
+  ],
+  "adversarial_checks": [
+    {
+      "risk": "A future suffix completes the prior partial end bucket and changes an earlier aggregate.",
+      "result": "PASS",
+      "evidence": "tests/unit/test_onchain_pipeline.py:301-310 compares the 20:15-ending input with the 20:45-ending input and requires all prior rows to match; the implementation trims by source boundaries before resampling."
+    },
+    {
+      "risk": "An interior missing 15-minute observation is mistaken for a permissible boundary truncation.",
+      "result": "PASS",
+      "evidence": "gpu_fuzzy_trader/data/onchain_pipeline.py:134-140 counts every retained hour, while tests/unit/test_onchain_pipeline.py:313-317 removes an interior point and requires the unexpected-timestamp-gap error."
+    },
+    {
+      "risk": "A post-warm-up zero-scale interval is converted into a stale finite feature by alignment.",
+      "result": "PASS",
+      "evidence": "The release-indexed Series retains NaN at its semantic release rows before reindexing at gpu_fuzzy_trader/data/onchain_pipeline.py:277-293; tests/unit/test_onchain_pipeline.py:320-349 verifies the final tail is still NaN."
+    },
+    {
+      "risk": "Funding repair uses a future value or accepts a gap longer than eight hours.",
+      "result": "PASS",
+      "evidence": "gpu_fuzzy_trader/data/onchain_pipeline.py:99-106 uses only ffill(limit=32), and tests/unit/test_onchain_pipeline.py:120-134 assert both past-only 25-row carry and over-limit rejection."
+    },
+    {
+      "risk": "Workspace isolation makes an otherwise correct patch unsafe to approve.",
+      "result": "FAIL",
+      "evidence": "git status --short reports untracked .antigravity/handoffs/unit-1-fix-implementer.json and .antigravity/handoffs/unit-1-implementer.json outside .opencode."
+    }
+  ],
+  "findings": [
+    {
+      "id": "ISO-1",
+      "title": "Untracked handoff files outside .opencode violate workspace isolation",
+      "file": ".antigravity/handoffs/unit-1-fix-implementer.json",
+      "line": 1,
+      "severity": "HIGH",
+      "blocking": true,
+      "description": "The bound workspace has untracked .antigravity handoff files outside the permitted .opencode area (including .antigravity/handoffs/unit-1-implementer.json). Nexus must not admit reviewer approval while these files remain; remove or isolate them before approval."
+    }
+  ],
+  "verdict": "ISOLATION_VIOLATION",
+  "impact": {
+    "pass": true,
+    "risk": "LOW"
+  },
+  "notes": "The production fix itself addresses the two prior blocking defects and the added tests exercise the real source phase and final frame. Approval is blocked by the separate untracked .antigravity files outside .opencode, per the reviewer isolation gate."
+}

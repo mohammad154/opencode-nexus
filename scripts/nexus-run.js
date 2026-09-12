@@ -17,6 +17,7 @@ import fs from "fs";
 import path from "path";
 import { createHash, randomBytes } from "node:crypto";
 import { spawnSync } from "node:child_process";
+import { pathToFileURL } from "node:url";
 import {
   createEmptyRunState,
   writeRunState,
@@ -133,7 +134,7 @@ function failCli(flags, command, error, code = 2) {
   process.exit(code);
 }
 
-function loadEvidence(flags) {
+export function loadEvidence(flags) {
   let evidence = {};
   if (flags.evidence) {
     const p = flags.evidence;
@@ -148,9 +149,16 @@ function loadEvidence(flags) {
       fs.readFileSync(flags.classification, "utf8"),
     );
   }
-  if (flags["handoff-file"]) {
+  const implementerHandoffFile =
+    flags["implementer-handoff-file"] || flags["handoff-file"];
+  if (implementerHandoffFile) {
     evidence.implementer_handoff = JSON.parse(
-      fs.readFileSync(flags["handoff-file"], "utf8"),
+      fs.readFileSync(implementerHandoffFile, "utf8"),
+    );
+  }
+  if (flags["review-handoff-file"]) {
+    evidence.review_handoff = JSON.parse(
+      fs.readFileSync(flags["review-handoff-file"], "utf8"),
     );
   }
   if (flags["unified-handoff"]) {
@@ -825,4 +833,9 @@ function main() {
   }
 }
 
-main();
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href
+) {
+  main();
+}

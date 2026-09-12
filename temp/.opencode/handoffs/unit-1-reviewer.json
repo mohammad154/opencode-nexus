@@ -1,0 +1,174 @@
+{
+  "schema_version": "1.2",
+  "run_id": "santiment-onchain-20260910",
+  "unit_or_task": "unit-1",
+  "agent": "reviewer",
+  "base_commit": "39c66ff3fbd6ac930962f24183cdf27cecfbbf0d",
+  "created_at": "2026-09-10T16:30:00Z",
+  "review_scope": "task",
+  "reviewed_commit": "4f5d98b8aea1945ea1e65868ac4f5aa8bbbdf848",
+  "review_package_digest": "56c09aba228b041311f2286f4c6dd7fc761cc7ec046a99346b3c3fc5bc6e411e",
+  "files_reviewed": [
+    "gpu_fuzzy_trader/data/onchain_registry.py",
+    "gpu_fuzzy_trader/data/onchain_pipeline.py",
+    "tests/unit/test_onchain_registry.py",
+    "tests/unit/test_onchain_pipeline.py"
+  ],
+  "acceptance": [
+    {
+      "id": "AC-1",
+      "status": "PASS",
+      "evidence": [
+        {
+          "file": "gpu_fuzzy_trader/data/onchain_registry.py",
+          "line": 35,
+          "reason": "The registry contains the twelve specified output entries; ONCHAIN_REGISTRY_VERSION is 1.0.0 at line 33 and the derived feature tuple is built at lines 183-185. The aggregation, raw, scale, release, window, and minimum-history values match the fixed v1 registry entries through line 181."
+        },
+        {
+          "file": "tests/unit/test_onchain_registry.py",
+          "line": 13,
+          "reason": "The test verifies twelve entries, unique ff_oc_* names, and version 1.0.0. A wrong individual registry field would be a realistic untested failure mode, but manual inspection of the checked-in entries found no such mismatch."
+        }
+      ]
+    },
+    {
+      "id": "AC-2",
+      "status": "PASS",
+      "evidence": [
+        {
+          "file": "gpu_fuzzy_trader/data/onchain_pipeline.py",
+          "line": 46,
+          "reason": "The metric is selected from the second CSV column, while the asset is selected only from the fixed Bitcoin/Ethereum filename prefix at lines 33-37. UTC parsing, two-column validation, duplicate/increasing timestamps, finite values, complete source grid, and the required error tokens are implemented at lines 39-84."
+        },
+        {
+          "file": "tests/unit/test_onchain_pipeline.py",
+          "line": 72,
+          "reason": "Required duplicate, non-finite, missing-source, unsupported-asset, and non-Funding-gap rejection cases are exercised at lines 72-117. A malformed date or empty CSV is not covered and may produce a parser/index error rather than an audit token, but that is outside the listed mutation cases."
+        }
+      ]
+    },
+    {
+      "id": "AC-3",
+      "status": "PASS",
+      "evidence": [
+        {
+          "file": "gpu_fuzzy_trader/data/onchain_pipeline.py",
+          "line": 99,
+          "reason": "Funding is reindexed to a 15-minute grid and forward-filled with the integer eight-hour limit of 32 rows; unresolved leading or over-limit gaps fail closed at lines 103-106. The audit records imputed rows, first/last missing timestamps, and the configured maximum staleness at lines 108-117."
+        },
+        {
+          "file": "tests/unit/test_onchain_pipeline.py",
+          "line": 120,
+          "reason": "The 25-row carry is asserted to use the prior value only, and the over-eight-hour and leading-gap cases fail at lines 130-134 and 223-228. No bfill, interpolation, or zero fill appears in the production module."
+        }
+      ]
+    },
+    {
+      "id": "AC-4",
+      "status": "FAIL",
+      "evidence": [
+        {
+          "file": "gpu_fuzzy_trader/data/onchain_pipeline.py",
+          "line": 126,
+          "reason": "Every non-Funding hourly series is rejected when any resample bucket has a count other than four. The real checked-in source starts at 20:30 UTC (data/Onchain-Data/Bitcoin (BTC) 15min-Age Consumed.csv:2) and ends at 20:15 UTC (same file:94273), so its first and last hourly buckets are partial and build_symbol_feature_frame fails before producing features."
+        },
+        {
+          "file": "tests/unit/test_onchain_pipeline.py",
+          "line": 145,
+          "reason": "Aggregation and release tests use an hour-aligned fixture beginning at 00:00 and therefore do not exercise the real 20:30/20:15 boundaries. Suffix invariance is only demonstrated for that aligned fixture at lines 161-172."
+        }
+      ]
+    },
+    {
+      "id": "AC-5",
+      "status": "FAIL",
+      "evidence": [
+        {
+          "file": "gpu_fuzzy_trader/data/onchain_pipeline.py",
+          "line": 275,
+          "reason": "transform_metric correctly makes zero centered/zero-anchored scales NaN at lines 229 and 239, but build_symbol_feature_frame unconditionally forward-fills every feature column. After a valid history followed by a long constant or zero-scale interval, the required NaN is replaced by a stale prior feature value."
+        },
+        {
+          "file": "tests/unit/test_onchain_pipeline.py",
+          "line": 207,
+          "reason": "The constant-series test starts with no prior valid feature and tests transform_metric directly; it cannot detect post-warm-up NaNs being overwritten by the final frame builder."
+        }
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "category": "correctness",
+      "status": "FAIL",
+      "evidence": "The real source cadence makes the non-Funding aggregation path fail on partial boundary buckets at gpu_fuzzy_trader/data/onchain_pipeline.py:124-129, and the final frame builder violates the zero-scale-NaN contract at gpu_fuzzy_trader/data/onchain_pipeline.py:274-275."
+    },
+    {
+      "category": "test_quality",
+      "status": "FAIL",
+      "evidence": "The deterministic package reports 25 targeted tests passing, but tests/unit/test_onchain_pipeline.py:145-150 uses an hour-aligned synthetic source and tests/unit/test_onchain_pipeline.py:207-210 does not pass through build_symbol_feature_frame. The suite therefore misses both production failures."
+    },
+    {
+      "category": "impact",
+      "status": "PASS",
+      "evidence": "The commit changes only the four files listed in the task package. Graph inbound tracing finds only the new unit tests as current callers; the package reports no direct production dependents. The future unit-2/unit-3 consumers remain unimplemented and must not rely on the currently failing real-source path."
+    }
+  ],
+  "adversarial_checks": [
+    {
+      "risk": "Real intraday source begins and ends mid-hour, causing a complete-bucket guard to reject the data.",
+      "result": "FAIL",
+      "evidence": "gpu_fuzzy_trader/data/onchain_pipeline.py:124-129 resamples at hour boundaries and requires count == 4; data/Onchain-Data/Bitcoin (BTC) 15min-Age Consumed.csv:2 and :94273 show 20:30 and 20:15 boundaries."
+    },
+    {
+      "risk": "A zero-scale interval after an earlier valid interval is silently converted into a stale value.",
+      "result": "FAIL",
+      "evidence": "gpu_fuzzy_trader/data/onchain_pipeline.py:229,239 produce NaN scales, then line 275 applies ffill to all feature columns."
+    },
+    {
+      "risk": "A 25-row Funding gap uses a future observation or an over-eight-hour gap is accepted.",
+      "result": "PASS",
+      "evidence": "gpu_fuzzy_trader/data/onchain_pipeline.py:99-106 uses ffill(limit=32) and tests/unit/test_onchain_pipeline.py:120-134 verifies past-only 25-row carry and failure beyond the limit."
+    },
+    {
+      "risk": "A changed future suffix changes earlier aligned aggregate outputs.",
+      "result": "PASS",
+      "evidence": "tests/unit/test_onchain_pipeline.py:161-172 verifies earlier rows remain equal. This does not cover the real partial-boundary input because that input fails first."
+    }
+  ],
+  "findings": [
+    {
+      "id": "F-1",
+      "title": "Real intraday source cannot be aggregated",
+      "file": "gpu_fuzzy_trader/data/onchain_pipeline.py",
+      "line": 126,
+      "severity": "HIGH",
+      "blocking": true,
+      "description": "The implementation requires four observations in every hourly resample bucket for non-Funding metrics. The supplied source snapshot is phase-shifted to 20:30 through 20:15 UTC, so the first and last buckets are partial. load_and_audit_sources accepts this valid 15-minute grid, but build_symbol_feature_frame then raises unexpected timestamp gap for every non-Funding metric. Handle or deliberately discard incomplete boundary buckets before enforcing the four-observation rule, and add a test using the real source phase."
+    },
+    {
+      "id": "F-2",
+      "title": "Frame builder erases zero-scale NaNs",
+      "file": "gpu_fuzzy_trader/data/onchain_pipeline.py",
+      "line": 275,
+      "severity": "MEDIUM",
+      "blocking": true,
+      "description": "The transform contract requires zero-scale results to remain NaN. The builder forward-fills all feature columns after merging availability rows, so a NaN after a previously valid value becomes a stale finite value. Test a post-warm-up constant/zero-scale interval through build_symbol_feature_frame and preserve semantic NaNs while only filling structural release-alignment gaps."
+    },
+    {
+      "id": "F-3",
+      "title": "Targeted tests do not cover the production source shape",
+      "file": "tests/unit/test_onchain_pipeline.py",
+      "line": 145,
+      "severity": "LOW",
+      "blocking": false,
+      "description": "The aggregation fixtures begin at 00:00 and the constant test stops at transform_metric. This test shape permits both production defects above to pass the reported 25-test verification. Add boundary-phase and final-frame regression tests."
+    }
+  ],
+  "verdict": "REQUEST_CHANGES",
+  "status": "REQUEST_CHANGES",
+  "impact": {
+    "pass": true,
+    "risk": "MEDIUM"
+  },
+  "notes": "Registry, audit mutation cases, funding carry, and aligned aggregation math are otherwise consistent with the stated contract. Review is blocked by the real-source aggregation failure and the final-frame NaN masking."
+}

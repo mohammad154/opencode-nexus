@@ -1,0 +1,222 @@
+{
+  "schema_version": "1.2",
+  "run_id": "santiment-onchain-20260910-r2",
+  "unit_or_task": "unit-4",
+  "task_id": "unit-4-r2",
+  "agent": "reviewer",
+  "base_commit": "ba0c92c50d90e48831fac33905ca9e9cf5307ef7",
+  "created_at": "2026-09-12T08:58:00Z",
+  "review_scope": "task",
+  "reviewed_commit": "7ea1c4e400f824d23876dcabd11fbda30a545bd9",
+  "review_package_digest": "117f2b78f3336ea620f0417b45a353ef9a271c190b535d26cd4182c122b55d22",
+  "files_reviewed": [
+    "gpu_fuzzy_trader/config.py",
+    "gpu_fuzzy_trader/phases/phase2_rule_pool.py",
+    "gpu_fuzzy_trader/run_pipeline.py",
+    "tests/unit/test_phase2_symbol_modes.py",
+    "gpu_fuzzy_trader/rb_governor.py",
+    "gpu_fuzzy_trader/phases/rule_identity.py",
+    "gpu_fuzzy_trader/evolution/evox_runner.py",
+    "tests/unit/test_rb_island_source_symbols.py",
+    "tests/unit/test_run_pipeline.py"
+  ],
+  "acceptance": [
+    {
+      "id": "AC-1",
+      "status": "PASS",
+      "evidence": [
+        {
+          "file": "gpu_fuzzy_trader/config.py",
+          "line": 2769,
+          "reason": "validate_config explicitly checks the normalized value against global/specialist and includes PHASE2_SYMBOL_MODE in the failure message."
+        },
+        {
+          "file": "gpu_fuzzy_trader/run_pipeline.py",
+          "line": 4742,
+          "reason": "Failure-mode check: the public run_phase2 wrapper does not call _validate_active_configuration, so callers that bypass the normal run_phase API can still reach the routing method without validation; this does not negate the stated validate_config contract."
+        }
+      ]
+    },
+    {
+      "id": "AC-2",
+      "status": "FAIL",
+      "evidence": [
+        {
+          "file": "gpu_fuzzy_trader/run_pipeline.py",
+          "line": 3892,
+          "reason": "The global path still constructs one Rule_Pool_Generator per direction with the pooled train/validation frames and no island overrides. The pipeline log and run manifest use resolve_phase2_symbol_mode at lines 986-993 and 1256-1264."
+        },
+        {
+          "file": "gpu_fuzzy_trader/config.py",
+          "line": 3218,
+          "reason": "The effective configuration audit is also a manifest, but it records raw PHASE2_SYMBOL_MODE rather than the normalized resolver. For an accepted value such as ' SPECIALIST ', the audit says ' SPECIALIST ' while runtime logs/manifests say 'specialist'."
+        }
+      ]
+    },
+    {
+      "id": "AC-3",
+      "status": "FAIL",
+      "evidence": [
+        {
+          "file": "gpu_fuzzy_trader/phases/phase2_rule_pool.py",
+          "line": 2856,
+          "reason": "Slicing uses copied train/validation rows for one symbol, and phase2_island_hyperparams is frozen and receives the slice row count at config.py:2421-2469 and phase2_rule_pool.py:760-761."
+        },
+        {
+          "file": "gpu_fuzzy_trader/phases/phase2_rule_pool.py",
+          "line": 2905,
+          "reason": "attach_single_symbol_provenance unconditionally replaces source_symbols, island_symbols, origin_symbol, provenance, and phase2_rule_id. generate_specialist_pools then validates the rewritten object at lines 785-789, so a multi-symbol or wrong-symbol candidate is relabeled instead of rejected."
+        },
+        {
+          "file": "gpu_fuzzy_trader/phases/phase2_rule_pool.py",
+          "line": 3013,
+          "reason": "Per-island filenames are derived by replacing every non-alphanumeric symbol character with '_'. Distinct symbols can therefore share one artifact, while Rule_Pool_Generator.run loads that artifact at lines 4172-4201 using only generic schema/feature checks."
+        }
+      ]
+    },
+    {
+      "id": "AC-4",
+      "status": "FAIL",
+      "evidence": [
+        {
+          "file": "gpu_fuzzy_trader/rb_governor.py",
+          "line": 426,
+          "reason": "_rule_to_engine copies feature conditions, IDs, and symbol list fields but never copies the nested provenance record. _enforce_capital_budget calls it at line 473 and _strategy persists those cleaned rules at lines 531-545, so the Phase 2 provenance record is lost in the RB rules_set."
+        },
+        {
+          "file": "tests/unit/test_phase2_symbol_modes.py",
+          "line": 240,
+          "reason": "The handoff test checks provenance before _rule_to_engine, then asserts only source/identity fields after it; it never asserts carried['provenance'], so it cannot detect this loss."
+        }
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "category": "correctness",
+      "status": "FAIL",
+      "evidence": "The specialist validator is called only after provenance is overwritten (phase2_rule_pool.py:2902-2922, 785-789); specialist artifact reuse is not bound to per-island data identity (phase2_rule_pool.py:3013-3036, 4172-4201); and RB drops nested provenance (rb_governor.py:426-459)."
+    },
+    {
+      "category": "test_quality",
+      "status": "FAIL",
+      "evidence": "The new tests directly exercise helpers and replace generate_specialist_pools with a lambda at tests/unit/test_phase2_symbol_modes.py:300-305. They do not exercise the default generator, per-island artifacts/resume, standalone Phase 3/4 loading, or the nested RB provenance copy. Independent pytest execution was denied by the shell policy."
+    },
+    {
+      "category": "impact",
+      "status": "FAIL",
+      "evidence": "The graph shows _run_phase2 callers in run, run_from_phase2, run_phase, and standalone APIs. In particular, run_phase(3/4) calls _load_phase2_outputs at run_pipeline.py:1836-1846, but that loader computes identity without symbols at run_pipeline.py:3065-3071 even though specialist persistence adds symbols at run_pipeline.py:1059-1070; specialist pools therefore fail closed before RB in that workflow."
+    },
+    {
+      "category": "scope",
+      "status": "PASS",
+      "evidence": "The tracked diff contains only the three planned production files and the unit-4 test file; git diff --check is clean."
+    },
+    {
+      "category": "spec_fidelity",
+      "status": "FAIL",
+      "evidence": "The implementation claims immutable provenance and no cross-symbol migration, but it rewrites incoming scope before validation and does not preserve the nested provenance contract through RB."
+    }
+  ],
+  "adversarial_checks": [
+    {
+      "risk": "A generator or old island cache returns a rule with source_symbols ['A', 'B'] while processing island A.",
+      "result": "FAIL",
+      "evidence": "attach_single_symbol_provenance replaces the list with ['A'] before validate_single_symbol_rule runs at phase2_rule_pool.py:2905 and 785-789."
+    },
+    {
+      "risk": "Symbols 'BTC/USDT' and 'BTC_USDT' use specialist mode, or a forced rerun follows a prior specialist run.",
+      "result": "FAIL",
+      "evidence": "Both names sanitize to the same token at phase2_rule_pool.py:2992-3000; _begin_run clears only base phase2 filenames at run_pipeline.py:1232-1244, and the specialist guard's old per-island file is loaded as a seed at phase2_rule_pool.py:4172-4201."
+    },
+    {
+      "risk": "A specialist Phase 2 pool is persisted, then standalone run_phase(3) or run_phase(4) loads it for RB.",
+      "result": "FAIL",
+      "evidence": "Specialist persistence hashes an identity with symbols at run_pipeline.py:1059-1070, while _load_phase2_outputs omits symbols at run_pipeline.py:3065-3071. The identities cannot match."
+    },
+    {
+      "risk": "RB capital normalization creates the final rules_set from a specialist rule.",
+      "result": "FAIL",
+      "evidence": "_enforce_capital_budget calls _rule_to_engine at rb_governor.py:473, whose output has no provenance key at rb_governor.py:426-459."
+    },
+    {
+      "risk": "Independent runtime verification of the listed pytest gate.",
+      "result": "CANNOT_VERIFY",
+      "evidence": "The required PYTEST_LOW_MEMORY=.venv pytest command was rejected by the shell permission policy. The review package's passing claim is treated as unverified."
+    }
+  ],
+  "findings": [
+    {
+      "id": "F-1",
+      "title": "Specialist validation is bypassed by provenance rewriting",
+      "category": "correctness",
+      "severity": "HIGH",
+      "blocking": true,
+      "file": "gpu_fuzzy_trader/phases/phase2_rule_pool.py",
+      "line": 2905,
+      "reason": "The attach helper overwrites all scope/provenance fields and recomputes the identity before the caller validates the entry. A multi-symbol, wrong-symbol, or wrong-direction candidate can be relabeled as the current island and accepted.",
+      "recommendation": "Validate existing scope and provenance before attaching; reject conflicting non-empty metadata and only add fields to an unprovenanced candidate when that is explicitly allowed."
+    },
+    {
+      "id": "F-2",
+      "title": "Standalone RB cannot resume specialist Phase 2 pools",
+      "category": "impact",
+      "severity": "HIGH",
+      "blocking": true,
+      "file": "gpu_fuzzy_trader/run_pipeline.py",
+      "line": 3065,
+      "reason": "The specialist writer includes symbols in the resume identity, but _load_phase2_outputs omits them. The run_phase(3/4) caller consequently reports an identity mismatch and sends empty pools to RB.",
+      "recommendation": "Derive and pass the current symbol set when loading specialist identities, and validate resumed specialist entries before handing them to RB."
+    },
+    {
+      "id": "F-3",
+      "title": "Per-island cache artifacts are collision-prone and survive forced regeneration",
+      "category": "correctness",
+      "severity": "HIGH",
+      "blocking": true,
+      "file": "gpu_fuzzy_trader/phases/phase2_rule_pool.py",
+      "line": 3013,
+      "reason": "Filename sanitization is not injective, and per-island files have no data/resume identity. The normal generator loads old island pools using only feature/schema checks. Base Phase 2 cleanup does not remove these files, so old or another-symbol chromosomes can seed a new island.",
+      "recommendation": "Use collision-free symbol tokens, write per-island input identities, clear or validate island artifacts on force, and run single-symbol provenance validation on every resumed entry."
+    },
+    {
+      "id": "F-4",
+      "title": "RB engine copies drop nested Phase 2 provenance",
+      "category": "correctness",
+      "severity": "HIGH",
+      "blocking": true,
+      "file": "gpu_fuzzy_trader/rb_governor.py",
+      "line": 450,
+      "reason": "_rule_to_engine does not copy rule['provenance']; the helper is used for capital-budget normalization and final strategy rules. The resulting RB rules_set cannot retain the attached provenance record.",
+      "recommendation": "Copy the provenance record read-only through every RB rule transformation and add an assertion covering carried['provenance']."
+    },
+    {
+      "id": "F-5",
+      "title": "Configuration audit records raw rather than resolved mode",
+      "category": "spec_fidelity",
+      "severity": "MEDIUM",
+      "blocking": false,
+      "file": "gpu_fuzzy_trader/config.py",
+      "line": 3218,
+      "reason": "validate_config accepts surrounding whitespace and case, and runtime routing normalizes it, but effective_config_snapshot writes the raw value. This makes the config audit disagree with the resolved run manifest.",
+      "recommendation": "Use resolve_phase2_symbol_mode() in the audit snapshot."
+    },
+    {
+      "id": "F-6",
+      "title": "Production-mode tests bypass the specialist implementation",
+      "category": "test_quality",
+      "severity": "MEDIUM",
+      "blocking": false,
+      "file": "tests/unit/test_phase2_symbol_modes.py",
+      "line": 302,
+      "reason": "The routing/persistence test replaces generate_specialist_pools with a lambda, and the provenance test calls the validator directly. These tests cannot expose cache reuse, default Rule_Pool_Generator behavior, loader identity mismatch, or nested RB provenance loss.",
+      "recommendation": "Add a production-path test for default specialist generation/resume and a standalone Phase 3/4 RB handoff assertion."
+    }
+  ],
+  "verdict": "REQUEST_CHANGES",
+  "impact": {
+    "pass": false,
+    "risk": "HIGH"
+  },
+  "notes": "Static review found blocking correctness and integration failures. git diff --check passed. The required pytest command was independently attempted but denied by shell policy, so runtime verification is CANNOT_VERIFY; package/implementer test claims were not used as proof."
+}

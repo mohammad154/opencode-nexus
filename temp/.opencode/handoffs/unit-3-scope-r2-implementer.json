@@ -1,0 +1,67 @@
+{
+  "schema_version": "1.1",
+  "run_id": "santiment-onchain-20260910-r2",
+  "unit_or_task": "unit-3 scope follow-up",
+  "agent": "implementer",
+  "base_commit": "1b351eb2ccca3a5b732ed9f7a095892831632c37",
+  "created_at": "2026-09-11T12:05:00Z",
+  "status": "DONE",
+  "commit": "476f4b9de7962eb5e31676ec83c39ce3c0d9eea2",
+  "files_changed": [
+    "tests/unit/test_config_additions.py",
+    "tests/unit/test_config_validation.py"
+  ],
+  "tests": {
+    "total": 25,
+    "passed": 25,
+    "failed": 0,
+    "tdd": {
+      "red": "Gate 1 failed before edits: tests/unit/test_config_additions.py::test_new_config_parameters_exist (AssertionError: assert 30 == 18) and tests/unit/test_config_validation.py::test_default_config_snapshot_is_valid_and_reports_effective_budgets (AssertionError: assert 30 == 18).",
+      "green": "25 passed in 8.43s across gate suites (tests/unit/test_config_additions.py, tests/unit/test_config_validation.py, tests/unit/test_onchain_feature_contract.py, tests/unit/test_feature_catalog.py); full suite of 88 unit-3 tests passed in 28.49s."
+    }
+  },
+  "verification_gates": [
+    {
+      "name": "gate_1_unit_tests",
+      "command": "PYTEST_LOW_MEMORY=1 .venv/bin/python -m pytest tests/unit/test_config_additions.py tests/unit/test_config_validation.py tests/unit/test_onchain_feature_contract.py tests/unit/test_feature_catalog.py -q",
+      "pass": true,
+      "output": "25 passed in 8.43s"
+    },
+    {
+      "name": "gate_2_diff_check",
+      "command": "git diff --check",
+      "pass": true,
+      "output": "clean"
+    },
+    {
+      "name": "gate_3_diff_stat_allowed_files",
+      "command": "git diff 1b351eb2ccca3a5b732ed9f7a095892831632c37...feature/unit-3-runtime-contract --stat",
+      "pass": true,
+      "output": "tests/unit/test_config_additions.py | 4 ++--\ntests/unit/test_config_validation.py | 2 +-\n2 files changed, 3 insertions(+), 3 deletions(-)"
+    }
+  ],
+  "drift_check": {
+    "command": "nexus run drift",
+    "drift": "NONE",
+    "commit_distance": 0,
+    "merge_base_changed": false
+  },
+  "impact": {
+    "verified": true,
+    "risk": "LOW",
+    "confidence": 1.0,
+    "dependents": [],
+    "related_tests": [
+      "tests/unit/test_config_additions.py",
+      "tests/unit/test_config_validation.py",
+      "tests/unit/test_onchain_feature_contract.py",
+      "tests/unit/test_feature_catalog.py"
+    ]
+  },
+  "notes_for_reviewer": [
+    "Updated tests/unit/test_config_additions.py lines 16-17 to assert len(c.RULE_ALLOWED_FF_FEATURES) == 30 and len(set(c.RULE_ALLOWED_FF_FEATURES)) == 30.",
+    "Updated tests/unit/test_config_validation.py line 26 to assert snapshot['rule_features']['allowed_ff_feature_count'] == 30.",
+    "Kept all other assertions identical. No production code was modified.",
+    "All gate checks and all 88 unit-3 tests pass cleanly."
+  ]
+}

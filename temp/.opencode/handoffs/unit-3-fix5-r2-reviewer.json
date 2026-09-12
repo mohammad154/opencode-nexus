@@ -1,0 +1,262 @@
+{
+  "schema_version": "1.2",
+  "run_id": "santiment-onchain-20260910-r2",
+  "unit_or_task": "unit-3",
+  "task_id": "unit-3-fix5-r2",
+  "agent": "reviewer",
+  "base_commit": "856f501c6ad1c74b6a0da0c7bd0af8fe1448659b",
+  "created_at": "2026-09-11T23:40:00Z",
+  "review_scope": "task",
+  "reviewed_commit": "3d0dfa591b49c47492430125b2865ef705b81312",
+  "review_package_digest": "a24d97cb99d1080e191c067c12caeeddabdb71e1ce263890ad41f37073e2ed7b",
+  "files_reviewed": [
+    "gpu_fuzzy_trader/config.py",
+    "gpu_fuzzy_trader/data/multi_timeframe.py",
+    "gpu_fuzzy_trader/data/onchain_pipeline.py",
+    "gpu_fuzzy_trader/data/splitter.py",
+    "gpu_fuzzy_trader/data/loader.py",
+    "gpu_fuzzy_trader/data/labels.py",
+    "gpu_fuzzy_trader/features/catalog.py",
+    "gpu_fuzzy_trader/features/fuzzy_scaling.py",
+    "gpu_fuzzy_trader/mtf/archives.py",
+    "gpu_fuzzy_trader/output/writer.py",
+    "gpu_fuzzy_trader/phases/phase2_rule_pool.py",
+    "gpu_fuzzy_trader/phases/phase5_oos.py",
+    "gpu_fuzzy_trader/rb_governor.py",
+    "gpu_fuzzy_trader/research_integrity.py",
+    "gpu_fuzzy_trader/run_pipeline.py",
+    "gpu_fuzzy_trader/backtest/cpu_engine.py",
+    "tests/unit/test_onchain_feature_contract.py",
+    "tests/unit/test_fuzzy_scaling.py",
+    "tests/unit/test_mtf_pipeline_integration.py",
+    "tests/unit/test_phase2_rule_pool.py",
+    "tests/unit/test_run_pipeline.py",
+    "tests/unit/test_output_writer.py",
+    "tests/unit/test_data_splitter.py",
+    "tests/unit/test_research_integrity.py",
+    "tests/unit/test_feature_catalog.py",
+    "tests/unit/test_multi_timeframe.py",
+    "tests/property/test_output_writer_properties.py"
+  ],
+  "acceptance": [
+    {
+      "id": "AC-1",
+      "status": "FAIL",
+      "evidence": [
+        {
+          "file": "gpu_fuzzy_trader/data/onchain_pipeline.py",
+          "line": 415,
+          "reason": "The staging validator deliberately treats empty and whitespace-only strings as allowed warm-up NaN values while rejecting non-empty malformed text."
+        },
+        {
+          "file": "gpu_fuzzy_trader/features/fuzzy_scaling.py",
+          "line": 151,
+          "reason": "The runtime validator uses orig.notna() with pd.to_numeric(..., errors=coerce), so a whitespace-only string is treated as non-numeric and rejected. _run_phase2 invokes this runtime validator at run_pipeline.py:3492-3494. A valid whitespace warm-up value therefore has different behavior across production boundaries."
+        }
+      ]
+    },
+    {
+      "id": "AC-2",
+      "status": "PASS",
+      "evidence": [
+        {
+          "file": "gpu_fuzzy_trader/features/fuzzy_scaling.py",
+          "line": 186,
+          "reason": "Both manifest and inferred scaling paths reject malformed non-numeric values, infinity, all-nonfinite columns, and finite values outside [-1, 1]; bounded features are returned with scale 1.0."
+        },
+        {
+          "file": "gpu_fuzzy_trader/run_pipeline.py",
+          "line": 3492,
+          "reason": "Phase 2 validates both train and validation frames before rule generation, and the split-loading paths validate frames before fitting/applying scaling at run_pipeline.py:3228-3232 and :3155-3159. The realistic out-of-range, infinity, and malformed-text failure modes are fail-closed in source."
+        }
+      ]
+    },
+    {
+      "id": "AC-3",
+      "status": "FAIL",
+      "evidence": [
+        {
+          "file": "gpu_fuzzy_trader/rb_governor.py",
+          "line": 541,
+          "reason": "RB strategy construction stamps the current digest at the top level and in strategy_contract, then reapplies it after extra metadata is merged at lines 564-570."
+        },
+        {
+          "file": "gpu_fuzzy_trader/output/writer.py",
+          "line": 395,
+          "reason": "Output_Writer reconciles the current digest into the recognized nested contracts before writing, and Phase 5 checks all present copies at phase5_oos.py:814-846."
+        },
+        {
+          "file": "gpu_fuzzy_trader/phases/phase2_rule_pool.py",
+          "line": 232,
+          "reason": "Pool digest validation returns before reading the sidecar when the pool is empty. An empty 30-feature pool with a matching identity sidecar but a missing or mismatched feature digest can therefore be resumed."
+        },
+        {
+          "file": "gpu_fuzzy_trader/research_integrity.py",
+          "line": 94,
+          "reason": "The feature digest consumes only the manifest's declared contract_digest and maps parse failures to the stable value 'corrupt'; it does not call verify_manifest_contract, which is only defined at data/onchain_pipeline.py:614-639. A changed manifest contract with an unchanged declaration, or a corrupt manifest, can therefore yield an apparently stable artifact identity."
+        }
+      ]
+    },
+    {
+      "id": "AC-4",
+      "status": "PASS",
+      "evidence": [
+        {
+          "file": "gpu_fuzzy_trader/run_pipeline.py",
+          "line": 3963,
+          "reason": "The recovery frame requires the full 30-feature contract, drops terminal NaN label rows on a copy, and rebuilds a contiguous per-symbol index. Both stale-archive and missing-archive paths use this preparation at lines 4569-4585."
+        },
+        {
+          "file": "gpu_fuzzy_trader/run_pipeline.py",
+          "line": 4477,
+          "reason": "Empty rebuild output preserves the existing LWC archive instead of deleting it. The integration test at tests/unit/test_mtf_pipeline_integration.py:1137-1217 exercises a full-tape NaN-label boundary through the real wrapper."
+        }
+      ]
+    },
+    {
+      "id": "AC-5",
+      "status": "PASS",
+      "evidence": [
+        {
+          "file": "gpu_fuzzy_trader/mtf/archives.py",
+          "line": 391,
+          "reason": "load_mtf_archive_payload rejects a JSON list before schema validation, so legacy list-shaped archives cannot be loaded."
+        },
+        {
+          "file": "tests/unit/test_mtf_pipeline_integration.py",
+          "line": 319,
+          "reason": "Both public archive-loading APIs are exercised against a legacy list payload and expected to fail closed."
+        }
+      ]
+    },
+    {
+      "id": "AC-6",
+      "status": "PASS",
+      "evidence": [
+        {
+          "file": "tests/unit/test_phase2_rule_pool.py",
+          "line": 1079,
+          "reason": "Production-sized pools are tested for missing and mismatched feature-digest sidecars through skip_if_valid with feature_infos."
+        },
+        {
+          "file": "tests/unit/test_mtf_pipeline_integration.py",
+          "line": 1061,
+          "reason": "Tests cover stale LWC rebuilds, NaN-tail recovery, empty rebuild preservation, missing archive_hash recovery, and raw-tape fail-closed behavior."
+        }
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "category": "correctness",
+      "status": "FAIL",
+      "evidence": "Whitespace warm-up values are rejected by the runtime scaling boundary despite being allowed by the staging contract. Empty production pools bypass feature-digest validation, and the feature digest does not verify the manifest contract it claims to bind."
+    },
+    {
+      "category": "test_quality",
+      "status": "FAIL",
+      "evidence": "The new tests exercise real public wrappers and direct production entry points, but they do not cover an empty pool with a missing or mismatched digest, whitespace warm-up values at the scaling boundary, or tampered manifest content. Independent pytest rerun was unavailable because the shell policy denied the required .venv command."
+    },
+    {
+      "category": "impact",
+      "status": "PASS",
+      "evidence": "Both direct production skip_if_valid callers pass the current feature catalog at run_pipeline.py:3063-3067 and :3540-3544. Graph tracing found 12 reachable inbound callers, and the broad branch impact was reviewed; the residual empty-pool defect is localized to the shared validator and has no unrelated scope expansion."
+    },
+    {
+      "category": "code_quality",
+      "status": "FAIL",
+      "evidence": "The same on-chain contract is implemented with inconsistent blank handling in onchain_pipeline.py:427-440 versus fuzzy_scaling.py:148-155, while manifest parse/integrity errors are converted into an ordinary digest value at research_integrity.py:94-99 instead of failing closed."
+    },
+    {
+      "category": "scope",
+      "status": "PASS",
+      "evidence": "The changed production files and tests remain within the declared unit-3 runtime-contract, lineage, pool-resume, and MTF recovery scope."
+    },
+    {
+      "category": "verification",
+      "status": "CANNOT_VERIFY",
+      "evidence": "The sealed package reports deterministic verification passed 6/6 and git diff --check passed, but an independent PYTEST_LOW_MEMORY=1 .venv/bin/python pytest rerun was denied by the shell permission policy."
+    },
+    {
+      "category": "isolation",
+      "status": "PASS",
+      "evidence": "The reviewed workspace state showed only .opencode artifacts outside the committed production/test diff; no reviewer production edits were made."
+    }
+  ],
+  "adversarial_checks": [
+    {
+      "risk": "A whitespace-only on-chain warm-up value reaches the runtime scaling validator.",
+      "result": "FAIL",
+      "evidence": "onchain_pipeline.py:427-440 permits it, while fuzzy_scaling.py:148-155 raises for the same value."
+    },
+    {
+      "risk": "A 30-feature empty pool has a matching input identity but no valid feature-digest sidecar.",
+      "result": "FAIL",
+      "evidence": "phase2_rule_pool.py:232-233 returns before sidecar validation; skip_if_valid then can return the empty pool at :4575-4599."
+    },
+    {
+      "risk": "The on-chain manifest contract is edited without changing its declared digest, or the manifest becomes malformed.",
+      "result": "FAIL",
+      "evidence": "research_integrity.py:94-99 reads only contract_digest and substitutes 'corrupt'; verify_manifest_contract has no call site."
+    },
+    {
+      "risk": "A stale LWC archive is rebuilt from a valid full 30-feature tape with terminal NaN labels.",
+      "result": "PASS",
+      "evidence": "run_pipeline.py:3963-3994 trims the labels on a copy, and :4569-4585 sends the prepared frame into forced Phase 2 rebuild."
+    },
+    {
+      "risk": "A legacy list-shaped MTF archive is loaded.",
+      "result": "PASS",
+      "evidence": "mtf/archives.py:391-395 rejects lists unconditionally."
+    },
+    {
+      "risk": "RB and writer receive stale top-level and nested digest copies.",
+      "result": "PASS",
+      "evidence": "rb_governor.py:541-570 and output/writer.py:395-408 restamp recognized copies; phase5_oos.py:817-846 rejects any stale present copy."
+    }
+  ],
+  "findings": [
+    {
+      "id": "F-AC1-BLANK-WHITESPACE",
+      "title": "Runtime scaling rejects whitespace warm-up values allowed by the staging contract",
+      "file": "gpu_fuzzy_trader/features/fuzzy_scaling.py",
+      "line": 151,
+      "severity": "MEDIUM",
+      "blocking": true,
+      "description": "verify_onchain_feature_series treats empty and whitespace-only strings as allowed warm-up values at data/onchain_pipeline.py:427-440, but validate_onchain_feature_ranges and the bounded apply path treat a whitespace string as non-numeric because orig.notna() is true. A raw or test DataFrame containing ' ' can therefore fail during runtime scaling although it passed the ingestion contract. Normalize blank strings consistently or share one validator, and add a regression test."
+    },
+    {
+      "id": "F-AC3-EMPTY-POOL-DIGEST-BYPASS",
+      "title": "Empty production pools bypass feature-digest validation",
+      "file": "gpu_fuzzy_trader/phases/phase2_rule_pool.py",
+      "line": 232,
+      "severity": "HIGH",
+      "blocking": true,
+      "description": "_validate_pool_feature_digest returns when not pool before checking the contract sidecar. Because both production callers now pass feature_infos, a schema-valid empty pool with a matching resume identity but a missing or mismatched feature digest can still be returned by skip_if_valid at :4575-4599. This violates the fail-closed pool contract and can suppress a needed rebuild. Validate the sidecar for contract-sized empty pools and add missing/mismatched empty-pool tests."
+    },
+    {
+      "id": "F-AC3-MANIFEST-INTEGRITY-UNVERIFIED",
+      "title": "Feature-contract digest trusts an unverified manifest declaration",
+      "file": "gpu_fuzzy_trader/research_integrity.py",
+      "line": 94,
+      "severity": "HIGH",
+      "blocking": true,
+      "description": "feature_contract_digest reads only manifest_content['contract_digest'] and converts parse failures into the stable value 'corrupt'. It never calls verify_manifest_contract (defined at data/onchain_pipeline.py:614-639). Editing the canonical manifest contract while retaining its old declaration, or creating artifacts while the manifest is malformed, can therefore leave the artifact identity apparently valid. Verify the canonical manifest and fail closed before using its digest."
+    },
+    {
+      "id": "F-AC6-EMPTY-POOL-TEST-GAP",
+      "title": "Digest tests omit the empty-pool resume edge",
+      "file": "tests/unit/test_phase2_rule_pool.py",
+      "line": 1079,
+      "severity": "MEDIUM",
+      "blocking": false,
+      "description": "The missing and mismatched sidecar tests use a non-empty production-sized pool. They do not exercise the early return at phase2_rule_pool.py:232-233. Add an empty pool case through skip_if_valid with both missing and wrong sidecars."
+    }
+  ],
+  "verdict": "REQUEST_CHANGES",
+  "impact": {
+    "pass": false,
+    "risk": "HIGH"
+  },
+  "notes": "Independent adversarial task review. Implementer notes and sealed verification were treated as unverified. No production code was edited. Fresh pre-impact is required before the next fix-loop implementer."
+}

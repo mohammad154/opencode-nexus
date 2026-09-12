@@ -248,6 +248,76 @@ test("REVIEWING REQUEST_CHANGES → TASK_IMPACT_READY requires fresh impact", ()
   assert.equal(r.state.pending_review_findings.length, 1);
 });
 
+test("REQUEST_CHANGES remediation attempts are persisted and capped per unit", () => {
+  const providers = mockTrustProviders({
+    impact: sealedImpact({ phase: "pre", pre_impact: true, trusted: false }),
+  });
+  const requestChanges = goodReviewerHandoff({
+    run_id: "fix-loop-cap",
+    unit_or_task: "unit-1",
+    verdict: "REQUEST_CHANGES",
+    findings: [
+      {
+        id: "f1",
+        severity: "HIGH",
+        title: "blocking defect",
+        evidence: "src/app.js:10",
+        blocking: true,
+      },
+    ],
+  });
+  const state = {
+    ...createEmptyRunState("fix-loop-cap"),
+    state: "REVIEWING",
+    current_unit: "unit-1",
+    implementer_commit: "impl222",
+    head_commit: "base111",
+    fix_loop_attempts: { "unit-1": 2 },
+  };
+  const evidence = {
+    review_handoff: requestChanges,
+    planned_targets: ["src/app.js"],
+    impact: sealedImpact({ phase: "pre", pre_impact: true, trusted: false }),
+  };
+  const third = transition(state, "TASK_IMPACT_READY", evidence, providers);
+  assert.equal(third.ok, true, JSON.stringify(third.errors));
+  assert.equal(third.state.fix_loop_attempts["unit-1"], 3);
+
+  const exhausted = canTransition(
+    { ...state, fix_loop_attempts: { "unit-1": 3 } },
+    "TASK_IMPACT_READY",
+    evidence,
+  );
+  assert.equal(exhausted.ok, false);
+  assert.match(exhausted.errors.join(" "), /FIX_LOOP_EXHAUSTED/);
+});
+
+test("IMPLEMENTING is rejected before dispatch when the agent-call budget is exhausted", () => {
+  const providers = mockTrustProviders({
+    impact: sealedImpact({ phase: "pre", pre_impact: true, trusted: false }),
+  });
+  let state = advanceToImpactReady(createEmptyRunState("budget-before-dispatch"), providers);
+  state = {
+    ...state,
+    agent_calls_used: 6,
+    agent_call_budget: { max_calls: 6 },
+  };
+  const result = transition(
+    state,
+    "IMPLEMENTING",
+    {
+      branch: "feat/budget",
+      acceptance_criteria: ["a"],
+      allowed_files: ["src/app.js"],
+      current_unit: "unit-1",
+      drift: driftOk(),
+    },
+    providers,
+  );
+  assert.equal(result.ok, false);
+  assert.match(result.errors.join(" "), /AGENT_CALL_BUDGET_EXCEEDED/);
+});
+
 test("APPROVED task → FINAL_REVIEWING → FINAL_VERIFYING", () => {
   let state = createEmptyRunState("t8");
   state.state = "REVIEWING";

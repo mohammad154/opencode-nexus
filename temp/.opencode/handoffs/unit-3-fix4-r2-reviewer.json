@@ -1,0 +1,253 @@
+{
+  "schema_version": "1.2",
+  "run_id": "santiment-onchain-20260910-r2",
+  "unit_or_task": "unit-3",
+  "task_id": "unit-3-fix4-r2",
+  "agent": "reviewer",
+  "base_commit": "856f501c6ad1c74b6a0da0c7bd0af8fe1448659b",
+  "created_at": "2026-09-11T22:45:00Z",
+  "review_scope": "task",
+  "reviewed_commit": "d4e713cd1e88a9251b71a67d03c863c56d4511e5",
+  "review_package_digest": "08d7820a0689b62e7e3c427d26ed696b5fa2cc1bb8947836e70f5bcd46a29281",
+  "files_reviewed": [
+    "gpu_fuzzy_trader/config.py",
+    "gpu_fuzzy_trader/data/multi_timeframe.py",
+    "gpu_fuzzy_trader/data/onchain_pipeline.py",
+    "gpu_fuzzy_trader/data/splitter.py",
+    "gpu_fuzzy_trader/data/loader.py",
+    "gpu_fuzzy_trader/data/labels.py",
+    "gpu_fuzzy_trader/features/catalog.py",
+    "gpu_fuzzy_trader/features/detector.py",
+    "gpu_fuzzy_trader/features/fuzzy_scaling.py",
+    "gpu_fuzzy_trader/mtf/archives.py",
+    "gpu_fuzzy_trader/output/writer.py",
+    "gpu_fuzzy_trader/phases/phase2_rule_pool.py",
+    "gpu_fuzzy_trader/phases/phase5_oos.py",
+    "gpu_fuzzy_trader/rb_governor.py",
+    "gpu_fuzzy_trader/research_integrity.py",
+    "gpu_fuzzy_trader/run_pipeline.py",
+    "gpu_fuzzy_trader/backtest/df_slim.py",
+    "gpu_fuzzy_trader/backtest/cpu_engine.py",
+    "tests/property/test_output_writer_properties.py",
+    "tests/unit/test_config_additions.py",
+    "tests/unit/test_config_validation.py",
+    "tests/unit/test_data_splitter.py",
+    "tests/unit/test_feature_catalog.py",
+    "tests/unit/test_fuzzy_scaling.py",
+    "tests/unit/test_mtf_pipeline_integration.py",
+    "tests/unit/test_multi_timeframe.py",
+    "tests/unit/test_onchain_feature_contract.py",
+    "tests/unit/test_output_writer.py",
+    "tests/unit/test_phase2_rule_pool.py",
+    "tests/unit/test_phase5_oos.py",
+    "tests/unit/test_research_integrity.py",
+    "tests/unit/test_run_pipeline.py"
+  ],
+  "acceptance": [
+    {
+      "id": "AC-1",
+      "status": "PASS",
+      "evidence": [
+        {
+          "file": "gpu_fuzzy_trader/data/onchain_pipeline.py",
+          "line": 415,
+          "reason": "The source validator permits true null or blank warm-up values but rejects malformed non-empty text, infinity, and out-of-range finite values."
+        },
+        {
+          "file": "gpu_fuzzy_trader/features/fuzzy_scaling.py",
+          "line": 149,
+          "reason": "Runtime validation and bounded scaling use non-null conversion checks; tests cover malformed text and true NaN separately at tests/unit/test_fuzzy_scaling.py:117-130 and :197-209."
+        }
+      ]
+    },
+    {
+      "id": "AC-2",
+      "status": "PASS",
+      "evidence": [
+        {
+          "file": "gpu_fuzzy_trader/features/fuzzy_scaling.py",
+          "line": 186,
+          "reason": "The manifest override path validates registered on-chain columns for malformed values, infinity, missing finite values, and [-1, 1] violations before returning the manifest."
+        },
+        {
+          "file": "gpu_fuzzy_trader/run_pipeline.py",
+          "line": 3227,
+          "reason": "Fresh and cached train/validation frames are range-validated before train-fitted scaling is applied; manifest edge cases are covered at tests/unit/test_fuzzy_scaling.py:133-161."
+        }
+      ]
+    },
+    {
+      "id": "AC-3",
+      "status": "PASS",
+      "evidence": [
+        {
+          "file": "gpu_fuzzy_trader/rb_governor.py",
+          "line": 541,
+          "reason": "RB output stamps the current digest and reapplies it after extra metadata is merged, including strategy_contract and provenance copies at lines 564-570."
+        },
+        {
+          "file": "gpu_fuzzy_trader/output/writer.py",
+          "line": 395,
+          "reason": "Output_Writer.write reconciles the current digest into recognized nested contracts before writing; stale top-level and nested copies are tested at tests/unit/test_output_writer.py:705-754."
+        },
+        {
+          "file": "gpu_fuzzy_trader/phases/phase5_oos.py",
+          "line": 814,
+          "reason": "Phase 5 requires at least one digest and rejects every present copy that differs from the current digest."
+        }
+      ]
+    },
+    {
+      "id": "AC-4",
+      "status": "FAIL",
+      "evidence": [
+        {
+          "file": "gpu_fuzzy_trader/run_pipeline.py",
+          "line": 3925,
+          "reason": "No-df recovery loads the source through Data_Loader with drop_tail=False. A valid 30-feature raw tape therefore retains terminal rows whose forward labels are NaN; those rows are passed to Phase 2 at lines 4530-4531."
+        },
+        {
+          "file": "gpu_fuzzy_trader/backtest/cpu_engine.py",
+          "line": 720,
+          "reason": "CPUBacktestEngine rejects non-finite label_open_next. The Phase 2 wrapper catches that initialization failure and returns an empty pool at run_pipeline.py:3603-3626, after which run_phase2 deletes the LWC archive at :4439-4442 instead of rebuilding it."
+        }
+      ]
+    },
+    {
+      "id": "AC-5",
+      "status": "PASS",
+      "evidence": [
+        {
+          "file": "gpu_fuzzy_trader/mtf/archives.py",
+          "line": 391,
+          "reason": "load_mtf_archive_payload rejects a JSON list before optional schema validation, so legacy list-shaped archives cannot be loaded."
+        },
+        {
+          "file": "tests/unit/test_mtf_pipeline_integration.py",
+          "line": 319,
+          "reason": "Both MTF archive loading APIs are exercised against a legacy list payload and expected to fail closed."
+        }
+      ]
+    },
+    {
+      "id": "AC-6",
+      "status": "PASS",
+      "evidence": [
+        {
+          "file": "tests/unit/test_mtf_pipeline_integration.py",
+          "line": 293,
+          "reason": "Tests cover missing feature digest, list payloads, stale archive rebuilds, missing archive_hash rebuild, and no-df LWC recovery."
+        },
+        {
+          "file": "tests/unit/test_mtf_pipeline_integration.py",
+          "line": 1213,
+          "reason": "A 30-feature same-shape pool is tested for missing and wrong digest sidecars through direct load_pool entry points."
+        }
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "category": "correctness",
+      "status": "FAIL",
+      "evidence": "Two fail-closed contract paths remain incomplete: skip_if_valid calls load_pool without feature_infos, and no-df LWC recovery passes an untrimmed full source tape into a label-validating Phase 2 engine."
+    },
+    {
+      "category": "test_quality",
+      "status": "FAIL",
+      "evidence": "The requested tests exist, but the no-df recovery test replaces the source loader with an all-finite synthetic frame and stubs evolution; it cannot expose the real drop_tail=False label failure. No test checks skip_if_valid with a missing or mismatched feature digest sidecar."
+    },
+    {
+      "category": "impact",
+      "status": "FAIL",
+      "evidence": "The pool skip path is called by Pipeline_Orchestrator._load_phase2_outputs and _run_phase2 at run_pipeline.py:3027-3066 and :3538-3573. Graph tracing found 33 inbound skip_if_valid callers and the change impact contains 278 reachable nodes across Phase 2, RB, MTF, data, and validation modules."
+    },
+    {
+      "category": "code_quality",
+      "status": "FAIL",
+      "evidence": "Pool digest stamping failures are swallowed at phase2_rule_pool.py:4021-4026 and :4472-4477, while the production resume path does not enforce the sidecar. This creates an internally inconsistent freshness contract."
+    },
+    {
+      "category": "scope",
+      "status": "PASS",
+      "evidence": "The production changes and tests are within the declared unit-3 runtime-contract and lineage scope; no unrelated production file change was found."
+    },
+    {
+      "category": "verification",
+      "status": "CANNOT_VERIFY",
+      "evidence": "The review package reports deterministic verification PASSED and 6/6, and git diff --check passed. Independent pytest rerun was not possible because the shell permission policy denied the required .venv pytest command."
+    },
+    {
+      "category": "isolation",
+      "status": "PASS",
+      "evidence": "git status --short showed only untracked .opencode/ artifacts; no workspace changes outside .opencode were present."
+    }
+  ],
+  "adversarial_checks": [
+    {
+      "risk": "A non-null on-chain value is malformed text, infinity, or outside [-1, 1] under a scale manifest.",
+      "result": "PASS",
+      "evidence": "onchain_pipeline.py:420-446 and fuzzy_scaling.py:194-219 reject these cases, while true NaN warm-up remains allowed in the bounded apply path at fuzzy_scaling.py:266-287."
+    },
+    {
+      "risk": "A stale LWC archive has a current caller df and an invalid feature digest or archive hash.",
+      "result": "PASS",
+      "evidence": "run_mtf_composition catches archive loader failure, deletes the stale file, and invokes run_phase2 at run_pipeline.py:4508-4531; archive_hash is now required at mtf/archives.py:233-245."
+    },
+    {
+      "risk": "A stale LWC archive is rebuilt without caller df from a real full raw tape.",
+      "result": "FAIL",
+      "evidence": "The source loader uses drop_tail=False at run_pipeline.py:3925-3929; terminal NaN labels are rejected by CPUBacktestEngine at cpu_engine.py:720-727, then Phase 2 returns an empty result and removes the stale LWC file."
+    },
+    {
+      "risk": "A schema-valid pool has a missing or mismatched feature digest sidecar but a matching resume identity sidecar.",
+      "result": "FAIL",
+      "evidence": "skip_if_valid calls load_pool(direction) without feature_infos at phase2_rule_pool.py:4559, and _validate_pool_feature_digest returns early when feature_infos is None or the pool is empty at :232-233."
+    },
+    {
+      "risk": "A legacy list-shaped MTF archive is loaded.",
+      "result": "PASS",
+      "evidence": "load_mtf_archive_payload rejects lists unconditionally at mtf/archives.py:391-395."
+    },
+    {
+      "risk": "RB or writer receives stale top-level and nested digest copies.",
+      "result": "PASS",
+      "evidence": "RB restamps copies at rb_governor.py:564-570, Output_Writer reconciles them at writer.py:395-408, and Phase 5 rejects stale present copies at phase5_oos.py:817-846."
+    }
+  ],
+  "findings": [
+    {
+      "id": "F-AC3-POOL-DIGEST-BYPASS",
+      "title": "Production pool resume skips feature-digest validation",
+      "file": "gpu_fuzzy_trader/phases/phase2_rule_pool.py",
+      "line": 4559,
+      "severity": "HIGH",
+      "blocking": true,
+      "description": "skip_if_valid calls load_pool without feature_infos, so the feature-contract sidecar is not checked. The pipeline callers at run_pipeline.py:3063 and :3539 can therefore accept an inconsistent pool when its identity sidecar still matches, including a missing or mismatched digest sidecar. The digest writer itself only logs failures at phase2_rule_pool.py:4021-4026 and :4472-4477. Pass feature_infos through the skip path or validate the sidecar there, and add missing/mismatched skip tests."
+    },
+    {
+      "id": "F-AC4-LWC-RAW-FALLBACK",
+      "title": "No-df LWC recovery cannot rebuild from a real full source tape",
+      "file": "gpu_fuzzy_trader/run_pipeline.py",
+      "line": 3925,
+      "severity": "HIGH",
+      "blocking": true,
+      "description": "_load_mtf_source_tape deliberately requests drop_tail=False. Once the source has the required 30 features, the terminal TAIL_DROP_ROWS rows still have NaN forward labels (data/labels.py:32-33; data/loader.py:526-541), but CPUBacktestEngine rejects them at backtest/cpu_engine.py:720-727. _run_phase2 catches the failure as an empty pool and run_phase2 removes the stale LWC archive, so recovery deletes the old artifact without producing a rebuilt pool. Trim/prepare the source for Phase 2 while preserving any full-tape use for higher-timeframe discovery."
+    },
+    {
+      "id": "F-AC6-RECOVERY-TEST-GAP",
+      "title": "Recovery tests do not cover the real source-label boundary",
+      "file": "tests/unit/test_mtf_pipeline_integration.py",
+      "line": 1063,
+      "severity": "MEDIUM",
+      "blocking": false,
+      "description": "The no-df recovery test injects _make_30col_training_frame, whose label columns are finite for every row, and stubs evolution. It cannot detect the actual Data_Loader drop_tail=False plus CPUBacktestEngine failure. The pool tests likewise exercise load_pool(feature_infos=...) but not skip_if_valid with a missing or wrong digest sidecar. Add integration coverage for both production paths."
+    }
+  ],
+  "verdict": "REQUEST_CHANGES",
+  "impact": {
+    "pass": false,
+    "risk": "HIGH"
+  },
+  "notes": "Independent adversarial task review. Implementer claims and sealed verification were treated as unverified. No production code was edited. Fresh pre-impact is required before the next fix-loop implementer."
+}

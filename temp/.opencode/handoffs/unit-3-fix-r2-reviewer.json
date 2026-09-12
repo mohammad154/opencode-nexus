@@ -1,0 +1,330 @@
+{
+  "schema_version": "1.2",
+  "run_id": "santiment-onchain-20260910-r2",
+  "unit_or_task": "unit-3",
+  "task_id": "unit-3-fix-r2",
+  "agent": "reviewer",
+  "base_commit": "856f501c6ad1c74b6a0da0c7bd0af8fe1448659b",
+  "created_at": "2026-09-11T14:32:00Z",
+  "review_scope": "task",
+  "reviewed_commit": "b5b53f8124d18d83727d0369f94705769c7790f2",
+  "review_package_digest": "03b3f68854c633d57bd46c7f29aa96d25b7425111331106d264c319d3b149c95",
+  "files_reviewed": [
+    "gpu_fuzzy_trader/config.py",
+    "gpu_fuzzy_trader/data/multi_timeframe.py",
+    "gpu_fuzzy_trader/data/splitter.py",
+    "gpu_fuzzy_trader/features/catalog.py",
+    "gpu_fuzzy_trader/features/fuzzy_scaling.py",
+    "gpu_fuzzy_trader/mtf/archives.py",
+    "gpu_fuzzy_trader/phases/phase2_rule_pool.py",
+    "gpu_fuzzy_trader/phases/phase5_oos.py",
+    "gpu_fuzzy_trader/research_integrity.py",
+    "gpu_fuzzy_trader/run_pipeline.py",
+    "tests/unit/test_config_additions.py",
+    "tests/unit/test_config_validation.py",
+    "tests/unit/test_data_splitter.py",
+    "tests/unit/test_feature_catalog.py",
+    "tests/unit/test_fuzzy_scaling.py",
+    "tests/unit/test_mtf_pipeline_integration.py",
+    "tests/unit/test_multi_timeframe.py",
+    "tests/unit/test_onchain_feature_contract.py",
+    "tests/unit/test_phase2_rule_pool.py",
+    "tests/unit/test_phase5_oos.py",
+    "tests/unit/test_research_integrity.py",
+    "tests/unit/test_run_pipeline.py",
+    "gpu_fuzzy_trader/data/onchain_registry.py",
+    "gpu_fuzzy_trader/data/loader.py",
+    "gpu_fuzzy_trader/features/detector.py",
+    "gpu_fuzzy_trader/rb_governor.py",
+    "gpu_fuzzy_trader/output/writer.py"
+  ],
+  "acceptance": [
+    {
+      "id": "AC-1",
+      "status": "FAIL",
+      "evidence": [
+        {
+          "file": "gpu_fuzzy_trader/run_pipeline.py",
+          "line": 3218,
+          "reason": "The fresh split path validates all split frames before applying scaling at lines 3218-3222; the cached path does the same at lines 3145-3149. The bounded branch rejects infinities and out-of-range numeric values and leaves NaN unchanged at fuzzy_scaling.py:238-254, and the default fit rejects an all-infinite on-chain column at fuzzy_scaling.py:188-205."
+        },
+        {
+          "file": "gpu_fuzzy_trader/features/fuzzy_scaling.py",
+          "line": 149,
+          "reason": "The validator uses pd.to_numeric(errors='coerce'), so a non-null value such as 'bad' becomes NaN and can pass the finite/range checks at lines 149-161. fit_fuzzy_feature_scaling skips non-numeric on-chain columns before its contract branch at lines 180-184. The loader's raw validation only covers OHLCV at data/loader.py:364-371."
+        },
+        {
+          "file": "gpu_fuzzy_trader/features/fuzzy_scaling.py",
+          "line": 173,
+          "reason": "A configured FEATURE_SCALE_MANIFEST returns immediately at lines 173-175, before the all-infinite and range checks. Therefore fit_fuzzy_feature_scaling(train_df) does not always fail closed for an all-infinite on-chain training column."
+        },
+        {
+          "file": "tests/unit/test_fuzzy_scaling.py",
+          "line": 102,
+          "reason": "The tests cover numeric out-of-range, infinity, and true NaN cases, but not malformed non-null text or the FEATURE_SCALE_MANIFEST early-return path."
+        }
+      ]
+    },
+    {
+      "id": "AC-2",
+      "status": "PASS",
+      "evidence": [
+        {
+          "file": "gpu_fuzzy_trader/features/catalog.py",
+          "line": 81,
+          "reason": "supplied_ff calls candidate_rule_feature_columns and does not call _remove_low_dispersion; it asserts the exact ordered allowlist and exact final count at lines 81-103. A constant and 98%-NaN required feature therefore remains in the catalog."
+        },
+        {
+          "file": "tests/unit/test_feature_catalog.py",
+          "line": 103,
+          "reason": "The production build_rule_feature_specs path is tested with a constant feature and a 98%-NaN feature, and asserts all 30 ordered names at lines 103-124."
+        }
+      ]
+    },
+    {
+      "id": "AC-3",
+      "status": "FAIL",
+      "evidence": [
+        {
+          "file": "gpu_fuzzy_trader/data/splitter.py",
+          "line": 389,
+          "reason": "Split-cache loading now requires a present, equal feature_contract_digest at lines 389-398."
+        },
+        {
+          "file": "gpu_fuzzy_trader/mtf/archives.py",
+          "line": 387,
+          "reason": "Structured dict MTF payloads validate the archive digest at lines 387-400, and save_mtf_rule_archive writes it at lines 296-317. However, load_mtf_rule_archive still returns a JSON list without any digest check at lines 367-372."
+        },
+        {
+          "file": "gpu_fuzzy_trader/run_pipeline.py",
+          "line": 4416,
+          "reason": "HWC and MWC archive failures trigger rebuilds at lines 4416-4446. A stale LWC archive is instead swallowed and left unrebuilt at lines 4465-4484; run_phase loads that LWC archive outside this recovery block at lines 1785-1793."
+        },
+        {
+          "file": "gpu_fuzzy_trader/phases/phase2_rule_pool.py",
+          "line": 2792,
+          "reason": "The persistent Phase 2 archive validator requires the current digest at lines 2792-2803, and save_archive writes the current digest at lines 4165-4171."
+        },
+        {
+          "file": "gpu_fuzzy_trader/phases/phase5_oos.py",
+          "line": 814,
+          "reason": "The strategy loader rejects when no recognized digest equals the current value at lines 814-828, but the normal RB writer's _strategy has no digest at rb_governor.py:531-562 and its accepted output is written directly at rb_governor.py:5135-5175. The generated_lwc/non-MTF path therefore writes an accepted strategy that Phase 5 rejects."
+        },
+        {
+          "file": "tests/unit/test_mtf_pipeline_integration.py",
+          "line": 264,
+          "reason": "The MTF test only changes the current digest and tests a structured dict archive at lines 264-290; it does not test a missing digest, the composition rebuild, or the legacy list bypass."
+        }
+      ]
+    },
+    {
+      "id": "AC-4",
+      "status": "PASS",
+      "evidence": [
+        {
+          "file": "gpu_fuzzy_trader/data/onchain_registry.py",
+          "line": 18,
+          "reason": "OnchainMetricSpec defines source_column, output_feature, source_cadence, target_cadence, aggregation, raw_transform, scale_family, release_delay_minutes, scale_window_observations, min_periods, and allow_funding_gap at lines 18-30."
+        },
+        {
+          "file": "gpu_fuzzy_trader/research_integrity.py",
+          "line": 101,
+          "reason": "feature_contract_digest serializes the complete dataclass with dataclasses.asdict, plus the ordered allowlist, mode, registry version, manifest contract digest, and scaling_manifest at lines 101-126."
+        },
+        {
+          "file": "tests/unit/test_research_integrity.py",
+          "line": 122,
+          "reason": "The tests change aggregation and source_cadence and assert digest changes at lines 122-142, and change the scaling manifest at lines 145-149."
+        }
+      ]
+    },
+    {
+      "id": "AC-5",
+      "status": "PASS",
+      "evidence": [
+        {
+          "file": "gpu_fuzzy_trader/research_integrity.py",
+          "line": 187,
+          "reason": "ExperimentLedger.append copies the caller record, sets recorded_at, then assigns feature_contract_digest last at lines 187-193."
+        },
+        {
+          "file": "tests/unit/test_research_integrity.py",
+          "line": 152,
+          "reason": "The reserved-key test passes a fabricated digest and verifies both the returned and persisted values use the computed digest at lines 152-163."
+        }
+      ]
+    },
+    {
+      "id": "AC-SUPPLEMENTAL-CONFIRMATIONS",
+      "status": "PASS",
+      "evidence": [
+        {
+          "file": "gpu_fuzzy_trader/config.py",
+          "line": 245,
+          "reason": "The 18 legacy names plus the 12 registry names form the ordered 30-feature allowlist at lines 245-269, with validation at lines 2711-2722."
+        },
+        {
+          "file": "gpu_fuzzy_trader/run_pipeline.py",
+          "line": 236,
+          "reason": "The MTF runtime merge retains only allowlisted ff_* base columns and the intended MTF/lwc runtime columns at lines 236-250."
+        },
+        {
+          "file": "gpu_fuzzy_trader/data/multi_timeframe.py",
+          "line": 250,
+          "reason": "Only rsi_14_midline is assigned; the duplicate rsi_14 alias is absent at lines 250-253."
+        },
+        {
+          "file": "gpu_fuzzy_trader/research_integrity.py",
+          "line": 129,
+          "reason": "Dataset manifests record feature_contract_digest at lines 129-151, and the config/allowlist tests remain in the changed test set."
+        },
+        {
+          "file": ".opencode/reviews/santiment-onchain-20260910-r2-unit-3-task-review-package.md",
+          "line": 274,
+          "reason": "The tracked BASE..HEAD package lists the 22 requested files and no unit-1 or unit-2 implementation file. Untracked scratch is not used as a scope finding."
+        }
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "category": "correctness",
+      "status": "FAIL",
+      "evidence": "The numeric range order, supplied catalog branch, registry serialization, and ledger ordering are correct. The supported scale-manifest path and malformed-value path can bypass the bounded contract, and normal non-MTF RB outputs lack the digest that the new Phase 5 loader requires (gpu_fuzzy_trader/features/fuzzy_scaling.py:149-175; gpu_fuzzy_trader/phases/phase5_oos.py:814-828; gpu_fuzzy_trader/rb_governor.py:531-562,5135-5175)."
+    },
+    {
+      "category": "test_quality",
+      "status": "FAIL",
+      "evidence": "The sealed tests pass, but the new tests mostly construct valid digest-bearing fixtures. They do not exercise the normal RB writer, malformed on-chain values, the scale-manifest override, missing MTF/Phase 2/RB digests, MTF composition rebuild, or list-shaped MTF archives (tests/unit/test_mtf_pipeline_integration.py:264-290; tests/unit/test_phase5_oos.py:52-72,475-489; tests/unit/test_phase2_rule_pool.py:1174-1187)."
+    },
+    {
+      "category": "impact",
+      "status": "FAIL",
+      "evidence": "The transitive impact reaches the unchanged rb_governor and output-writer contracts as well as Phase 5. The changed loader now rejects normal RB artifacts that those contracts still emit without a feature digest (gpu_fuzzy_trader/run_pipeline.py:3733-3746; gpu_fuzzy_trader/rb_governor.py:531-562,5135-5175; gpu_fuzzy_trader/output/writer.py:371-390)."
+    },
+    {
+      "category": "code_quality",
+      "status": "FAIL",
+      "evidence": "Digest handling is not uniform: HWC/MWC rebuild, LWC silently empties, structured MTF payloads validate, list payloads bypass validation, and Phase 5 chooses the first truthy digest among several copies rather than enforcing one consistent artifact field (gpu_fuzzy_trader/run_pipeline.py:4416-4484; gpu_fuzzy_trader/mtf/archives.py:367-400; gpu_fuzzy_trader/phases/phase5_oos.py:816-828)."
+    },
+    {
+      "category": "scope",
+      "status": "PASS",
+      "evidence": "git diff BASE..HEAD contains exactly the 22 tracked package files listed by the review package. Unit-1 and unit-2 implementation modules are absent; untracked scratch is treated as low non-blocking hygiene."
+    },
+    {
+      "category": "verification",
+      "status": "PASS",
+      "evidence": "The deterministic review package reports the sealed verification gate PASSED with all listed related tests passing, and git diff --check is clean. This does not cover the missing adversarial paths above."
+    }
+  ],
+  "adversarial_checks": [
+    {
+      "risk": "A validation row contains 2.5 while training values are valid.",
+      "result": "PASS",
+      "evidence": "Fresh and cached _load_and_split_data paths validate raw split frames before apply_fuzzy_feature_scaling at run_pipeline.py:3145-3149 and 3218-3222."
+    },
+    {
+      "risk": "A supplied on-chain cell contains non-null malformed text.",
+      "result": "FAIL",
+      "evidence": "pd.to_numeric(errors='coerce') converts the malformed value to NaN, and the validator permits it at fuzzy_scaling.py:149-161; object-typed columns are skipped by fit at lines 180-184."
+    },
+    {
+      "risk": "FEATURE_SCALE_MANIFEST is configured and the training on-chain column is all infinite.",
+      "result": "FAIL",
+      "evidence": "fit_fuzzy_feature_scaling returns the override before checking values at fuzzy_scaling.py:173-175."
+    },
+    {
+      "risk": "A required supplied feature is constant or 98% NaN.",
+      "result": "PASS",
+      "evidence": "The supplied_ff branch bypasses dispersion filtering and asserts the ordered 30 at catalog.py:81-103; the production-path test is at test_feature_catalog.py:103-124."
+    },
+    {
+      "risk": "A split cache has a missing or changed feature digest.",
+      "result": "PASS",
+      "evidence": "load_cached_split_if_fresh returns None for a missing or unequal digest at splitter.py:389-398."
+    },
+    {
+      "risk": "A stale HWC or MWC structured archive is encountered during MTF composition.",
+      "result": "PASS",
+      "evidence": "The load exceptions call run_phase1_hwc or run_phase1_mwc to rebuild at run_pipeline.py:4416-4446, and the rebuilt saver stamps the current digest."
+    },
+    {
+      "risk": "A stale LWC archive or a list-shaped legacy archive is encountered.",
+      "result": "FAIL",
+      "evidence": "The LWC exception is swallowed without rebuild at run_pipeline.py:4465-4484, while a list payload bypasses the digest gate at mtf/archives.py:367-372,387-400."
+    },
+    {
+      "risk": "The supported non-MTF/generated_lwc path writes an accepted RB strategy.",
+      "result": "FAIL",
+      "evidence": "rb_governor._strategy emits no feature digest at rb_governor.py:531-562 and writes the accepted strategy at lines 5173-5176; the new Phase 5 loader rejects it at phase5_oos.py:814-828."
+    },
+    {
+      "risk": "A caller supplies a fabricated ledger digest.",
+      "result": "PASS",
+      "evidence": "ExperimentLedger.append assigns the computed value after the caller record at research_integrity.py:187-193, covered by test_research_integrity.py:152-163."
+    }
+  ],
+  "findings": [
+    {
+      "id": "F-AC1-NONNUMERIC-ONCHAIN-COERCION",
+      "title": "Malformed supplied on-chain values are coerced to NaN",
+      "file": "gpu_fuzzy_trader/features/fuzzy_scaling.py",
+      "line": 149,
+      "severity": "HIGH",
+      "blocking": true,
+      "description": "validate_onchain_feature_ranges and bounded_continuous apply use pd.to_numeric(errors='coerce'). A non-null malformed value such as 'bad' is converted to NaN and accepted as warm-up data. fit_fuzzy_feature_scaling also skips object-typed on-chain columns before validation. This violates fail-closed raw supplied-frame validation while true NaN should remain allowed. Reject conversion failures separately from actual nulls."
+    },
+    {
+      "id": "F-AC1-SCALE-MANIFEST-BYPASS",
+      "title": "The explicit scaling-manifest path bypasses all-inf validation",
+      "file": "gpu_fuzzy_trader/features/fuzzy_scaling.py",
+      "line": 173,
+      "severity": "HIGH",
+      "blocking": true,
+      "description": "fit_fuzzy_feature_scaling returns FEATURE_SCALE_MANIFEST immediately at lines 173-175, so an all-infinite on-chain training column does not fail in this supported path. Validate the bounded inputs even when the scaling manifest is supplied."
+    },
+    {
+      "id": "F-AC3-RB-OUTPUT-DIGEST-MISSING",
+      "title": "Normal RB outputs do not emit the digest required by Phase 5",
+      "file": "gpu_fuzzy_trader/phases/phase5_oos.py",
+      "line": 814,
+      "severity": "HIGH",
+      "blocking": true,
+      "description": "The new loader rejects an RB file with no recognized current digest at lines 814-828. The normal rb_governor _strategy output has no feature_contract_digest at rb_governor.py:531-562 and its accepted strategy is written directly at rb_governor.py:5135-5175. run_pipeline delegates the non-MTF/generated_lwc path to that writer at run_pipeline.py:3733-3746. Such a newly generated accepted strategy is therefore skipped by Phase 5. Stamp the digest at the normal RB output boundary and preserve it through any writer."
+    },
+    {
+      "id": "F-AC3-MTF-LWC-NOT-REBUILT",
+      "title": "Stale LWC archive handling does not rebuild",
+      "file": "gpu_fuzzy_trader/run_pipeline.py",
+      "line": 4465,
+      "severity": "HIGH",
+      "blocking": true,
+      "description": "When lwc_rules is None, a digest mismatch is caught at lines 4465-4484, but the stale archive is only ignored and no replacement discovery is run. In run_phase, the LWC load occurs before run_mtf_composition at lines 1785-1793 and the mismatch escapes. The requested MTF composition rebuild behavior is therefore incomplete for LWC."
+    },
+    {
+      "id": "F-AC3-MTF-LIST-DIGEST-BYPASS",
+      "title": "List-shaped MTF archives bypass digest enforcement",
+      "file": "gpu_fuzzy_trader/mtf/archives.py",
+      "line": 367,
+      "severity": "HIGH",
+      "blocking": true,
+      "description": "load_mtf_rule_archive accepts a JSON list at lines 367-372, while load_mtf_archive_payload performs digest validation only for dict payloads at lines 387-400. A legacy list archive has no feature_contract_digest but is still reusable, contrary to the missing-digest rejection requirement."
+    },
+    {
+      "id": "F-TEST-MISSING-INVALIDATION-PATHS",
+      "title": "Required missing-digest and rebuild paths are not tested",
+      "file": "tests/unit/test_mtf_pipeline_integration.py",
+      "line": 264,
+      "severity": "MEDIUM",
+      "blocking": true,
+      "description": "The MTF test covers only a structured archive whose current digest is later changed. The Phase 2 and RB tests likewise cover mismatch only, and there is no composition rebuild test or normal RB-writer integration test. Add missing-digest tests and exercise each production artifact path, including list rejection and LWC/HWC/MWC recovery."
+    }
+  ],
+  "verdict": "REQUEST_CHANGES",
+  "impact": {
+    "pass": false,
+    "risk": "HIGH"
+  },
+  "notes": "Independent task review of the supplied package digest. Numeric validation order, the exact supplied catalog, full registry serialization, ledger protection, prior 30-feature/MTF/RSI items, and the tracked 22-file scope are retained. The verdict is driven by the raw-value bypasses, missing normal RB output digest, incomplete MTF invalidation, and untested required paths. Untracked scratch was treated as low non-blocking hygiene."
+}

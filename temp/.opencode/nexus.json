@@ -1,0 +1,15 @@
+{
+  "schema_version": "1.0",
+  "package": "@mohammad154/opencode-nexus",
+  "version": "4.3.0",
+  "commands": {
+    "run": "nexus run",
+    "blast": "nexus blast",
+    "classify": "nexus classify",
+    "estimate": "nexus estimate",
+    "plan_check": "nexus plan-check",
+    "project_init": "nexus project-init"
+  },
+  "pkg_root": "/usr/local/lib/node_modules/@mohammad154/opencode-nexus",
+  "initialized_at": "2026-09-10T11:57:05.501Z"
+}

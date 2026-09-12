@@ -68,16 +68,16 @@ nexus run transition --to PLANNED --plan-check --json '{"planning_mode":"standar
 nexus impact --json --targets <files>
 nexus run transition --to TASK_IMPACT_READY --json '{"planned_targets":["..."]}'
 nexus run transition --to IMPLEMENTING --branch <b> --acceptance 'c1|c2'
-nexus run transition --to VERIFYING --json '{"implementer_handoff":{...}}'
+nexus run transition --to VERIFYING --implementer-handoff-file .opencode/handoffs/<id>-implementer.json
 nexus verify                         # persists VERIFYING/PASSED; does not dispatch reviewer
 nexus run transition --to REVIEWING
 # multi-unit last task APPROVED → whole-branch review; single-unit runs may use
 # the explicit digest-bound task-review reuse path when all checks pass:
-nexus run transition --to FINAL_REVIEWING --json '{"review_handoff":{...},"review_package":{...}}'
-nexus run transition --to FINAL_VERIFYING --json '{"review_handoff":{...},"review_package":{...}}'
+nexus run transition --to FINAL_REVIEWING --review-handoff-file .opencode/handoffs/<id>-reviewer.json --json '{"review_package":{...}}'
+nexus run transition --to FINAL_VERIFYING --review-handoff-file .opencode/handoffs/<id>-reviewer.json --json '{"review_package":{...}}'
 nexus verify                         # persists FINAL_VERIFYING/PASSED
 # OR REQUEST_CHANGES / next task:
-nexus run transition --to TASK_IMPACT_READY --json '{"review_handoff":{...},"impact":{...}}'
+nexus run transition --to TASK_IMPACT_READY --review-handoff-file .opencode/handoffs/<id>-reviewer.json --json '{"impact":{...}}'
 nexus run transition --to COMPLETED
 nexus run inspect --run-id <id>
 ```
@@ -117,6 +117,8 @@ reason; a failed check must not be hidden in the transition evidence.
 ## Dispatch rules
 
 - Follow the injected **Nexus Next Action** / `nexus next` output. When it lists `REQUIRED_DISPATCH`, Task-dispatch that agent immediately.
+- Pass handoffs by file (`--implementer-handoff-file` or `--review-handoff-file`); never construct a reduced handoff object. The complete artifact carries acceptance and evidence that state gates require.
+- A unit has at most three remediation attempts. On `FIX_LOOP_EXHAUSTED` or `AGENT_CALL_BUDGET_EXCEEDED`, do not dispatch another agent: transition to `BLOCKED` with the reported code, then reconcile/re-plan.
 - During execution dispatch only `implementer` and `reviewer`; `plan-advisor` is allowed only in the planning gate above.
 - `VERIFYING` and `FINAL_VERIFYING` are deterministic measurement states, never a verifier subagent. Enter them quickly, then run `nexus verify`.
 - Dispatch the reviewer only after `nexus next` reports `transition_to_reviewing`. If verification is `RUNNING` or `TIMED_OUT`, run `nexus verify --resume`; if `FAILED`, inspect/repair it without redispatching implementer or reviewer automatically.

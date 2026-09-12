@@ -10,6 +10,10 @@ export const MANDATORY_CHECK_CATEGORIES = [
   "impact",
 ];
 
+// A review loop costs an implementer and a reviewer call. Keep the ceiling
+// small and deterministic so one hard unit cannot consume the whole run.
+export const DEFAULT_MAX_FIX_LOOP_ATTEMPTS = 3;
+
 export function isLikelyProductionPath(file) {
   const f = String(file || "").replace(/\\/g, "/");
   if (!f || f.startsWith(".opencode/")) return false;
@@ -237,22 +241,27 @@ export function isApprovalAdmissible(handoff, state = {}, opts = {}) {
 export function fixLoopDecision({
   findings = [],
   attempt = 0,
-  max_attempts = 3,
+  max_attempts = DEFAULT_MAX_FIX_LOOP_ATTEMPTS,
 } = {}) {
   const openHigh = unresolvedHighFindings(findings);
-  if (openHigh.length === 0) {
-    return { action: "continue", open_high: [] };
-  }
-  if (attempt >= max_attempts) {
+  const currentAttempt = Math.max(0, Math.floor(Number(attempt) || 0));
+  const maxAttempts = Math.max(
+    0,
+    Math.floor(Number(max_attempts) || DEFAULT_MAX_FIX_LOOP_ATTEMPTS),
+  );
+  if (currentAttempt >= maxAttempts) {
     return {
       action: "block",
-      reason: "fix loop exhausted with unresolved HIGH findings",
+      reason:
+        openHigh.length > 0
+          ? "fix loop exhausted with unresolved blocking findings"
+          : "fix loop exhausted",
       open_high: openHigh,
     };
   }
   return {
     action: "redispatch_implementer",
-    attempt: attempt + 1,
+    attempt: currentAttempt + 1,
     open_high: openHigh,
   };
 }

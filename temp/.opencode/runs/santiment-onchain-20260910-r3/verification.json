@@ -1,0 +1,409 @@
+{
+  "schema_version": "1.0",
+  "run_id": "santiment-onchain-20260910-r3",
+  "phase": "TASK",
+  "status": "PASSED",
+  "worktree_head": "688ffdb36348456a0566fff3628cd0682a129535",
+  "started_at": "2026-09-12T10:34:31.408Z",
+  "completed_at": "2026-09-12T10:37:39.462Z",
+  "configuration_digest": "sha256:0cce53535e0a7a1fb77cfbb9d94588713a878218c930e2f0bcffb1a5e017d20e",
+  "plan_digest": "sha256:7e8baee651a8573ab4c993b774dd182a6ebb3d55def65b4dccd39b7d6bce06be",
+  "plan": {
+    "ecosystem": "node",
+    "steps": [
+      {
+        "id": "test",
+        "command": "npm",
+        "args": [
+          "test"
+        ],
+        "kind": "test"
+      },
+      {
+        "id": "related:tests/property/test_phase2_rule_pool_properties.py",
+        "command": "npm",
+        "args": [
+          "test",
+          "--",
+          "tests/property/test_phase2_rule_pool_properties.py"
+        ],
+        "kind": "targeted-test",
+        "target": "tests/property/test_phase2_rule_pool_properties.py"
+      },
+      {
+        "id": "related:tests/unit/test_phase2_rule_pool.py",
+        "command": "npm",
+        "args": [
+          "test",
+          "--",
+          "tests/unit/test_phase2_rule_pool.py"
+        ],
+        "kind": "targeted-test",
+        "target": "tests/unit/test_phase2_rule_pool.py"
+      },
+      {
+        "id": "related:tests/unit/test_phase2_symbol_modes.py",
+        "command": "npm",
+        "args": [
+          "test",
+          "--",
+          "tests/unit/test_phase2_symbol_modes.py"
+        ],
+        "kind": "targeted-test",
+        "target": "tests/unit/test_phase2_symbol_modes.py"
+      }
+    ],
+    "related_tests": [
+      "tests/property/test_phase2_rule_pool_properties.py",
+      "tests/unit/test_phase2_rule_pool.py",
+      "tests/unit/test_phase2_symbol_modes.py"
+    ],
+    "ignored_targets": []
+  },
+  "post_impact": {
+    "ok": true,
+    "schema_version": "1.0",
+    "provider": "nexus-impact",
+    "graph_provider": "nexus-impact",
+    "base_commit": "0ca1027e95af0af5f96b0094d20b44497d869827",
+    "head_commit": "688ffdb36348456a0566fff3628cd0682a129535",
+    "worktree_head": "688ffdb36348456a0566fff3628cd0682a129535",
+    "changed_files": [
+      {
+        "status": "M",
+        "path": "gpu_fuzzy_trader/phases/phase2_rule_pool.py"
+      },
+      {
+        "status": "M",
+        "path": "tests/unit/test_phase2_symbol_modes.py"
+      }
+    ],
+    "ignored_files": [],
+    "added_lines": 218,
+    "deleted_lines": 48,
+    "changed_symbols": [],
+    "direct_dependents": [],
+    "transitive_dependents": [],
+    "affected_packages": [
+      "."
+    ],
+    "related_tests": [
+      "tests/property/test_phase2_rule_pool_properties.py",
+      "tests/unit/test_phase2_rule_pool.py",
+      "tests/unit/test_phase2_symbol_modes.py"
+    ],
+    "risk": "MEDIUM",
+    "level": "MEDIUM",
+    "computed_risk": "MEDIUM",
+    "risk_signals": [
+      "low_impact_confidence"
+    ],
+    "confidence": 0.6,
+    "verification_mode": "strict",
+    "trusted": false,
+    "analysis_quality": "CONSERVATIVE",
+    "graph_quality": "CONSERVATIVE",
+    "analysis_complete": true,
+    "pre_impact": false,
+    "phase": "post",
+    "graph_freshness": {
+      "valid": true,
+      "current_head": "688ffdb36348456a0566fff3628cd0682a129535"
+    },
+    "uncertainties": [
+      "unsupported_language_coverage"
+    ],
+    "dimensions": {
+      "symbols": 0,
+      "dependents": 0,
+      "tests": 3
+    },
+    "index_stats": {
+      "parsed": 2,
+      "cacheHits": 192,
+      "unsupported": 194,
+      "files": 194,
+      "ignored": 0,
+      "ignored_files": [],
+      "cache_invalidated": false,
+      "cache_invalidation_reason": null,
+      "path_filter_version": "nexus-path-filter-1.0"
+    },
+    "path_filter": {
+      "version": "nexus-path-filter-1.0",
+      "ignored_patterns": [
+        ".git/**",
+        "node_modules/**",
+        ".node_modules/**",
+        ".venv/**",
+        "venv/**",
+        "__pycache__/**",
+        "*.pyc",
+        "*.pyo",
+        "dist/**",
+        "build/**",
+        "coverage/**",
+        ".cache/**",
+        ".tmp/**",
+        ".opencode/**",
+        "graphify-out/**",
+        ".antigravity/**"
+      ],
+      "ignored_files": []
+    },
+    "placeholder_fields": [],
+    "provider_validated": true,
+    "validated_at": "2026-09-12T10:34:31.510Z",
+    "artifact_digest": "sha256:e731e499baf0742978349ffea058d3be45fdf8783d4cb1e298500b20159ea96f"
+  },
+  "tdd_evidence": null,
+  "steps": [
+    {
+      "id": "post-impact",
+      "kind": "impact",
+      "pass": true,
+      "status": "PASSED",
+      "provider_step": false,
+      "worktree_head": "688ffdb36348456a0566fff3628cd0682a129535"
+    },
+    {
+      "id": "test",
+      "command": "npm test",
+      "argv": [
+        "npm",
+        "test"
+      ],
+      "exit_code": 0,
+      "pass": true,
+      "status": "PASSED",
+      "timed_out": false,
+      "timeout_ms": 900000,
+      "duration_ms": 21791,
+      "error_code": null,
+      "signal": null,
+      "stdout_tail": "\n> test\n> PYTEST_LOW_MEMORY=1 .venv/bin/python -m pytest -q tests/unit/test_t4_profile.py tests/unit/test_config_validation.py\n\n.................................                                        [100%]\n33 passed in 18.84s\n",
+      "stderr_tail": "",
+      "provider_step": true
+    },
+    {
+      "id": "related:tests/property/test_phase2_rule_pool_properties.py",
+      "command": "npm test -- tests/property/test_phase2_rule_pool_properties.py",
+      "argv": [
+        "npm",
+        "test",
+        "--",
+        "tests/property/test_phase2_rule_pool_properties.py"
+      ],
+      "exit_code": 0,
+      "pass": true,
+      "status": "PASSED",
+      "timed_out": false,
+      "timeout_ms": 300000,
+      "duration_ms": 46214,
+      "error_code": null,
+      "signal": null,
+      "stdout_tail": "\n> test\n> PYTEST_LOW_MEMORY=1 .venv/bin/python -m pytest -q tests/unit/test_t4_profile.py tests/unit/test_config_validation.py tests/property/test_phase2_rule_pool_properties.py\n\n...................................                                      [100%]\n35 passed in 43.32s\n",
+      "stderr_tail": "",
+      "provider_step": true
+    },
+    {
+      "id": "related:tests/unit/test_phase2_rule_pool.py",
+      "command": "npm test -- tests/unit/test_phase2_rule_pool.py",
+      "argv": [
+        "npm",
+        "test",
+        "--",
+        "tests/unit/test_phase2_rule_pool.py"
+      ],
+      "exit_code": 0,
+      "pass": true,
+      "status": "PASSED",
+      "timed_out": false,
+      "timeout_ms": 300000,
+      "duration_ms": 89468,
+      "error_code": null,
+      "signal": null,
+      "stdout_tail": "\n> test\n> PYTEST_LOW_MEMORY=1 .venv/bin/python -m pytest -q tests/unit/test_t4_profile.py tests/unit/test_config_validation.py tests/unit/test_phase2_rule_pool.py\n\n........................................................................ [ 34%]\n........................................................................ [ 69%]\n................................................................         [100%]\n208 passed in 86.51s (0:01:26)\n",
+      "stderr_tail": "",
+      "provider_step": true
+    },
+    {
+      "id": "related:tests/unit/test_phase2_symbol_modes.py",
+      "command": "npm test -- tests/unit/test_phase2_symbol_modes.py",
+      "argv": [
+        "npm",
+        "test",
+        "--",
+        "tests/unit/test_phase2_symbol_modes.py"
+      ],
+      "exit_code": 0,
+      "pass": true,
+      "status": "PASSED",
+      "timed_out": false,
+      "timeout_ms": 300000,
+      "duration_ms": 30416,
+      "error_code": null,
+      "signal": null,
+      "stdout_tail": "\n> test\n> PYTEST_LOW_MEMORY=1 .venv/bin/python -m pytest -q tests/unit/test_t4_profile.py tests/unit/test_config_validation.py tests/unit/test_phase2_symbol_modes.py\n\n..................................................................       [100%]\n66 passed in 27.69s\n",
+      "stderr_tail": "",
+      "provider_step": true
+    }
+  ],
+  "current_step": 5,
+  "total_steps": 5,
+  "completed_steps": 5,
+  "artifact_path": ".opencode/runs/santiment-onchain-20260910-r3/verification.json",
+  "failure_reason": null,
+  "updated_at": "2026-09-12T10:37:39.462Z",
+  "artifact_digest": "sha256:51822ab7e1343a3136808569a6972488632700f3416fc32c7549eaab0c2cecbf",
+  "provider_verification": {
+    "schema_version": "1.0",
+    "ok": true,
+    "results": [
+      {
+        "id": "test",
+        "command": "npm test",
+        "argv": [
+          "npm",
+          "test"
+        ],
+        "exit_code": 0,
+        "pass": true,
+        "status": "PASSED",
+        "timed_out": false,
+        "timeout_ms": 900000,
+        "duration_ms": 21791,
+        "error_code": null,
+        "signal": null,
+        "stdout_tail": "\n> test\n> PYTEST_LOW_MEMORY=1 .venv/bin/python -m pytest -q tests/unit/test_t4_profile.py tests/unit/test_config_validation.py\n\n.................................                                        [100%]\n33 passed in 18.84s\n",
+        "stderr_tail": ""
+      },
+      {
+        "id": "related:tests/property/test_phase2_rule_pool_properties.py",
+        "command": "npm test -- tests/property/test_phase2_rule_pool_properties.py",
+        "argv": [
+          "npm",
+          "test",
+          "--",
+          "tests/property/test_phase2_rule_pool_properties.py"
+        ],
+        "exit_code": 0,
+        "pass": true,
+        "status": "PASSED",
+        "timed_out": false,
+        "timeout_ms": 300000,
+        "duration_ms": 46214,
+        "error_code": null,
+        "signal": null,
+        "stdout_tail": "\n> test\n> PYTEST_LOW_MEMORY=1 .venv/bin/python -m pytest -q tests/unit/test_t4_profile.py tests/unit/test_config_validation.py tests/property/test_phase2_rule_pool_properties.py\n\n...................................                                      [100%]\n35 passed in 43.32s\n",
+        "stderr_tail": ""
+      },
+      {
+        "id": "related:tests/unit/test_phase2_rule_pool.py",
+        "command": "npm test -- tests/unit/test_phase2_rule_pool.py",
+        "argv": [
+          "npm",
+          "test",
+          "--",
+          "tests/unit/test_phase2_rule_pool.py"
+        ],
+        "exit_code": 0,
+        "pass": true,
+        "status": "PASSED",
+        "timed_out": false,
+        "timeout_ms": 300000,
+        "duration_ms": 89468,
+        "error_code": null,
+        "signal": null,
+        "stdout_tail": "\n> test\n> PYTEST_LOW_MEMORY=1 .venv/bin/python -m pytest -q tests/unit/test_t4_profile.py tests/unit/test_config_validation.py tests/unit/test_phase2_rule_pool.py\n\n........................................................................ [ 34%]\n........................................................................ [ 69%]\n................................................................         [100%]\n208 passed in 86.51s (0:01:26)\n",
+        "stderr_tail": ""
+      },
+      {
+        "id": "related:tests/unit/test_phase2_symbol_modes.py",
+        "command": "npm test -- tests/unit/test_phase2_symbol_modes.py",
+        "argv": [
+          "npm",
+          "test",
+          "--",
+          "tests/unit/test_phase2_symbol_modes.py"
+        ],
+        "exit_code": 0,
+        "pass": true,
+        "status": "PASSED",
+        "timed_out": false,
+        "timeout_ms": 300000,
+        "duration_ms": 30416,
+        "error_code": null,
+        "signal": null,
+        "stdout_tail": "\n> test\n> PYTEST_LOW_MEMORY=1 .venv/bin/python -m pytest -q tests/unit/test_t4_profile.py tests/unit/test_config_validation.py tests/unit/test_phase2_symbol_modes.py\n\n..................................................................       [100%]\n66 passed in 27.69s\n",
+        "stderr_tail": ""
+      }
+    ],
+    "plan": {
+      "ecosystem": "node",
+      "steps": [
+        {
+          "id": "test",
+          "command": "npm",
+          "args": [
+            "test"
+          ],
+          "kind": "test"
+        },
+        {
+          "id": "related:tests/property/test_phase2_rule_pool_properties.py",
+          "command": "npm",
+          "args": [
+            "test",
+            "--",
+            "tests/property/test_phase2_rule_pool_properties.py"
+          ],
+          "kind": "targeted-test",
+          "target": "tests/property/test_phase2_rule_pool_properties.py"
+        },
+        {
+          "id": "related:tests/unit/test_phase2_rule_pool.py",
+          "command": "npm",
+          "args": [
+            "test",
+            "--",
+            "tests/unit/test_phase2_rule_pool.py"
+          ],
+          "kind": "targeted-test",
+          "target": "tests/unit/test_phase2_rule_pool.py"
+        },
+        {
+          "id": "related:tests/unit/test_phase2_symbol_modes.py",
+          "command": "npm",
+          "args": [
+            "test",
+            "--",
+            "tests/unit/test_phase2_symbol_modes.py"
+          ],
+          "kind": "targeted-test",
+          "target": "tests/unit/test_phase2_symbol_modes.py"
+        }
+      ],
+      "related_tests": [
+        "tests/property/test_phase2_rule_pool_properties.py",
+        "tests/unit/test_phase2_rule_pool.py",
+        "tests/unit/test_phase2_symbol_modes.py"
+      ],
+      "ignored_targets": []
+    },
+    "source": "verification-provider",
+    "baseline_comparison": {
+      "ok": true,
+      "new_regressions": [],
+      "pre_existing_failures": [],
+      "fixed": []
+    },
+    "plan_digest": "sha256:7e8baee651a8573ab4c993b774dd182a6ebb3d55def65b4dccd39b7d6bce06be",
+    "configuration_digest": "sha256:0cce53535e0a7a1fb77cfbb9d94588713a878218c930e2f0bcffb1a5e017d20e",
+    "timed_out": false,
+    "worktree_head": "688ffdb36348456a0566fff3628cd0682a129535",
+    "provider_validated": true,
+    "validated_at": "2026-09-12T10:37:39.458Z",
+    "artifact_digest": "sha256:4a5ac3bf89d2be90756c6df5b2e0c6b03a91b2586f40c1f7ba7efe659efe8758"
+  }
+}

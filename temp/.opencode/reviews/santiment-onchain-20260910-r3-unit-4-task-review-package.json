@@ -1,0 +1,28 @@
+{
+  "schema_version": "1.0",
+  "ok": true,
+  "scope": "task",
+  "run_id": "santiment-onchain-20260910-r3",
+  "unit_or_task": "unit-4",
+  "run_base_commit": "f3358e216f83209f3fb3f904a4317c724830a317",
+  "base_commit": "0ca1027e95af0af5f96b0094d20b44497d869827",
+  "head_commit": "688ffdb36348456a0566fff3628cd0682a129535",
+  "path": ".opencode/reviews/santiment-onchain-20260910-r3-unit-4-task-review-package.md",
+  "absolute_path": "/home/danaee/trading_platform/.opencode/reviews/santiment-onchain-20260910-r3-unit-4-task-review-package.md",
+  "meta_path": ".opencode/reviews/santiment-onchain-20260910-r3-unit-4-task-review-package.json",
+  "changed_files": [
+    "gpu_fuzzy_trader/phases/phase2_rule_pool.py",
+    "tests/unit/test_phase2_symbol_modes.py"
+  ],
+  "production_files": [
+    "gpu_fuzzy_trader/phases/phase2_rule_pool.py"
+  ],
+  "acceptance_criteria": [
+    "Invalid mode fails validate_config with PHASE2_SYMBOL_MODE",
+    "Default global preserves current one-generator-per-direction behavior identity schema logs manifests show resolved mode",
+    "Specialist runs each symbol-direction with independent slices island_hyperparams immutable single-symbol provenance multi-symbol fails closed no cross-symbol migration",
+    "Provenance survives Phase2 to RB without rewrite"
+  ],
+  "digest_sha256": "24b452adf916160910c47fba9892003b513f3862893a2d545c64a924972659fe",
+  "generated_at": "2026-09-12T10:37:45.720Z"
+}

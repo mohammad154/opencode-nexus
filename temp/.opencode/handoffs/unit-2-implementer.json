@@ -1,0 +1,70 @@
+{
+  "schema_version": "1.1",
+  "run_id": "santiment-onchain-20260910",
+  "unit_or_task": "unit-2",
+  "agent": "implementer",
+  "base_commit": "604bec312dda9daab013ba7186915747bb3dac96",
+  "created_at": "2026-09-10T17:00:00Z",
+  "status": "DONE",
+  "commit": "5fed2f16b8dadecfc1ab4048a5148a2eeef53ad7",
+  "files_changed": [
+    ".gitignore",
+    "gpu_fuzzy_trader/data/onchain_pipeline.py",
+    "scripts/build_onchain_dataset.py",
+    "tests/unit/test_onchain_dataset_builder.py"
+  ],
+  "tests": {
+    "total": 37,
+    "passed": 37,
+    "failed": 0,
+    "tdd": {
+      "red": "pytest tests/unit/test_onchain_dataset_builder.py failed with ImportError: cannot import name 'enrich_target_frame' from 'gpu_fuzzy_trader.data.onchain_pipeline'",
+      "green": "37 passed in 5.74s across test_onchain_dataset_builder.py and test_onchain_pipeline.py"
+    }
+  },
+  "verification_gates": [
+    {
+      "name": "gate_1_unit_tests",
+      "command": "PYTEST_LOW_MEMORY=1 .venv/bin/python -m pytest tests/unit/test_onchain_dataset_builder.py tests/unit/test_onchain_pipeline.py -q",
+      "pass": true,
+      "output": "37 passed in 5.74s"
+    },
+    {
+      "name": "gate_2_diff_check",
+      "command": "git diff --check",
+      "pass": true,
+      "output": "clean"
+    },
+    {
+      "name": "gate_3_diff_stat_allowed_files",
+      "command": "git diff main...feature/unit-2-onchain-builder --stat",
+      "pass": true,
+      "output": "7 files changed (4 allowed in unit-2 extending unit-1); only in-scope allowed files modified"
+    }
+  ],
+  "drift_check": {
+    "command": "nexus run drift",
+    "drift": "NONE",
+    "commit_distance": 0,
+    "merge_base_changed": false
+  },
+  "impact": {
+    "verified": true,
+    "risk": "MEDIUM",
+    "confidence": 0.1,
+    "dependents": [],
+    "related_tests": [
+      "tests/unit/test_onchain_dataset_builder.py",
+      "tests/unit/test_onchain_pipeline.py"
+    ]
+  },
+  "manifest": {
+    "created_symbols": [
+      "enrich_target_frame",
+      "verify_staged_dataset",
+      "build_onchain_manifest",
+      "scripts.build_onchain_dataset.main",
+      "scripts.build_onchain_dataset.verify_dataset_shape"
+    ]
+  }
+}

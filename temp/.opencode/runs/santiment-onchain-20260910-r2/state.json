@@ -1,0 +1,3557 @@
+{
+  "schema_version": "1.0",
+  "run_id": "santiment-onchain-20260910-r2",
+  "state": "IMPLEMENTING",
+  "workflow": "default",
+  "execution_mode": "delegated",
+  "planning_mode": "deep",
+  "plan_advisor_calls": 1,
+  "plan_advisor": {
+    "schema_version": "1.0",
+    "agent": "plan-advisor",
+    "calls": 1,
+    "read_only": true,
+    "permission_profile": "read-only-bash-allowlist",
+    "plan_verdict": "REVISE",
+    "simpler_approach_available": false,
+    "units": [
+      {
+        "id": "unit-1",
+        "verdict": "MERGE",
+        "action": "MERGE",
+        "with": "Tasks 1-4",
+        "reason": "causal core"
+      },
+      {
+        "id": "unit-2",
+        "verdict": "KEEP",
+        "action": "KEEP",
+        "with": null,
+        "reason": "builder"
+      },
+      {
+        "id": "unit-3",
+        "verdict": "MERGE",
+        "action": "MERGE",
+        "with": "Tasks 6-7",
+        "reason": "runtime"
+      },
+      {
+        "id": "unit-4",
+        "verdict": "KEEP",
+        "action": "KEEP",
+        "with": null,
+        "reason": "symbol modes"
+      },
+      {
+        "id": "unit-5",
+        "verdict": "KEEP",
+        "action": "KEEP",
+        "with": null,
+        "reason": "real data"
+      },
+      {
+        "id": "unit-6",
+        "verdict": "MERGE",
+        "action": "MERGE",
+        "with": "Tasks 9 and 12",
+        "reason": "research"
+      },
+      {
+        "id": "unit-7",
+        "verdict": "MERGE",
+        "action": "MERGE",
+        "with": "Tasks 11 and 13",
+        "reason": "gate"
+      }
+    ],
+    "missing_dependencies": [
+      "contract conflict resolved"
+    ],
+    "missing_edge_cases": [
+      "gaps"
+    ],
+    "risk_misses": [
+      "deep mode"
+    ],
+    "recommended_unit_count": 7
+  },
+  "plan_advisor_handoff": {
+    "schema_version": "1.0",
+    "agent": "plan-advisor",
+    "calls": 1,
+    "read_only": true,
+    "permission_profile": "read-only-bash-allowlist",
+    "plan_verdict": "REVISE",
+    "simpler_approach_available": false,
+    "units": [
+      {
+        "id": "unit-1",
+        "verdict": "MERGE",
+        "action": "MERGE",
+        "with": "Tasks 1-4",
+        "reason": "causal core"
+      },
+      {
+        "id": "unit-2",
+        "verdict": "KEEP",
+        "action": "KEEP",
+        "with": null,
+        "reason": "builder"
+      },
+      {
+        "id": "unit-3",
+        "verdict": "MERGE",
+        "action": "MERGE",
+        "with": "Tasks 6-7",
+        "reason": "runtime"
+      },
+      {
+        "id": "unit-4",
+        "verdict": "KEEP",
+        "action": "KEEP",
+        "with": null,
+        "reason": "symbol modes"
+      },
+      {
+        "id": "unit-5",
+        "verdict": "KEEP",
+        "action": "KEEP",
+        "with": null,
+        "reason": "real data"
+      },
+      {
+        "id": "unit-6",
+        "verdict": "MERGE",
+        "action": "MERGE",
+        "with": "Tasks 9 and 12",
+        "reason": "research"
+      },
+      {
+        "id": "unit-7",
+        "verdict": "MERGE",
+        "action": "MERGE",
+        "with": "Tasks 11 and 13",
+        "reason": "gate"
+      }
+    ],
+    "missing_dependencies": [
+      "contract conflict resolved"
+    ],
+    "missing_edge_cases": [
+      "gaps"
+    ],
+    "risk_misses": [
+      "deep mode"
+    ],
+    "recommended_unit_count": 7
+  },
+  "plan_check": {
+    "ok": true,
+    "plan_check": "WARN",
+    "source": "markdown",
+    "unit_count": 7,
+    "execution_units": [
+      {
+        "id": "unit-1",
+        "title": "Causal on-chain core (slug: onchain-core)",
+        "description": "- `gpu_fuzzy_trader/config.py:237-256` – 18 allowlist to extend later (not in this unit) - `gpu_fuzzy_trader/data/multi_timeframe.py:27-35` – UTC convention to follow - `gpu_fuzzy_trader/features/fuzzy_scaling.py:106-130` – fail-closed range pattern - In: `gpu_fuzzy_trader/data/onchain_registry.py`, `gpu_fuzzy_trader/data/onchain_pipeline.py` (registry, audit, `repair_funding_grid`, `aggregate_metric`, `transform_metric`, `build_symbol_feature_frame`), `tests/unit/test_onchain_registry.py`, `tests/unit/test_onchain_pipeline.py` - Out (do NOT touch): `config.py`, `catalog.py`, `run_pipeline.py`, `multi_timeframe.py` runtime, `scripts/build_onchain_dataset.py`, real `data/*.csv`, RB/ablation. - Related callers (blast): none yet (new module); future consumers unit-2/3. - [ ] Registry has exactly 12 unique `ff_oc_*` with specified aggregation/raw/scale/release/window/min_periods; Funding only `allow_funding_gap=True`; version `1.0.0`. - [ ] Audit rejects duplicate dates, non-finite, missing metrics, unsupported assets, non-Funding gaps with tokens `duplicate`, `non-finite`, `missing source metrics`, `unsupported asset`, `unexpected timestamp gap`. - [ ] Funding 25-row past-only carry passes; >8h fails; no `bfill`/`interpolate`/`fillna(0)` in module. - [ ] Hourly closed-bucket sum/last/mean + `available_at` (bucket end+delay; social 45m; daily D+1 02:00 UTC) pass; future-suffix invariance holds. - [ ] Centered/zero scales are prior-only, per-symbol, bounded [-1,1], warm-up NaN, constant series yields no extremes, suffix-invariant. 1. `PYTEST_LOW_MEMORY=1 .venv/bin/python -m pytest tests/unit/test_onchain_registry.py tests/unit/test_onchain_pipeline.py -q` – expected: all pass. 2. `PYTEST_LOW_MEMORY=1 .venv/bin/python -m pytest tests/unit/test_onchain_registry.py -q` – expected: pass after registry impl. 3. `git diff main...feature/unit-1-onchain-core --stat` – only the 3 in-scope files. - STOP conditions: - STOP if any non-Funding gap, Funding >8h, suffix mutation changes earlier value, daily visible before D+1 02:00, or finite outside [-1,1]. - STOP if base `pytest` on main already fails for these files (run baseline first). - STOP if another branch already created `onchain_registry.py` (check `git log main..HEAD -- gpu_fuzzy_trader/data/onchain_registry.py`). - Implementation sketch: - Step 1: registry dataclass + 12 specs + lookup + inventory tests. - Step 2: strict CSV discovery by 2nd column, asset map Bitcoin/Ethereum, UTC parse, uniqueness/monotonicity, complete (symbol,metric) grid. - Step 3: capped ffill Funding repair with audit dict. - Step 4: left-closed left-labeled 1h resample requiring 4 obs (Funding already gridded), `available_at`=end+delay, daily D+1 02:00. - Step 5: raw fns `signed_log1p`, `log_change`, `log1p`, `pct_change_7d`; rolling prior-only centered (`tanh(clip(z,-5,5)/2.5)`, IQR/1.349) and zero-anchored (1.4826*median|hist|), zero-scale→NaN.",
+        "depends_on": [],
+        "allowed_files": [
+          "gpu_fuzzy_trader/data/onchain_registry.py",
+          "gpu_fuzzy_trader/data/onchain_pipeline.py",
+          "tests/unit/test_onchain_registry.py",
+          "tests/unit/test_onchain_pipeline.py"
+        ],
+        "acceptance_criteria": [
+          "Registry has exactly 12 unique `ff_oc_*` with specified aggregation/raw/scale/release/window/min_periods; Funding only `allow_funding_gap=True`; version `1.0.0`.",
+          "Audit rejects duplicate dates, non-finite, missing metrics, unsupported assets, non-Funding gaps with tokens `duplicate`, `non-finite`, `missing source metrics`, `unsupported asset`, `unexpected timestamp gap`.",
+          "Funding 25-row past-only carry passes; >8h fails; no `bfill`/`interpolate`/`fillna(0)` in module.",
+          "Hourly closed-bucket sum/last/mean + `available_at` (bucket end+delay; social 45m; daily D+1 02:00 UTC) pass; future-suffix invariance holds.",
+          "Centered/zero scales are prior-only, per-symbol, bounded [-1,1], warm-up NaN, constant series yields no extremes, suffix-invariant."
+        ],
+        "verification_gates": [
+          "`PYTEST_LOW_MEMORY=1 .venv/bin/python -m pytest tests/unit/test_onchain_registry.py tests/unit/test_onchain_pipeline.py -q` – expected: all pass.",
+          "`PYTEST_LOW_MEMORY=1 .venv/bin/python -m pytest tests/unit/test_onchain_registry.py -q` – expected: pass after registry impl.",
+          "`git diff main...feature/unit-1-onchain-core --stat` – only the 3 in-scope files."
+        ],
+        "evidence": [],
+        "effort": "L",
+        "confidence": "HIGH",
+        "risk": "HIGH — future leakage or wrong aggregation invalidates all downstream tapes.",
+        "estimated_lines": null,
+        "source_heading": "Causal on-chain core (slug: onchain-core)"
+      },
+      {
+        "id": "unit-2",
+        "title": "Atomic enrichment builder (slug: onchain-builder)",
+        "description": "- `gpu_fuzzy_trader/research_integrity.py:27-33` – `sha256_file` pattern to reuse. - `gpu_fuzzy_trader/run_pipeline.py:254-256` – duplicate-key fail-closed pattern. - In: `gpu_fuzzy_trader/data/onchain_pipeline.py` (enrich, manifest, verify), `scripts/build_onchain_dataset.py`, `tests/unit/test_onchain_dataset_builder.py`, `.gitignore` - Out: config, catalog, MTF, RB, real tape replace (unit-5). - [ ] Backward as-of per symbol (`available_at <= datetime`), not visible before `available_at`; preserves row count/order/keys/OHLCV/18 `ff_*`, adds exactly 12 cols; duplicate keys fail. - [ ] Deterministic manifest with registry_version, source/target/output hashes, feature_names, coverage, funding_gap, build_params; `created_at` outside hashed `contract`; digest excludes wall-clock. - [ ] Staged `*.staged.csv` + re-read verify + manifest write, `os.replace` only with `--replace`; failed verify leaves originals byte-identical. - [ ] `git status --short` never lists extracted sources or staged files. 1. `PYTEST_LOW_MEMORY=1 .venv/bin/python -m pytest tests/unit/test_onchain_dataset_builder.py tests/unit/test_onchain_pipeline.py -q` – expected: pass. 2. `git diff --check` – expected: clean. 3. `git diff main...feature/unit-2-onchain-builder --stat` – only in-scope files. - STOP conditions: - STOP if enrichment changes any original value, adds ≠12 cols, or forward-visible join. - STOP if atomicity test shows original modified on forced verify failure. - STOP if drift: unit-1 files changed unexpectedly. - Implementation sketch: - Step 1: per-symbol sort + `merge_asof(direction=backward)` + order restore + original compare. - Step 2: manifest builder + deterministic JSON + digests. - Step 3: CLI staging, verify, conditional replace, `--verify-only` shape check.",
+        "depends_on": [
+          "unit-1"
+        ],
+        "allowed_files": [
+          "gpu_fuzzy_trader/data/onchain_pipeline.py",
+          "scripts/build_onchain_dataset.py",
+          "tests/unit/test_onchain_dataset_builder.py",
+          "gitignore"
+        ],
+        "acceptance_criteria": [
+          "Backward as-of per symbol (`available_at <= datetime`), not visible before `available_at`; preserves row count/order/keys/OHLCV/18 `ff_*`, adds exactly 12 cols; duplicate keys fail.",
+          "Deterministic manifest with registry_version, source/target/output hashes, feature_names, coverage, funding_gap, build_params; `created_at` outside hashed `contract`; digest excludes wall-clock.",
+          "Staged `*.staged.csv` + re-read verify + manifest write, `os.replace` only with `--replace`; failed verify leaves originals byte-identical.",
+          "`git status --short` never lists extracted sources or staged files."
+        ],
+        "verification_gates": [
+          "`PYTEST_LOW_MEMORY=1 .venv/bin/python -m pytest tests/unit/test_onchain_dataset_builder.py tests/unit/test_onchain_pipeline.py -q` – expected: pass.",
+          "`git diff --check` – expected: clean.",
+          "`git diff main...feature/unit-2-onchain-builder --stat` – only in-scope files."
+        ],
+        "evidence": [],
+        "effort": "M",
+        "confidence": "HIGH",
+        "risk": "HIGH — partial replace corrupts canonical tapes.",
+        "estimated_lines": null,
+        "source_heading": "Atomic enrichment builder (slug: onchain-builder)"
+      },
+      {
+        "id": "unit-3",
+        "title": "Thirty-feature runtime contract + lineage (slug: runtime-contract)",
+        "description": "- `gpu_fuzzy_trader/features/catalog.py:26-48,69-80` – allowlist + specs to extend. - `gpu_fuzzy_trader/run_pipeline.py:234-246` – base_columns to allowlist. - `gpu_fuzzy_trader/features/fuzzy_scaling.py:133-190` – manifest to add `bounded_continuous`. - `gpu_fuzzy_trader/data/multi_timeframe.py:251-254` – duplicate to collapse. - `gpu_fuzzy_trader/config.py:2693-2701` – 18-check to become 30-check. - In: `gpu_fuzzy_trader/config.py` (legacy allowlist, 30-feature allowlist, source mode), `gpu_fuzzy_trader/features/catalog.py`, `gpu_fuzzy_trader/features/fuzzy_scaling.py`, `gpu_fuzzy_trader/data/multi_timeframe.py` (drop duplicate RSI keep midline), `gpu_fuzzy_trader/run_pipeline.py` (retain allowlisted supplied features, enforce identity, record lineage), `gpu_fuzzy_trader/research_integrity.py` (feature contract digest), `tests/unit/test_onchain_feature_contract.py`, updates to feature catalog, fuzzy scaling, MTF integration, multi-timeframe, research integrity, run pipeline tests - Out: symbol-mode routing (unit-4), RB profiles and ablation (unit-6), real tapes (unit-5). - [ ] `supplied_ff` catalog is exactly ordered 30, no `lwc_*`/`mtf_*`; `generated_lwc` keeps old safe path; missing supplied feature fails closed. - [ ] MTF merge retains `ff_donchian_width_20` + `ff_oc_funding_rate`, drops `ff_unapproved`/`hwc_*`/`mwc_*`/arbitrary `ff_*`. - [ ] Pre-bounded `ff_oc_*` with all finite in [-1,1] get `bounded_continuous/scale 1.0`, pass through unchanged; out-of-range fails before Phase 2. - [ ] `rsi_14` gone, `rsi_14_midline` kept; computation unchanged. - [ ] `feature_contract_digest` hashes ordered 30 + source mode + registry + transforms + manifest contract; mismatch rejects splits/pools/archives/RB. 1. `PYTEST_LOW_MEMORY=1 .venv/bin/python -m pytest tests/unit/test_onchain_feature_contract.py tests/unit/test_feature_catalog.py tests/unit/test_fuzzy_scaling.py tests/unit/test_mtf_pipeline_integration.py -q` – expected: pass. 2. `PYTEST_LOW_MEMORY=1 .venv/bin/python -m pytest tests/unit/test_multi_timeframe.py tests/unit/test_research_integrity.py tests/unit/test_run_pipeline.py -q` – expected: pass. 3. `.venv/bin/python -c \"from gpu_fuzzy_trader import config; config.validate_config(); print(len(config.RULE_ALLOWED_FF_FEATURES))\"` – expected: `30`. - STOP conditions: - STOP if catalog ≠30, any `lwc_/mtf_` leaks, or stale cache survives digest change. - STOP if `rsi_14` removal changes RSI values (not just alias). - STOP if scaling fits on validation/test or alters bounded values. - Implementation sketch: - Step 1: config constants + validation. - Step 2: catalog branch by source mode. - Step 3: merge allowlist + scaling contract + RSI dedup + digest + lineage wiring.",
+        "depends_on": [
+          "unit-1",
+          "unit-2"
+        ],
+        "allowed_files": [
+          "gpu_fuzzy_trader/config.py",
+          "gpu_fuzzy_trader/features/catalog.py",
+          "gpu_fuzzy_trader/features/fuzzy_scaling.py",
+          "gpu_fuzzy_trader/data/multi_timeframe.py",
+          "gpu_fuzzy_trader/run_pipeline.py",
+          "gpu_fuzzy_trader/research_integrity.py",
+          "tests/unit/test_onchain_feature_contract.py"
+        ],
+        "acceptance_criteria": [
+          "`supplied_ff` catalog is exactly ordered 30, no `lwc_*`/`mtf_*`; `generated_lwc` keeps old safe path; missing supplied feature fails closed.",
+          "MTF merge retains `ff_donchian_width_20` + `ff_oc_funding_rate`, drops `ff_unapproved`/`hwc_*`/`mwc_*`/arbitrary `ff_*`.",
+          "Pre-bounded `ff_oc_*` with all finite in [-1,1] get `bounded_continuous/scale 1.0`, pass through unchanged; out-of-range fails before Phase 2.",
+          "`rsi_14` gone, `rsi_14_midline` kept; computation unchanged.",
+          "`feature_contract_digest` hashes ordered 30 + source mode + registry + transforms + manifest contract; mismatch rejects splits/pools/archives/RB."
+        ],
+        "verification_gates": [
+          "`PYTEST_LOW_MEMORY=1 .venv/bin/python -m pytest tests/unit/test_onchain_feature_contract.py tests/unit/test_feature_catalog.py tests/unit/test_fuzzy_scaling.py tests/unit/test_mtf_pipeline_integration.py -q` – expected: pass.",
+          "`PYTEST_LOW_MEMORY=1 .venv/bin/python -m pytest tests/unit/test_multi_timeframe.py tests/unit/test_research_integrity.py tests/unit/test_run_pipeline.py -q` – expected: pass.",
+          "`.venv/bin/python -c \"from gpu_fuzzy_trader import config; config.validate_config(); print(len(config.RULE_ALLOWED_FF_FEATURES))\"` – expected: `30`."
+        ],
+        "evidence": [],
+        "effort": "M",
+        "confidence": "HIGH",
+        "risk": "HIGH — wrong catalog or stale cache silently selects on wrong features.",
+        "estimated_lines": null,
+        "source_heading": "Thirty-feature runtime contract + lineage (slug: runtime-contract)"
+      },
+      {
+        "id": "unit-4",
+        "title": "Explicit Phase 2 symbol modes (slug: symbol-modes)",
+        "description": "- `gpu_fuzzy_trader/config.py:237-256` – config pattern for new `PHASE2_SYMBOL_MODE`. - `gpu_fuzzy_trader/run_pipeline.py:212-276` – merge isolation pattern to reuse for per-symbol slicing. - In: `gpu_fuzzy_trader/config.py` (symbol mode), `gpu_fuzzy_trader/run_pipeline.py` (global and specialist runners, routing), `gpu_fuzzy_trader/phases/phase2_rule_pool.py` (per-slice generator, provenance), `tests/unit/test_phase2_symbol_modes.py` - Out: RB values (unit-6), catalog (frozen), real data (unit-5). - [ ] Invalid mode fails `validate_config` with `PHASE2_SYMBOL_MODE`. - [ ] Default `global` preserves current one-generator-per-direction behavior, identity, schema; logs/manifests show resolved mode. - [ ] Specialist runs each (symbol,direction) with independent slices + `island_hyperparams(n_rows)`, attaches immutable single-symbol provenance; multi-symbol rule fails closed; no cross-symbol migration in v1. - [ ] Provenance survives Phase 2 → RB without rewrite. 1. `PYTEST_LOW_MEMORY=1 .venv/bin/python -m pytest tests/unit/test_phase2_symbol_modes.py tests/unit/test_rb_island_source_symbols.py tests/unit/test_run_pipeline.py -q` – expected: pass. 2. `git diff main...feature/unit-4-symbol-modes --stat` – only in-scope files. - STOP conditions: - STOP if global path changes outputs vs main (snapshot before). - STOP if specialist shares rows across symbols or provenance missing/rewritten. - STOP if empty folds/candidates crash instead of fail-closed. - Implementation sketch: - Step 1: config + validation + logging. - Step 2: extract global path unchanged. - Step 3: specialist loop with slicing + provenance + RB handoff.",
+        "depends_on": [
+          "unit-3"
+        ],
+        "allowed_files": [
+          "gpu_fuzzy_trader/config.py",
+          "gpu_fuzzy_trader/run_pipeline.py",
+          "gpu_fuzzy_trader/phases/phase2_rule_pool.py",
+          "tests/unit/test_phase2_symbol_modes.py"
+        ],
+        "acceptance_criteria": [
+          "Invalid mode fails `validate_config` with `PHASE2_SYMBOL_MODE`.",
+          "Default `global` preserves current one-generator-per-direction behavior, identity, schema; logs/manifests show resolved mode.",
+          "Specialist runs each (symbol,direction) with independent slices + `island_hyperparams(n_rows)`, attaches immutable single-symbol provenance; multi-symbol rule fails closed; no cross-symbol migration in v1.",
+          "Provenance survives Phase 2 → RB without rewrite."
+        ],
+        "verification_gates": [
+          "`PYTEST_LOW_MEMORY=1 .venv/bin/python -m pytest tests/unit/test_phase2_symbol_modes.py tests/unit/test_rb_island_source_symbols.py tests/unit/test_run_pipeline.py -q` – expected: pass.",
+          "`git diff main...feature/unit-4-symbol-modes --stat` – only in-scope files."
+        ],
+        "evidence": [],
+        "effort": "M",
+        "confidence": "MEDIUM (routing touches Phase 2 generator wiring; verify by reading `phases/phase2_rule_pool.py` at execution)",
+        "risk": "MEDIUM — cross-symbol threshold mixing or lost provenance.",
+        "estimated_lines": null,
+        "source_heading": "Explicit Phase 2 symbol modes (slug: symbol-modes)"
+      },
+      {
+        "id": "unit-5",
+        "title": "Real dataset build + data contract proof (slug: real-dataset)",
+        "description": "- `data/train_new.csv:1`, `data/test_new.csv:1` – 18-col header to become 37. - `gpu_fuzzy_trader/research_integrity.py:27-33` – hash verification pattern. - In: `data/train_new.csv`, `data/test_new.csv`, `data/onchain_feature_manifest.json` (generated only). Source extraction uses ignored directory, not committed. - Out: all code (frozen); no runtime or research tuning in this unit. - [ ] Sources extracted to ignored dir; `git status --short` clean of sources/staged files. - [ ] Staged build manifest shows 24 files, 12 new / 30 total, BTC/ETH Funding 25 each, 0 unexpected gaps/duplicates/changed values/range violations. - [ ] Suffix-mutation replay after `2026-07-23 21:45` on copied sources leaves train+test hashes unchanged. - [ ] `--replace` only after staged pass; `--verify-only` confirms 140352 train / 39152 test rows, 37 cols (7 base+30). - [ ] Separate commit `data: add causal Santiment features`. 1. Staged build + manifest inspect – expected: counts above. 2. Suffix replay – expected: hashes unchanged. 3. `--verify-only` – expected: row/col counts. 4. `git diff --cached --stat` – only 3 data files. - STOP conditions: - STOP if any non-Funding gap, Funding ≠25/asset, changed originals, range violation, or suffix dependence. - STOP if source snapshot missing, has ≠24 files, or hashes undocumented. - STOP if row counts differ from 140352/39152 or cols ≠37. - Implementation sketch: - Step 1: `mkdir -p data/onchain/source-v1 && unzip` + gitignore check. - Step 2: staged build without `--replace` + manifest review. - Step 3: suffix replay on temp copy. - Step 4: `--replace` + `--verify-only` + isolated data commit.",
+        "depends_on": [
+          "unit-1",
+          "unit-2",
+          "unit-3"
+        ],
+        "allowed_files": [
+          "data/train_new.csv",
+          "data/test_new.csv",
+          "data/onchain_feature_manifest.json"
+        ],
+        "acceptance_criteria": [
+          "Sources extracted to ignored dir; `git status --short` clean of sources/staged files.",
+          "Staged build manifest shows 24 files, 12 new / 30 total, BTC/ETH Funding 25 each, 0 unexpected gaps/duplicates/changed values/range violations.",
+          "Suffix-mutation replay after `2026-07-23 21:45` on copied sources leaves train+test hashes unchanged.",
+          "`--replace` only after staged pass; `--verify-only` confirms 140352 train / 39152 test rows, 37 cols (7 base+30).",
+          "Separate commit `data: add causal Santiment features`."
+        ],
+        "verification_gates": [
+          "Staged build + manifest inspect – expected: counts above.",
+          "Suffix replay – expected: hashes unchanged.",
+          "`--verify-only` – expected: row/col counts.",
+          "`git diff --cached --stat` – only 3 data files."
+        ],
+        "evidence": [],
+        "effort": "M",
+        "confidence": "MEDIUM (depends on external 24-file source snapshot being present and correct)",
+        "risk": "HIGH — corrupts canonical tapes; must stay revertible.",
+        "estimated_lines": null,
+        "source_heading": "Real dataset build + data contract proof (slug: real-dataset)"
+      },
+      {
+        "id": "unit-6",
+        "title": "RB profiles + registered ablations + frozen selection (slug: research-selection)",
+        "description": "- `gpu_fuzzy_trader/rb_governor.py:2009-2018` – allowlist-aware logic hosting silent override to remove. - `gpu_fuzzy_trader/research_integrity.py:70-80` – ledger/manifest pattern for experiment records. - In: `gpu_fuzzy_trader/config.py` (RB profile), `gpu_fuzzy_trader/rb_governor.py` (explicit resolver, remove silent override), `gpu_fuzzy_trader/optuna_search.py`, `scripts/run_onchain_ablation.py`, `tests/unit/test_onchain_ablation.py`, `profiles/onchain_v1.json` (frozen winner only after evidence) - Out: production default flip (only if winner passes, explicit commit), test and forward tuning, docs (unit-7). - [ ] Six 2-feature families + variants (generated_lwc, supplied_18, onchain_12, hybrid_30, 6×LOFO, global/specialist hybrids, historical/diverse finalists) registered; `selection_splits` never contain `test`/`forward`. - [ ] Screening seeds (11,42,73,101,137), finalist seeds (11,23,42,73,101,137,173,211,251,307); budgets identical across variants. - [ ] `advances` requires ≥4/5 positive deltas + median>0 + worst-seed non-degradation + cost-stress + coverage; `candidate_score` never uses test. - [ ] Runner rejects `test_new.csv` as selection input with `selection data`; all runs append variant/seed/hashes/contract/mode/profile/budget/metrics to ledger. - [ ] `profiles/onchain_v1.json` frozen before validation-selection consume, hashed + ledger-appended; single one-shot selection eval; no retry/threshold/family/hparam change after; winner sets defaults only on pass, else retain 18-baseline production + experimental builder. 1. `PYTEST_LOW_MEMORY=1 .venv/bin/python -m pytest tests/unit/test_onchain_ablation.py tests/unit/test_rb_correlation.py tests/unit/test_marginal.py tests/unit/test_optuna_search.py -q` – expected: pass. 2. Screening 5-seed run to `outputs/onchain_screening_v1` – expected: report with paired deltas. 3. Finalist 10-seed run to `outputs/onchain_finalists_v1` – expected: frozen profile + ledger entry. - STOP conditions: - STOP if any variant reads test/forward for selection or ledger misses required fields. - STOP if budgets differ across variants or seeds changed mid-stage. - STOP if winner selected without 4/5 + median + worst-seed + stress + coverage pass. - STOP if validation-selection consumed more than once or tuned after failure (start new generation instead). - Implementation sketch: - Step 1: families + variant registry + split-role guard (not filename substring). - Step 2: RB profile resolver + override removal. - Step 3: fixed seeds + paired gate + ledger writer + CLI stages. - Step 4: screening → gate → finalists → freeze → one-shot selection → conditional default update.",
+        "depends_on": [
+          "unit-3",
+          "unit-4",
+          "unit-5"
+        ],
+        "allowed_files": [
+          "gpu_fuzzy_trader/config.py",
+          "gpu_fuzzy_trader/rb_governor.py",
+          "gpu_fuzzy_trader/optuna_search.py",
+          "scripts/run_onchain_ablation.py",
+          "tests/unit/test_onchain_ablation.py",
+          "profiles/onchain_v1.json"
+        ],
+        "acceptance_criteria": [
+          "Six 2-feature families + variants (generated_lwc, supplied_18, onchain_12, hybrid_30, 6×LOFO, global/specialist hybrids, historical/diverse finalists) registered; `selection_splits` never contain `test`/`forward`.",
+          "Screening seeds (11,42,73,101,137), finalist seeds (11,23,42,73,101,137,173,211,251,307); budgets identical across variants.",
+          "`advances` requires ≥4/5 positive deltas + median>0 + worst-seed non-degradation + cost-stress + coverage; `candidate_score` never uses test.",
+          "Runner rejects `test_new.csv` as selection input with `selection data`; all runs append variant/seed/hashes/contract/mode/profile/budget/metrics to ledger.",
+          "`profiles/onchain_v1.json` frozen before validation-selection consume, hashed + ledger-appended; single one-shot selection eval; no retry/threshold/family/hparam change after; winner sets defaults only on pass, else retain 18-baseline production + experimental builder."
+        ],
+        "verification_gates": [
+          "`PYTEST_LOW_MEMORY=1 .venv/bin/python -m pytest tests/unit/test_onchain_ablation.py tests/unit/test_rb_correlation.py tests/unit/test_marginal.py tests/unit/test_optuna_search.py -q` – expected: pass.",
+          "Screening 5-seed run to `outputs/onchain_screening_v1` – expected: report with paired deltas.",
+          "Finalist 10-seed run to `outputs/onchain_finalists_v1` – expected: frozen profile + ledger entry."
+        ],
+        "evidence": [],
+        "effort": "L",
+        "confidence": "MEDIUM (touches RB governor + Optuna + ledger; long-running)",
+        "risk": "HIGH — test-tuning or silent default change invalidates research.",
+        "estimated_lines": null,
+        "source_heading": "RB profiles + registered ablations + frozen selection (slug: research-selection)"
+      },
+      {
+        "id": "unit-7",
+        "title": "Regression, parity, smoke + truthful docs (slug: release-gate)",
+        "description": "- `README.md:139`, `RUN.md:119` – supplied-feature contract lines to correct. - `gpu_fuzzy_trader/config.py:237-256` – final 30 to document. - In: `README.md`, `RUN.md`. Defect fixes only if sharded tests fail, minimal diffs. Smoke evidence stays ignored, not committed. - Out: no feature, catalog, or RB logic changes except verified defect fixes; no retuning; benchmark and CUDA full runs stay on GPU host, not local. - [ ] Sharded low-memory suites pass: data/feature/split/MTF; CPU/GPU parity + encoder properties (with 12-feature fixture if needed); integrity/ledger/multiplicity/RB/symbol/ablation. - [ ] One-symbol small-budget smoke (`DEBUG_SYMBOL_SCOPE`, 32 pop/2 gens) shows `rule_features=30`, no range violation, no stale reuse, no pre-Phase-5 `test_new.csv` read; CUDA smoke on GPU host records hw/JAX/mem/time. - [ ] README states 30 vs HWC/MWC context, both source modes, release timing, Funding carry, global/specialist truth (no unconditional specialist claim unless selected), test-as-diagnostic, forward-only acceptance. - [ ] RUN lists exact build/verify/screening/finalist/debug/GPU/diagnostic/forward commands with protected-split annotations. - [ ] `run_pipeline --help`, `validate_config` prints 30, `git diff --check` clean, broad `tests/unit tests/property` low-memory pass (sharded), no sources/staged/caches committed, manifests match tapes+profile. 1. `PYTEST_LOW_MEMORY=1 .venv/bin/python -m pytest tests/unit/test_onchain_registry.py tests/unit/test_onchain_pipeline.py tests/unit/test_onchain_dataset_builder.py tests/unit/test_onchain_feature_contract.py tests/unit/test_data_loader.py tests/unit/test_data_splitter.py tests/unit/test_feature_catalog.py tests/unit/test_fuzzy_scaling.py tests/unit/test_multi_timeframe.py tests/unit/test_mtf_pipeline_integration.py -q` – sharded, expected: pass. 2. `PYTEST_LOW_MEMORY=1 .venv/bin/python -m pytest tests/unit/test_cpu_engine.py tests/unit/test_gpu_engine.py tests/unit/test_phase2_batch_evaluator_parity.py tests/property/test_encoder_properties.py -q` – expected: pass. 3. `PYTEST_LOW_MEMORY=1 .venv/bin/python -m pytest tests/unit/test_research_integrity.py tests/unit/test_experiment_ledger.py tests/unit/test_multiplicity.py tests/unit/test_rb_correlation.py tests/unit/test_marginal.py tests/unit/test_phase2_symbol_modes.py tests/unit/test_onchain_ablation.py -q` – expected: pass. 4. Docs + `git diff --check` + `validate_config==30` – expected: clean/30. - STOP conditions: - STOP if any sharded suite fails on main baseline too (record baseline first; fix separately). - STOP if smoke shows leakage, range violation, or test read before Phase 5. - STOP if docs claim specialist/diverse as production without frozen-profile evidence. - Implementation sketch: - Step 1: sharded regression + parity (never one giant pytest locally). - Step 2: CPU smoke + GPU-host smoke with ledger record. - Step 3: README/RUN truthful update + final `git diff --check` + manifest/hash audit + docs commit.",
+        "depends_on": [
+          "unit-6"
+        ],
+        "allowed_files": [
+          "README.md",
+          "RUN.md"
+        ],
+        "acceptance_criteria": [
+          "Sharded low-memory suites pass: data/feature/split/MTF; CPU/GPU parity + encoder properties (with 12-feature fixture if needed); integrity/ledger/multiplicity/RB/symbol/ablation.",
+          "One-symbol small-budget smoke (`DEBUG_SYMBOL_SCOPE`, 32 pop/2 gens) shows `rule_features=30`, no range violation, no stale reuse, no pre-Phase-5 `test_new.csv` read; CUDA smoke on GPU host records hw/JAX/mem/time.",
+          "README states 30 vs HWC/MWC context, both source modes, release timing, Funding carry, global/specialist truth (no unconditional specialist claim unless selected), test-as-diagnostic, forward-only acceptance.",
+          "RUN lists exact build/verify/screening/finalist/debug/GPU/diagnostic/forward commands with protected-split annotations.",
+          "`run_pipeline --help`, `validate_config` prints 30, `git diff --check` clean, broad `tests/unit tests/property` low-memory pass (sharded), no sources/staged/caches committed, manifests match tapes+profile."
+        ],
+        "verification_gates": [
+          "`PYTEST_LOW_MEMORY=1 .venv/bin/python -m pytest tests/unit/test_onchain_registry.py tests/unit/test_onchain_pipeline.py tests/unit/test_onchain_dataset_builder.py tests/unit/test_onchain_feature_contract.py tests/unit/test_data_loader.py tests/unit/test_data_splitter.py tests/unit/test_feature_catalog.py tests/unit/test_fuzzy_scaling.py tests/unit/test_multi_timeframe.py tests/unit/test_mtf_pipeline_integration.py -q` – sharded, expected: pass.",
+          "`PYTEST_LOW_MEMORY=1 .venv/bin/python -m pytest tests/unit/test_cpu_engine.py tests/unit/test_gpu_engine.py tests/unit/test_phase2_batch_evaluator_parity.py tests/property/test_encoder_properties.py -q` – expected: pass.",
+          "`PYTEST_LOW_MEMORY=1 .venv/bin/python -m pytest tests/unit/test_research_integrity.py tests/unit/test_experiment_ledger.py tests/unit/test_multiplicity.py tests/unit/test_rb_correlation.py tests/unit/test_marginal.py tests/unit/test_phase2_symbol_modes.py tests/unit/test_onchain_ablation.py -q` – expected: pass.",
+          "Docs + `git diff --check` + `validate_config==30` – expected: clean/30."
+        ],
+        "evidence": [],
+        "effort": "M",
+        "confidence": "HIGH",
+        "risk": "MEDIUM — stale docs or untested parity hide regressions.",
+        "estimated_lines": null,
+        "source_heading": "Regression, parity, smoke + truthful docs (slug: release-gate)"
+      }
+    ],
+    "tasks": [
+      {
+        "id": "unit-1",
+        "title": "Causal on-chain core (slug: onchain-core)",
+        "description": "- `gpu_fuzzy_trader/config.py:237-256` – 18 allowlist to extend later (not in this unit) - `gpu_fuzzy_trader/data/multi_timeframe.py:27-35` – UTC convention to follow - `gpu_fuzzy_trader/features/fuzzy_scaling.py:106-130` – fail-closed range pattern - In: `gpu_fuzzy_trader/data/onchain_registry.py`, `gpu_fuzzy_trader/data/onchain_pipeline.py` (registry, audit, `repair_funding_grid`, `aggregate_metric`, `transform_metric`, `build_symbol_feature_frame`), `tests/unit/test_onchain_registry.py`, `tests/unit/test_onchain_pipeline.py` - Out (do NOT touch): `config.py`, `catalog.py`, `run_pipeline.py`, `multi_timeframe.py` runtime, `scripts/build_onchain_dataset.py`, real `data/*.csv`, RB/ablation. - Related callers (blast): none yet (new module); future consumers unit-2/3. - [ ] Registry has exactly 12 unique `ff_oc_*` with specified aggregation/raw/scale/release/window/min_periods; Funding only `allow_funding_gap=True`; version `1.0.0`. - [ ] Audit rejects duplicate dates, non-finite, missing metrics, unsupported assets, non-Funding gaps with tokens `duplicate`, `non-finite`, `missing source metrics`, `unsupported asset`, `unexpected timestamp gap`. - [ ] Funding 25-row past-only carry passes; >8h fails; no `bfill`/`interpolate`/`fillna(0)` in module. - [ ] Hourly closed-bucket sum/last/mean + `available_at` (bucket end+delay; social 45m; daily D+1 02:00 UTC) pass; future-suffix invariance holds. - [ ] Centered/zero scales are prior-only, per-symbol, bounded [-1,1], warm-up NaN, constant series yields no extremes, suffix-invariant. 1. `PYTEST_LOW_MEMORY=1 .venv/bin/python -m pytest tests/unit/test_onchain_registry.py tests/unit/test_onchain_pipeline.py -q` – expected: all pass. 2. `PYTEST_LOW_MEMORY=1 .venv/bin/python -m pytest tests/unit/test_onchain_registry.py -q` – expected: pass after registry impl. 3. `git diff main...feature/unit-1-onchain-core --stat` – only the 3 in-scope files. - STOP conditions: - STOP if any non-Funding gap, Funding >8h, suffix mutation changes earlier value, daily visible before D+1 02:00, or finite outside [-1,1]. - STOP if base `pytest` on main already fails for these files (run baseline first). - STOP if another branch already created `onchain_registry.py` (check `git log main..HEAD -- gpu_fuzzy_trader/data/onchain_registry.py`). - Implementation sketch: - Step 1: registry dataclass + 12 specs + lookup + inventory tests. - Step 2: strict CSV discovery by 2nd column, asset map Bitcoin/Ethereum, UTC parse, uniqueness/monotonicity, complete (symbol,metric) grid. - Step 3: capped ffill Funding repair with audit dict. - Step 4: left-closed left-labeled 1h resample requiring 4 obs (Funding already gridded), `available_at`=end+delay, daily D+1 02:00. - Step 5: raw fns `signed_log1p`, `log_change`, `log1p`, `pct_change_7d`; rolling prior-only centered (`tanh(clip(z,-5,5)/2.5)`, IQR/1.349) and zero-anchored (1.4826*median|hist|), zero-scale→NaN.",
+        "depends_on": [],
+        "allowed_files": [
+          "gpu_fuzzy_trader/data/onchain_registry.py",
+          "gpu_fuzzy_trader/data/onchain_pipeline.py",
+          "tests/unit/test_onchain_registry.py",
+          "tests/unit/test_onchain_pipeline.py"
+        ],
+        "acceptance_criteria": [
+          "Registry has exactly 12 unique `ff_oc_*` with specified aggregation/raw/scale/release/window/min_periods; Funding only `allow_funding_gap=True`; version `1.0.0`.",
+          "Audit rejects duplicate dates, non-finite, missing metrics, unsupported assets, non-Funding gaps with tokens `duplicate`, `non-finite`, `missing source metrics`, `unsupported asset`, `unexpected timestamp gap`.",
+          "Funding 25-row past-only carry passes; >8h fails; no `bfill`/`interpolate`/`fillna(0)` in module.",
+          "Hourly closed-bucket sum/last/mean + `available_at` (bucket end+delay; social 45m; daily D+1 02:00 UTC) pass; future-suffix invariance holds.",
+          "Centered/zero scales are prior-only, per-symbol, bounded [-1,1], warm-up NaN, constant series yields no extremes, suffix-invariant."
+        ],
+        "verification_gates": [
+          "`PYTEST_LOW_MEMORY=1 .venv/bin/python -m pytest tests/unit/test_onchain_registry.py tests/unit/test_onchain_pipeline.py -q` – expected: all pass.",
+          "`PYTEST_LOW_MEMORY=1 .venv/bin/python -m pytest tests/unit/test_onchain_registry.py -q` – expected: pass after registry impl.",
+          "`git diff main...feature/unit-1-onchain-core --stat` – only the 3 in-scope files."
+        ],
+        "evidence": [],
+        "effort": "L",
+        "confidence": "HIGH",
+        "risk": "HIGH — future leakage or wrong aggregation invalidates all downstream tapes.",
+        "estimated_lines": null,
+        "source_heading": "Causal on-chain core (slug: onchain-core)"
+      },
+      {
+        "id": "unit-2",
+        "title": "Atomic enrichment builder (slug: onchain-builder)",
+        "description": "- `gpu_fuzzy_trader/research_integrity.py:27-33` – `sha256_file` pattern to reuse. - `gpu_fuzzy_trader/run_pipeline.py:254-256` – duplicate-key fail-closed pattern. - In: `gpu_fuzzy_trader/data/onchain_pipeline.py` (enrich, manifest, verify), `scripts/build_onchain_dataset.py`, `tests/unit/test_onchain_dataset_builder.py`, `.gitignore` - Out: config, catalog, MTF, RB, real tape replace (unit-5). - [ ] Backward as-of per symbol (`available_at <= datetime`), not visible before `available_at`; preserves row count/order/keys/OHLCV/18 `ff_*`, adds exactly 12 cols; duplicate keys fail. - [ ] Deterministic manifest with registry_version, source/target/output hashes, feature_names, coverage, funding_gap, build_params; `created_at` outside hashed `contract`; digest excludes wall-clock. - [ ] Staged `*.staged.csv` + re-read verify + manifest write, `os.replace` only with `--replace`; failed verify leaves originals byte-identical. - [ ] `git status --short` never lists extracted sources or staged files. 1. `PYTEST_LOW_MEMORY=1 .venv/bin/python -m pytest tests/unit/test_onchain_dataset_builder.py tests/unit/test_onchain_pipeline.py -q` – expected: pass. 2. `git diff --check` – expected: clean. 3. `git diff main...feature/unit-2-onchain-builder --stat` – only in-scope files. - STOP conditions: - STOP if enrichment changes any original value, adds ≠12 cols, or forward-visible join. - STOP if atomicity test shows original modified on forced verify failure. - STOP if drift: unit-1 files changed unexpectedly. - Implementation sketch: - Step 1: per-symbol sort + `merge_asof(direction=backward)` + order restore + original compare. - Step 2: manifest builder + deterministic JSON + digests. - Step 3: CLI staging, verify, conditional replace, `--verify-only` shape check.",
+        "depends_on": [
+          "unit-1"
+        ],
+        "allowed_files": [
+          "gpu_fuzzy_trader/data/onchain_pipeline.py",
+          "scripts/build_onchain_dataset.py",
+          "tests/unit/test_onchain_dataset_builder.py",
+          "gitignore"
+        ],
+        "acceptance_criteria": [
+          "Backward as-of per symbol (`available_at <= datetime`), not visible before `available_at`; preserves row count/order/keys/OHLCV/18 `ff_*`, adds exactly 12 cols; duplicate keys fail.",
+          "Deterministic manifest with registry_version, source/target/output hashes, feature_names, coverage, funding_gap, build_params; `created_at` outside hashed `contract`; digest excludes wall-clock.",
+          "Staged `*.staged.csv` + re-read verify + manifest write, `os.replace` only with `--replace`; failed verify leaves originals byte-identical.",
+          "`git status --short` never lists extracted sources or staged files."
+        ],
+        "verification_gates": [
+          "`PYTEST_LOW_MEMORY=1 .venv/bin/python -m pytest tests/unit/test_onchain_dataset_builder.py tests/unit/test_onchain_pipeline.py -q` – expected: pass.",
+          "`git diff --check` – expected: clean.",
+          "`git diff main...feature/unit-2-onchain-builder --stat` – only in-scope files."
+        ],
+        "evidence": [],
+        "effort": "M",
+        "confidence": "HIGH",
+        "risk": "HIGH — partial replace corrupts canonical tapes.",
+        "estimated_lines": null,
+        "source_heading": "Atomic enrichment builder (slug: onchain-builder)"
+      },
+      {
+        "id": "unit-3",
+        "title": "Thirty-feature runtime contract + lineage (slug: runtime-contract)",
+        "description": "- `gpu_fuzzy_trader/features/catalog.py:26-48,69-80` – allowlist + specs to extend. - `gpu_fuzzy_trader/run_pipeline.py:234-246` – base_columns to allowlist. - `gpu_fuzzy_trader/features/fuzzy_scaling.py:133-190` – manifest to add `bounded_continuous`. - `gpu_fuzzy_trader/data/multi_timeframe.py:251-254` – duplicate to collapse. - `gpu_fuzzy_trader/config.py:2693-2701` – 18-check to become 30-check. - In: `gpu_fuzzy_trader/config.py` (legacy allowlist, 30-feature allowlist, source mode), `gpu_fuzzy_trader/features/catalog.py`, `gpu_fuzzy_trader/features/fuzzy_scaling.py`, `gpu_fuzzy_trader/data/multi_timeframe.py` (drop duplicate RSI keep midline), `gpu_fuzzy_trader/run_pipeline.py` (retain allowlisted supplied features, enforce identity, record lineage), `gpu_fuzzy_trader/research_integrity.py` (feature contract digest), `tests/unit/test_onchain_feature_contract.py`, updates to feature catalog, fuzzy scaling, MTF integration, multi-timeframe, research integrity, run pipeline tests - Out: symbol-mode routing (unit-4), RB profiles and ablation (unit-6), real tapes (unit-5). - [ ] `supplied_ff` catalog is exactly ordered 30, no `lwc_*`/`mtf_*`; `generated_lwc` keeps old safe path; missing supplied feature fails closed. - [ ] MTF merge retains `ff_donchian_width_20` + `ff_oc_funding_rate`, drops `ff_unapproved`/`hwc_*`/`mwc_*`/arbitrary `ff_*`. - [ ] Pre-bounded `ff_oc_*` with all finite in [-1,1] get `bounded_continuous/scale 1.0`, pass through unchanged; out-of-range fails before Phase 2. - [ ] `rsi_14` gone, `rsi_14_midline` kept; computation unchanged. - [ ] `feature_contract_digest` hashes ordered 30 + source mode + registry + transforms + manifest contract; mismatch rejects splits/pools/archives/RB. 1. `PYTEST_LOW_MEMORY=1 .venv/bin/python -m pytest tests/unit/test_onchain_feature_contract.py tests/unit/test_feature_catalog.py tests/unit/test_fuzzy_scaling.py tests/unit/test_mtf_pipeline_integration.py -q` – expected: pass. 2. `PYTEST_LOW_MEMORY=1 .venv/bin/python -m pytest tests/unit/test_multi_timeframe.py tests/unit/test_research_integrity.py tests/unit/test_run_pipeline.py -q` – expected: pass. 3. `.venv/bin/python -c \"from gpu_fuzzy_trader import config; config.validate_config(); print(len(config.RULE_ALLOWED_FF_FEATURES))\"` – expected: `30`. - STOP conditions: - STOP if catalog ≠30, any `lwc_/mtf_` leaks, or stale cache survives digest change. - STOP if `rsi_14` removal changes RSI values (not just alias). - STOP if scaling fits on validation/test or alters bounded values. - Implementation sketch: - Step 1: config constants + validation. - Step 2: catalog branch by source mode. - Step 3: merge allowlist + scaling contract + RSI dedup + digest + lineage wiring.",
+        "depends_on": [
+          "unit-1",
+          "unit-2"
+        ],
+        "allowed_files": [
+          "gpu_fuzzy_trader/config.py",
+          "gpu_fuzzy_trader/features/catalog.py",
+          "gpu_fuzzy_trader/features/fuzzy_scaling.py",
+          "gpu_fuzzy_trader/data/multi_timeframe.py",
+          "gpu_fuzzy_trader/run_pipeline.py",
+          "gpu_fuzzy_trader/research_integrity.py",
+          "tests/unit/test_onchain_feature_contract.py"
+        ],
+        "acceptance_criteria": [
+          "`supplied_ff` catalog is exactly ordered 30, no `lwc_*`/`mtf_*`; `generated_lwc` keeps old safe path; missing supplied feature fails closed.",
+          "MTF merge retains `ff_donchian_width_20` + `ff_oc_funding_rate`, drops `ff_unapproved`/`hwc_*`/`mwc_*`/arbitrary `ff_*`.",
+          "Pre-bounded `ff_oc_*` with all finite in [-1,1] get `bounded_continuous/scale 1.0`, pass through unchanged; out-of-range fails before Phase 2.",
+          "`rsi_14` gone, `rsi_14_midline` kept; computation unchanged.",
+          "`feature_contract_digest` hashes ordered 30 + source mode + registry + transforms + manifest contract; mismatch rejects splits/pools/archives/RB."
+        ],
+        "verification_gates": [
+          "`PYTEST_LOW_MEMORY=1 .venv/bin/python -m pytest tests/unit/test_onchain_feature_contract.py tests/unit/test_feature_catalog.py tests/unit/test_fuzzy_scaling.py tests/unit/test_mtf_pipeline_integration.py -q` – expected: pass.",
+          "`PYTEST_LOW_MEMORY=1 .venv/bin/python -m pytest tests/unit/test_multi_timeframe.py tests/unit/test_research_integrity.py tests/unit/test_run_pipeline.py -q` – expected: pass.",
+          "`.venv/bin/python -c \"from gpu_fuzzy_trader import config; config.validate_config(); print(len(config.RULE_ALLOWED_FF_FEATURES))\"` – expected: `30`."
+        ],
+        "evidence": [],
+        "effort": "M",
+        "confidence": "HIGH",
+        "risk": "HIGH — wrong catalog or stale cache silently selects on wrong features.",
+        "estimated_lines": null,
+        "source_heading": "Thirty-feature runtime contract + lineage (slug: runtime-contract)"
+      },
+      {
+        "id": "unit-4",
+        "title": "Explicit Phase 2 symbol modes (slug: symbol-modes)",
+        "description": "- `gpu_fuzzy_trader/config.py:237-256` – config pattern for new `PHASE2_SYMBOL_MODE`. - `gpu_fuzzy_trader/run_pipeline.py:212-276` – merge isolation pattern to reuse for per-symbol slicing. - In: `gpu_fuzzy_trader/config.py` (symbol mode), `gpu_fuzzy_trader/run_pipeline.py` (global and specialist runners, routing), `gpu_fuzzy_trader/phases/phase2_rule_pool.py` (per-slice generator, provenance), `tests/unit/test_phase2_symbol_modes.py` - Out: RB values (unit-6), catalog (frozen), real data (unit-5). - [ ] Invalid mode fails `validate_config` with `PHASE2_SYMBOL_MODE`. - [ ] Default `global` preserves current one-generator-per-direction behavior, identity, schema; logs/manifests show resolved mode. - [ ] Specialist runs each (symbol,direction) with independent slices + `island_hyperparams(n_rows)`, attaches immutable single-symbol provenance; multi-symbol rule fails closed; no cross-symbol migration in v1. - [ ] Provenance survives Phase 2 → RB without rewrite. 1. `PYTEST_LOW_MEMORY=1 .venv/bin/python -m pytest tests/unit/test_phase2_symbol_modes.py tests/unit/test_rb_island_source_symbols.py tests/unit/test_run_pipeline.py -q` – expected: pass. 2. `git diff main...feature/unit-4-symbol-modes --stat` – only in-scope files. - STOP conditions: - STOP if global path changes outputs vs main (snapshot before). - STOP if specialist shares rows across symbols or provenance missing/rewritten. - STOP if empty folds/candidates crash instead of fail-closed. - Implementation sketch: - Step 1: config + validation + logging. - Step 2: extract global path unchanged. - Step 3: specialist loop with slicing + provenance + RB handoff.",
+        "depends_on": [
+          "unit-3"
+        ],
+        "allowed_files": [
+          "gpu_fuzzy_trader/config.py",
+          "gpu_fuzzy_trader/run_pipeline.py",
+          "gpu_fuzzy_trader/phases/phase2_rule_pool.py",
+          "tests/unit/test_phase2_symbol_modes.py"
+        ],
+        "acceptance_criteria": [
+          "Invalid mode fails `validate_config` with `PHASE2_SYMBOL_MODE`.",
+          "Default `global` preserves current one-generator-per-direction behavior, identity, schema; logs/manifests show resolved mode.",
+          "Specialist runs each (symbol,direction) with independent slices + `island_hyperparams(n_rows)`, attaches immutable single-symbol provenance; multi-symbol rule fails closed; no cross-symbol migration in v1.",
+          "Provenance survives Phase 2 → RB without rewrite."
+        ],
+        "verification_gates": [
+          "`PYTEST_LOW_MEMORY=1 .venv/bin/python -m pytest tests/unit/test_phase2_symbol_modes.py tests/unit/test_rb_island_source_symbols.py tests/unit/test_run_pipeline.py -q` – expected: pass.",
+          "`git diff main...feature/unit-4-symbol-modes --stat` – only in-scope files."
+        ],
+        "evidence": [],
+        "effort": "M",
+        "confidence": "MEDIUM (routing touches Phase 2 generator wiring; verify by reading `phases/phase2_rule_pool.py` at execution)",
+        "risk": "MEDIUM — cross-symbol threshold mixing or lost provenance.",
+        "estimated_lines": null,
+        "source_heading": "Explicit Phase 2 symbol modes (slug: symbol-modes)"
+      },
+      {
+        "id": "unit-5",
+        "title": "Real dataset build + data contract proof (slug: real-dataset)",
+        "description": "- `data/train_new.csv:1`, `data/test_new.csv:1` – 18-col header to become 37. - `gpu_fuzzy_trader/research_integrity.py:27-33` – hash verification pattern. - In: `data/train_new.csv`, `data/test_new.csv`, `data/onchain_feature_manifest.json` (generated only). Source extraction uses ignored directory, not committed. - Out: all code (frozen); no runtime or research tuning in this unit. - [ ] Sources extracted to ignored dir; `git status --short` clean of sources/staged files. - [ ] Staged build manifest shows 24 files, 12 new / 30 total, BTC/ETH Funding 25 each, 0 unexpected gaps/duplicates/changed values/range violations. - [ ] Suffix-mutation replay after `2026-07-23 21:45` on copied sources leaves train+test hashes unchanged. - [ ] `--replace` only after staged pass; `--verify-only` confirms 140352 train / 39152 test rows, 37 cols (7 base+30). - [ ] Separate commit `data: add causal Santiment features`. 1. Staged build + manifest inspect – expected: counts above. 2. Suffix replay – expected: hashes unchanged. 3. `--verify-only` – expected: row/col counts. 4. `git diff --cached --stat` – only 3 data files. - STOP conditions: - STOP if any non-Funding gap, Funding ≠25/asset, changed originals, range violation, or suffix dependence. - STOP if source snapshot missing, has ≠24 files, or hashes undocumented. - STOP if row counts differ from 140352/39152 or cols ≠37. - Implementation sketch: - Step 1: `mkdir -p data/onchain/source-v1 && unzip` + gitignore check. - Step 2: staged build without `--replace` + manifest review. - Step 3: suffix replay on temp copy. - Step 4: `--replace` + `--verify-only` + isolated data commit.",
+        "depends_on": [
+          "unit-1",
+          "unit-2",
+          "unit-3"
+        ],
+        "allowed_files": [
+          "data/train_new.csv",
+          "data/test_new.csv",
+          "data/onchain_feature_manifest.json"
+        ],
+        "acceptance_criteria": [
+          "Sources extracted to ignored dir; `git status --short` clean of sources/staged files.",
+          "Staged build manifest shows 24 files, 12 new / 30 total, BTC/ETH Funding 25 each, 0 unexpected gaps/duplicates/changed values/range violations.",
+          "Suffix-mutation replay after `2026-07-23 21:45` on copied sources leaves train+test hashes unchanged.",
+          "`--replace` only after staged pass; `--verify-only` confirms 140352 train / 39152 test rows, 37 cols (7 base+30).",
+          "Separate commit `data: add causal Santiment features`."
+        ],
+        "verification_gates": [
+          "Staged build + manifest inspect – expected: counts above.",
+          "Suffix replay – expected: hashes unchanged.",
+          "`--verify-only` – expected: row/col counts.",
+          "`git diff --cached --stat` – only 3 data files."
+        ],
+        "evidence": [],
+        "effort": "M",
+        "confidence": "MEDIUM (depends on external 24-file source snapshot being present and correct)",
+        "risk": "HIGH — corrupts canonical tapes; must stay revertible.",
+        "estimated_lines": null,
+        "source_heading": "Real dataset build + data contract proof (slug: real-dataset)"
+      },
+      {
+        "id": "unit-6",
+        "title": "RB profiles + registered ablations + frozen selection (slug: research-selection)",
+        "description": "- `gpu_fuzzy_trader/rb_governor.py:2009-2018` – allowlist-aware logic hosting silent override to remove. - `gpu_fuzzy_trader/research_integrity.py:70-80` – ledger/manifest pattern for experiment records. - In: `gpu_fuzzy_trader/config.py` (RB profile), `gpu_fuzzy_trader/rb_governor.py` (explicit resolver, remove silent override), `gpu_fuzzy_trader/optuna_search.py`, `scripts/run_onchain_ablation.py`, `tests/unit/test_onchain_ablation.py`, `profiles/onchain_v1.json` (frozen winner only after evidence) - Out: production default flip (only if winner passes, explicit commit), test and forward tuning, docs (unit-7). - [ ] Six 2-feature families + variants (generated_lwc, supplied_18, onchain_12, hybrid_30, 6×LOFO, global/specialist hybrids, historical/diverse finalists) registered; `selection_splits` never contain `test`/`forward`. - [ ] Screening seeds (11,42,73,101,137), finalist seeds (11,23,42,73,101,137,173,211,251,307); budgets identical across variants. - [ ] `advances` requires ≥4/5 positive deltas + median>0 + worst-seed non-degradation + cost-stress + coverage; `candidate_score` never uses test. - [ ] Runner rejects `test_new.csv` as selection input with `selection data`; all runs append variant/seed/hashes/contract/mode/profile/budget/metrics to ledger. - [ ] `profiles/onchain_v1.json` frozen before validation-selection consume, hashed + ledger-appended; single one-shot selection eval; no retry/threshold/family/hparam change after; winner sets defaults only on pass, else retain 18-baseline production + experimental builder. 1. `PYTEST_LOW_MEMORY=1 .venv/bin/python -m pytest tests/unit/test_onchain_ablation.py tests/unit/test_rb_correlation.py tests/unit/test_marginal.py tests/unit/test_optuna_search.py -q` – expected: pass. 2. Screening 5-seed run to `outputs/onchain_screening_v1` – expected: report with paired deltas. 3. Finalist 10-seed run to `outputs/onchain_finalists_v1` – expected: frozen profile + ledger entry. - STOP conditions: - STOP if any variant reads test/forward for selection or ledger misses required fields. - STOP if budgets differ across variants or seeds changed mid-stage. - STOP if winner selected without 4/5 + median + worst-seed + stress + coverage pass. - STOP if validation-selection consumed more than once or tuned after failure (start new generation instead). - Implementation sketch: - Step 1: families + variant registry + split-role guard (not filename substring). - Step 2: RB profile resolver + override removal. - Step 3: fixed seeds + paired gate + ledger writer + CLI stages. - Step 4: screening → gate → finalists → freeze → one-shot selection → conditional default update.",
+        "depends_on": [
+          "unit-3",
+          "unit-4",
+          "unit-5"
+        ],
+        "allowed_files": [
+          "gpu_fuzzy_trader/config.py",
+          "gpu_fuzzy_trader/rb_governor.py",
+          "gpu_fuzzy_trader/optuna_search.py",
+          "scripts/run_onchain_ablation.py",
+          "tests/unit/test_onchain_ablation.py",
+          "profiles/onchain_v1.json"
+        ],
+        "acceptance_criteria": [
+          "Six 2-feature families + variants (generated_lwc, supplied_18, onchain_12, hybrid_30, 6×LOFO, global/specialist hybrids, historical/diverse finalists) registered; `selection_splits` never contain `test`/`forward`.",
+          "Screening seeds (11,42,73,101,137), finalist seeds (11,23,42,73,101,137,173,211,251,307); budgets identical across variants.",
+          "`advances` requires ≥4/5 positive deltas + median>0 + worst-seed non-degradation + cost-stress + coverage; `candidate_score` never uses test.",
+          "Runner rejects `test_new.csv` as selection input with `selection data`; all runs append variant/seed/hashes/contract/mode/profile/budget/metrics to ledger.",
+          "`profiles/onchain_v1.json` frozen before validation-selection consume, hashed + ledger-appended; single one-shot selection eval; no retry/threshold/family/hparam change after; winner sets defaults only on pass, else retain 18-baseline production + experimental builder."
+        ],
+        "verification_gates": [
+          "`PYTEST_LOW_MEMORY=1 .venv/bin/python -m pytest tests/unit/test_onchain_ablation.py tests/unit/test_rb_correlation.py tests/unit/test_marginal.py tests/unit/test_optuna_search.py -q` – expected: pass.",
+          "Screening 5-seed run to `outputs/onchain_screening_v1` – expected: report with paired deltas.",
+          "Finalist 10-seed run to `outputs/onchain_finalists_v1` – expected: frozen profile + ledger entry."
+        ],
+        "evidence": [],
+        "effort": "L",
+        "confidence": "MEDIUM (touches RB governor + Optuna + ledger; long-running)",
+        "risk": "HIGH — test-tuning or silent default change invalidates research.",
+        "estimated_lines": null,
+        "source_heading": "RB profiles + registered ablations + frozen selection (slug: research-selection)"
+      },
+      {
+        "id": "unit-7",
+        "title": "Regression, parity, smoke + truthful docs (slug: release-gate)",
+        "description": "- `README.md:139`, `RUN.md:119` – supplied-feature contract lines to correct. - `gpu_fuzzy_trader/config.py:237-256` – final 30 to document. - In: `README.md`, `RUN.md`. Defect fixes only if sharded tests fail, minimal diffs. Smoke evidence stays ignored, not committed. - Out: no feature, catalog, or RB logic changes except verified defect fixes; no retuning; benchmark and CUDA full runs stay on GPU host, not local. - [ ] Sharded low-memory suites pass: data/feature/split/MTF; CPU/GPU parity + encoder properties (with 12-feature fixture if needed); integrity/ledger/multiplicity/RB/symbol/ablation. - [ ] One-symbol small-budget smoke (`DEBUG_SYMBOL_SCOPE`, 32 pop/2 gens) shows `rule_features=30`, no range violation, no stale reuse, no pre-Phase-5 `test_new.csv` read; CUDA smoke on GPU host records hw/JAX/mem/time. - [ ] README states 30 vs HWC/MWC context, both source modes, release timing, Funding carry, global/specialist truth (no unconditional specialist claim unless selected), test-as-diagnostic, forward-only acceptance. - [ ] RUN lists exact build/verify/screening/finalist/debug/GPU/diagnostic/forward commands with protected-split annotations. - [ ] `run_pipeline --help`, `validate_config` prints 30, `git diff --check` clean, broad `tests/unit tests/property` low-memory pass (sharded), no sources/staged/caches committed, manifests match tapes+profile. 1. `PYTEST_LOW_MEMORY=1 .venv/bin/python -m pytest tests/unit/test_onchain_registry.py tests/unit/test_onchain_pipeline.py tests/unit/test_onchain_dataset_builder.py tests/unit/test_onchain_feature_contract.py tests/unit/test_data_loader.py tests/unit/test_data_splitter.py tests/unit/test_feature_catalog.py tests/unit/test_fuzzy_scaling.py tests/unit/test_multi_timeframe.py tests/unit/test_mtf_pipeline_integration.py -q` – sharded, expected: pass. 2. `PYTEST_LOW_MEMORY=1 .venv/bin/python -m pytest tests/unit/test_cpu_engine.py tests/unit/test_gpu_engine.py tests/unit/test_phase2_batch_evaluator_parity.py tests/property/test_encoder_properties.py -q` – expected: pass. 3. `PYTEST_LOW_MEMORY=1 .venv/bin/python -m pytest tests/unit/test_research_integrity.py tests/unit/test_experiment_ledger.py tests/unit/test_multiplicity.py tests/unit/test_rb_correlation.py tests/unit/test_marginal.py tests/unit/test_phase2_symbol_modes.py tests/unit/test_onchain_ablation.py -q` – expected: pass. 4. Docs + `git diff --check` + `validate_config==30` – expected: clean/30. - STOP conditions: - STOP if any sharded suite fails on main baseline too (record baseline first; fix separately). - STOP if smoke shows leakage, range violation, or test read before Phase 5. - STOP if docs claim specialist/diverse as production without frozen-profile evidence. - Implementation sketch: - Step 1: sharded regression + parity (never one giant pytest locally). - Step 2: CPU smoke + GPU-host smoke with ledger record. - Step 3: README/RUN truthful update + final `git diff --check` + manifest/hash audit + docs commit.",
+        "depends_on": [
+          "unit-6"
+        ],
+        "allowed_files": [
+          "README.md",
+          "RUN.md"
+        ],
+        "acceptance_criteria": [
+          "Sharded low-memory suites pass: data/feature/split/MTF; CPU/GPU parity + encoder properties (with 12-feature fixture if needed); integrity/ledger/multiplicity/RB/symbol/ablation.",
+          "One-symbol small-budget smoke (`DEBUG_SYMBOL_SCOPE`, 32 pop/2 gens) shows `rule_features=30`, no range violation, no stale reuse, no pre-Phase-5 `test_new.csv` read; CUDA smoke on GPU host records hw/JAX/mem/time.",
+          "README states 30 vs HWC/MWC context, both source modes, release timing, Funding carry, global/specialist truth (no unconditional specialist claim unless selected), test-as-diagnostic, forward-only acceptance.",
+          "RUN lists exact build/verify/screening/finalist/debug/GPU/diagnostic/forward commands with protected-split annotations.",
+          "`run_pipeline --help`, `validate_config` prints 30, `git diff --check` clean, broad `tests/unit tests/property` low-memory pass (sharded), no sources/staged/caches committed, manifests match tapes+profile."
+        ],
+        "verification_gates": [
+          "`PYTEST_LOW_MEMORY=1 .venv/bin/python -m pytest tests/unit/test_onchain_registry.py tests/unit/test_onchain_pipeline.py tests/unit/test_onchain_dataset_builder.py tests/unit/test_onchain_feature_contract.py tests/unit/test_data_loader.py tests/unit/test_data_splitter.py tests/unit/test_feature_catalog.py tests/unit/test_fuzzy_scaling.py tests/unit/test_multi_timeframe.py tests/unit/test_mtf_pipeline_integration.py -q` – sharded, expected: pass.",
+          "`PYTEST_LOW_MEMORY=1 .venv/bin/python -m pytest tests/unit/test_cpu_engine.py tests/unit/test_gpu_engine.py tests/unit/test_phase2_batch_evaluator_parity.py tests/property/test_encoder_properties.py -q` – expected: pass.",
+          "`PYTEST_LOW_MEMORY=1 .venv/bin/python -m pytest tests/unit/test_research_integrity.py tests/unit/test_experiment_ledger.py tests/unit/test_multiplicity.py tests/unit/test_rb_correlation.py tests/unit/test_marginal.py tests/unit/test_phase2_symbol_modes.py tests/unit/test_onchain_ablation.py -q` – expected: pass.",
+          "Docs + `git diff --check` + `validate_config==30` – expected: clean/30."
+        ],
+        "evidence": [],
+        "effort": "M",
+        "confidence": "HIGH",
+        "risk": "MEDIUM — stale docs or untested parity hide regressions.",
+        "estimated_lines": null,
+        "source_heading": "Regression, parity, smoke + truthful docs (slug: release-gate)"
+      }
+    ],
+    "planning_mode": "deep",
+    "errors": [],
+    "warnings": [
+      {
+        "code": "DUPLICATE_ALLOWED_FILE",
+        "file": "gpu_fuzzy_trader/data/onchain_pipeline.py",
+        "units": [
+          "unit-1",
+          "unit-2"
+        ],
+        "message": "gpu_fuzzy_trader/data/onchain_pipeline.py is allowed in multiple units: unit-1, unit-2"
+      },
+      {
+        "code": "DUPLICATE_ALLOWED_FILE",
+        "file": "gpu_fuzzy_trader/config.py",
+        "units": [
+          "unit-3",
+          "unit-4",
+          "unit-6"
+        ],
+        "message": "gpu_fuzzy_trader/config.py is allowed in multiple units: unit-3, unit-4, unit-6"
+      },
+      {
+        "code": "DUPLICATE_ALLOWED_FILE",
+        "file": "gpu_fuzzy_trader/run_pipeline.py",
+        "units": [
+          "unit-3",
+          "unit-4"
+        ],
+        "message": "gpu_fuzzy_trader/run_pipeline.py is allowed in multiple units: unit-3, unit-4"
+      },
+      {
+        "code": "MERGE_CANDIDATE",
+        "units": [
+          "unit-1",
+          "unit-2"
+        ],
+        "overlap_ratio": 0.143,
+        "reasons": [
+          "overlapping allowed_files"
+        ],
+        "message": "unit-1 and unit-2 are merge candidates: overlapping allowed_files"
+      },
+      {
+        "code": "MERGE_CANDIDATE",
+        "units": [
+          "unit-3",
+          "unit-4"
+        ],
+        "overlap_ratio": 0.222,
+        "reasons": [
+          "overlapping allowed_files"
+        ],
+        "message": "unit-3 and unit-4 are merge candidates: overlapping allowed_files"
+      },
+      {
+        "code": "MERGE_CANDIDATE",
+        "units": [
+          "unit-3",
+          "unit-6"
+        ],
+        "overlap_ratio": 0.083,
+        "reasons": [
+          "overlapping allowed_files"
+        ],
+        "message": "unit-3 and unit-6 are merge candidates: overlapping allowed_files"
+      },
+      {
+        "code": "MERGE_CANDIDATE",
+        "units": [
+          "unit-4",
+          "unit-6"
+        ],
+        "overlap_ratio": 0.111,
+        "reasons": [
+          "overlapping allowed_files"
+        ],
+        "message": "unit-4 and unit-6 are merge candidates: overlapping allowed_files"
+      }
+    ],
+    "merge_candidates": [
+      {
+        "units": [
+          "unit-1",
+          "unit-2"
+        ],
+        "overlap_ratio": 0.143,
+        "reasons": [
+          "overlapping allowed_files"
+        ],
+        "message": "unit-1 and unit-2 are merge candidates: overlapping allowed_files"
+      },
+      {
+        "units": [
+          "unit-3",
+          "unit-4"
+        ],
+        "overlap_ratio": 0.222,
+        "reasons": [
+          "overlapping allowed_files"
+        ],
+        "message": "unit-3 and unit-4 are merge candidates: overlapping allowed_files"
+      },
+      {
+        "units": [
+          "unit-3",
+          "unit-6"
+        ],
+        "overlap_ratio": 0.083,
+        "reasons": [
+          "overlapping allowed_files"
+        ],
+        "message": "unit-3 and unit-6 are merge candidates: overlapping allowed_files"
+      },
+      {
+        "units": [
+          "unit-4",
+          "unit-6"
+        ],
+        "overlap_ratio": 0.111,
+        "reasons": [
+          "overlapping allowed_files"
+        ],
+        "message": "unit-4 and unit-6 are merge candidates: overlapping allowed_files"
+      }
+    ],
+    "warning_dispositions": [
+      {
+        "code": "DUPLICATE_ALLOWED_FILE",
+        "units": [
+          "unit-1",
+          "unit-2"
+        ],
+        "file": "gpu_fuzzy_trader/data/onchain_pipeline.py",
+        "decision": "KEEP_SEPARATE",
+        "reason": "Sequential extension of same new module. Unit-1 creates pure causal math. Unit-2 appends join, manifest, and verify helpers. No parallel edit. Second unit reuses tested helpers."
+      },
+      {
+        "code": "DUPLICATE_ALLOWED_FILE",
+        "units": [
+          "unit-3",
+          "unit-4",
+          "unit-6"
+        ],
+        "file": "gpu_fuzzy_trader/config.py",
+        "decision": "KEEP_SEPARATE",
+        "reason": "Sequential config layers. Unit-3 adds 30-feature catalog and source mode. Unit-4 adds symbol mode. Unit-6 adds RB profile. Each validates alone. No parallel edit."
+      },
+      {
+        "code": "DUPLICATE_ALLOWED_FILE",
+        "units": [
+          "unit-3",
+          "unit-4"
+        ],
+        "file": "gpu_fuzzy_trader/run_pipeline.py",
+        "decision": "KEEP_SEPARATE",
+        "reason": "Sequential functions. Unit-3 changes merge retention. Unit-4 extracts global versus specialist routing. Distinct functions. Review global freeze before specialist."
+      },
+      {
+        "code": "MERGE_CANDIDATE",
+        "units": [
+          "unit-1",
+          "unit-2"
+        ],
+        "decision": "KEEP_SEPARATE",
+        "reason": "Unit-1 is pure causal math with synthetic fixtures. Unit-2 is IO, atomic replace, and manifest. Separate leakage versus durability review.",
+        "file": ""
+      },
+      {
+        "code": "MERGE_CANDIDATE",
+        "units": [
+          "unit-3",
+          "unit-4"
+        ],
+        "decision": "KEEP_SEPARATE",
+        "reason": "Unit-3 freezes shared catalog and lineage for all modes. Unit-4 adds specialist routing. Merging risks silent global change. Verify global freeze first.",
+        "file": ""
+      },
+      {
+        "code": "MERGE_CANDIDATE",
+        "units": [
+          "unit-3",
+          "unit-6"
+        ],
+        "decision": "KEEP_SEPARATE",
+        "reason": "Unit-3 is deterministic runtime contract. Unit-6 is research selection using that contract. Contract must pass before any selection runs.",
+        "file": ""
+      },
+      {
+        "code": "MERGE_CANDIDATE",
+        "units": [
+          "unit-4",
+          "unit-6"
+        ],
+        "decision": "KEEP_SEPARATE",
+        "reason": "Unit-4 freezes routing and provenance. Unit-6 runs ablations across both modes. Routing must be fixed before comparison.",
+        "file": ""
+      }
+    ],
+    "disposition_errors": [],
+    "merge_matching_size": 2,
+    "suggested_unit_count": 5,
+    "estimate": {
+      "units": 7,
+      "tasks": 7,
+      "planning_mode": "deep",
+      "plan_advisor_calls": 1,
+      "single_unit_final_review_reuse": false,
+      "calls": {
+        "plan_advisor": 1,
+        "implementer": 7,
+        "task_reviewer": 7,
+        "final_reviewer": 1,
+        "reviewer": 8,
+        "total": 16,
+        "fix_headroom": 7,
+        "budget_ceiling": 23
+      },
+      "formula": "plan_advisor? + units*(implementer + task reviewer) + final reviewer + fix_loops*(implementer + reviewer)"
+    },
+    "dag": {
+      "ok": true,
+      "waves": [
+        [
+          "unit-1"
+        ],
+        [
+          "unit-2"
+        ],
+        [
+          "unit-3"
+        ],
+        [
+          "unit-4"
+        ],
+        [
+          "unit-5"
+        ],
+        [
+          "unit-6"
+        ],
+        [
+          "unit-7"
+        ]
+      ],
+      "maxConcurrency": 1
+    },
+    "plan_path": "/home/danaee/trading_platform/.opencode/plans/PLAN.md"
+  },
+  "execution_units": [
+    {
+      "id": "unit-1"
+    },
+    {
+      "id": "unit-2"
+    },
+    {
+      "id": "unit-3"
+    },
+    {
+      "id": "unit-4"
+    },
+    {
+      "id": "unit-5"
+    },
+    {
+      "id": "unit-6"
+    },
+    {
+      "id": "unit-7"
+    }
+  ],
+  "units": null,
+  "current_unit": "unit-4",
+  "pending_review_findings": [],
+  "plan_commit": "39c66ff3fbd6ac930962f24183cdf27cecfbbf0d",
+  "run_base_commit": "5fed2f16b8dadecfc1ab4048a5148a2eeef53ad7",
+  "head_commit": "7ea1c4e400f824d23876dcabd11fbda30a545bd9",
+  "implementer_commit": "7ea1c4e400f824d23876dcabd11fbda30a545bd9",
+  "acceptance_criteria": [
+    "Invalid mode fails validate_config with PHASE2_SYMBOL_MODE",
+    "Default global preserves current one-generator-per-direction behavior identity schema logs manifests show resolved mode",
+    "Specialist runs each symbol-direction with independent slices island_hyperparams immutable single-symbol provenance multi-symbol fails closed no cross-symbol migration",
+    "Provenance survives Phase2 to RB without rewrite"
+  ],
+  "task_history": [
+    {
+      "id": "unit-2",
+      "acceptance_criteria": [
+        "remove public row-count overrides enforce canonical 140352 39152",
+        "backup and restore test tape on manifest replace failure"
+      ],
+      "reviewed_commit": "856f501c6ad1c74b6a0da0c7bd0af8fe1448659b",
+      "verdict": "APPROVED"
+    },
+    {
+      "id": "unit-3",
+      "acceptance_criteria": [
+        "reject malformed onchain text separate from nulls",
+        "validate bounded inputs under scale manifest",
+        "stamp digest at RB output boundary preserve through writer",
+        "rebuild stale LWC archives",
+        "reject list-shaped MTF archives",
+        "missing-digest and rebuild tests"
+      ],
+      "reviewed_commit": "ba0c92c50d90e48831fac33905ca9e9cf5307ef7",
+      "verdict": "APPROVED"
+    }
+  ],
+  "branch": "feature/unit-4-symbol-modes",
+  "impact": {
+    "ok": true,
+    "schema_version": "1.0",
+    "provider": "nexus-impact",
+    "graph_provider": "nexus-impact",
+    "base_commit": "7ea1c4e400f824d23876dcabd11fbda30a545bd9",
+    "head_commit": "7ea1c4e400f824d23876dcabd11fbda30a545bd9",
+    "worktree_head": "7ea1c4e400f824d23876dcabd11fbda30a545bd9",
+    "changed_files": [
+      {
+        "status": "M",
+        "path": "gpu_fuzzy_trader/config.py",
+        "planned": true
+      },
+      {
+        "status": "M",
+        "path": "gpu_fuzzy_trader/run_pipeline.py",
+        "planned": true
+      },
+      {
+        "status": "M",
+        "path": "gpu_fuzzy_trader/phases/phase2_rule_pool.py",
+        "planned": true
+      },
+      {
+        "status": "M",
+        "path": "gpu_fuzzy_trader/rb_governor.py",
+        "planned": true
+      },
+      {
+        "status": "M",
+        "path": "tests/unit/test_phase2_symbol_modes.py",
+        "planned": true
+      }
+    ],
+    "ignored_files": [
+      {
+        "path": ".opencode/BASELINE_EVIDENCE_UNIT2.md",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/CONTEXT.md",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/RUN_SUCCESSION.md",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/active-run",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/cache/impact/files.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/cache/impact/imports.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/cache/impact/meta.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/cache/impact/symbols.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/config/scope-policy.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-1-fix-implementer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-1-fix-reviewer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-1-fix-reviewer2.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-1-implementer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-1-reviewer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-2-fix-r2-implementer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-2-fix-r2-reviewer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-2-fix2-r2-implementer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-2-fix2-r2-reviewer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-2-fix3-r2-implementer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-2-fix3-r2-reviewer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-2-implementer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-2-reviewer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-3-fix-r2-implementer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-3-fix-r2-reviewer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-3-fix2-r2-implementer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-3-fix2-r2-reviewer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-3-fix3-r2-implementer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-3-fix3-r2-reviewer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-3-fix4-r2-implementer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-3-fix4-r2-reviewer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-3-fix5-r2-implementer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-3-fix5-r2-reviewer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-3-fix6-r2-implementer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-3-fix6-r2-reviewer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-3-r2-implementer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-3-r2-reviewer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-3-scope-r2-implementer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-4-r2-implementer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-4-r2-reviewer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/impact/latest.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/nexus.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/plans/PLAN.md",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/reviews/santiment-onchain-20260910-r2-unit-2-task-review-package.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/reviews/santiment-onchain-20260910-r2-unit-2-task-review-package.md",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/reviews/santiment-onchain-20260910-r2-unit-3-task-review-package.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/reviews/santiment-onchain-20260910-r2-unit-3-task-review-package.md",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/reviews/santiment-onchain-20260910-r2-unit-4-task-review-package.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/reviews/santiment-onchain-20260910-r2-unit-4-task-review-package.md",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/reviews/santiment-onchain-20260910-task-task-review-package.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/reviews/santiment-onchain-20260910-task-task-review-package.md",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/reviews/santiment-onchain-20260910-unit-2-task-review-package.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/reviews/santiment-onchain-20260910-unit-2-task-review-package.md",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/runs/run-2026-09-10T15-20-12-413-c14e2b/state.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/runs/santiment-onchain-20260910-r2/baseline.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/runs/santiment-onchain-20260910-r2/metrics.jsonl",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/runs/santiment-onchain-20260910-r2/state.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/runs/santiment-onchain-20260910-r2/verification.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/runs/santiment-onchain-20260910/baseline.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/runs/santiment-onchain-20260910/metrics.jsonl",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/runs/santiment-onchain-20260910/state.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/runs/santiment-onchain-20260910/verification.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/tasks/task-1.md",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/tasks/task-2.md",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/tasks/task-3.md",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/tasks/task-4.md",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/tasks/task-5.md",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/tasks/task-6.md",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/tasks/task-7.md",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/trajectories/run-2026-09-10T15-20-12-413-c14e2b.jsonl",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/trajectories/santiment-onchain-20260910-r2.jsonl",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/trajectories/santiment-onchain-20260910.jsonl",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      }
+    ],
+    "added_lines": 0,
+    "deleted_lines": 0,
+    "changed_symbols": [],
+    "direct_dependents": [],
+    "transitive_dependents": [],
+    "affected_packages": [
+      "."
+    ],
+    "related_tests": [
+      "tests/property/hypothesis_config.py",
+      "tests/property/test_phase2_rule_pool_properties.py",
+      "tests/unit/test_anti_overfit_config.py",
+      "tests/unit/test_config_additions.py",
+      "tests/unit/test_config_trade_scaling.py",
+      "tests/unit/test_config_validation.py",
+      "tests/unit/test_phase2_rule_pool.py",
+      "tests/unit/test_phase2_symbol_modes.py",
+      "tests/unit/test_rb_governor_cv_folds.py",
+      "tests/unit/test_rb_governor_tail_holdout.py",
+      "tests/unit/test_run_pipeline.py"
+    ],
+    "risk": "MEDIUM",
+    "level": "MEDIUM",
+    "computed_risk": "MEDIUM",
+    "risk_signals": [
+      "low_impact_confidence"
+    ],
+    "confidence": 0.1,
+    "verification_mode": "strict",
+    "trusted": false,
+    "analysis_quality": "CONSERVATIVE",
+    "graph_quality": "CONSERVATIVE",
+    "analysis_complete": true,
+    "pre_impact": true,
+    "phase": "pre",
+    "graph_freshness": {
+      "valid": true,
+      "current_head": "7ea1c4e400f824d23876dcabd11fbda30a545bd9"
+    },
+    "uncertainties": [
+      "unsupported_language_coverage"
+    ],
+    "dimensions": {
+      "symbols": 0,
+      "dependents": 0,
+      "tests": 11
+    },
+    "index_stats": {
+      "parsed": 0,
+      "cacheHits": 194,
+      "unsupported": 194,
+      "files": 194,
+      "ignored": 0,
+      "ignored_files": [],
+      "cache_invalidated": false,
+      "cache_invalidation_reason": null,
+      "path_filter_version": "nexus-path-filter-1.0"
+    },
+    "path_filter": {
+      "version": "nexus-path-filter-1.0",
+      "ignored_patterns": [
+        ".git/**",
+        "node_modules/**",
+        ".node_modules/**",
+        ".venv/**",
+        "venv/**",
+        "__pycache__/**",
+        "*.pyc",
+        "*.pyo",
+        "dist/**",
+        "build/**",
+        "coverage/**",
+        ".cache/**",
+        ".tmp/**",
+        ".opencode/**",
+        "graphify-out/**",
+        ".antigravity/**"
+      ],
+      "ignored_files": [
+        {
+          "path": ".opencode/BASELINE_EVIDENCE_UNIT2.md",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/CONTEXT.md",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/RUN_SUCCESSION.md",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/active-run",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/cache/impact/files.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/cache/impact/imports.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/cache/impact/meta.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/cache/impact/symbols.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/config/scope-policy.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/handoffs/unit-1-fix-implementer.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/handoffs/unit-1-fix-reviewer.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/handoffs/unit-1-fix-reviewer2.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/handoffs/unit-1-implementer.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/handoffs/unit-1-reviewer.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/handoffs/unit-2-fix-r2-implementer.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/handoffs/unit-2-fix-r2-reviewer.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/handoffs/unit-2-fix2-r2-implementer.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/handoffs/unit-2-fix2-r2-reviewer.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/handoffs/unit-2-fix3-r2-implementer.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/handoffs/unit-2-fix3-r2-reviewer.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/handoffs/unit-2-implementer.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/handoffs/unit-2-reviewer.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/handoffs/unit-3-fix-r2-implementer.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/handoffs/unit-3-fix-r2-reviewer.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/handoffs/unit-3-fix2-r2-implementer.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/handoffs/unit-3-fix2-r2-reviewer.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/handoffs/unit-3-fix3-r2-implementer.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/handoffs/unit-3-fix3-r2-reviewer.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/handoffs/unit-3-fix4-r2-implementer.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/handoffs/unit-3-fix4-r2-reviewer.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/handoffs/unit-3-fix5-r2-implementer.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/handoffs/unit-3-fix5-r2-reviewer.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/handoffs/unit-3-fix6-r2-implementer.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/handoffs/unit-3-fix6-r2-reviewer.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/handoffs/unit-3-r2-implementer.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/handoffs/unit-3-r2-reviewer.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/handoffs/unit-3-scope-r2-implementer.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/handoffs/unit-4-r2-implementer.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/handoffs/unit-4-r2-reviewer.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/impact/latest.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/nexus.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/plans/PLAN.md",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/reviews/santiment-onchain-20260910-r2-unit-2-task-review-package.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/reviews/santiment-onchain-20260910-r2-unit-2-task-review-package.md",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/reviews/santiment-onchain-20260910-r2-unit-3-task-review-package.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/reviews/santiment-onchain-20260910-r2-unit-3-task-review-package.md",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/reviews/santiment-onchain-20260910-r2-unit-4-task-review-package.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/reviews/santiment-onchain-20260910-r2-unit-4-task-review-package.md",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/reviews/santiment-onchain-20260910-task-task-review-package.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/reviews/santiment-onchain-20260910-task-task-review-package.md",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/reviews/santiment-onchain-20260910-unit-2-task-review-package.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/reviews/santiment-onchain-20260910-unit-2-task-review-package.md",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/runs/run-2026-09-10T15-20-12-413-c14e2b/state.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/runs/santiment-onchain-20260910-r2/baseline.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/runs/santiment-onchain-20260910-r2/metrics.jsonl",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/runs/santiment-onchain-20260910-r2/state.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/runs/santiment-onchain-20260910-r2/verification.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/runs/santiment-onchain-20260910/baseline.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/runs/santiment-onchain-20260910/metrics.jsonl",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/runs/santiment-onchain-20260910/state.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/runs/santiment-onchain-20260910/verification.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/tasks/task-1.md",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/tasks/task-2.md",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/tasks/task-3.md",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/tasks/task-4.md",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/tasks/task-5.md",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/tasks/task-6.md",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/tasks/task-7.md",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/trajectories/run-2026-09-10T15-20-12-413-c14e2b.jsonl",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/trajectories/santiment-onchain-20260910-r2.jsonl",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/trajectories/santiment-onchain-20260910.jsonl",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        }
+      ]
+    },
+    "placeholder_fields": [],
+    "provider_validated": true,
+    "validated_at": "2026-09-12T09:27:27.464Z",
+    "artifact_digest": "sha256:4347ff67de31f949ae45d07fcf1453ebbcb258042475e3a0f1997401df565c41"
+  },
+  "change_class": null,
+  "verification_policy": {
+    "exempt": false,
+    "reason": null
+  },
+  "compatibility_mode": null,
+  "require_post_impact": true,
+  "verification_status": "PASSED",
+  "verification": {
+    "status": "PASSED",
+    "phase": "TASK",
+    "worktree_head": "7ea1c4e400f824d23876dcabd11fbda30a545bd9",
+    "started_at": "2026-09-12T08:51:20.093Z",
+    "completed_at": "2026-09-12T08:56:55.589Z",
+    "plan_digest": "sha256:bf34ed680763a127c03739789aa15b4769fe184a8c1bada0bb1e647dcb3acc96",
+    "configuration_digest": "sha256:0cce53535e0a7a1fb77cfbb9d94588713a878218c930e2f0bcffb1a5e017d20e",
+    "artifact_path": ".opencode/runs/santiment-onchain-20260910-r2/verification.json",
+    "artifact_digest": "sha256:5f3ce1ec4e845d414aa57f47710faa65ff616cad574489988b15f85984b2c681",
+    "current_step": 11,
+    "total_steps": 11,
+    "completed_steps": 11,
+    "failure_reason": null
+  },
+  "blocked_from": "VERIFYING",
+  "resume_state": "VERIFYING",
+  "block_reason": "VERIFYING HEAD binding is stale (f03fe035) after authorized property-schema fix committed as b273bae3; nexus verify refuses with HEAD_MISMATCH. Rebinding via BLOCKED to VERIFYING with fresh DONE handoff.",
+  "block_code": "HEAD_MISMATCH_REPAIR",
+  "agent_calls_used": 23,
+  "agent_call_budget": {
+    "profile": "default",
+    "workflow": "default",
+    "change_class": "task",
+    "execution_mode": "delegated",
+    "units": 7,
+    "category": "normal",
+    "max_calls": 23,
+    "derived_max_calls": 23,
+    "source": "v5-default-workflow",
+    "planning_advisor_calls": 1
+  },
+  "escalation_reasons": [
+    "unknown_impact",
+    "low_impact_confidence"
+  ],
+  "transitions": [
+    {
+      "from": "CREATED",
+      "to": "BRAINSTORMING",
+      "at": "2026-09-10T15:22:51.942Z",
+      "evidence": null
+    },
+    {
+      "from": "BRAINSTORMING",
+      "to": "PLANNED",
+      "at": "2026-09-10T15:23:27.972Z",
+      "evidence": null,
+      "agent_calls": 1,
+      "agent": "plan-advisor"
+    },
+    {
+      "from": "PLANNED",
+      "to": "TASK_IMPACT_READY",
+      "at": "2026-09-10T15:24:18.188Z",
+      "evidence": null
+    },
+    {
+      "from": "TASK_IMPACT_READY",
+      "to": "IMPLEMENTING",
+      "at": "2026-09-10T15:24:39.570Z",
+      "evidence": null
+    },
+    {
+      "from": "IMPLEMENTING",
+      "to": "VERIFYING",
+      "at": "2026-09-10T15:32:08.093Z",
+      "evidence": null,
+      "agent_calls": 1,
+      "agent": "implementer"
+    },
+    {
+      "from": "VERIFYING",
+      "to": "REVIEWING",
+      "at": "2026-09-10T16:17:16.437Z",
+      "evidence": null
+    },
+    {
+      "from": "REVIEWING",
+      "to": "TASK_IMPACT_READY",
+      "at": "2026-09-10T16:26:52.169Z",
+      "evidence": null,
+      "agent_calls": 1,
+      "agent": "reviewer"
+    },
+    {
+      "from": "TASK_IMPACT_READY",
+      "to": "IMPLEMENTING",
+      "at": "2026-09-10T16:27:17.488Z",
+      "evidence": null
+    },
+    {
+      "from": "IMPLEMENTING",
+      "to": "VERIFYING",
+      "at": "2026-09-10T16:36:47.767Z",
+      "evidence": null,
+      "agent_calls": 1,
+      "agent": "implementer"
+    },
+    {
+      "from": "VERIFYING",
+      "to": "REVIEWING",
+      "at": "2026-09-10T22:02:44.002Z",
+      "evidence": null
+    },
+    {
+      "from": "REVIEWING",
+      "to": "TASK_IMPACT_READY",
+      "at": "2026-09-11T08:00:08.738Z",
+      "evidence": null,
+      "agent_calls": 1,
+      "agent": "reviewer"
+    },
+    {
+      "from": "TASK_IMPACT_READY",
+      "to": "IMPLEMENTING",
+      "at": "2026-09-11T08:01:04.214Z",
+      "evidence": null
+    },
+    {
+      "from": "IMPLEMENTING",
+      "to": "VERIFYING",
+      "at": "2026-09-11T08:07:00.497Z",
+      "evidence": null,
+      "agent_calls": 1,
+      "agent": "implementer"
+    },
+    {
+      "from": "VERIFYING",
+      "to": "REVIEWING",
+      "at": "2026-09-11T08:08:23.168Z",
+      "evidence": null
+    },
+    {
+      "from": "REVIEWING",
+      "to": "TASK_IMPACT_READY",
+      "at": "2026-09-11T08:16:02.275Z",
+      "evidence": null,
+      "agent_calls": 1,
+      "agent": "reviewer"
+    },
+    {
+      "from": "TASK_IMPACT_READY",
+      "to": "IMPLEMENTING",
+      "at": "2026-09-11T08:16:17.490Z",
+      "evidence": null
+    },
+    {
+      "from": "IMPLEMENTING",
+      "to": "VERIFYING",
+      "at": "2026-09-11T08:35:01.983Z",
+      "evidence": null,
+      "agent_calls": 1,
+      "agent": "implementer"
+    },
+    {
+      "from": "VERIFYING",
+      "to": "REVIEWING",
+      "at": "2026-09-11T08:39:56.124Z",
+      "evidence": null
+    },
+    {
+      "from": "REVIEWING",
+      "to": "TASK_IMPACT_READY",
+      "at": "2026-09-11T09:02:16.851Z",
+      "evidence": null,
+      "agent_calls": 1,
+      "agent": "reviewer"
+    },
+    {
+      "from": "TASK_IMPACT_READY",
+      "to": "IMPLEMENTING",
+      "at": "2026-09-11T09:02:54.191Z",
+      "evidence": null
+    },
+    {
+      "from": "IMPLEMENTING",
+      "to": "VERIFYING",
+      "at": "2026-09-11T09:40:07.505Z",
+      "evidence": null,
+      "agent_calls": 1,
+      "agent": "implementer"
+    },
+    {
+      "from": "VERIFYING",
+      "to": "REVIEWING",
+      "at": "2026-09-11T14:14:37.328Z",
+      "evidence": null
+    },
+    {
+      "from": "REVIEWING",
+      "to": "TASK_IMPACT_READY",
+      "at": "2026-09-11T14:40:22.522Z",
+      "evidence": null,
+      "agent_calls": 1,
+      "agent": "reviewer"
+    },
+    {
+      "from": "TASK_IMPACT_READY",
+      "to": "IMPLEMENTING",
+      "at": "2026-09-11T14:40:56.959Z",
+      "evidence": null
+    },
+    {
+      "from": "IMPLEMENTING",
+      "to": "VERIFYING",
+      "at": "2026-09-11T15:05:14.338Z",
+      "evidence": null,
+      "agent_calls": 1,
+      "agent": "implementer"
+    },
+    {
+      "from": "VERIFYING",
+      "to": "REVIEWING",
+      "at": "2026-09-11T15:12:32.608Z",
+      "evidence": null
+    },
+    {
+      "from": "REVIEWING",
+      "to": "TASK_IMPACT_READY",
+      "at": "2026-09-11T15:45:17.812Z",
+      "evidence": null,
+      "agent_calls": 1,
+      "agent": "reviewer"
+    },
+    {
+      "from": "TASK_IMPACT_READY",
+      "to": "IMPLEMENTING",
+      "at": "2026-09-11T15:45:42.450Z",
+      "evidence": null
+    },
+    {
+      "from": "IMPLEMENTING",
+      "to": "VERIFYING",
+      "at": "2026-09-11T16:12:44.029Z",
+      "evidence": null,
+      "agent_calls": 1,
+      "agent": "implementer"
+    },
+    {
+      "from": "VERIFYING",
+      "to": "BLOCKED",
+      "at": "2026-09-11T16:46:48.542Z",
+      "evidence": null
+    },
+    {
+      "from": "BLOCKED",
+      "to": "VERIFYING",
+      "at": "2026-09-11T16:51:42.802Z",
+      "evidence": null
+    },
+    {
+      "from": "VERIFYING",
+      "to": "REVIEWING",
+      "at": "2026-09-11T16:58:06.315Z",
+      "evidence": null
+    },
+    {
+      "from": "REVIEWING",
+      "to": "TASK_IMPACT_READY",
+      "at": "2026-09-11T18:12:41.711Z",
+      "evidence": null,
+      "agent_calls": 1,
+      "agent": "reviewer"
+    },
+    {
+      "from": "TASK_IMPACT_READY",
+      "to": "IMPLEMENTING",
+      "at": "2026-09-11T18:12:55.396Z",
+      "evidence": null
+    },
+    {
+      "from": "IMPLEMENTING",
+      "to": "VERIFYING",
+      "at": "2026-09-11T18:34:02.766Z",
+      "evidence": null,
+      "agent_calls": 1,
+      "agent": "implementer"
+    },
+    {
+      "from": "VERIFYING",
+      "to": "REVIEWING",
+      "at": "2026-09-11T18:38:01.956Z",
+      "evidence": null
+    },
+    {
+      "from": "REVIEWING",
+      "to": "TASK_IMPACT_READY",
+      "at": "2026-09-11T19:06:23.958Z",
+      "evidence": null,
+      "agent_calls": 1,
+      "agent": "reviewer"
+    },
+    {
+      "from": "TASK_IMPACT_READY",
+      "to": "IMPLEMENTING",
+      "at": "2026-09-11T19:06:30.152Z",
+      "evidence": null
+    },
+    {
+      "from": "IMPLEMENTING",
+      "to": "VERIFYING",
+      "at": "2026-09-11T19:20:20.606Z",
+      "evidence": null,
+      "agent_calls": 1,
+      "agent": "implementer"
+    },
+    {
+      "from": "VERIFYING",
+      "to": "REVIEWING",
+      "at": "2026-09-11T19:24:01.847Z",
+      "evidence": null
+    },
+    {
+      "from": "REVIEWING",
+      "to": "TASK_IMPACT_READY",
+      "at": "2026-09-11T20:21:18.891Z",
+      "evidence": null,
+      "agent_calls": 1,
+      "agent": "reviewer"
+    },
+    {
+      "from": "TASK_IMPACT_READY",
+      "to": "IMPLEMENTING",
+      "at": "2026-09-11T20:21:27.565Z",
+      "evidence": null
+    },
+    {
+      "from": "IMPLEMENTING",
+      "to": "VERIFYING",
+      "at": "2026-09-11T20:26:58.118Z",
+      "evidence": null,
+      "agent_calls": 1,
+      "agent": "implementer"
+    },
+    {
+      "from": "VERIFYING",
+      "to": "REVIEWING",
+      "at": "2026-09-11T20:30:49.371Z",
+      "evidence": null
+    },
+    {
+      "from": "REVIEWING",
+      "to": "TASK_IMPACT_READY",
+      "at": "2026-09-12T08:40:34.892Z",
+      "evidence": null,
+      "agent_calls": 1,
+      "agent": "reviewer"
+    },
+    {
+      "from": "TASK_IMPACT_READY",
+      "to": "IMPLEMENTING",
+      "at": "2026-09-12T08:40:42.534Z",
+      "evidence": null
+    },
+    {
+      "from": "IMPLEMENTING",
+      "to": "VERIFYING",
+      "at": "2026-09-12T08:51:15.737Z",
+      "evidence": null,
+      "agent_calls": 1,
+      "agent": "implementer"
+    },
+    {
+      "from": "VERIFYING",
+      "to": "REVIEWING",
+      "at": "2026-09-12T08:57:02.112Z",
+      "evidence": null
+    },
+    {
+      "from": "REVIEWING",
+      "to": "TASK_IMPACT_READY",
+      "at": "2026-09-12T09:27:27.466Z",
+      "evidence": null,
+      "agent_calls": 1,
+      "agent": "reviewer"
+    },
+    {
+      "from": "TASK_IMPACT_READY",
+      "to": "IMPLEMENTING",
+      "at": "2026-09-12T09:27:33.900Z",
+      "evidence": null
+    }
+  ],
+  "created_at": "2026-09-10T15:22:32.553Z",
+  "updated_at": "2026-09-12T09:27:33.904Z",
+  "tdd_required": false,
+  "blast": {
+    "ok": true,
+    "schema_version": "1.0",
+    "provider": "nexus-impact",
+    "graph_provider": "nexus-impact",
+    "base_commit": "7ea1c4e400f824d23876dcabd11fbda30a545bd9",
+    "head_commit": "7ea1c4e400f824d23876dcabd11fbda30a545bd9",
+    "worktree_head": "7ea1c4e400f824d23876dcabd11fbda30a545bd9",
+    "changed_files": [
+      {
+        "status": "M",
+        "path": "gpu_fuzzy_trader/config.py",
+        "planned": true
+      },
+      {
+        "status": "M",
+        "path": "gpu_fuzzy_trader/run_pipeline.py",
+        "planned": true
+      },
+      {
+        "status": "M",
+        "path": "gpu_fuzzy_trader/phases/phase2_rule_pool.py",
+        "planned": true
+      },
+      {
+        "status": "M",
+        "path": "gpu_fuzzy_trader/rb_governor.py",
+        "planned": true
+      },
+      {
+        "status": "M",
+        "path": "tests/unit/test_phase2_symbol_modes.py",
+        "planned": true
+      }
+    ],
+    "ignored_files": [
+      {
+        "path": ".opencode/BASELINE_EVIDENCE_UNIT2.md",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/CONTEXT.md",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/RUN_SUCCESSION.md",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/active-run",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/cache/impact/files.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/cache/impact/imports.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/cache/impact/meta.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/cache/impact/symbols.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/config/scope-policy.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-1-fix-implementer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-1-fix-reviewer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-1-fix-reviewer2.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-1-implementer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-1-reviewer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-2-fix-r2-implementer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-2-fix-r2-reviewer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-2-fix2-r2-implementer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-2-fix2-r2-reviewer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-2-fix3-r2-implementer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-2-fix3-r2-reviewer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-2-implementer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-2-reviewer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-3-fix-r2-implementer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-3-fix-r2-reviewer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-3-fix2-r2-implementer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-3-fix2-r2-reviewer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-3-fix3-r2-implementer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-3-fix3-r2-reviewer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-3-fix4-r2-implementer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-3-fix4-r2-reviewer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-3-fix5-r2-implementer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-3-fix5-r2-reviewer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-3-fix6-r2-implementer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-3-fix6-r2-reviewer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-3-r2-implementer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-3-r2-reviewer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-3-scope-r2-implementer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-4-r2-implementer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-4-r2-reviewer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/impact/latest.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/nexus.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/plans/PLAN.md",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/reviews/santiment-onchain-20260910-r2-unit-2-task-review-package.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/reviews/santiment-onchain-20260910-r2-unit-2-task-review-package.md",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/reviews/santiment-onchain-20260910-r2-unit-3-task-review-package.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/reviews/santiment-onchain-20260910-r2-unit-3-task-review-package.md",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/reviews/santiment-onchain-20260910-r2-unit-4-task-review-package.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/reviews/santiment-onchain-20260910-r2-unit-4-task-review-package.md",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/reviews/santiment-onchain-20260910-task-task-review-package.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/reviews/santiment-onchain-20260910-task-task-review-package.md",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/reviews/santiment-onchain-20260910-unit-2-task-review-package.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/reviews/santiment-onchain-20260910-unit-2-task-review-package.md",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/runs/run-2026-09-10T15-20-12-413-c14e2b/state.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/runs/santiment-onchain-20260910-r2/baseline.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/runs/santiment-onchain-20260910-r2/metrics.jsonl",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/runs/santiment-onchain-20260910-r2/state.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/runs/santiment-onchain-20260910-r2/verification.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/runs/santiment-onchain-20260910/baseline.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/runs/santiment-onchain-20260910/metrics.jsonl",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/runs/santiment-onchain-20260910/state.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/runs/santiment-onchain-20260910/verification.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/tasks/task-1.md",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/tasks/task-2.md",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/tasks/task-3.md",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/tasks/task-4.md",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/tasks/task-5.md",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/tasks/task-6.md",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/tasks/task-7.md",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/trajectories/run-2026-09-10T15-20-12-413-c14e2b.jsonl",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/trajectories/santiment-onchain-20260910-r2.jsonl",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/trajectories/santiment-onchain-20260910.jsonl",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      }
+    ],
+    "added_lines": 0,
+    "deleted_lines": 0,
+    "changed_symbols": [],
+    "direct_dependents": [],
+    "transitive_dependents": [],
+    "affected_packages": [
+      "."
+    ],
+    "related_tests": [
+      "tests/property/hypothesis_config.py",
+      "tests/property/test_phase2_rule_pool_properties.py",
+      "tests/unit/test_anti_overfit_config.py",
+      "tests/unit/test_config_additions.py",
+      "tests/unit/test_config_trade_scaling.py",
+      "tests/unit/test_config_validation.py",
+      "tests/unit/test_phase2_rule_pool.py",
+      "tests/unit/test_phase2_symbol_modes.py",
+      "tests/unit/test_rb_governor_cv_folds.py",
+      "tests/unit/test_rb_governor_tail_holdout.py",
+      "tests/unit/test_run_pipeline.py"
+    ],
+    "risk": "MEDIUM",
+    "level": "MEDIUM",
+    "computed_risk": "MEDIUM",
+    "risk_signals": [
+      "low_impact_confidence"
+    ],
+    "confidence": 0.1,
+    "verification_mode": "strict",
+    "trusted": false,
+    "analysis_quality": "CONSERVATIVE",
+    "graph_quality": "CONSERVATIVE",
+    "analysis_complete": true,
+    "pre_impact": true,
+    "phase": "pre",
+    "graph_freshness": {
+      "valid": true,
+      "current_head": "7ea1c4e400f824d23876dcabd11fbda30a545bd9"
+    },
+    "uncertainties": [
+      "unsupported_language_coverage"
+    ],
+    "dimensions": {
+      "symbols": 0,
+      "dependents": 0,
+      "tests": 11
+    },
+    "index_stats": {
+      "parsed": 0,
+      "cacheHits": 194,
+      "unsupported": 194,
+      "files": 194,
+      "ignored": 0,
+      "ignored_files": [],
+      "cache_invalidated": false,
+      "cache_invalidation_reason": null,
+      "path_filter_version": "nexus-path-filter-1.0"
+    },
+    "path_filter": {
+      "version": "nexus-path-filter-1.0",
+      "ignored_patterns": [
+        ".git/**",
+        "node_modules/**",
+        ".node_modules/**",
+        ".venv/**",
+        "venv/**",
+        "__pycache__/**",
+        "*.pyc",
+        "*.pyo",
+        "dist/**",
+        "build/**",
+        "coverage/**",
+        ".cache/**",
+        ".tmp/**",
+        ".opencode/**",
+        "graphify-out/**",
+        ".antigravity/**"
+      ],
+      "ignored_files": [
+        {
+          "path": ".opencode/BASELINE_EVIDENCE_UNIT2.md",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/CONTEXT.md",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/RUN_SUCCESSION.md",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/active-run",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/cache/impact/files.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/cache/impact/imports.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/cache/impact/meta.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/cache/impact/symbols.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/config/scope-policy.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/handoffs/unit-1-fix-implementer.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/handoffs/unit-1-fix-reviewer.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/handoffs/unit-1-fix-reviewer2.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/handoffs/unit-1-implementer.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/handoffs/unit-1-reviewer.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/handoffs/unit-2-fix-r2-implementer.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/handoffs/unit-2-fix-r2-reviewer.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/handoffs/unit-2-fix2-r2-implementer.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/handoffs/unit-2-fix2-r2-reviewer.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/handoffs/unit-2-fix3-r2-implementer.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/handoffs/unit-2-fix3-r2-reviewer.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/handoffs/unit-2-implementer.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/handoffs/unit-2-reviewer.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/handoffs/unit-3-fix-r2-implementer.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/handoffs/unit-3-fix-r2-reviewer.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/handoffs/unit-3-fix2-r2-implementer.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/handoffs/unit-3-fix2-r2-reviewer.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/handoffs/unit-3-fix3-r2-implementer.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/handoffs/unit-3-fix3-r2-reviewer.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/handoffs/unit-3-fix4-r2-implementer.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/handoffs/unit-3-fix4-r2-reviewer.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/handoffs/unit-3-fix5-r2-implementer.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/handoffs/unit-3-fix5-r2-reviewer.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/handoffs/unit-3-fix6-r2-implementer.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/handoffs/unit-3-fix6-r2-reviewer.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/handoffs/unit-3-r2-implementer.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/handoffs/unit-3-r2-reviewer.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/handoffs/unit-3-scope-r2-implementer.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/handoffs/unit-4-r2-implementer.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/handoffs/unit-4-r2-reviewer.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/impact/latest.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/nexus.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/plans/PLAN.md",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/reviews/santiment-onchain-20260910-r2-unit-2-task-review-package.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/reviews/santiment-onchain-20260910-r2-unit-2-task-review-package.md",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/reviews/santiment-onchain-20260910-r2-unit-3-task-review-package.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/reviews/santiment-onchain-20260910-r2-unit-3-task-review-package.md",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/reviews/santiment-onchain-20260910-r2-unit-4-task-review-package.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/reviews/santiment-onchain-20260910-r2-unit-4-task-review-package.md",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/reviews/santiment-onchain-20260910-task-task-review-package.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/reviews/santiment-onchain-20260910-task-task-review-package.md",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/reviews/santiment-onchain-20260910-unit-2-task-review-package.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/reviews/santiment-onchain-20260910-unit-2-task-review-package.md",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/runs/run-2026-09-10T15-20-12-413-c14e2b/state.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/runs/santiment-onchain-20260910-r2/baseline.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/runs/santiment-onchain-20260910-r2/metrics.jsonl",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/runs/santiment-onchain-20260910-r2/state.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/runs/santiment-onchain-20260910-r2/verification.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/runs/santiment-onchain-20260910/baseline.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/runs/santiment-onchain-20260910/metrics.jsonl",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/runs/santiment-onchain-20260910/state.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/runs/santiment-onchain-20260910/verification.json",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/tasks/task-1.md",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/tasks/task-2.md",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/tasks/task-3.md",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/tasks/task-4.md",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/tasks/task-5.md",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/tasks/task-6.md",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/tasks/task-7.md",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/trajectories/run-2026-09-10T15-20-12-413-c14e2b.jsonl",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/trajectories/santiment-onchain-20260910-r2.jsonl",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        },
+        {
+          "path": ".opencode/trajectories/santiment-onchain-20260910.jsonl",
+          "reason": "ignored",
+          "pattern": ".opencode/**"
+        }
+      ]
+    },
+    "placeholder_fields": [],
+    "provider_validated": true,
+    "validated_at": "2026-09-12T09:27:27.464Z",
+    "artifact_digest": "sha256:4347ff67de31f949ae45d07fcf1453ebbcb258042475e3a0f1997401df565c41"
+  },
+  "review_level": "reviewer",
+  "profile": "default",
+  "impact_consumed_for_implement": true,
+  "allowed_files": [
+    "gpu_fuzzy_trader/config.py",
+    "gpu_fuzzy_trader/run_pipeline.py",
+    "gpu_fuzzy_trader/phases/phase2_rule_pool.py",
+    "gpu_fuzzy_trader/rb_governor.py",
+    "tests/unit/test_phase2_symbol_modes.py",
+    "tests/unit/test_rb_island_source_symbols.py",
+    "tests/unit/test_run_pipeline.py"
+  ],
+  "last_implementer_handoff": {
+    "agent": "implementer",
+    "base_commit": "ba0c92c50d90e48831fac33905ca9e9cf5307ef7",
+    "commit": "7ea1c4e400f824d23876dcabd11fbda30a545bd9",
+    "created_at": "2026-09-12T08:50:52Z",
+    "drift_check": {
+      "pass": true,
+      "plan_commit": "39c66ff3fbd6ac930962f24183cdf27cecfbbf0d",
+      "current_head": "7ea1c4e400f824d23876dcabd11fbda30a545bd9"
+    },
+    "files_changed": [
+      "gpu_fuzzy_trader/config.py",
+      "gpu_fuzzy_trader/phases/phase2_rule_pool.py",
+      "gpu_fuzzy_trader/run_pipeline.py",
+      "tests/unit/test_phase2_symbol_modes.py"
+    ],
+    "findings_addressed": [],
+    "impact": {
+      "verified": true,
+      "risk": "MEDIUM"
+    },
+    "run_id": "santiment-onchain-20260910-r2",
+    "schema_version": "1.1",
+    "scope_extras": [],
+    "status": "DONE",
+    "tests": {
+      "passed": true,
+      "total": 46,
+      "failed": 0
+    },
+    "unit_or_task": "unit-4",
+    "verification_gates": [
+      {
+        "id": "unit-4-suites",
+        "pass": true
+      },
+      {
+        "id": "diff-check",
+        "pass": true
+      },
+      {
+        "id": "diff-stat",
+        "pass": true
+      }
+    ],
+    "tasks_completed": [],
+    "blast": {
+      "risk": "UNKNOWN",
+      "verified": null,
+      "callers_checked": []
+    },
+    "notes_for_reviewer": ""
+  },
+  "review_package": {
+    "schema_version": "1.0",
+    "ok": true,
+    "scope": "task",
+    "run_id": "santiment-onchain-20260910-r2",
+    "unit_or_task": "unit-4",
+    "run_base_commit": "5fed2f16b8dadecfc1ab4048a5148a2eeef53ad7",
+    "base_commit": "ba0c92c50d90e48831fac33905ca9e9cf5307ef7",
+    "head_commit": "7ea1c4e400f824d23876dcabd11fbda30a545bd9",
+    "path": ".opencode/reviews/santiment-onchain-20260910-r2-unit-4-task-review-package.md",
+    "absolute_path": "/home/danaee/trading_platform/.opencode/reviews/santiment-onchain-20260910-r2-unit-4-task-review-package.md",
+    "meta_path": ".opencode/reviews/santiment-onchain-20260910-r2-unit-4-task-review-package.json",
+    "changed_files": [
+      "gpu_fuzzy_trader/config.py",
+      "gpu_fuzzy_trader/phases/phase2_rule_pool.py",
+      "gpu_fuzzy_trader/run_pipeline.py",
+      "tests/unit/test_phase2_symbol_modes.py"
+    ],
+    "production_files": [
+      "gpu_fuzzy_trader/config.py",
+      "gpu_fuzzy_trader/phases/phase2_rule_pool.py",
+      "gpu_fuzzy_trader/run_pipeline.py"
+    ],
+    "acceptance_criteria": [
+      "Invalid mode fails validate_config with PHASE2_SYMBOL_MODE",
+      "Default global preserves current one-generator-per-direction behavior identity schema logs manifests show resolved mode",
+      "Specialist runs each symbol-direction with independent slices island_hyperparams immutable single-symbol provenance multi-symbol fails closed no cross-symbol migration",
+      "Provenance survives Phase2 to RB without rewrite"
+    ],
+    "digest_sha256": "117f2b78f3336ea620f0417b45a353ef9a271c190b535d26cd4182c122b55d22",
+    "generated_at": "2026-09-12T08:57:02.611Z"
+  },
+  "last_review_handoff": {
+    "schema_version": "1.2",
+    "run_id": "santiment-onchain-20260910-r2",
+    "unit_or_task": "unit-4",
+    "agent": "reviewer",
+    "base_commit": "ba0c92c50d90e48831fac33905ca9e9cf5307ef7",
+    "created_at": "2026-09-12T08:58:00Z",
+    "review_scope": "task",
+    "reviewed_commit": "7ea1c4e400f824d23876dcabd11fbda30a545bd9",
+    "verdict": "REQUEST_CHANGES",
+    "status": "REQUEST_CHANGES",
+    "impact": {
+      "pass": null,
+      "risk": "UNKNOWN"
+    },
+    "findings": [],
+    "acceptance": [],
+    "files_reviewed": [],
+    "checks": [],
+    "adversarial_checks": []
+  },
+  "post_impact": {
+    "ok": true,
+    "schema_version": "1.0",
+    "provider": "nexus-impact",
+    "graph_provider": "nexus-impact",
+    "base_commit": "ba0c92c50d90e48831fac33905ca9e9cf5307ef7",
+    "head_commit": "7ea1c4e400f824d23876dcabd11fbda30a545bd9",
+    "worktree_head": "7ea1c4e400f824d23876dcabd11fbda30a545bd9",
+    "changed_files": [
+      {
+        "status": "M",
+        "path": "gpu_fuzzy_trader/config.py"
+      },
+      {
+        "status": "M",
+        "path": "gpu_fuzzy_trader/phases/phase2_rule_pool.py"
+      },
+      {
+        "status": "M",
+        "path": "gpu_fuzzy_trader/run_pipeline.py"
+      },
+      {
+        "status": "A",
+        "path": "tests/unit/test_phase2_symbol_modes.py"
+      }
+    ],
+    "ignored_files": [],
+    "added_lines": 1047,
+    "deleted_lines": 1,
+    "changed_symbols": [],
+    "direct_dependents": [],
+    "transitive_dependents": [],
+    "affected_packages": [
+      "."
+    ],
+    "related_tests": [
+      "tests/property/hypothesis_config.py",
+      "tests/property/test_phase2_rule_pool_properties.py",
+      "tests/unit/test_anti_overfit_config.py",
+      "tests/unit/test_config_additions.py",
+      "tests/unit/test_config_trade_scaling.py",
+      "tests/unit/test_config_validation.py",
+      "tests/unit/test_phase2_rule_pool.py",
+      "tests/unit/test_phase2_symbol_modes.py",
+      "tests/unit/test_run_pipeline.py"
+    ],
+    "risk": "MEDIUM",
+    "level": "MEDIUM",
+    "computed_risk": "MEDIUM",
+    "risk_signals": [
+      "low_impact_confidence",
+      "large_diff_weak"
+    ],
+    "confidence": 0.6,
+    "verification_mode": "strict",
+    "trusted": false,
+    "analysis_quality": "CONSERVATIVE",
+    "graph_quality": "CONSERVATIVE",
+    "analysis_complete": true,
+    "pre_impact": false,
+    "phase": "post",
+    "graph_freshness": {
+      "valid": true,
+      "current_head": "7ea1c4e400f824d23876dcabd11fbda30a545bd9"
+    },
+    "uncertainties": [
+      "unsupported_language_coverage"
+    ],
+    "dimensions": {
+      "symbols": 0,
+      "dependents": 0,
+      "tests": 9
+    },
+    "index_stats": {
+      "parsed": 4,
+      "cacheHits": 190,
+      "unsupported": 194,
+      "files": 194,
+      "ignored": 0,
+      "ignored_files": [],
+      "cache_invalidated": false,
+      "cache_invalidation_reason": null,
+      "path_filter_version": "nexus-path-filter-1.0"
+    },
+    "path_filter": {
+      "version": "nexus-path-filter-1.0",
+      "ignored_patterns": [
+        ".git/**",
+        "node_modules/**",
+        ".node_modules/**",
+        ".venv/**",
+        "venv/**",
+        "__pycache__/**",
+        "*.pyc",
+        "*.pyo",
+        "dist/**",
+        "build/**",
+        "coverage/**",
+        ".cache/**",
+        ".tmp/**",
+        ".opencode/**",
+        "graphify-out/**",
+        ".antigravity/**"
+      ],
+      "ignored_files": []
+    },
+    "placeholder_fields": [],
+    "provider_validated": true,
+    "validated_at": "2026-09-12T08:51:20.206Z",
+    "artifact_digest": "sha256:913319800114e6b9ee9a71312a20a496cc33803f465dadd699a8c40ad8ca4a10"
+  },
+  "provider_verification": {
+    "schema_version": "1.0",
+    "ok": true,
+    "results": [
+      {
+        "id": "test",
+        "command": "npm test",
+        "argv": [
+          "npm",
+          "test"
+        ],
+        "exit_code": 0,
+        "pass": true,
+        "status": "PASSED",
+        "timed_out": false,
+        "timeout_ms": 900000,
+        "duration_ms": 23044,
+        "error_code": null,
+        "signal": null,
+        "stdout_tail": "\n> test\n> PYTEST_LOW_MEMORY=1 .venv/bin/python -m pytest -q tests/unit/test_t4_profile.py tests/unit/test_config_validation.py\n\n.................................                                        [100%]\n33 passed in 19.99s\n",
+        "stderr_tail": ""
+      },
+      {
+        "id": "related:tests/property/hypothesis_config.py",
+        "command": "npm test -- tests/property/hypothesis_config.py",
+        "argv": [
+          "npm",
+          "test",
+          "--",
+          "tests/property/hypothesis_config.py"
+        ],
+        "exit_code": 0,
+        "pass": true,
+        "status": "PASSED",
+        "timed_out": false,
+        "timeout_ms": 300000,
+        "duration_ms": 21761,
+        "error_code": null,
+        "signal": null,
+        "stdout_tail": "\n> test\n> PYTEST_LOW_MEMORY=1 .venv/bin/python -m pytest -q tests/unit/test_t4_profile.py tests/unit/test_config_validation.py tests/property/hypothesis_config.py\n\n.................................                                        [100%]\n33 passed in 18.68s\n",
+        "stderr_tail": ""
+      },
+      {
+        "id": "related:tests/property/test_phase2_rule_pool_properties.py",
+        "command": "npm test -- tests/property/test_phase2_rule_pool_properties.py",
+        "argv": [
+          "npm",
+          "test",
+          "--",
+          "tests/property/test_phase2_rule_pool_properties.py"
+        ],
+        "exit_code": 0,
+        "pass": true,
+        "status": "PASSED",
+        "timed_out": false,
+        "timeout_ms": 300000,
+        "duration_ms": 44163,
+        "error_code": null,
+        "signal": null,
+        "stdout_tail": "\n> test\n> PYTEST_LOW_MEMORY=1 .venv/bin/python -m pytest -q tests/unit/test_t4_profile.py tests/unit/test_config_validation.py tests/property/test_phase2_rule_pool_properties.py\n\n...................................                                      [100%]\n35 passed in 41.07s\n",
+        "stderr_tail": ""
+      },
+      {
+        "id": "related:tests/unit/test_anti_overfit_config.py",
+        "command": "npm test -- tests/unit/test_anti_overfit_config.py",
+        "argv": [
+          "npm",
+          "test",
+          "--",
+          "tests/unit/test_anti_overfit_config.py"
+        ],
+        "exit_code": 0,
+        "pass": true,
+        "status": "PASSED",
+        "timed_out": false,
+        "timeout_ms": 300000,
+        "duration_ms": 20579,
+        "error_code": null,
+        "signal": null,
+        "stdout_tail": "\n> test\n> PYTEST_LOW_MEMORY=1 .venv/bin/python -m pytest -q tests/unit/test_t4_profile.py tests/unit/test_config_validation.py tests/unit/test_anti_overfit_config.py\n\n..................................                                       [100%]\n34 passed in 17.66s\n",
+        "stderr_tail": ""
+      },
+      {
+        "id": "related:tests/unit/test_config_additions.py",
+        "command": "npm test -- tests/unit/test_config_additions.py",
+        "argv": [
+          "npm",
+          "test",
+          "--",
+          "tests/unit/test_config_additions.py"
+        ],
+        "exit_code": 0,
+        "pass": true,
+        "status": "PASSED",
+        "timed_out": false,
+        "timeout_ms": 300000,
+        "duration_ms": 21374,
+        "error_code": null,
+        "signal": null,
+        "stdout_tail": "\n> test\n> PYTEST_LOW_MEMORY=1 .venv/bin/python -m pytest -q tests/unit/test_t4_profile.py tests/unit/test_config_validation.py tests/unit/test_config_additions.py\n\n....................................                                     [100%]\n36 passed in 18.57s\n",
+        "stderr_tail": ""
+      },
+      {
+        "id": "related:tests/unit/test_config_trade_scaling.py",
+        "command": "npm test -- tests/unit/test_config_trade_scaling.py",
+        "argv": [
+          "npm",
+          "test",
+          "--",
+          "tests/unit/test_config_trade_scaling.py"
+        ],
+        "exit_code": 0,
+        "pass": true,
+        "status": "PASSED",
+        "timed_out": false,
+        "timeout_ms": 300000,
+        "duration_ms": 21875,
+        "error_code": null,
+        "signal": null,
+        "stdout_tail": "\n> test\n> PYTEST_LOW_MEMORY=1 .venv/bin/python -m pytest -q tests/unit/test_t4_profile.py tests/unit/test_config_validation.py tests/unit/test_config_trade_scaling.py\n\n......................................                                   [100%]\n38 passed in 19.01s\n",
+        "stderr_tail": ""
+      },
+      {
+        "id": "related:tests/unit/test_config_validation.py",
+        "command": "npm test -- tests/unit/test_config_validation.py",
+        "argv": [
+          "npm",
+          "test",
+          "--",
+          "tests/unit/test_config_validation.py"
+        ],
+        "exit_code": 0,
+        "pass": true,
+        "status": "PASSED",
+        "timed_out": false,
+        "timeout_ms": 300000,
+        "duration_ms": 21278,
+        "error_code": null,
+        "signal": null,
+        "stdout_tail": "\n> test\n> PYTEST_LOW_MEMORY=1 .venv/bin/python -m pytest -q tests/unit/test_t4_profile.py tests/unit/test_config_validation.py tests/unit/test_config_validation.py\n\n.................................                                        [100%]\n33 passed in 18.16s\n",
+        "stderr_tail": ""
+      },
+      {
+        "id": "related:tests/unit/test_phase2_rule_pool.py",
+        "command": "npm test -- tests/unit/test_phase2_rule_pool.py",
+        "argv": [
+          "npm",
+          "test",
+          "--",
+          "tests/unit/test_phase2_rule_pool.py"
+        ],
+        "exit_code": 0,
+        "pass": true,
+        "status": "PASSED",
+        "timed_out": false,
+        "timeout_ms": 300000,
+        "duration_ms": 108188,
+        "error_code": null,
+        "signal": null,
+        "stdout_tail": "\n> test\n> PYTEST_LOW_MEMORY=1 .venv/bin/python -m pytest -q tests/unit/test_t4_profile.py tests/unit/test_config_validation.py tests/unit/test_phase2_rule_pool.py\n\n........................................................................ [ 34%]\n........................................................................ [ 69%]\n................................................................         [100%]\n208 passed in 105.33s (0:01:45)\n",
+        "stderr_tail": ""
+      },
+      {
+        "id": "related:tests/unit/test_phase2_symbol_modes.py",
+        "command": "npm test -- tests/unit/test_phase2_symbol_modes.py",
+        "argv": [
+          "npm",
+          "test",
+          "--",
+          "tests/unit/test_phase2_symbol_modes.py"
+        ],
+        "exit_code": 0,
+        "pass": true,
+        "status": "PASSED",
+        "timed_out": false,
+        "timeout_ms": 300000,
+        "duration_ms": 24268,
+        "error_code": null,
+        "signal": null,
+        "stdout_tail": "\n> test\n> PYTEST_LOW_MEMORY=1 .venv/bin/python -m pytest -q tests/unit/test_t4_profile.py tests/unit/test_config_validation.py tests/unit/test_phase2_symbol_modes.py\n\n..............................................                           [100%]\n46 passed in 21.51s\n",
+        "stderr_tail": ""
+      },
+      {
+        "id": "related:tests/unit/test_run_pipeline.py",
+        "command": "npm test -- tests/unit/test_run_pipeline.py",
+        "argv": [
+          "npm",
+          "test",
+          "--",
+          "tests/unit/test_run_pipeline.py"
+        ],
+        "exit_code": 0,
+        "pass": true,
+        "status": "PASSED",
+        "timed_out": false,
+        "timeout_ms": 300000,
+        "duration_ms": 28720,
+        "error_code": null,
+        "signal": null,
+        "stdout_tail": "\n> test\n> PYTEST_LOW_MEMORY=1 .venv/bin/python -m pytest -q tests/unit/test_t4_profile.py tests/unit/test_config_validation.py tests/unit/test_run_pipeline.py\n\n.............................................................            [100%]\n61 passed in 25.68s\n",
+        "stderr_tail": ""
+      }
+    ],
+    "plan": {
+      "ecosystem": "node",
+      "steps": [
+        {
+          "id": "test",
+          "command": "npm",
+          "args": [
+            "test"
+          ],
+          "kind": "test"
+        },
+        {
+          "id": "related:tests/property/hypothesis_config.py",
+          "command": "npm",
+          "args": [
+            "test",
+            "--",
+            "tests/property/hypothesis_config.py"
+          ],
+          "kind": "targeted-test",
+          "target": "tests/property/hypothesis_config.py"
+        },
+        {
+          "id": "related:tests/property/test_phase2_rule_pool_properties.py",
+          "command": "npm",
+          "args": [
+            "test",
+            "--",
+            "tests/property/test_phase2_rule_pool_properties.py"
+          ],
+          "kind": "targeted-test",
+          "target": "tests/property/test_phase2_rule_pool_properties.py"
+        },
+        {
+          "id": "related:tests/unit/test_anti_overfit_config.py",
+          "command": "npm",
+          "args": [
+            "test",
+            "--",
+            "tests/unit/test_anti_overfit_config.py"
+          ],
+          "kind": "targeted-test",
+          "target": "tests/unit/test_anti_overfit_config.py"
+        },
+        {
+          "id": "related:tests/unit/test_config_additions.py",
+          "command": "npm",
+          "args": [
+            "test",
+            "--",
+            "tests/unit/test_config_additions.py"
+          ],
+          "kind": "targeted-test",
+          "target": "tests/unit/test_config_additions.py"
+        },
+        {
+          "id": "related:tests/unit/test_config_trade_scaling.py",
+          "command": "npm",
+          "args": [
+            "test",
+            "--",
+            "tests/unit/test_config_trade_scaling.py"
+          ],
+          "kind": "targeted-test",
+          "target": "tests/unit/test_config_trade_scaling.py"
+        },
+        {
+          "id": "related:tests/unit/test_config_validation.py",
+          "command": "npm",
+          "args": [
+            "test",
+            "--",
+            "tests/unit/test_config_validation.py"
+          ],
+          "kind": "targeted-test",
+          "target": "tests/unit/test_config_validation.py"
+        },
+        {
+          "id": "related:tests/unit/test_phase2_rule_pool.py",
+          "command": "npm",
+          "args": [
+            "test",
+            "--",
+            "tests/unit/test_phase2_rule_pool.py"
+          ],
+          "kind": "targeted-test",
+          "target": "tests/unit/test_phase2_rule_pool.py"
+        },
+        {
+          "id": "related:tests/unit/test_phase2_symbol_modes.py",
+          "command": "npm",
+          "args": [
+            "test",
+            "--",
+            "tests/unit/test_phase2_symbol_modes.py"
+          ],
+          "kind": "targeted-test",
+          "target": "tests/unit/test_phase2_symbol_modes.py"
+        },
+        {
+          "id": "related:tests/unit/test_run_pipeline.py",
+          "command": "npm",
+          "args": [
+            "test",
+            "--",
+            "tests/unit/test_run_pipeline.py"
+          ],
+          "kind": "targeted-test",
+          "target": "tests/unit/test_run_pipeline.py"
+        }
+      ],
+      "related_tests": [
+        "tests/property/hypothesis_config.py",
+        "tests/property/test_phase2_rule_pool_properties.py",
+        "tests/unit/test_anti_overfit_config.py",
+        "tests/unit/test_config_additions.py",
+        "tests/unit/test_config_trade_scaling.py",
+        "tests/unit/test_config_validation.py",
+        "tests/unit/test_phase2_rule_pool.py",
+        "tests/unit/test_phase2_symbol_modes.py",
+        "tests/unit/test_run_pipeline.py"
+      ],
+      "ignored_targets": []
+    },
+    "source": "verification-provider",
+    "baseline_comparison": {
+      "ok": true,
+      "new_regressions": [],
+      "pre_existing_failures": [],
+      "fixed": []
+    },
+    "plan_digest": "sha256:bf34ed680763a127c03739789aa15b4769fe184a8c1bada0bb1e647dcb3acc96",
+    "configuration_digest": "sha256:0cce53535e0a7a1fb77cfbb9d94588713a878218c930e2f0bcffb1a5e017d20e",
+    "timed_out": false,
+    "worktree_head": "7ea1c4e400f824d23876dcabd11fbda30a545bd9",
+    "provider_validated": true,
+    "validated_at": "2026-09-12T08:56:55.585Z",
+    "artifact_digest": "sha256:d9c79b474b3789d59da64c0205e226d3b25420036d56bd7ea72e51ddfe9112df"
+  },
+  "_revision": 993
+}

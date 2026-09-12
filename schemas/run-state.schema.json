@@ -73,6 +73,10 @@
       "type": ["array", "null"],
       "items": { "type": "object", "additionalProperties": true }
     },
+    "fix_loop_attempts": {
+      "type": "object",
+      "additionalProperties": { "type": "integer", "minimum": 0 }
+    },
     "plan_commit": { "type": ["string", "null"] },
     "branch": { "type": ["string", "null"] },
     "impact": { "type": ["object", "null"], "additionalProperties": true },

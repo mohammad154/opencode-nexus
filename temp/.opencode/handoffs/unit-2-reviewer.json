@@ -1,0 +1,226 @@
+{
+  "schema_version": "1.2",
+  "run_id": "santiment-onchain-20260910",
+  "unit_or_task": "unit-2",
+  "agent": "reviewer",
+  "base_commit": "604bec312dda9daab013ba7186915747bb3dac96",
+  "created_at": "2026-09-10T18:30:00Z",
+  "review_scope": "task",
+  "reviewed_commit": "5fed2f16b8dadecfc1ab4048a5148a2eeef53ad7",
+  "review_package_digest": "a9cbf61b30a434c052b5a0e23372b72276cc7d8817c8cdbea9df5e916da87ab4",
+  "files_reviewed": [
+    ".gitignore",
+    "gpu_fuzzy_trader/data/onchain_pipeline.py",
+    "scripts/build_onchain_dataset.py",
+    "tests/unit/test_onchain_dataset_builder.py",
+    "gpu_fuzzy_trader/data/onchain_registry.py",
+    "gpu_fuzzy_trader/research_integrity.py",
+    "scripts/horizon_sweep.py",
+    "scripts/benchmark_t4.py"
+  ],
+  "acceptance": [
+    {
+      "id": "AC-1",
+      "status": "PASS",
+      "evidence": [
+        {
+          "file": "gpu_fuzzy_trader/data/onchain_pipeline.py",
+          "line": 370,
+          "reason": "The target is partitioned by symbol, both sides are sorted by UTC timestamps, and merge_asof uses direction=backward at lines 352-376. The join therefore only selects an available_at timestamp less than or equal to the target timestamp."
+        },
+        {
+          "file": "tests/unit/test_onchain_dataset_builder.py",
+          "line": 88,
+          "reason": "The production enrich_target_frame path is exercised with a target immediately before, at, and after release; the test requires NaN before release and 0.5 at and after release at lines 96-98. A duplicate available_at row in a supplied feature frame is not rejected at onchain_pipeline.py:363-368 and could select an unintended equal-time value, but it cannot make that value visible before its release time."
+        }
+      ]
+    },
+    {
+      "id": "AC-2",
+      "status": "FAIL",
+      "evidence": [
+        {
+          "file": "gpu_fuzzy_trader/data/onchain_pipeline.py",
+          "line": 452,
+          "reason": "The normal enrichment path preserves the copied target and appends the missing ONCHAIN_FEATURE_NAMES in registry order at lines 387-455. However, the required no-change invariant is not fail-closed: numeric originals are accepted through np.allclose with rtol=1e-5 at lines 464-475. For example, a 100000.0 OHLCV value changed to 100000.5 is accepted."
+        },
+        {
+          "file": "gpu_fuzzy_trader/data/onchain_pipeline.py",
+          "line": 489,
+          "reason": "New feature values are converted with errors=coerce and then dropna at lines 488-495. A staged value such as 'not-a-number' is silently treated as an allowed missing warm-up value instead of being rejected, so exact twelve-column output does not prove valid feature values."
+        }
+      ]
+    },
+    {
+      "id": "AC-3",
+      "status": "PASS",
+      "evidence": [
+        {
+          "file": "gpu_fuzzy_trader/data/onchain_pipeline.py",
+          "line": 533,
+          "reason": "The hashed contract includes registry_version, sorted source/target/output hash maps, feature_names, coverage, funding_gap, and build_parameters at lines 533-545."
+        },
+        {
+          "file": "gpu_fuzzy_trader/data/onchain_pipeline.py",
+          "line": 547,
+          "reason": "created_at is emitted only in the outer manifest at lines 547-560 and is absent from contract before contract_digest is calculated. The end-to-end test also obtains the same contract_digest on a repeat build at tests/unit/test_onchain_dataset_builder.py:261-272. A registry field edit without a version bump would not be represented, but the stated v1 contract requires the registry version and the CLI passes the frozen version explicitly."
+        }
+      ]
+    },
+    {
+      "id": "AC-4",
+      "status": "FAIL",
+      "evidence": [
+        {
+          "file": "scripts/build_onchain_dataset.py",
+          "line": 200,
+          "reason": "The CLI writes both staging files and re-reads them before verification at lines 200-206, so the tested forced verification failure reaches no replacement and leaves the train bytes unchanged at tests/unit/test_onchain_dataset_builder.py:155-175."
+        },
+        {
+          "file": "scripts/build_onchain_dataset.py",
+          "line": 255,
+          "reason": "The replace branch performs two independent os.replace calls at lines 255-257, with no rollback. If the second call fails, the train original has already been replaced while the test original remains unchanged. Also, the no-replace custom-output branch still calls os.replace at lines 258-262 despite the replace-only-with-flag contract."
+        },
+        {
+          "file": "scripts/build_onchain_dataset.py",
+          "line": 15,
+          "reason": "The documented direct command executes this file, but it imports gpu_fuzzy_trader before adding the repository root to sys.path. In a clean checkout without an installed package, direct CLI execution can fail before staging starts."
+        }
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "category": "correctness",
+      "status": "FAIL",
+      "evidence": "The basic backward join and manifest contract are present, but the verification gate accepts small numeric mutations and malformed on-chain strings (gpu_fuzzy_trader/data/onchain_pipeline.py:464-495), verify-only is fail-open for non-canonical shapes (scripts/build_onchain_dataset.py:44-61), and the two-file replacement has no rollback (scripts/build_onchain_dataset.py:255-257)."
+    },
+    {
+      "category": "test_quality",
+      "status": "FAIL",
+      "evidence": "The new tests call builder.main in-process and monkeypatch verify_staged_dataset for the failure case at tests/unit/test_onchain_dataset_builder.py:155-175, so they do not catch the documented direct-script import failure. The full CLI fixture has only 16 intraday and 10 daily source observations at lines 76-80, below the warm-up minima, and does not exercise finite generated features. There are no tests for malformed feature text, tolerated original mutations, non-canonical verify-only shapes, or failure of the second replacement."
+    },
+    {
+      "category": "impact",
+      "status": "PASS",
+      "evidence": "The BASE..HEAD tracked diff is limited to the four package files. Inbound graph tracing found the new enrichment and verification symbols called only by this new CLI and its tests; no existing production caller depends on them. The index has no recorded issue for the changed source paths, although data/train_new.csv is a separate skipped parse-timeout path and was not changed."
+    },
+    {
+      "category": "scope",
+      "status": "PASS",
+      "evidence": "The onchain_pipeline change is append-only after the approved unit-1 code, and .gitignore changes only target the requested on-chain source and staged CSV artifacts. The implementation remains within the unit-2 file scope."
+    }
+  ],
+  "adversarial_checks": [
+    {
+      "risk": "Running the documented CLI directly from a clean checkout cannot import the checkout package.",
+      "result": "FAIL",
+      "evidence": "scripts/build_onchain_dataset.py:15 imports gpu_fuzzy_trader before any project-root sys.path setup; the existing direct scripts contain such setup, but this new script does not."
+    },
+    {
+      "risk": "A malformed new feature is accepted as a warm-up NaN.",
+      "result": "FAIL",
+      "evidence": "gpu_fuzzy_trader/data/onchain_pipeline.py:488-495 uses pd.to_numeric(..., errors=coerce).dropna(), which discards non-numeric text instead of failing."
+    },
+    {
+      "risk": "A small OHLCV or legacy-feature mutation passes the staged verifier.",
+      "result": "FAIL",
+      "evidence": "gpu_fuzzy_trader/data/onchain_pipeline.py:474 uses np.allclose with rtol=1e-5; the tolerance is material for prices and values at normal dataset magnitudes."
+    },
+    {
+      "risk": "verify-only accepts a row-count change or missing legacy/base columns.",
+      "result": "FAIL",
+      "evidence": "scripts/build_onchain_dataset.py:56-61 checks 37 columns only when both files happen to have the exact canonical row counts; otherwise lines 44-54 require only datetime, symbol, and the twelve on-chain names."
+    },
+    {
+      "risk": "The second target replacement fails after the first target is already replaced.",
+      "result": "FAIL",
+      "evidence": "scripts/build_onchain_dataset.py:255-257 has sequential os.replace calls and no exception rollback or two-file publication mechanism."
+    },
+    {
+      "risk": "A no-replace build leaves a staged temporary file visible to git after a later failure.",
+      "result": "FAIL",
+      "evidence": "Custom outputs use a .tmp staging suffix at scripts/build_onchain_dataset.py:189-195, while .gitignore:346-349 ignores *.staged.csv but not those .tmp files."
+    }
+  ],
+  "findings": [
+    {
+      "id": "F-1",
+      "title": "Direct CLI execution can fail before the builder starts",
+      "file": "scripts/build_onchain_dataset.py",
+      "line": 15,
+      "severity": "HIGH",
+      "blocking": true,
+      "description": "The documented invocation runs scripts/build_onchain_dataset.py directly. The file imports gpu_fuzzy_trader before inserting the repository root into sys.path. This repository has no packaging metadata that guarantees the checkout is installed in the venv, so a clean direct invocation can raise ModuleNotFoundError. Add the same project-root setup used by the other direct scripts, before the package imports."
+    },
+    {
+      "id": "F-2",
+      "title": "Two target replacements are not transactionally atomic",
+      "file": "scripts/build_onchain_dataset.py",
+      "line": 256,
+      "severity": "HIGH",
+      "blocking": true,
+      "description": "The train os.replace completes before the test os.replace. A permission error, missing destination, or other filesystem error on the second call leaves train replaced and test original, which corrupts the paired canonical tapes. Use a rollback/publication strategy and add a test that forces the second replace to fail."
+    },
+    {
+      "id": "F-3",
+      "title": "No-replace custom outputs still use os.replace",
+      "file": "scripts/build_onchain_dataset.py",
+      "line": 258,
+      "severity": "MEDIUM",
+      "blocking": true,
+      "description": "The no-replace branch calls os.replace for custom outputs at lines 258-262. This violates the stated os.replace-only-with---replace contract, even though it does not replace the source paths. Write the requested outputs without this replacement operation, or define and test a narrower exception in the contract."
+    },
+    {
+      "id": "F-4",
+      "title": "Original-value verification allows material mutations",
+      "file": "gpu_fuzzy_trader/data/onchain_pipeline.py",
+      "line": 474,
+      "severity": "HIGH",
+      "blocking": true,
+      "description": "np.allclose(..., rtol=1e-5, atol=1e-8) is used for every numeric original column. It accepts changes such as 100000.0 to 100000.5, so the OHLCV and eighteen-feature immutability gate is not exact. Compare the parsed values exactly after the CSV round trip, with an explicit policy for the permitted serialization representation."
+    },
+    {
+      "id": "F-5",
+      "title": "Malformed on-chain values are coerced into accepted NaNs",
+      "file": "gpu_fuzzy_trader/data/onchain_pipeline.py",
+      "line": 489,
+      "severity": "HIGH",
+      "blocking": true,
+      "description": "The staged verifier coerces invalid feature text with errors=coerce and then drops it. A corrupt value can therefore evade both the finite-range check and the expected numeric feature contract. Reject non-numeric/non-finite values explicitly while allowing only actual missing warm-up values."
+    },
+    {
+      "id": "F-6",
+      "title": "verify-only does not enforce the dataset shape or manifest",
+      "file": "scripts/build_onchain_dataset.py",
+      "line": 56,
+      "severity": "HIGH",
+      "blocking": true,
+      "description": "The 37-column check is conditional on both exact canonical row counts. A truncated dataset, or a small file with only datetime/symbol and twelve on-chain columns, passes the checks at lines 44-54. Extra/missing base or legacy columns are not checked, and a missing manifest is silently accepted at line 63. Enforce the expected row counts and exact ordered 37-column contract, and require/validate the manifest when verify-only is requested."
+    },
+    {
+      "id": "F-7",
+      "title": "Tests miss the important CLI and verification failure paths",
+      "file": "tests/unit/test_onchain_dataset_builder.py",
+      "line": 231,
+      "severity": "MEDIUM",
+      "blocking": false,
+      "description": "The tests invoke main in-process, use a monkeypatched verifier for atomic failure, and use source fixtures too short to produce finite transformed values. Add a subprocess/direct-entrypoint test plus malformed-feature, exact-original-value, verify-only shape, and second-replace failure tests."
+    },
+    {
+      "id": "F-8",
+      "title": "Custom staging failures leave unignored .tmp artifacts",
+      "file": "scripts/build_onchain_dataset.py",
+      "line": 190,
+      "severity": "LOW",
+      "blocking": false,
+      "description": "Custom output paths stage to <output>.tmp at lines 189-195. If verification or a later operation fails, that file remains, while .gitignore:346-349 does not ignore the .tmp suffix. Use unique temporary files with cleanup or add a narrowly scoped ignore rule."
+    }
+  ],
+  "verdict": "REQUEST_CHANGES",
+  "impact": {
+    "pass": true,
+    "risk": "HIGH"
+  },
+  "notes": "The tracked scope is bounded and the package's targeted tests pass, with the two unrelated baseline failures waived as documented. The basic backward join and clock-excluded manifest are sound. Approval is blocked by the direct CLI import hazard, fail-open verification, weak verify-only shape gate, and replacement failure path. Untracked .antigravity/.opencode harness artifacts were treated as non-blocking scratch and are not part of the tracked review."
+}

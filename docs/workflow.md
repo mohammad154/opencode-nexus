@@ -72,7 +72,9 @@ review path.
 
 Verdicts: `APPROVED` | `REQUEST_CHANGES`. Approvals require evidence (all persisted acceptance criteria, mandatory checks, production-file coverage in `files_reviewed` or explicit `files_skipped`, bound review-package digest); empty APPROVED is gate-invalid.
 
-On `REQUEST_CHANGES`, the orchestrator automatically re-impacts and re-dispatches the implementer — the user does not need to ask for fixes.
+On `REQUEST_CHANGES`, the orchestrator automatically re-impacts and re-dispatches the implementer — the user does not need to ask for fixes. This is capped at three remediation attempts per execution unit. After `FIX_LOOP_EXHAUSTED` or `AGENT_CALL_BUDGET_EXCEEDED`, it must transition to `BLOCKED` and reconcile instead of dispatching another subagent.
+
+For any transition that consumes a handoff, pass the complete handoff file rather than reconstructing a partial object: `--implementer-handoff-file .opencode/handoffs/<id>-implementer.json` or `--review-handoff-file .opencode/handoffs/<id>-reviewer.json`. This preserves the acceptance and evidence required by the state gate.
 
 Planted-defect reviewer evals (deterministic oracle + rubber-stamp suites):
 

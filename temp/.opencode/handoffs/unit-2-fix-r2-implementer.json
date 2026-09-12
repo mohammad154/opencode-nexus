@@ -1,0 +1,72 @@
+{
+  "schema_version": "1.1",
+  "run_id": "santiment-onchain-20260910-r2",
+  "unit_or_task": "unit-2",
+  "agent": "implementer",
+  "base_commit": "604bec312dda9daab013ba7186915747bb3dac96",
+  "created_at": "2026-09-10T19:00:00Z",
+  "status": "DONE",
+  "commit": "080a4b422e4bce96dc88088c25aee41f468ca364",
+  "files_changed": [
+    ".gitignore",
+    "gpu_fuzzy_trader/data/onchain_pipeline.py",
+    "scripts/build_onchain_dataset.py",
+    "tests/unit/test_onchain_dataset_builder.py"
+  ],
+  "tests": {
+    "total": 47,
+    "passed": 47,
+    "failed": 0,
+    "tdd": {
+      "red": "pytest tests/unit/test_onchain_dataset_builder.py failed when asserting direct CLI entrypoint, rollback on second replace failure, non-replace without os.replace, exact 100000.0 vs 100000.5 mutation rejection, malformed feature text rejection, verify-only shape and manifest enforcement, and duplicate available_at rejection",
+      "green": "47 passed in 8.10s across tests/unit/test_onchain_dataset_builder.py, tests/unit/test_onchain_pipeline.py, and tests/unit/test_onchain_registry.py"
+    }
+  },
+  "verification_gates": [
+    {
+      "name": "gate_1_unit_tests",
+      "command": "PYTEST_LOW_MEMORY=1 .venv/bin/python -m pytest tests/unit/test_onchain_dataset_builder.py tests/unit/test_onchain_pipeline.py tests/unit/test_onchain_registry.py -q",
+      "pass": true,
+      "output": "47 passed in 8.10s"
+    },
+    {
+      "name": "gate_2_diff_check",
+      "command": "git diff --check",
+      "pass": true,
+      "output": "clean"
+    },
+    {
+      "name": "gate_3_diff_stat_allowed_files",
+      "command": "git diff 604bec312dda9daab013ba7186915747bb3dac96...feature/unit-2-onchain-builder --stat",
+      "pass": true,
+      "output": "4 files changed, 1192 insertions(+) (only allowed files: .gitignore, gpu_fuzzy_trader/data/onchain_pipeline.py, scripts/build_onchain_dataset.py, tests/unit/test_onchain_dataset_builder.py)"
+    }
+  ],
+  "drift_check": {
+    "command": "nexus run drift",
+    "drift": "NONE",
+    "commit_distance": 0,
+    "merge_base_changed": false
+  },
+  "impact": {
+    "verified": true,
+    "risk": "MEDIUM",
+    "confidence": 0.1,
+    "dependents": [],
+    "related_tests": [
+      "tests/unit/test_onchain_dataset_builder.py",
+      "tests/unit/test_onchain_pipeline.py",
+      "tests/unit/test_onchain_registry.py"
+    ]
+  },
+  "findings_addressed": [
+    "F-1: sys.path setup added before package imports in scripts/build_onchain_dataset.py",
+    "F-2: train backup and rollback on second os.replace failure in scripts/build_onchain_dataset.py",
+    "F-3: no-replace custom outputs use plain file write (shutil.copyfile) without os.replace",
+    "F-4: exact parsed float comparison (==) replaces np.allclose rtol=1e-5; serialization policy documented",
+    "F-5: malformed non-numeric text explicitly rejected in on-chain feature columns; truly empty values map to warm-up NaN",
+    "F-6: verify-only enforces exact ordered 37-column contract and validates required JSON manifest hashes and registry version",
+    "Non-blocking: duplicate available_at rows in feature frames rejected fail-closed in enrich_target_frame",
+    "F-8: custom output staging uses tempfile in same directory with cleanup on failure; *.staged.tmp added to .gitignore"
+  ]
+}

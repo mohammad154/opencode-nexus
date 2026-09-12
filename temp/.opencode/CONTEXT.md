@@ -1,0 +1,19 @@
+# Nexus Context
+- Active run: santiment-onchain-20260910-r3 (successor; see RUN_SUCCESSION.md)
+- Prior runs: santiment-onchain-20260910 (abandoned in REVIEWING, budget 1/6), santiment-onchain-20260910-r2 (budget 23/23 exhausted at unit-4 fix VERIFYING; full trail in its trajectory)
+- Active objective: Santiment on-chain integration (12 causal ff_oc_* + 18 legacy = 30 supplied; HWC/MWC frozen context)
+- Current phase: PLANNED → unit-2 fix loop (TASK_IMPACT_READY next)
+- base_branch: main
+- branch_policy: isolated (per-unit feature branch; reuse feature/unit-2-onchain-builder)
+- execution_mode: delegated (orchestrator → implementer → verify → reviewer)
+- verification_baseline:
+  - build: none detected
+  - test: `PYTEST_LOW_MEMORY=1 .venv/bin/python -m pytest <sharded> -q` via `.venv` only; `npm test -- <target>` allowed in this shell
+  - lint: `git diff --check`
+  - typecheck: none detected
+  - waiver: runs/*/baseline.json (2 pre-existing failures; evidence BASELINE_EVIDENCE_UNIT2.md)
+- plan_commit: 39c66ff (39c66ff3fbd6ac930962f24183cdf27cecfbbf0d)
+- planning_mode: deep; plan-advisor REVISE adopted (7 units); budget 23, used 0 (r3 fresh)
+- Completed: unit-1 APPROVED (604bec3); unit-2 APPROVED (856f501c); unit-3 APPROVED (ba0c92c); unit-4 APPROVED (688ffdb, branch feature/unit-4-symbol-modes)
+- Pending: units 5-7
+- Next action: TASK_IMPACT_READY (unit-5 real-dataset) with fresh impact

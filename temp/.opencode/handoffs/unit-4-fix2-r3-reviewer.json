@@ -1,0 +1,215 @@
+{
+  "schema_version": "1.2",
+  "run_id": "santiment-onchain-20260910-r3",
+  "unit_or_task": "unit-4",
+  "task_id": "unit-4-fix2-r3",
+  "agent": "reviewer",
+  "base_commit": "f3358e216f83209f3fb3f904a4317c724830a317",
+  "created_at": "2026-09-12T10:35:00Z",
+  "review_scope": "task",
+  "reviewed_commit": "0ca1027e95af0af5f96b0094d20b44497d869827",
+  "review_package_digest": "b39abf42511594f9fad724229977d4c6f59d805c20ea6ebeb3211729668a46d3",
+  "files_reviewed": [
+    "gpu_fuzzy_trader/config.py",
+    "gpu_fuzzy_trader/phases/phase2_rule_pool.py",
+    "gpu_fuzzy_trader/rb_governor.py",
+    "gpu_fuzzy_trader/run_pipeline.py",
+    "tests/unit/test_phase2_symbol_modes.py"
+  ],
+  "acceptance": [
+    {
+      "id": "AC-1",
+      "status": "PASS",
+      "evidence": [
+        {
+          "file": "gpu_fuzzy_trader/config.py",
+          "line": 2770,
+          "reason": "validate_config accepts only normalized global or specialist values and reports PHASE2_SYMBOL_MODE on failure. A value such as ' bogus ' is rejected rather than normalized to a usable mode."
+        },
+        {
+          "file": "gpu_fuzzy_trader/run_pipeline.py",
+          "line": 3547,
+          "reason": "The Phase 2 router independently rejects an invalid resolved mode before dispatching either generator path."
+        }
+      ]
+    },
+    {
+      "id": "AC-2",
+      "status": "PASS",
+      "evidence": [
+        {
+          "file": "gpu_fuzzy_trader/run_pipeline.py",
+          "line": 3854,
+          "reason": "The global implementation retains one Rule_Pool_Generator construction per direction over the pooled train/validation frames. Its resume identity call omits the specialist symbol set at lines 3887-3893, preserving the global identity shape."
+        },
+        {
+          "file": "gpu_fuzzy_trader/run_pipeline.py",
+          "line": 986,
+          "reason": "Pipeline configuration logging resolves and prints symbol_mode; the run manifest also records phase2_symbol_mode at lines 1263-1271 and 1285-1295."
+        },
+        {
+          "file": "gpu_fuzzy_trader/config.py",
+          "line": 3218,
+          "reason": "The effective configuration snapshot records the normalized resolved mode."
+        }
+      ]
+    },
+    {
+      "id": "AC-3",
+      "status": "FAIL",
+      "evidence": [
+        {
+          "file": "gpu_fuzzy_trader/phases/phase2_rule_pool.py",
+          "line": 3624,
+          "reason": "Specialist generation does create disjoint copied symbol slices and calls phase2_island_hyperparams with len(train_slice), while the guard isolates per-island paths and disables shared archive writes at lines 3535-3582."
+        },
+        {
+          "file": "gpu_fuzzy_trader/phases/phase2_rule_pool.py",
+          "line": 2910,
+          "reason": "A pre-existing provenance dict that is empty is treated as absent, and a non-empty dict is not required to contain its canonical symbol and direction. For example, provenance={'mode': 'specialist', 'version': 1} passes this check and is replaced with a new symbol/direction record at lines 3037-3045. This is relabeling noncanonical provenance, contrary to the immutable pre-existing-record contract."
+        },
+        {
+          "file": "gpu_fuzzy_trader/phases/phase2_rule_pool.py",
+          "line": 3092,
+          "reason": "The validator coerces the version with int(), so noncanonical values such as 1.5, 1.0, or True can be accepted as version 1. The same coercive check is used before fresh annotation at lines 2945-2958."
+        }
+      ]
+    },
+    {
+      "id": "AC-4",
+      "status": "PASS",
+      "evidence": [
+        {
+          "file": "gpu_fuzzy_trader/run_pipeline.py",
+          "line": 3115,
+          "reason": "Standalone specialist loading filters each resumed entry before returning it to RB."
+        },
+        {
+          "file": "gpu_fuzzy_trader/rb_governor.py",
+          "line": 450,
+          "reason": "RB engine normalization copies the nested provenance dictionary and the strategy path retains it in the ruleset; it does not change the symbol, direction, mode, or version fields."
+        },
+        {
+          "file": "tests/unit/test_phase2_symbol_modes.py",
+          "line": 209,
+          "reason": "The production RB handoff test checks provenance after engine normalization and strategy construction. Independent execution of the test suite was unavailable in this environment."
+        }
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "category": "correctness",
+      "status": "FAIL",
+      "evidence": "The fixed mode/version checks reject the tested global and version-zero records, but _check_single_symbol_conflict still permits partial non-empty provenance and int() accepts noncanonical versions (gpu_fuzzy_trader/phases/phase2_rule_pool.py:2910-2958, 3037-3045, 3084-3102). A malformed infinite numeric version can also raise OverflowError outside every resumed-entry drop catch (same file:3092; :3187-3192)."
+    },
+    {
+      "category": "test_quality",
+      "status": "FAIL",
+      "evidence": "The added tests exercise production helpers and the standalone loader for global/version-zero provenance, hash failure, source_symbols=123, bogus routing, and staticmethod restoration (tests/unit/test_phase2_symbol_modes.py:518-650), but do not cover partial provenance, coercive versions, or OverflowError. The invalid-mode assertions also use broad Exception at lines 635-638."
+    },
+    {
+      "category": "impact",
+      "status": "FAIL",
+      "evidence": "The changed validator and resumed-entry filters are reached by both fresh specialist generation and standalone Phase 3/4 loading (gpu_fuzzy_trader/phases/phase2_rule_pool.py:3726-3743; gpu_fuzzy_trader/run_pipeline.py:3043-3135). The graph also shows _run_phase2 callers in full, from_phase2, run_phase, MTF, Optuna, and the public run_phase2 paths, so a noncanonical entry can affect multiple production contracts."
+    },
+    {
+      "category": "scope",
+      "status": "PASS",
+      "evidence": "The commit range changes only the planned Phase 2 pool, pipeline, and symbol-mode test files. git diff --check is clean, and the only working-tree item outside the reviewed commit is the allowed .opencode/ directory."
+    },
+    {
+      "category": "spec_fidelity",
+      "status": "FAIL",
+      "evidence": "The implementation documents provenance as immutable and says only already-scoped candidates may be annotated (gpu_fuzzy_trader/phases/phase2_rule_pool.py:3019-3029), but partial or noncanonical records can still be overwritten by attach_single_symbol_provenance at lines 3037-3045."
+    }
+  ],
+  "adversarial_checks": [
+    {
+      "risk": "A same-symbol candidate has provenance={'mode':'specialist','version':1} but no symbol or direction.",
+      "result": "FAIL",
+      "evidence": "_check_single_symbol_conflict only treats missing symbol/direction as empty and then attach_single_symbol_provenance writes the target values, at gpu_fuzzy_trader/phases/phase2_rule_pool.py:2921-2935 and :3037-3045."
+    },
+    {
+      "risk": "A cache uses version 1.5, 1.0, or True instead of the canonical integer version 1.",
+      "result": "FAIL",
+      "evidence": "int(provenance.get('version')) truncates or coerces these values and the result is compared to 1 at gpu_fuzzy_trader/phases/phase2_rule_pool.py:2945-2958 and :3091-3102."
+    },
+    {
+      "risk": "Island frame hashing fails for an unhashable column and the changed frame has the same row count.",
+      "result": "PASS",
+      "evidence": "_hash_island_frame returns a fresh unhashable sentinel instead of rows:<count>, and _validate_island_artifact rejects stored or current sentinels before equality checks at gpu_fuzzy_trader/phases/phase2_rule_pool.py:3284-3289 and :3371-3391. _validate_or_discard_island_artifact then removes the island files at :3474-3489."
+    },
+    {
+      "risk": "A schema-valid resumed pool contains source_symbols=123.",
+      "result": "PASS",
+      "evidence": "Metadata type validation raises ValueError for non-list scope values and drop_invalid_single_symbol_rules catches ValueError/TypeError before the pool reaches RB at gpu_fuzzy_trader/phases/phase2_rule_pool.py:3109-3118 and :3183-3196; the loader invokes that filter at gpu_fuzzy_trader/run_pipeline.py:3115-3129."
+    },
+    {
+      "risk": "A schema-valid resumed pool contains provenance.version=Infinity.",
+      "result": "FAIL",
+      "evidence": "int(float('inf')) raises OverflowError, but the validator and all relevant drop boundaries catch only TypeError and ValueError. _load_phase2_outputs has no outer catch around the filter at gpu_fuzzy_trader/phases/phase2_rule_pool.py:3091-3097, :3187-3192 and gpu_fuzzy_trader/run_pipeline.py:3115-3129."
+    },
+    {
+      "risk": "A direct public run_phase2 call uses PHASE2_SYMBOL_MODE='bogus'.",
+      "result": "PASS",
+      "evidence": "_run_phase2 rejects the resolved value before either generator path and includes PHASE2_SYMBOL_MODE in the error at gpu_fuzzy_trader/run_pipeline.py:3547-3553. The public wrapper forwards through this guard at lines 4823-4831."
+    },
+    {
+      "risk": "The specialist artifact guard leaves save_archive as a bound instance method after exit.",
+      "result": "PASS",
+      "evidence": "The guard captures the raw class descriptor and restores it at gpu_fuzzy_trader/phases/phase2_rule_pool.py:3552-3589. The regression test checks both the staticmethod descriptor and instance access at tests/unit/test_phase2_symbol_modes.py:641-650."
+    },
+    {
+      "risk": "A genuinely old per-island artifact has an unsupported provenance version.",
+      "result": "PASS",
+      "evidence": "The validator rejects the version and _validate_or_discard_island_artifact catches it and discards the island rather than seeding from it at gpu_fuzzy_trader/phases/phase2_rule_pool.py:3098-3102 and :3467-3489. There is no upgrade path; the safe behavior is rebuild/discard, not relabeling."
+    },
+    {
+      "risk": "Independent execution of the required pytest gate.",
+      "result": "CANNOT_VERIFY",
+      "evidence": "The requested .venv pytest command was denied by the shell permission policy. The package reports passing verification, but that claim was treated as unverified."
+    }
+  ],
+  "findings": [
+    {
+      "id": "F-1",
+      "title": "Partial noncanonical provenance can still be relabeled",
+      "category": "correctness",
+      "severity": "HIGH",
+      "blocking": true,
+      "file": "gpu_fuzzy_trader/phases/phase2_rule_pool.py",
+      "line": 2910,
+      "reason": "The conflict check treats an empty provenance dict as absent and permits a non-empty dict with missing symbol/direction as long as its mode and coerced version look acceptable. attach_single_symbol_provenance then replaces the provenance record at lines 3040-3045. This violates the requirement to reject noncanonical pre-existing records before annotation and can silently relabel a partially scoped cache entry.",
+      "recommendation": "Distinguish an absent provenance field from a pre-existing record. Require the complete canonical specialist record, including exact symbol, direction, mode, version, and allowed field types, before allowing annotation; otherwise reject without rewriting it."
+    },
+    {
+      "id": "F-2",
+      "title": "Malformed infinite provenance versions can crash resumed loading",
+      "category": "correctness",
+      "severity": "HIGH",
+      "blocking": true,
+      "file": "gpu_fuzzy_trader/phases/phase2_rule_pool.py",
+      "line": 3092,
+      "reason": "int(provenance.get('version')) raises OverflowError for a JSON-loaded Infinity value. validate_single_symbol_rule does not convert it to ValueError, and drop_invalid_single_symbol_rules catches only ValueError and TypeError at lines 3187-3192. _load_phase2_outputs has no outer protection around this filter, so a schema-valid malformed cache aborts instead of dropping the entry fail-closed.",
+      "recommendation": "Validate the version type and exact value without coercion, and defensively catch OverflowError at every resumed-entry boundary. Add a regression test for a JSON Infinity version."
+    },
+    {
+      "id": "F-3",
+      "title": "Regression tests miss the remaining noncanonical metadata paths",
+      "category": "test_quality",
+      "severity": "MEDIUM",
+      "blocking": false,
+      "file": "tests/unit/test_phase2_symbol_modes.py",
+      "line": 518,
+      "reason": "The fix tests cover global mode, version zero, unhashable frames, source_symbols=123, bogus routing, and descriptor restoration, but not missing symbol/direction, empty provenance, coercive numeric versions, or OverflowError during standalone filtering. The broad Exception assertion at lines 635-638 would also accept an unrelated failure.",
+      "recommendation": "Add focused tests for each canonical provenance field/type and assert ConfigError specifically for invalid public routing."
+    }
+  ],
+  "verdict": "REQUEST_CHANGES",
+  "impact": {
+    "pass": false,
+    "risk": "HIGH"
+  },
+  "notes": "Static review was completed against the supplied task package and HEAD. git diff --check passed. The implementation fixes the three previously reported tested edges and preserves the staticmethod descriptor, but the immutable provenance contract is still incomplete and malformed infinite versions can escape the fail-closed filter. Independent pytest execution was denied by shell policy."
+}

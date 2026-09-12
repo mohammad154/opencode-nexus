@@ -85,6 +85,10 @@ Subcommands:
   baseline          Capture verification baseline (--run-id <id>)
   verify            Run deterministic verification (--baseline, --compare, --resume)
 
+Transition handoffs:
+  --implementer-handoff-file <path>  Complete implementer handoff (legacy: --handoff-file)
+  --review-handoff-file <path>       Complete reviewer handoff
+
 Exit codes: 0 ok, 2 validation failure, 3 illegal transition
 `;
 

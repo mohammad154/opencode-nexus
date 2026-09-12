@@ -1,0 +1,242 @@
+{
+  "schema_version": "1.2",
+  "run_id": "santiment-onchain-20260910-r2",
+  "unit_or_task": "unit-3",
+  "task_id": "unit-3-fix6-r2",
+  "agent": "reviewer",
+  "base_commit": "856f501c6ad1c74b6a0da0c7bd0af8fe1448659b",
+  "created_at": "2026-09-12T01:00:00Z",
+  "review_scope": "task",
+  "reviewed_commit": "ba0c92c50d90e48831fac33905ca9e9cf5307ef7",
+  "review_package_digest": "7846f6fa7d9318d8cd01e0a4afc0940eaa1823de36092fabf502c2aa83686f68",
+  "files_reviewed": [
+    "gpu_fuzzy_trader/config.py",
+    "gpu_fuzzy_trader/data/multi_timeframe.py",
+    "gpu_fuzzy_trader/data/splitter.py",
+    "gpu_fuzzy_trader/features/catalog.py",
+    "gpu_fuzzy_trader/features/fuzzy_scaling.py",
+    "gpu_fuzzy_trader/mtf/archives.py",
+    "gpu_fuzzy_trader/output/writer.py",
+    "gpu_fuzzy_trader/phases/phase2_rule_pool.py",
+    "gpu_fuzzy_trader/phases/phase5_oos.py",
+    "gpu_fuzzy_trader/rb_governor.py",
+    "gpu_fuzzy_trader/research_integrity.py",
+    "gpu_fuzzy_trader/run_pipeline.py",
+    "gpu_fuzzy_trader/data/onchain_pipeline.py",
+    "tests/unit/test_fuzzy_scaling.py",
+    "tests/unit/test_phase2_rule_pool.py",
+    "tests/unit/test_research_integrity.py",
+    "tests/unit/test_onchain_feature_contract.py",
+    "tests/unit/test_mtf_pipeline_integration.py",
+    "tests/unit/test_output_writer.py",
+    "tests/unit/test_multi_timeframe.py",
+    "tests/unit/test_data_splitter.py",
+    "tests/unit/test_run_pipeline.py",
+    "tests/unit/test_phase5_oos.py",
+    "tests/property/test_output_writer_properties.py"
+  ],
+  "acceptance": [
+    {
+      "id": "AC-1",
+      "status": "PASS",
+      "evidence": [
+        {
+          "file": "gpu_fuzzy_trader/features/fuzzy_scaling.py",
+          "line": 43,
+          "reason": "_malformed_text_mask excludes only true nulls and empty or whitespace-only strings; non-blank values that coerce to NaN remain rejected by validate_onchain_feature_ranges at lines 164-171 and by the bounded apply path at lines 282-304."
+        },
+        {
+          "file": "gpu_fuzzy_trader/data/onchain_pipeline.py",
+          "line": 427,
+          "reason": "The staging validator separately permits null or whitespace warm-up values and rejects non-blank malformed text at lines 430-446, matching the runtime boundary."
+        },
+        {
+          "file": "tests/unit/test_fuzzy_scaling.py",
+          "line": 212,
+          "reason": "Tests cover whitespace warm-up conversion to NaN and confirm that a genuine malformed value is not masked at lines 233-239."
+        }
+      ]
+    },
+    {
+      "id": "AC-2",
+      "status": "PASS",
+      "evidence": [
+        {
+          "file": "gpu_fuzzy_trader/features/fuzzy_scaling.py",
+          "line": 202,
+          "reason": "The train and scale-manifest paths reject malformed values, infinity, all-nonfinite training columns, and finite values outside [-1, 1] before returning a bounded_continuous contract at lines 210-235."
+        },
+        {
+          "file": "gpu_fuzzy_trader/run_pipeline.py",
+          "line": 3492,
+          "reason": "Phase 2 validates train and validation frames before rule generation; split loading also validates every scoring frame before applying scaling at lines 3155-3159 and 3228-3232."
+        },
+        {
+          "file": "tests/unit/test_fuzzy_scaling.py",
+          "line": 133,
+          "reason": "Manifest override tests exercise infinity, malformed text, out-of-range values, and a valid pass-through contract."
+        }
+      ]
+    },
+    {
+      "id": "AC-3",
+      "status": "PASS",
+      "evidence": [
+        {
+          "file": "gpu_fuzzy_trader/rb_governor.py",
+          "line": 541,
+          "reason": "RB strategy construction obtains the current digest and reapplies it after extra metadata is merged, including strategy_contract and provenance copies at lines 564-570."
+        },
+        {
+          "file": "gpu_fuzzy_trader/output/writer.py",
+          "line": 395,
+          "reason": "Output_Writer reconciliation replaces fabricated top-level and recognized nested digests before serialization at lines 397-408."
+        },
+        {
+          "file": "gpu_fuzzy_trader/phases/phase5_oos.py",
+          "line": 814,
+          "reason": "Phase 5 requires a digest and rejects every present stale copy at lines 817-846."
+        }
+      ]
+    },
+    {
+      "id": "AC-4",
+      "status": "PASS",
+      "evidence": [
+        {
+          "file": "gpu_fuzzy_trader/run_pipeline.py",
+          "line": 4548,
+          "reason": "Missing, malformed, stale, or list-shaped LWC archives are rejected and routed to forced Phase 2 rebuilding at lines 4551-4585."
+        },
+        {
+          "file": "gpu_fuzzy_trader/run_pipeline.py",
+          "line": 3974,
+          "reason": "Recovery requires the full supplied feature contract, removes non-finite label-tail rows on a copy, and rebuilds per-symbol indexes before Phase 2."
+        },
+        {
+          "file": "gpu_fuzzy_trader/run_pipeline.py",
+          "line": 4471,
+          "reason": "A non-empty rebuilt result is persisted as an LWC archive; empty results preserve the prior file instead of using stale rules or deleting the artifact."
+        }
+      ]
+    },
+    {
+      "id": "AC-5",
+      "status": "PASS",
+      "evidence": [
+        {
+          "file": "gpu_fuzzy_trader/mtf/archives.py",
+          "line": 391,
+          "reason": "load_mtf_archive_payload rejects a JSON list before optional schema validation, so validate_schema=False cannot bypass the legacy archive rejection."
+        },
+        {
+          "file": "tests/unit/test_mtf_pipeline_integration.py",
+          "line": 319,
+          "reason": "Both public archive-loading APIs are tested against a list-shaped payload and must fail closed."
+        }
+      ]
+    },
+    {
+      "id": "AC-6",
+      "status": "PASS",
+      "evidence": [
+        {
+          "file": "tests/unit/test_phase2_rule_pool.py",
+          "line": 1160,
+          "reason": "Production-sized empty pools are tested through skip_if_valid for missing, mismatched, and current feature-digest sidecars."
+        },
+        {
+          "file": "tests/unit/test_mtf_pipeline_integration.py",
+          "line": 1061,
+          "reason": "Integration coverage exercises real LWC recovery, terminal-label trimming, empty-result preservation, and missing archive-hash rebuilding through the production wrapper."
+        },
+        {
+          "file": "tests/unit/test_research_integrity.py",
+          "line": 183,
+          "reason": "Feature-contract digest tests fail closed for tampered and malformed canonical manifests."
+        }
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "category": "correctness",
+      "status": "PASS",
+      "evidence": "Source review confirms consistent blank handling, fail-closed bounded validation, current digest propagation, empty-pool sidecar enforcement, canonical manifest verification, and LWC recovery label trimming."
+    },
+    {
+      "category": "test_quality",
+      "status": "PASS",
+      "evidence": "Tests invoke production validators, archive loaders, pool resume APIs, digest computation, and the real MTF composition wrapper; only the expensive evolution step is stubbed in focused recovery tests."
+    },
+    {
+      "category": "impact",
+      "status": "PASS",
+      "evidence": "Graph traces and direct source inspection cover feature_contract_digest consumers, all current skip_if_valid callers, validate_onchain_feature_ranges callers, and run_mtf_composition callers."
+    },
+    {
+      "category": "code_quality",
+      "status": "PASS",
+      "evidence": "The fix uses shared runtime blank-value helpers, validates contract-sized empty pools without weakening synthetic fixtures, and verifies the manifest before deriving an artifact identity."
+    },
+    {
+      "category": "scope",
+      "status": "PASS",
+      "evidence": "The changed production and test files remain within the declared unit-3 runtime-contract, lineage, pool-resume, and MTF archive scope."
+    },
+    {
+      "category": "verification",
+      "status": "CANNOT_VERIFY",
+      "evidence": "The sealed review package reports deterministic verification passed 6/6 and git diff --check passed, but independent PYTEST_LOW_MEMORY=1 .venv/bin/python pytest execution was denied by shell policy."
+    },
+    {
+      "category": "isolation",
+      "status": "PASS",
+      "evidence": "git status showed only the untracked .opencode/ artifact directory; no production or test files were edited during review."
+    }
+  ],
+  "adversarial_checks": [
+    {
+      "risk": "A whitespace-only warm-up value is treated as malformed, or a non-blank malformed value is masked as warm-up.",
+      "result": "PASS",
+      "evidence": "The shared masks at fuzzy_scaling.py:32-45 accept only empty/whitespace strings and reject non-blank coercion failures; tests cover both cases at :212-239."
+    },
+    {
+      "risk": "A manifest-override validation path clips an out-of-range on-chain value instead of rejecting it.",
+      "result": "PASS",
+      "evidence": "fit_fuzzy_feature_scaling and apply_fuzzy_feature_scaling reject finite values outside [-1, 1] at fuzzy_scaling.py:210-235 and :282-303."
+    },
+    {
+      "risk": "A contract-sized empty pool resumes with a matching input identity but a missing or stale digest sidecar.",
+      "result": "PASS",
+      "evidence": "load_pool passes feature_infos to _validate_pool_feature_digest, which no longer returns early for empty pools at phase2_rule_pool.py:234-267; skip_if_valid catches the failure and returns None."
+    },
+    {
+      "risk": "A canonical on-chain manifest is tampered while retaining its old declared digest, or becomes malformed.",
+      "result": "PASS",
+      "evidence": "feature_contract_digest calls verify_manifest_contract and raises fail-closed at research_integrity.py:97-118; tests cover both tamper and malformed JSON."
+    },
+    {
+      "risk": "A stale LWC archive is rebuilt from a full no-df tape containing terminal NaN labels.",
+      "result": "PASS",
+      "evidence": "_prepare_lwc_phase2_frame drops non-finite label rows and rebuilds indexes at run_pipeline.py:3963-3994; integration coverage exercises this boundary at tests/unit/test_mtf_pipeline_integration.py:1137-1217."
+    },
+    {
+      "risk": "A legacy list-shaped MTF archive bypasses validation through validate_schema=False.",
+      "result": "PASS",
+      "evidence": "load_mtf_archive_payload rejects lists unconditionally at mtf/archives.py:391-395."
+    },
+    {
+      "risk": "RB or Output_Writer preserves a fabricated or stale digest copy.",
+      "result": "PASS",
+      "evidence": "RB restamps recognized copies at rb_governor.py:541-570 and Output_Writer reconciles them at writer.py:395-408; direct writer tests cover stale top-level and nested values at tests/unit/test_output_writer.py:705-754."
+    }
+  ],
+  "findings": [],
+  "verdict": "APPROVED",
+  "impact": {
+    "pass": true,
+    "risk": "MEDIUM"
+  },
+  "notes": "Independent adversarial task review. Implementer claims were treated as unverified. Source review found no blocking defect. Independent pytest rerun was unavailable due shell policy; verification is recorded as CANNOT_VERIFY."
+}

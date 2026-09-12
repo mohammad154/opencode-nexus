@@ -1,0 +1,60 @@
+{
+  "schema_version": "1.1",
+  "run_id": "santiment-onchain-20260910-r2",
+  "unit_or_task": "unit-3",
+  "task_id": "unit-3-fix3-r2",
+  "agent": "implementer",
+  "base_commit": "f03fe0354ae3e59a0295064400863caf518a5eb9",
+  "created_at": "2026-09-11T20:10:00Z",
+  "status": "DONE",
+  "commit": "b273bae330b2555f777510ceb7657d810f5a7960",
+  "files_changed": [
+    "tests/property/test_output_writer_properties.py"
+  ],
+  "tests": {
+    "total": 139,
+    "passed": 139,
+    "failed": 0,
+    "tdd": {
+      "red": "Observed test failure in test_property_23a_valid_rule_set_schema: AssertionError: Top-level keys must be exactly {'direction', 'rules_set'}, got {'rules_set', 'direction', 'feature_contract_digest'}",
+      "green": "139 passed, 1 warning in 36.75s across tests/property/test_output_writer_properties.py, tests/unit/test_output_writer.py, and tests/unit/test_phase5_oos.py."
+    }
+  },
+  "verification_gates": [
+    {
+      "name": "gate_1_pytest_suites",
+      "command": "PYTEST_LOW_MEMORY=1 .venv/bin/python -m pytest tests/property/test_output_writer_properties.py tests/unit/test_output_writer.py tests/unit/test_phase5_oos.py -q",
+      "pass": true,
+      "output": "139 passed, 1 warning in 36.75s"
+    },
+    {
+      "name": "gate_2_diff_check_and_diff_stat",
+      "command": "git diff --check; git status --short; git diff f03fe0354ae3e59a0295064400863caf518a5eb9...feature/unit-3-runtime-contract --stat",
+      "pass": true,
+      "output": "git diff --check clean; git status --short clean of artifacts; git diff f03fe0354ae3e59a0295064400863caf518a5eb9...feature/unit-3-runtime-contract --stat: tests/property/test_output_writer_properties.py | 21 ++++++++++++++++-----; 1 file changed, 16 insertions(+), 5 deletions(-)"
+    }
+  ],
+  "drift_check": {
+    "command": "nexus run drift",
+    "drift": "NONE",
+    "commit_distance": 0,
+    "merge_base_changed": false
+  },
+  "impact": {
+    "verified": true,
+    "risk": "MEDIUM",
+    "confidence": 0.1,
+    "dependents": [
+      "gpu_fuzzy_trader/output/writer.py",
+      "tests/property/test_output_writer_properties.py"
+    ],
+    "related_tests": [
+      "tests/property/test_output_writer_properties.py",
+      "tests/unit/test_output_writer.py",
+      "tests/unit/test_phase5_oos.py"
+    ]
+  },
+  "findings_addressed": [
+    "PROPERTY-SCHEMA-REGRESSION: test_property_23a_valid_rule_set_schema in tests/property/test_output_writer_properties.py asserted top-level keys are exactly {'direction', 'rules_set'}. Updated to require {'direction', 'rules_set'} as a subset of top-level keys, and additionally asserted that when feature_contract_digest is present it is a 64-char hex string equal to feature_contract_digest() from gpu_fuzzy_trader.research_integrity. Verified load_and_validate tolerates extra top-level keys and retains feature_contract_digest."
+  ]
+}

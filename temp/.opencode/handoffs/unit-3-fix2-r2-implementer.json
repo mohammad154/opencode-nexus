@@ -1,0 +1,88 @@
+{
+  "schema_version": "1.1",
+  "run_id": "santiment-onchain-20260910-r2",
+  "unit_or_task": "unit-3",
+  "task_id": "unit-3-fix2-r2",
+  "agent": "implementer",
+  "base_commit": "b5b53f8124d18d83727d0369f94705769c7790f2",
+  "created_at": "2026-09-11T18:40:00Z",
+  "status": "DONE",
+  "commit": "9644417d473a2a29f2fed53402f3eb04840f60da",
+  "files_changed": [
+    "gpu_fuzzy_trader/features/fuzzy_scaling.py",
+    "gpu_fuzzy_trader/mtf/archives.py",
+    "gpu_fuzzy_trader/output/writer.py",
+    "gpu_fuzzy_trader/rb_governor.py",
+    "gpu_fuzzy_trader/run_pipeline.py",
+    "tests/unit/test_fuzzy_scaling.py",
+    "tests/unit/test_mtf_pipeline_integration.py",
+    "tests/unit/test_output_writer.py",
+    "tests/unit/test_phase2_rule_pool.py",
+    "tests/unit/test_phase5_oos.py",
+    "tests/unit/test_run_pipeline.py"
+  ],
+  "tests": {
+    "total": 451,
+    "passed": 451,
+    "failed": 0,
+    "tdd": {
+      "red": "Failures observed before implementation: (1) test_validate_onchain_feature_ranges_fails_closed, test_fit_fuzzy_feature_scaling_rejects_malformed_text_onchain_column, and test_apply_fuzzy_feature_scaling_rejects_out_of_range_or_inf_bounded_continuous did not raise ValueError on non-numeric text because pd.to_numeric coerced text to NaN; (2) test_fit_fuzzy_feature_scaling_validates_manifest_override_path did not raise on all-infinite on-chain training columns when FEATURE_SCALE_MANIFEST was set; (3) test_normal_rb_strategy_output_accepted_end_to_end and test_rb_strategy_generated_lwc_mode_accepted failed because _strategy did not include feature_contract_digest; (4) test_writer_preserves_feature_contract_digest failed because output/writer.py stripped feature_contract_digest; (5) test_mtf_archive_list_payload_rejected did not raise because load_mtf_rule_archive accepted legacy lists; (6) test_mtf_composition_rebuilds_on_stale_lwc_archive failed because stale LWC archive was ignored instead of rebuilding.",
+      "green": "451 passed, 1 warning in 137.66s across all 14 test files (tests/unit/test_onchain_feature_contract.py, tests/unit/test_feature_catalog.py, tests/unit/test_fuzzy_scaling.py, tests/unit/test_mtf_pipeline_integration.py, tests/unit/test_multi_timeframe.py, tests/unit/test_research_integrity.py, tests/unit/test_run_pipeline.py, tests/unit/test_config_additions.py, tests/unit/test_config_validation.py, tests/unit/test_data_splitter.py, tests/unit/test_phase5_oos.py, tests/unit/test_phase2_rule_pool.py, tests/unit/test_mtf_composer.py, tests/unit/test_output_writer.py)."
+    }
+  },
+  "verification_gates": [
+    {
+      "name": "gate_1_unit_tests",
+      "command": "PYTEST_LOW_MEMORY=1 .venv/bin/python -m pytest tests/unit/test_onchain_feature_contract.py tests/unit/test_feature_catalog.py tests/unit/test_fuzzy_scaling.py tests/unit/test_mtf_pipeline_integration.py tests/unit/test_multi_timeframe.py tests/unit/test_research_integrity.py tests/unit/test_run_pipeline.py tests/unit/test_config_additions.py tests/unit/test_config_validation.py tests/unit/test_data_splitter.py tests/unit/test_phase5_oos.py tests/unit/test_phase2_rule_pool.py tests/unit/test_mtf_composer.py tests/unit/test_output_writer.py -q",
+      "pass": true,
+      "output": "451 passed, 1 warning in 137.66s"
+    },
+    {
+      "name": "gate_2_config_validation",
+      "command": ".venv/bin/python -c \"from gpu_fuzzy_trader import config; config.validate_config(); print(len(config.RULE_ALLOWED_FF_FEATURES))\"",
+      "pass": true,
+      "output": "30"
+    },
+    {
+      "name": "gate_3_diff_check_and_diff_stat",
+      "command": "git diff --check; git status --short; git diff b5b53f8124d18d83727d0369f94705769c7790f2...feature/unit-3-runtime-contract --stat",
+      "pass": true,
+      "output": "git diff --check clean; git status --short clean (no data/split_manifest.json); 11 files changed, 622 insertions(+), 59 deletions(-); all files within allowed_files"
+    }
+  ],
+  "drift_check": {
+    "command": "nexus run drift",
+    "drift": "NONE",
+    "commit_distance": 0,
+    "merge_base_changed": false
+  },
+  "impact": {
+    "verified": true,
+    "risk": "HIGH",
+    "confidence": 0.1,
+    "dependents": [
+      "gpu_fuzzy_trader/features/fuzzy_scaling.py",
+      "gpu_fuzzy_trader/mtf/archives.py",
+      "gpu_fuzzy_trader/output/writer.py",
+      "gpu_fuzzy_trader/rb_governor.py",
+      "gpu_fuzzy_trader/run_pipeline.py",
+      "gpu_fuzzy_trader/phases/phase5_oos.py"
+    ],
+    "related_tests": [
+      "tests/unit/test_fuzzy_scaling.py",
+      "tests/unit/test_mtf_pipeline_integration.py",
+      "tests/unit/test_output_writer.py",
+      "tests/unit/test_phase2_rule_pool.py",
+      "tests/unit/test_phase5_oos.py",
+      "tests/unit/test_run_pipeline.py"
+    ]
+  },
+  "findings_addressed": [
+    "F-AC1-NONNUMERIC-ONCHAIN-COERCION: In validate_onchain_feature_ranges, fit_fuzzy_feature_scaling, and apply_fuzzy_feature_scaling, conversion failures are detected by checking for (orig.notna() & converted.isna()) and raised as ValueError('...contains non-numeric values...'), while true NaNs remain allowed for warmup. Added tests for malformed text at validator, apply, and fit levels in tests/unit/test_fuzzy_scaling.py.",
+    "F-AC1-SCALE-MANIFEST-BYPASS: In fit_fuzzy_feature_scaling, validated bounded on-chain inputs (rejecting non-numeric, infinite, all-non-finite, and out-of-range values) before returning the FEATURE_SCALE_MANIFEST override. Added test_fit_fuzzy_feature_scaling_validates_manifest_override_path in tests/unit/test_fuzzy_scaling.py.",
+    "F-AC3-RB-OUTPUT-DIGEST-MISSING: Stamped feature_contract_digest at rb_governor._strategy output (top-level and in strategy_contract), preserved it in _validate_rule_set in output/writer.py, and verified Phase 5 load_strategies() accepts freshly generated strategies end-to-end including generated_lwc mode. Added tests in tests/unit/test_output_writer.py and tests/unit/test_phase5_oos.py.",
+    "F-AC3-MTF-LWC-NOT-REBUILT: In run_pipeline.py, added LWC discovery/rebuild via run_phase2 when lwc_rules is None and archive is missing or stale (matching HWC and MWC handling), and ensured run_phase catches stale LWC archives and triggers rebuild during MTF composition. Added composition rebuild tests for LWC, HWC, and MWC in tests/unit/test_mtf_pipeline_integration.py.",
+    "F-AC3-MTF-LIST-DIGEST-BYPASS: In mtf/archives.py load_mtf_archive_payload and load_mtf_rule_archive, reject list payloads failing closed with ValueError, and enforce feature_contract_digest check on dict payloads. Added tests for list archive rejection and missing-digest rejection in tests/unit/test_mtf_pipeline_integration.py.",
+    "F-TEST-MISSING-INVALIDATION-PATHS: Added missing-digest and invalidation tests across MTF (missing digest, legacy list, LWC/HWC/MWC rebuild), Phase 2 (missing digest), RB output (missing digest rejection, end-to-end acceptance, generated_lwc mode), and output writer (digest preservation)."
+  ]
+}

@@ -1,0 +1,178 @@
+{
+  "schema_version": "1.2",
+  "run_id": "santiment-onchain-20260910-r3",
+  "unit_or_task": "unit-4",
+  "task_id": "unit-4-fix3-r3",
+  "agent": "reviewer",
+  "base_commit": "0ca1027e95af0af5f96b0094d20b44497d869827",
+  "created_at": "2026-09-12T10:50:00Z",
+  "review_scope": "task",
+  "reviewed_commit": "688ffdb36348456a0566fff3628cd0682a129535",
+  "review_package_digest": "24b452adf916160910c47fba9892003b513f3862893a2d545c64a924972659fe",
+  "files_reviewed": [
+    "gpu_fuzzy_trader/phases/phase2_rule_pool.py",
+    "gpu_fuzzy_trader/run_pipeline.py",
+    "gpu_fuzzy_trader/config.py",
+    "gpu_fuzzy_trader/rb_governor.py",
+    "tests/unit/test_phase2_symbol_modes.py"
+  ],
+  "acceptance": [
+    {
+      "id": "AC-1",
+      "status": "PASS",
+      "evidence": [
+        {
+          "file": "gpu_fuzzy_trader/config.py",
+          "line": 2770,
+          "reason": "validate_config accepts only global or specialist and _config_check raises ConfigError with PHASE2_SYMBOL_MODE for another value."
+        },
+        {
+          "file": "gpu_fuzzy_trader/run_pipeline.py",
+          "line": 3547,
+          "reason": "The direct Phase 2 router independently rejects an invalid resolved mode before dispatching global, so a bogus mode cannot silently fall back to global."
+        }
+      ]
+    },
+    {
+      "id": "AC-2",
+      "status": "PASS",
+      "evidence": [
+        {
+          "file": "gpu_fuzzy_trader/run_pipeline.py",
+          "line": 3964,
+          "reason": "The global branch still constructs one Rule_Pool_Generator for each long/short direction over the pooled train and validation frames; its resume identity call at lines 3887-3893 does not add specialist symbols."
+        },
+        {
+          "file": "gpu_fuzzy_trader/run_pipeline.py",
+          "line": 986,
+          "reason": "The pipeline log resolves and records symbol_mode, while the run manifest records phase2_symbol_mode at lines 1263-1271 and 1285-1295."
+        },
+        {
+          "file": "gpu_fuzzy_trader/config.py",
+          "line": 3218,
+          "reason": "The effective configuration snapshot records the resolved symbol mode."
+        }
+      ]
+    },
+    {
+      "id": "AC-3",
+      "status": "PASS",
+      "evidence": [
+        {
+          "file": "gpu_fuzzy_trader/phases/phase2_rule_pool.py",
+          "line": 3711,
+          "reason": "Specialist generation slices train and validation data per symbol, computes phase2_island_hyperparams from the slice row count at lines 3719-3720, and the frozen IslandHyperparams contract is defined in config.py:2421-2434."
+        },
+        {
+          "file": "gpu_fuzzy_trader/phases/phase2_rule_pool.py",
+          "line": 2916,
+          "reason": "Only a missing provenance key or a provenance value of None is annotatable. A present dict, including an empty or partial dict, must pass the required symbol, direction, specialist mode, exact built-in int version, and string-type checks at lines 2928-2965."
+        },
+        {
+          "file": "gpu_fuzzy_trader/phases/phase2_rule_pool.py",
+          "line": 3205,
+          "reason": "Resumed entries are dropped on any provenance validation failure, and the validator requires one scoped symbol matching the provenance symbol at lines 3123-3153; this closes multi-symbol and cross-symbol migration paths."
+        }
+      ]
+    },
+    {
+      "id": "AC-4",
+      "status": "PASS",
+      "evidence": [
+        {
+          "file": "gpu_fuzzy_trader/run_pipeline.py",
+          "line": 3115,
+          "reason": "Standalone specialist loading filters resumed entries before returning them to RB."
+        },
+        {
+          "file": "gpu_fuzzy_trader/rb_governor.py",
+          "line": 459,
+          "reason": "RB's _rule_to_engine copies the nested provenance mapping and carries it through the engine rule without changing its fields."
+        },
+        {
+          "file": "tests/unit/test_phase2_symbol_modes.py",
+          "line": 460,
+          "reason": "The production-path handoff test checks provenance after standalone loading, capital normalization, and strategy construction."
+        }
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "category": "correctness",
+      "status": "PASS",
+      "evidence": "The fix removes coercive provenance-version parsing in both attach and validate paths (gpu_fuzzy_trader/phases/phase2_rule_pool.py:2958-2965, 3105-3112), rejects bool and int subclasses through type(v) is int, and adds OverflowError handling at the resumed-entry boundaries (:3205-3210, :3492-3507, :3744-3754). Empty and partial provenance are rejected before annotation."
+    },
+    {
+      "category": "test_quality",
+      "status": "PASS",
+      "evidence": "The added tests call the production validator, annotator, specialist generator, standalone loader, and RB strategy path (tests/unit/test_phase2_symbol_modes.py:518-693), rather than only testing local mirrors. A small regression-coverage gap is recorded as a non-blocking finding below."
+    },
+    {
+      "category": "impact",
+      "status": "PASS",
+      "evidence": "The reviewed validator is reached by specialist generation, island-artifact validation, generator resume seeding, and standalone Phase 3/4 loading (gpu_fuzzy_trader/phases/phase2_rule_pool.py:3205-3215, :3454-3457, :3744-3761; gpu_fuzzy_trader/run_pipeline.py:3115-3129). The global branch does not enter these specialist-only filters and remains unchanged in the reviewed range."
+    },
+    {
+      "category": "scope",
+      "status": "PASS",
+      "evidence": "The base-to-head diff contains only gpu_fuzzy_trader/phases/phase2_rule_pool.py and tests/unit/test_phase2_symbol_modes.py. git diff --check passed, and the only working-tree item outside the reviewed commit is the allowed .opencode directory."
+    },
+    {
+      "category": "spec_fidelity",
+      "status": "PASS",
+      "evidence": "The implementation now distinguishes absent provenance from present empty/partial records, enforces the specialist/version contract before annotation, and keeps invalid resumed records out of RB. The routing and audit paths use the resolved mode rather than an implicit default."
+    }
+  ],
+  "adversarial_checks": [
+    {
+      "risk": "A rule has no provenance key or provenance=None versus provenance={}.",
+      "result": "PASS",
+      "evidence": "phase2_rule_pool.py:2915-2923 treats only the missing key or None as absent; the present-dict branch rejects missing fields at :2928-2956. Tests cover empty, missing-symbol, missing-direction, and partial records at tests/unit/test_phase2_symbol_modes.py:544-604."
+    },
+    {
+      "risk": "A cache uses version 1.5, 1.0, True, False, '1', None, or an int subclass.",
+      "result": "PASS",
+      "evidence": "Both version checks use type(proven_version) is not int plus an exact value comparison at phase2_rule_pool.py:2958-2961 and :3105-3108, so bool, subclasses, floats, strings, and None fail closed without int() coercion."
+    },
+    {
+      "risk": "A JSON-loaded Infinity provenance version reaches each resumed-entry boundary.",
+      "result": "PASS",
+      "evidence": "The exact type check raises ValueError for Infinity; drop_invalid_single_symbol_rules catches ValueError/TypeError/OverflowError at phase2_rule_pool.py:3205-3210, island-cache discard catches the same at :3492-3507, and specialist annotation catches it at :3744-3754. The standalone loader regression is at tests/unit/test_phase2_symbol_modes.py:656-693."
+    },
+    {
+      "risk": "A direct public Phase 2 call uses PHASE2_SYMBOL_MODE='bogus'.",
+      "result": "PASS",
+      "evidence": "run_pipeline.py:3547-3553 raises _cfg.ConfigError before either route; tests/unit/test_phase2_symbol_modes.py:782-790 assert that specific exception type for both private and public entry points."
+    },
+    {
+      "risk": "A canonical same-island rule is reattached and its provenance is changed before RB.",
+      "result": "PASS",
+      "evidence": "The pre-existing canonical fields are checked before attach at phase2_rule_pool.py:2924-2965, and the same-island idempotence plus RB carry-through tests cover the production helpers at tests/unit/test_phase2_symbol_modes.py:330-359 and :460-504."
+    },
+    {
+      "risk": "Independent execution of the required pytest gate.",
+      "result": "CANNOT_VERIFY",
+      "evidence": "The requested .venv pytest command was rejected by the shell permission policy. The review package reports 61 passing tests, but that claim was not treated as independent verification."
+    }
+  ],
+  "findings": [
+    {
+      "id": "F-TEST-1",
+      "title": "Some explicitly named malformed-version cases lack direct regression tests",
+      "category": "test_quality",
+      "severity": "LOW",
+      "blocking": false,
+      "file": "tests/unit/test_phase2_symbol_modes.py",
+      "line": 625,
+      "reason": "The coercive-version parameter list covers 1.5, 1.0, True, False, and '1', but not None or an int subclass, despite those being named adversarial cases. The direct validate_config test at lines 61-64 also still accepts any Exception, although the routing assertions at lines 782-790 use ConfigError. Production type checks cover the omitted cases, so this is a test-strength issue rather than a demonstrated runtime defect.",
+      "recommendation": "Add None and an int subclass to the parameterized version cases, and assert ConfigError in the direct validate_config test as well."
+    }
+  ],
+  "verdict": "APPROVED",
+  "impact": {
+    "pass": true,
+    "risk": "MEDIUM"
+  },
+  "notes": "Static review of the supplied task package, changed production code, callers, and tests found the prior blocking provenance/version and fail-closed boundary defects fixed. Independent pytest execution was unavailable because the shell policy denied the .venv command; this limitation is recorded above."
+}

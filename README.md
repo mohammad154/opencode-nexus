@@ -313,10 +313,12 @@ Only the **implementer** writes production code. Nexus uses one fixed V5 workflo
 - Standard/deep plans may use one independent `plan-advisor` call before synthesis; compact plans do not.
 - `nexus run transition --to PLANNED --plan-check` runs the deterministic execution-unit DAG, acceptance/verification, decomposition-warning, and call-estimate gate and persists its passing report; standalone `nexus plan-check` is diagnostic.
 - Every task receives a task-scoped review package and reviewer after verification.
+- A reviewer `REQUEST_CHANGES` is capped at three remediation attempts per execution unit; exhaustion or an agent-call-budget limit becomes `BLOCKED`, not another subagent dispatch.
 - After the final task, a final review package and reviewer examine the whole run for multi-unit integration before final verification. A single-unit run may reuse its task review only with the explicit digest/HEAD-bound gate.
 - Impact risk controls verification-ladder intensity; it does not select a workflow profile or change the review roster.
 - `IMPLEMENTING → VERIFYING` and `FINAL_REVIEWING → FINAL_VERIFYING` are fast authorization transitions. They persist `verification_status: PENDING`; they do not execute tests.
 - Run `nexus verify` in either verification state to measure fresh post-impact, discover the risk-based ladder, execute checks, and seal evidence. Only `verification_status: PASSED` authorizes the next review/completion transition. A timeout stays in the same state; use `nexus verify --resume`.
+- Pass complete handoffs by file (`--implementer-handoff-file` or `--review-handoff-file`) rather than rebuilding partial JSON in the orchestrator.
 
 Full policy: [`docs/workflow.md`](docs/workflow.md).
 

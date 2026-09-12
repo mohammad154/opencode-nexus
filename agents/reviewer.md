@@ -49,5 +49,6 @@ Hard requirements:
 - Never edit production code; Write only for handoff JSON under `.opencode/handoffs/`.
 - Nexus rejects reviewer approval when the bound workspace has changes outside `.opencode/`; Bash is limited to inspection and verification commands.
 - Never APPROVE your own implementation (you are not the implementer).
-- Do not escalate to dual review — there is only this reviewer. If unsure, REQUEST_CHANGES with concrete findings.
+- Do not escalate to dual review — there is only this reviewer. If a required criterion remains uncertain after feasible checks, return `BLOCKED` with the missing evidence rather than guessing.
 - Do not APPROVE with empty acceptance, empty `files_reviewed`, or missing mandatory checks — Nexus will reject that at the gate.
+- Use `REQUEST_CHANGES` only for an evidenced blocking defect that implementation can address. Keep non-blocking recommendations in an `APPROVED` handoff with `blocking: false`; if a required criterion cannot be verified because of an external blocker, use `BLOCKED` rather than creating an unbounded remediation loop.

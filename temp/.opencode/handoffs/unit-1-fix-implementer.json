@@ -1,0 +1,66 @@
+{
+  "schema_version": "1.1",
+  "run_id": "santiment-onchain-20260910",
+  "unit_or_task": "unit-1",
+  "agent": "implementer",
+  "base_commit": "39c66ff3fbd6ac930962f24183cdf27cecfbbf0d",
+  "created_at": "2026-09-10T17:05:00Z",
+  "status": "DONE",
+  "commit": "604bec312dda9daab013ba7186915747bb3dac96",
+  "files_changed": [
+    "gpu_fuzzy_trader/data/onchain_pipeline.py",
+    "gpu_fuzzy_trader/data/onchain_registry.py",
+    "tests/unit/test_onchain_pipeline.py",
+    "tests/unit/test_onchain_registry.py"
+  ],
+  "tests": {
+    "total": 31,
+    "passed": 31,
+    "failed": 0,
+    "tdd": {
+      "red": "build_symbol_feature_frame raised ValueError on real source data due to partial boundary buckets; post-warmup zero-scale intervals had semantic NaNs overwritten by blanket ffill",
+      "green": "31 passed in 4.11s; boundary buckets dropped causally, semantic NaNs preserved post-warmup, real checked-in sources build complete feature frames"
+    }
+  },
+  "verification_gates": [
+    {
+      "name": "gate_1_unit_tests",
+      "command": "PYTEST_LOW_MEMORY=1 .venv/bin/python -m pytest tests/unit/test_onchain_registry.py tests/unit/test_onchain_pipeline.py -q",
+      "pass": true,
+      "output": "31 passed in 4.11s"
+    },
+    {
+      "name": "gate_2_diff_check",
+      "command": "git diff --check",
+      "pass": true,
+      "output": "clean"
+    },
+    {
+      "name": "gate_3_diff_stat_allowed_files",
+      "command": "git diff main...feature/unit-1-onchain-core --stat",
+      "pass": true,
+      "output": "4 files changed, 929 insertions(+); only in-scope allowed files modified"
+    }
+  ],
+  "drift_check": {
+    "command": "nexus run drift",
+    "drift": "NONE",
+    "commit_distance": 0,
+    "merge_base_changed": false
+  },
+  "impact": {
+    "verified": true,
+    "risk": "MEDIUM",
+    "confidence": 0.1,
+    "dependents": [],
+    "related_tests": [
+      "tests/unit/test_onchain_registry.py",
+      "tests/unit/test_onchain_pipeline.py"
+    ]
+  },
+  "findings_addressed": [
+    "F-1: In aggregate_metric, discard incomplete start and end boundary buckets before enforcing 4-observation rule; preserve causality without filling from future; maintain strict interior gap checks.",
+    "F-2: In build_symbol_feature_frame, align metric series to global availability timeline via as-of carry without blanket column ffill; preserve semantic NaNs from zero scale and warm-up.",
+    "F-3: Added regression tests for phase-shifted source boundaries, suffix invariance under boundary completion, interior missing bucket rejection, post-warmup constant interval NaN preservation, and real checked-in source datasets."
+  ]
+}

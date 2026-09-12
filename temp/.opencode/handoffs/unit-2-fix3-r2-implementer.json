@@ -1,0 +1,64 @@
+{
+  "schema_version": "1.1",
+  "run_id": "santiment-onchain-20260910-r2",
+  "unit_or_task": "unit-2",
+  "agent": "implementer",
+  "base_commit": "272349316aa6a8bf2ece8764db90511e3f9d1025",
+  "created_at": "2026-09-11T08:15:00Z",
+  "status": "DONE",
+  "commit": "856f501c6ad1c74b6a0da0c7bd0af8fe1448659b",
+  "files_changed": [
+    "scripts/build_onchain_dataset.py",
+    "tests/unit/test_onchain_dataset_builder.py"
+  ],
+  "tests": {
+    "total": 54,
+    "passed": 54,
+    "failed": 0,
+    "tdd": {
+      "red": "test_atomic_safety_manifest_replace_failure failed with AssertionError (test_path bytes did not match pre-run bytes due to missing test tape rollback on manifest replace failure); test_cli_parser_has_no_expected_rows_flags failed with AssertionError (CLI parser accepted --expected-train-rows)",
+      "green": "54 passed in 7.10s across tests/unit/test_onchain_dataset_builder.py, tests/unit/test_onchain_pipeline.py, and tests/unit/test_onchain_registry.py"
+    }
+  },
+  "verification_gates": [
+    {
+      "name": "gate_1_unit_tests",
+      "command": "PYTEST_LOW_MEMORY=1 .venv/bin/python -m pytest tests/unit/test_onchain_dataset_builder.py tests/unit/test_onchain_pipeline.py tests/unit/test_onchain_registry.py -q",
+      "pass": true,
+      "output": "54 passed in 7.10s"
+    },
+    {
+      "name": "gate_2_diff_check",
+      "command": "git diff --check",
+      "pass": true,
+      "output": "clean"
+    },
+    {
+      "name": "gate_3_diff_stat_allowed_files",
+      "command": "git diff 272349316aa6a8bf2ece8764db90511e3f9d1025...feature/unit-2-onchain-builder --stat",
+      "pass": true,
+      "output": "scripts/build_onchain_dataset.py | 106 ++++++++++++++++-------------\ntests/unit/test_onchain_dataset_builder.py | 99 +++++++++++++++++++++++++++\n2 files changed, 157 insertions(+), 48 deletions(-)"
+    }
+  ],
+  "drift_check": {
+    "command": "nexus run drift",
+    "drift": "NONE",
+    "commit_distance": 0,
+    "merge_base_changed": false
+  },
+  "impact": {
+    "verified": true,
+    "risk": "HIGH",
+    "confidence": 0.1,
+    "dependents": [],
+    "related_tests": [
+      "tests/unit/test_onchain_dataset_builder.py",
+      "tests/unit/test_onchain_pipeline.py",
+      "tests/unit/test_onchain_registry.py"
+    ]
+  },
+  "findings_addressed": [
+    "F-9: Removed the public row-count override path entirely. Deleted --expected-train-rows and --expected-test-rows CLI flags, deleted expected_train_rows and expected_test_rows parameters and forwarding. verify_dataset_shape always enforces canonical TRAIN_EXPECTED_ROWS=140352 and TEST_EXPECTED_ROWS=39152. Added test_cli_parser_has_no_expected_rows_flags asserting the parser rejects expected-rows flags.",
+    "F-11: Added test_backup creation before replacing tapes. On manifest-replace failure after both tapes are replaced, rollback restores train, test, and manifest (pre-existing manifest restored, absent manifest removed). Added test_atomic_safety_manifest_replace_failure forcing manifest-destination os.replace failure for both pre-existing and absent manifest states, asserting train bytes, test bytes, and manifest bytes equal pre-run state."
+  ]
+}

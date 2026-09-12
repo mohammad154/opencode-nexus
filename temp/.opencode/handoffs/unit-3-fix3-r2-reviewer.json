@@ -1,0 +1,112 @@
+{
+  "schema_version": "1.2",
+  "run_id": "santiment-onchain-20260910-r2",
+  "unit_or_task": "unit-3",
+  "task_id": "unit-3-fix3-r2",
+  "agent": "reviewer",
+  "base_commit": "856f501c6ad1c74b6a0da0c7bd0af8fe1448659b",
+  "created_at": "2026-09-11T21:00:00Z",
+  "review_scope": "task",
+  "reviewed_commit": "b273bae330b2555f777510ceb7657d810f5a7960",
+  "review_package_digest": "ad9c091c069c7fd341f2d0daaba73268de8a0f48aeb776d741b870be407fad50",
+  "files_reviewed": [
+    "gpu_fuzzy_trader/config.py",
+    "gpu_fuzzy_trader/data/multi_timeframe.py",
+    "gpu_fuzzy_trader/data/onchain_pipeline.py",
+    "gpu_fuzzy_trader/data/splitter.py",
+    "gpu_fuzzy_trader/features/catalog.py",
+    "gpu_fuzzy_trader/features/fuzzy_scaling.py",
+    "gpu_fuzzy_trader/mtf/archives.py",
+    "gpu_fuzzy_trader/output/writer.py",
+    "gpu_fuzzy_trader/phases/phase2_rule_pool.py",
+    "gpu_fuzzy_trader/phases/phase5_oos.py",
+    "gpu_fuzzy_trader/rb_governor.py",
+    "gpu_fuzzy_trader/research_integrity.py",
+    "gpu_fuzzy_trader/run_pipeline.py",
+    "tests/unit/test_fuzzy_scaling.py",
+    "tests/unit/test_mtf_pipeline_integration.py",
+    "tests/unit/test_phase2_rule_pool.py",
+    "tests/unit/test_output_writer.py",
+    "tests/unit/test_phase5_oos.py",
+    "tests/unit/test_run_pipeline.py",
+    "tests/property/test_output_writer_properties.py"
+  ],
+  "acceptance": [
+    {
+      "id": "AC-1",
+      "status": "PASS",
+      "evidence": [
+        {"file": "gpu_fuzzy_trader/data/onchain_pipeline.py", "line": 427, "reason": "True null/whitespace values are separated from non-empty values; malformed text and infinity are rejected at lines 431-446."},
+        {"file": "gpu_fuzzy_trader/features/fuzzy_scaling.py", "line": 151, "reason": "Validator, fit, and bounded apply reject non-null conversion failures while permitting real NaN warm-up. Tests cover bad text and true NaN at tests/unit/test_fuzzy_scaling.py:117-130 and :197-209."}
+      ]
+    },
+    {
+      "id": "AC-2",
+      "status": "PASS",
+      "evidence": [
+        {"file": "gpu_fuzzy_trader/features/fuzzy_scaling.py", "line": 194, "reason": "Manifest override is returned only after bounded on-chain columns are checked for malformed, infinite, empty-finite, and out-of-range values."},
+        {"file": "gpu_fuzzy_trader/run_pipeline.py", "line": 3227, "reason": "Fresh and cached frames are range-validated before scaling. The realistic 2.5 validation value is rejected before clipping; manifest edge tests are at tests/unit/test_fuzzy_scaling.py:133-161."}
+      ]
+    },
+    {
+      "id": "AC-3",
+      "status": "PASS",
+      "evidence": [
+        {"file": "gpu_fuzzy_trader/rb_governor.py", "line": 541, "reason": "RB output stamps the current digest and reapplies it after extra metadata is merged, including nested strategy_contract and provenance at lines 564-570."},
+        {"file": "gpu_fuzzy_trader/output/writer.py", "line": 395, "reason": "Output_Writer.write reconciles the current digest into recognized nested contracts before writing; tests cover stale top-level and nested copies at tests/unit/test_output_writer.py:705-754."},
+        {"file": "gpu_fuzzy_trader/phases/phase5_oos.py", "line": 814, "reason": "Phase 5 requires a digest and rejects every present copy that differs from the current digest at lines 817-846."}
+      ]
+    },
+    {
+      "id": "AC-4",
+      "status": "FAIL",
+      "evidence": [
+        {"file": "gpu_fuzzy_trader/run_pipeline.py", "line": 4492, "reason": "With no caller df, stale-LWC recovery reads only OHLCV at lines 3914-3920, then calls Phase 2 using that frame. Default supplied_ff mode requires 30 columns at catalog.py:31-36, so recovery raises instead of rebuilding. Tests mock run_phase2 at tests/unit/test_mtf_pipeline_integration.py:384-411 and :458-485."},
+        {"file": "gpu_fuzzy_trader/mtf/archives.py", "line": 233, "reason": "archive_hash is optional in schema validation, but loaded_archive_hash raises at run_pipeline.py:4529-4535 outside the recovery block when the field is absent."}
+      ]
+    },
+    {
+      "id": "AC-5",
+      "status": "PASS",
+      "evidence": [
+        {"file": "gpu_fuzzy_trader/mtf/archives.py", "line": 385, "reason": "List payloads are rejected unconditionally before schema validation, including when validate_schema is false."},
+        {"file": "tests/unit/test_mtf_pipeline_integration.py", "line": 319, "reason": "Both MTF archive loaders reject a legacy JSON list at lines 319-337."}
+      ]
+    },
+    {
+      "id": "AC-6",
+      "status": "FAIL",
+      "evidence": [
+        {"file": "tests/unit/test_mtf_pipeline_integration.py", "line": 293, "reason": "Missing digest, list rejection, and non-empty LWC/HWC/MWC rebuild tests exist, but recovery is mocked and does not cover no-df or missing archive_hash paths."},
+        {"file": "gpu_fuzzy_trader/phases/phase2_rule_pool.py", "line": 3988, "reason": "Direct load_pool checks only JSON shape at lines 4001-4010. run, run_epoch, and finalize_island seed from it without feature-contract identity, so a stale same-shape pool can be reused; no test covers this."}
+      ]
+    }
+  ],
+  "checks": [
+    {"category": "correctness", "status": "FAIL", "evidence": "LWC recovery has an unusable no-df fallback, missing archive_hash aborts after load, and direct Phase 2 pool seeding bypasses freshness. Other bounded validation, digest stamping, and list rejection paths passed review."},
+    {"category": "test_quality", "status": "FAIL", "evidence": "Targeted tests exercise validators and writer production code, but stale-LWC recovery substitutes run_phase2 and lacks no-df, missing-hash, and direct stale-pool cases."},
+    {"category": "impact", "status": "FAIL", "evidence": "Graph tracing found 38 inbound load_pool callers and 16 run_mtf_composition callers. The sealed post-impact report has zero parsed/direct dependents because its Python pass was unsupported (verification.json:204-258), so these paths required manual review."},
+    {"category": "code_quality", "status": "FAIL", "evidence": "Archive schema permits a hash that composition later requires, and freshness is split between an orchestrator sidecar and an unguarded public pool loader."},
+    {"category": "scope", "status": "PASS", "evidence": "The review package files are within the declared unit scope; the latest commit b273bae changes only tests/property/test_output_writer_properties.py."},
+    {"category": "verification", "status": "PASS", "evidence": "Sealed task verification is PASSED. Independent suites passed: fuzzy_scaling 43, MTF integration 55, phase2_rule_pool 203, output_writer 91, and phase5_oos 111. git diff --check was clean."},
+    {"category": "isolation", "status": "FAIL", "evidence": "git status reports untracked .antigravity/handoffs/unit-1-fix-implementer.json outside .opencode; an approval gate must reject this workspace state."}
+  ],
+  "adversarial_checks": [
+    {"risk": "Non-null on-chain value is malformed text or the string NaN.", "result": "PASS", "evidence": "Conversion failures are rejected separately from true nulls at onchain_pipeline.py:427-440 and fuzzy_scaling.py:149-155."},
+    {"risk": "Validation value is 2.5 with a scale manifest.", "result": "PASS", "evidence": "Fresh and cached paths validate before scaling at run_pipeline.py:3154-3158 and :3227-3231."},
+    {"risk": "Stale LWC archive is rebuilt without caller df.", "result": "FAIL", "evidence": "The seven-column fallback reaches the 30-feature supplied_ff catalog and raises; run_pipeline.py:3914-3920,4492; catalog.py:31-36."},
+    {"risk": "Digest-valid MTF archive has archive_hash removed.", "result": "FAIL", "evidence": "Schema accepts the missing field at mtf/archives.py:233-240, then composition raises at run_pipeline.py:4529-4535."},
+    {"risk": "Stale same-shape Phase 2 pool is used directly.", "result": "FAIL", "evidence": "run, run_epoch, and finalize_island call shape-only load_pool at phase2_rule_pool.py:3703-3716,4189-4193,4327-4335."},
+    {"risk": "Legacy list-shaped MTF archive is loaded.", "result": "PASS", "evidence": "load_mtf_archive_payload rejects lists unconditionally at mtf/archives.py:385-389."}
+  ],
+  "findings": [
+    {"id": "F-AC4-LWC-RAW-FALLBACK", "title": "Standalone stale-LWC recovery passes an unusable raw frame", "file": "gpu_fuzzy_trader/run_pipeline.py", "line": 4492, "severity": "HIGH", "blocking": true, "description": "The no-df fallback reads only OHLCV, but default supplied_ff Phase 2 requires 30 features. A stale or missing LWC archive therefore raises instead of rebuilding. Require a valid training frame or build the required feature frame, and add a real integration test."},
+    {"id": "F-AC4-MISSING-ARCHIVE-HASH", "title": "Missing archive hash aborts composition", "file": "gpu_fuzzy_trader/mtf/archives.py", "line": 233, "severity": "MEDIUM", "blocking": true, "description": "Schema validation permits absent archive_hash, while composition requires it after the load recovery block. A digest-valid archive with this field removed is not rebuilt or cleanly rejected."},
+    {"id": "F-AC3-POOL-DIGEST-BYPASS", "title": "Direct Phase 2 pool seeding bypasses feature identity", "file": "gpu_fuzzy_trader/phases/phase2_rule_pool.py", "line": 3988, "severity": "HIGH", "blocking": true, "description": "load_pool validates only shape. run, run_epoch, and finalize_island can seed a stale pool when names and chromosome shape remain unchanged; the orchestrator sidecar is not enforced at those entry points."},
+    {"id": "F-AC6-RECOVERY-TEST-GAP", "title": "Recovery tests do not execute the real LWC rebuild", "file": "tests/unit/test_mtf_pipeline_integration.py", "line": 384, "severity": "MEDIUM", "blocking": false, "description": "The tests mock run_phase2, so they prove callback invocation but not the production 30-feature source path or missing archive_hash recovery."},
+    {"id": "F-ISOLATION-OUTSIDE-OPENCODE", "title": "Untracked artifact exists outside .opencode", "file": ".antigravity/handoffs/unit-1-fix-implementer.json", "line": 1, "severity": "MEDIUM", "blocking": false, "description": "This appears to be prior-run scratch, but Nexus approval requires no workspace changes outside .opencode."}
+  ],
+  "verdict": "REQUEST_CHANGES",
+  "impact": {"pass": false, "risk": "HIGH"},
+  "notes": "Independent adversarial task review. Implementer claims were treated as unverified. No production code was edited. Fresh pre-impact is required before the next fix-loop implementer."
+}

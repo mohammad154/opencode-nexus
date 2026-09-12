@@ -40,6 +40,8 @@ import {
   assertTransitionScopeLock,
 } from "./scope-lock.js";
 import {
+  DEFAULT_MAX_FIX_LOOP_ATTEMPTS,
+  fixLoopDecision,
   isApprovalAdmissible,
   isBlockingFinding,
 } from "./review-protocol.js";
@@ -1008,6 +1010,18 @@ export function canTransition(state, to, ctx = {}) {
           errors.push(
             `${from} → TASK_IMPACT_READY requires REQUEST_CHANGES or APPROVED (next task), got ${data.verdict}`,
           );
+        } else if (data.verdict === "REQUEST_CHANGES") {
+          const unit = reviewUnitForFixLoop(state, data);
+          const decision = fixLoopDecision({
+            findings: data.findings || [],
+            attempt: fixLoopAttemptsForUnit(state, unit),
+            max_attempts: DEFAULT_MAX_FIX_LOOP_ATTEMPTS,
+          });
+          if (decision.action === "block") {
+            errors.push(
+              `FIX_LOOP_EXHAUSTED: ${unit} reached ${DEFAULT_MAX_FIX_LOOP_ATTEMPTS} remediation attempt(s); transition to BLOCKED and reconcile instead of redispatching`,
+            );
+          }
         } else if (data.verdict === "APPROVED" && from === "FINAL_REVIEWING") {
           errors.push(
             "FINAL_REVIEWING APPROVED must go to FINAL_VERIFYING (use REQUEST_CHANGES for fix loops)",
@@ -1280,6 +1294,15 @@ export function canTransition(state, to, ctx = {}) {
     }
   }
 
+  // The historical charge is recorded when the implementer handoff enters
+  // VERIFYING.  Check the same budget here as well, before the orchestrator
+  // receives a dispatch instruction, so it cannot start an agent that the
+  // subsequent handoff transition is guaranteed to reject.
+  if (to === "IMPLEMENTING") {
+    const dispatchBudget = assertImplementerDispatchBudget(state, ctx);
+    if (!dispatchBudget.ok) errors.push(...dispatchBudget.errors);
+  }
+
   return { ok: errors.length === 0, errors };
 }
 
@@ -1311,6 +1334,54 @@ function unresolvedHighFromCtx(ctx, state) {
     ...(state.last_review_handoff?.findings || []),
   ];
   return findings.filter(isBlockingFinding);
+}
+
+function reviewUnitForFixLoop(state = {}, handoff = {}) {
+  return String(
+    state.current_unit || handoff.unit_or_task || handoff.task_id || "current-unit",
+  );
+}
+
+function fixLoopAttemptsForUnit(state = {}, unit) {
+  const raw = state.fix_loop_attempts;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return 0;
+  return Math.max(0, Math.floor(Number(raw[unit]) || 0));
+}
+
+function resolveAgentCallBudget(state, ctx = {}, to = null) {
+  const unitCandidate =
+    to === "PLANNED"
+      ? ctx.execution_units ?? ctx.units ?? ctx.tasks ?? ctx.task_count
+      : state.execution_units ?? state.units ?? state.tasks ?? state.task_count;
+  const units = Array.isArray(unitCandidate)
+    ? unitCandidate.length || 1
+    : Number(unitCandidate) > 0
+      ? Math.floor(Number(unitCandidate))
+      : 1;
+  const planningAdvisorCalls = Math.max(
+    Number(state.plan_advisor_calls) || 0,
+    planAdvisorCallsFromContext(ctx, state),
+  );
+  const budget = getAgentCallBudget({
+    units,
+    maxCalls: state.agent_call_budget?.max_calls,
+    planningAdvisorCalls,
+  });
+  const used = Number.isInteger(state.agent_calls_used) ? state.agent_calls_used : 0;
+  return { used, budget };
+}
+
+function assertImplementerDispatchBudget(state, ctx = {}) {
+  const { used, budget } = resolveAgentCallBudget(state, ctx, "IMPLEMENTING");
+  if (used + 1 > budget.max_calls) {
+    return {
+      ok: false,
+      errors: [
+        `AGENT_CALL_BUDGET_EXCEEDED: used ${used}+1 > max ${budget.max_calls} (${budget.category}); do not dispatch implementer`,
+      ],
+    };
+  }
+  return { ok: true, used, budget };
 }
 
 function agentCallsForTransition(from, to, state, ctx) {
@@ -1352,25 +1423,7 @@ function assertAgentCallBudget(state, to, ctx = {}) {
   const charge = agentCallsForTransition(from, to, state, ctx);
   if (!charge.count) return { ok: true, used: state.agent_calls_used || 0 };
 
-  const unitCandidate =
-    to === "PLANNED"
-      ? ctx.execution_units ?? ctx.units ?? ctx.tasks ?? ctx.task_count
-      : state.execution_units ?? state.units ?? state.tasks ?? state.task_count;
-  const units = Array.isArray(unitCandidate)
-    ? unitCandidate.length || 1
-    : Number(unitCandidate) > 0
-      ? Math.floor(Number(unitCandidate))
-      : 1;
-  const planningAdvisorCalls = Math.max(
-    Number(state.plan_advisor_calls) || 0,
-    planAdvisorCallsFromContext(ctx, state),
-  );
-  const budget = getAgentCallBudget({
-    units,
-    maxCalls: state.agent_call_budget?.max_calls,
-    planningAdvisorCalls,
-  });
-  const used = Number.isInteger(state.agent_calls_used) ? state.agent_calls_used : 0;
+  const { used, budget } = resolveAgentCallBudget(state, ctx, to);
   if (used + charge.count > budget.max_calls) {
     return {
       ok: false,
@@ -1552,6 +1605,13 @@ export function transition(state, to, evidence = {}, providers = null) {
       next.last_review_handoff = data;
       if (data.verdict === "REQUEST_CHANGES") {
         next.pending_review_findings = data.findings || [];
+        const unit = reviewUnitForFixLoop(state, data);
+        next.fix_loop_attempts = {
+          ...(state.fix_loop_attempts && typeof state.fix_loop_attempts === "object"
+            ? state.fix_loop_attempts
+            : {}),
+          [unit]: fixLoopAttemptsForUnit(state, unit) + 1,
+        };
       } else if (data.verdict === "APPROVED") {
         next.pending_review_findings = null;
         const history = Array.isArray(state.task_history)

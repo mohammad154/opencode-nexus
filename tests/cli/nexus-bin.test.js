@@ -90,6 +90,7 @@ test("nexus run help documents subcommands", () => {
   assert.match(result.stdout, /next/);
   assert.match(result.stdout, /transition/);
   assert.match(result.stdout, /validate-handoff/);
+  assert.match(result.stdout, /review-handoff-file/);
 });
 
 test("nexus rejects unknown commands", () => {

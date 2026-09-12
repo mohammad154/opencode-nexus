@@ -1,0 +1,32 @@
+{
+  "schema_version": "1.0",
+  "ok": true,
+  "scope": "task",
+  "run_id": "santiment-onchain-20260910-r2",
+  "unit_or_task": "unit-4",
+  "run_base_commit": "5fed2f16b8dadecfc1ab4048a5148a2eeef53ad7",
+  "base_commit": "ba0c92c50d90e48831fac33905ca9e9cf5307ef7",
+  "head_commit": "7ea1c4e400f824d23876dcabd11fbda30a545bd9",
+  "path": ".opencode/reviews/santiment-onchain-20260910-r2-unit-4-task-review-package.md",
+  "absolute_path": "/home/danaee/trading_platform/.opencode/reviews/santiment-onchain-20260910-r2-unit-4-task-review-package.md",
+  "meta_path": ".opencode/reviews/santiment-onchain-20260910-r2-unit-4-task-review-package.json",
+  "changed_files": [
+    "gpu_fuzzy_trader/config.py",
+    "gpu_fuzzy_trader/phases/phase2_rule_pool.py",
+    "gpu_fuzzy_trader/run_pipeline.py",
+    "tests/unit/test_phase2_symbol_modes.py"
+  ],
+  "production_files": [
+    "gpu_fuzzy_trader/config.py",
+    "gpu_fuzzy_trader/phases/phase2_rule_pool.py",
+    "gpu_fuzzy_trader/run_pipeline.py"
+  ],
+  "acceptance_criteria": [
+    "Invalid mode fails validate_config with PHASE2_SYMBOL_MODE",
+    "Default global preserves current one-generator-per-direction behavior identity schema logs manifests show resolved mode",
+    "Specialist runs each symbol-direction with independent slices island_hyperparams immutable single-symbol provenance multi-symbol fails closed no cross-symbol migration",
+    "Provenance survives Phase2 to RB without rewrite"
+  ],
+  "digest_sha256": "117f2b78f3336ea620f0417b45a353ef9a271c190b535d26cd4182c122b55d22",
+  "generated_at": "2026-09-12T08:57:02.611Z"
+}

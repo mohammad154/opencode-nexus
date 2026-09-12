@@ -80,6 +80,20 @@ test("resolveNextAction maps TASK_IMPACT_READY → implementer after transition"
   assert.equal(next.action, "transition_then_dispatch");
 });
 
+test("resolveNextAction blocks an implementer dispatch when the agent-call budget is exhausted", () => {
+  for (const state of ["TASK_IMPACT_READY", "IMPLEMENTING"]) {
+    const next = resolveNextAction({
+      run_id: "budget-stop",
+      state,
+      agent_calls_used: 23,
+      agent_call_budget: { max_calls: 23 },
+    });
+    assert.equal(next.action, "block_for_agent_budget", state);
+    assert.equal(next.agent, null, state);
+    assert.match(next.instruction, /do not Task-dispatch/i);
+  }
+});
+
 test("resolveNextAction with no state → init_run", () => {
   const next = resolveNextAction(null);
   assert.equal(next.action, "init_run");

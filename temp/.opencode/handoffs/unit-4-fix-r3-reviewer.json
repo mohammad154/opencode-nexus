@@ -1,0 +1,241 @@
+{
+  "schema_version": "1.2",
+  "run_id": "santiment-onchain-20260910-r3",
+  "unit_or_task": "unit-4",
+  "task_id": "unit-4-fix-r3",
+  "agent": "reviewer",
+  "base_commit": "7ea1c4e400f824d23876dcabd11fbda30a545bd9",
+  "created_at": "2026-09-12T10:00:00Z",
+  "review_scope": "task",
+  "reviewed_commit": "f3358e216f83209f3fb3f904a4317c724830a317",
+  "review_package_digest": "8b1d8ff42625a39caea74380542d118d3bab03db9c79229aa17e3142da6146e4",
+  "files_reviewed": [
+    "gpu_fuzzy_trader/config.py",
+    "gpu_fuzzy_trader/phases/phase2_rule_pool.py",
+    "gpu_fuzzy_trader/rb_governor.py",
+    "gpu_fuzzy_trader/run_pipeline.py",
+    "gpu_fuzzy_trader/phases/rule_identity.py",
+    "gpu_fuzzy_trader/evolution/evox_runner.py",
+    "tests/unit/test_phase2_symbol_modes.py",
+    "tests/unit/test_rb_island_source_symbols.py",
+    "tests/unit/test_run_pipeline.py"
+  ],
+  "acceptance": [
+    {
+      "id": "AC-1",
+      "status": "PASS",
+      "evidence": [
+        {
+          "file": "gpu_fuzzy_trader/config.py",
+          "line": 2770,
+          "reason": "validate_config normalizes PHASE2_SYMBOL_MODE, accepts only global or specialist, and reports PHASE2_SYMBOL_MODE on failure."
+        },
+        {
+          "file": "gpu_fuzzy_trader/run_pipeline.py",
+          "line": 3547,
+          "reason": "Failure mode: the private routing method treats every value other than specialist as global, and the public run_phase2 wrapper at lines 4817-4825 does not validate configuration itself. The literal validate_config criterion passes, but direct callers can bypass it; see F-4."
+        }
+      ]
+    },
+    {
+      "id": "AC-2",
+      "status": "PASS",
+      "evidence": [
+        {
+          "file": "gpu_fuzzy_trader/run_pipeline.py",
+          "line": 3816,
+          "reason": "The global path remains one Rule_Pool_Generator per direction over the pooled frames; the diff does not alter its generator wiring."
+        },
+        {
+          "file": "gpu_fuzzy_trader/config.py",
+          "line": 3218,
+          "reason": "The effective configuration snapshot records the normalized resolved symbol mode."
+        },
+        {
+          "file": "gpu_fuzzy_trader/run_pipeline.py",
+          "line": 1269,
+          "reason": "The run manifest records the resolved phase2_symbol_mode, and the pipeline log uses the same resolver at lines 986-993."
+        }
+      ]
+    },
+    {
+      "id": "AC-3",
+      "status": "FAIL",
+      "evidence": [
+        {
+          "file": "gpu_fuzzy_trader/phases/phase2_rule_pool.py",
+          "line": 2857,
+          "reason": "Train and validation slices are copied and restricted to one symbol, and per-slice floors are created at lines 3599-3600."
+        },
+        {
+          "file": "gpu_fuzzy_trader/phases/phase2_rule_pool.py",
+          "line": 2999,
+          "reason": "The attach helper always replaces the provenance record with version 1/mode specialist. The conflict check only examines symbol and direction at lines 2909-2925, so a pre-existing global-mode, wrong-version, or incomplete provenance record can be silently relabeled instead of rejected."
+        },
+        {
+          "file": "gpu_fuzzy_trader/phases/phase2_rule_pool.py",
+          "line": 3035,
+          "reason": "Cached-entry validation checks symbol/scope/origin and optionally direction, but does not require the provenance mode or version. An old same-symbol artifact can therefore pass specialist validation."
+        },
+        {
+          "file": "gpu_fuzzy_trader/phases/phase2_rule_pool.py",
+          "line": 3200,
+          "reason": "The island input hash falls back to rows:<count> on any hashing error at lines 3216-3219, so changed same-sized input can pass the identity comparison at lines 3308-3316."
+        }
+      ]
+    },
+    {
+      "id": "AC-4",
+      "status": "PASS",
+      "evidence": [
+        {
+          "file": "gpu_fuzzy_trader/rb_governor.py",
+          "line": 450,
+          "reason": "_rule_to_engine now carries source scope and copies a nested provenance dictionary through the RB engine representation."
+        },
+        {
+          "file": "gpu_fuzzy_trader/rb_governor.py",
+          "line": 478,
+          "reason": "Capital-budget normalization uses _rule_to_engine, and _strategy receives the normalized ruleset."
+        },
+        {
+          "file": "tests/unit/test_phase2_symbol_modes.py",
+          "line": 500,
+          "reason": "The standalone loader test checks provenance after capital normalization and final strategy construction."
+        }
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "category": "correctness",
+      "status": "FAIL",
+      "evidence": "Specialist cache validation accepts non-specialist/incomplete provenance (gpu_fuzzy_trader/phases/phase2_rule_pool.py:2909-2925, 3035-3089), weakens failed input hashing to a row count (3200-3219), and the malformed metadata path can raise TypeError instead of dropping the entry (3096-3129)."
+    },
+    {
+      "category": "test_quality",
+      "status": "FAIL",
+      "evidence": "The added tests cover default generation, per-island resume, standalone loading, and RB copying (tests/unit/test_phase2_symbol_modes.py:413-504), but do not cover provenance mode/version rejection, hash failure, malformed metadata, forced cleanup, or direct invalid-mode routing. The required pytest command was denied by the shell policy, so runtime results remain unverified."
+    },
+    {
+      "category": "impact",
+      "status": "FAIL",
+      "evidence": "The graph shows _run_phase2 is reached by run, run_from_phase2, run_phase, run_phase2, and MTF callers; run_phase(3/4) reaches _load_phase2_outputs at gpu_fuzzy_trader/run_pipeline.py:1843-1848. These paths consume the permissive specialist validator and the public run_phase2 path can bypass validate_config."
+    },
+    {
+      "category": "scope",
+      "status": "PASS",
+      "evidence": "The package diff contains only the four planned production files and the planned test file. git diff --check is clean."
+    },
+    {
+      "category": "spec_fidelity",
+      "status": "FAIL",
+      "evidence": "The implementation claims immutable single-symbol provenance, but pre-existing provenance can be normalized/replaced and cached records do not require the specialist mode/version contract."
+    }
+  ],
+  "adversarial_checks": [
+    {
+      "risk": "A candidate or old island cache carries source_symbols=['A'] but provenance mode='global' or version=0.",
+      "result": "FAIL",
+      "evidence": "_check_single_symbol_conflict only checks provenance symbol/direction at gpu_fuzzy_trader/phases/phase2_rule_pool.py:2909-2925; attach_single_symbol_provenance rewrites the record at :2999-3004, while validate_single_symbol_rule never checks mode/version at :3035-3089."
+    },
+    {
+      "risk": "Island frame hashing fails for an object-valued/unhashable column and the frame later changes without changing row count.",
+      "result": "FAIL",
+      "evidence": "_hash_island_frame returns rows:<count> after any exception at gpu_fuzzy_trader/phases/phase2_rule_pool.py:3216-3219, and the fallback is trusted by _validate_island_artifact at :3308-3316."
+    },
+    {
+      "risk": "A JSON pool entry has source_symbols=123; standalone Phase 3/4 tries to load it.",
+      "result": "FAIL",
+      "evidence": "validate_single_symbol_rule calls list(raw) at gpu_fuzzy_trader/phases/phase2_rule_pool.py:3045-3052; drop_invalid_single_symbol_rules catches only ValueError at :3119-3124, so the TypeError escapes _load_phase2_outputs at gpu_fuzzy_trader/run_pipeline.py:3115-3129 instead of failing closed."
+    },
+    {
+      "risk": "A direct public run_phase2 call uses PHASE2_SYMBOL_MODE='bogus'.",
+      "result": "FAIL",
+      "evidence": "run_phase2 forwards directly to _run_phase2 at gpu_fuzzy_trader/run_pipeline.py:4817-4825, whose routing defaults every non-specialist value to the global path at :3547-3556."
+    },
+    {
+      "risk": "BTC/USDT and BTC_USDT collide in per-island filenames.",
+      "result": "PASS",
+      "evidence": "The token includes an exact-symbol SHA-256 suffix at gpu_fuzzy_trader/phases/phase2_rule_pool.py:3156-3164, and the test checks the two tokens differ at tests/unit/test_phase2_symbol_modes.py:399-401."
+    },
+    {
+      "risk": "Forced specialist regeneration leaves a prior per-island pool available for seeding.",
+      "result": "PASS",
+      "evidence": "Forced phase cleanup calls discard_specialist_island_caches at gpu_fuzzy_trader/run_pipeline.py:3711-3713 and _begin_run calls it at :1246; the island guard also validates and discards stale artifacts at gpu_fuzzy_trader/phases/phase2_rule_pool.py:3381-3399."
+    },
+    {
+      "risk": "Standalone specialist Phase 3/4 resumes the merged pool and carries nested provenance into the final RB ruleset.",
+      "result": "PASS",
+      "evidence": "The loader binds symbols into the resume identity and filters entries at gpu_fuzzy_trader/run_pipeline.py:3078-3129; _rule_to_engine copies nested provenance at gpu_fuzzy_trader/rb_governor.py:450-464, covered by tests/unit/test_phase2_symbol_modes.py:460-504."
+    },
+    {
+      "risk": "Independent execution of the required pytest gate.",
+      "result": "CANNOT_VERIFY",
+      "evidence": "PYTEST_LOW_MEMORY=1 .venv/bin/python -m pytest tests/unit/test_phase2_symbol_modes.py tests/unit/test_rb_island_source_symbols.py tests/unit/test_config_validation.py -q was rejected by the shell permission policy."
+    }
+  ],
+  "findings": [
+    {
+      "id": "F-1",
+      "title": "Specialist provenance mode and version are not validated",
+      "category": "correctness",
+      "severity": "HIGH",
+      "blocking": true,
+      "file": "gpu_fuzzy_trader/phases/phase2_rule_pool.py",
+      "line": 3035,
+      "reason": "The validator accepts any provenance mode/version as long as symbol and scope match. The attach helper also replaces a pre-existing record after checking only symbol and direction. A same-symbol global or old-version island artifact can be accepted or silently relabeled, violating immutable specialist provenance and allowing incompatible cache contents to seed RB.",
+      "recommendation": "Require a dict with the exact specialist mode and supported provenance version, reject noncanonical pre-existing records before annotation, and validate the same contract for fresh and resumed entries."
+    },
+    {
+      "id": "F-2",
+      "title": "Island input identity degrades to row count after hash errors",
+      "category": "correctness",
+      "severity": "HIGH",
+      "blocking": true,
+      "file": "gpu_fuzzy_trader/phases/phase2_rule_pool.py",
+      "line": 3216,
+      "reason": "_hash_island_frame catches every exception and returns rows:<count>. A changed same-sized frame can then satisfy the sidecar identity checks and warm-start from stale thresholds, despite the function claiming to bind the exact input slice.",
+      "recommendation": "Fail closed when exact hashing cannot be completed; do not use a row-count fallback for a cache identity."
+    },
+    {
+      "id": "F-3",
+      "title": "Malformed specialist metadata can crash standalone loading",
+      "category": "correctness",
+      "severity": "HIGH",
+      "blocking": true,
+      "file": "gpu_fuzzy_trader/phases/phase2_rule_pool.py",
+      "line": 3119,
+      "reason": "validate_single_symbol_rule executes list(raw) for non-string scope metadata, so source_symbols=123 raises TypeError. drop_invalid_single_symbol_rules catches only ValueError, and _load_phase2_outputs does not catch the TypeError. A malformed but schema-valid pool therefore raises instead of being dropped fail-closed.",
+      "recommendation": "Validate metadata types and catch malformed metadata as a dropped entry in every resumed-entry filter."
+    },
+    {
+      "id": "F-4",
+      "title": "Public Phase 2 routing assumes configuration was validated by the caller",
+      "category": "spec_fidelity",
+      "severity": "MEDIUM",
+      "blocking": false,
+      "file": "gpu_fuzzy_trader/run_pipeline.py",
+      "line": 3547,
+      "reason": "_run_phase2 selects global for any value other than specialist, and run_phase2 forwards directly to it without _validate_active_configuration. Direct public callers can therefore run an expensive global search under an invalid PHASE2_SYMBOL_MODE.",
+      "recommendation": "Validate or reject the resolved mode at the public Phase 2 entry point instead of silently defaulting invalid values to global."
+    },
+    {
+      "id": "F-5",
+      "title": "Artifact guard does not restore save_archive as a staticmethod",
+      "category": "scope",
+      "severity": "MEDIUM",
+      "blocking": false,
+      "file": "gpu_fuzzy_trader/phases/phase2_rule_pool.py",
+      "line": 3488,
+      "reason": "The guard captures Rule_Pool_Generator.save_archive after descriptor resolution and restores the bare function. After the first specialist island, instance access to this declared staticmethod becomes bound and can receive an unexpected self argument.",
+      "recommendation": "Capture and restore Rule_Pool_Generator.__dict__['save_archive'] or assign a staticmethod wrapper when restoring."
+    }
+  ],
+  "verdict": "REQUEST_CHANGES",
+  "impact": {
+    "pass": false,
+    "risk": "HIGH"
+  },
+  "notes": "Static review was completed against the package and current source. The package verification claim was treated as unverified; independent pytest execution was attempted and denied by shell policy. git diff --check passed. Blocking correctness findings remain in specialist cache/provenance validation and fail-closed error handling."
+}

@@ -1,0 +1,286 @@
+{
+  "schema_version": "1.2",
+  "run_id": "santiment-onchain-20260910-r2",
+  "unit_or_task": "unit-3",
+  "task_id": "unit-3-fix2-r2",
+  "agent": "reviewer",
+  "base_commit": "856f501c6ad1c74b6a0da0c7bd0af8fe1448659b",
+  "created_at": "2026-09-11T15:30:00Z",
+  "review_scope": "task",
+  "reviewed_commit": "9644417d473a2a29f2fed53402f3eb04840f60da",
+  "review_package_digest": "19e3987c7764981d42f6d7100a346270ecf4621e2f3fc57b8d33ffc01d0ee8a3",
+  "files_reviewed": [
+    "gpu_fuzzy_trader/config.py",
+    "gpu_fuzzy_trader/data/multi_timeframe.py",
+    "gpu_fuzzy_trader/data/splitter.py",
+    "gpu_fuzzy_trader/features/catalog.py",
+    "gpu_fuzzy_trader/features/fuzzy_scaling.py",
+    "gpu_fuzzy_trader/mtf/archives.py",
+    "gpu_fuzzy_trader/output/writer.py",
+    "gpu_fuzzy_trader/phases/phase2_rule_pool.py",
+    "gpu_fuzzy_trader/phases/phase5_oos.py",
+    "gpu_fuzzy_trader/rb_governor.py",
+    "gpu_fuzzy_trader/research_integrity.py",
+    "gpu_fuzzy_trader/run_pipeline.py",
+    "tests/unit/test_config_additions.py",
+    "tests/unit/test_config_validation.py",
+    "tests/unit/test_data_splitter.py",
+    "tests/unit/test_feature_catalog.py",
+    "tests/unit/test_fuzzy_scaling.py",
+    "tests/unit/test_mtf_pipeline_integration.py",
+    "tests/unit/test_multi_timeframe.py",
+    "tests/unit/test_onchain_feature_contract.py",
+    "tests/unit/test_output_writer.py",
+    "tests/unit/test_phase2_rule_pool.py",
+    "tests/unit/test_phase5_oos.py",
+    "tests/unit/test_research_integrity.py",
+    "tests/unit/test_run_pipeline.py",
+    "tests/unit/test_evaluator_clean_writer.py"
+  ],
+  "acceptance": [
+    {
+      "id": "AC-1",
+      "status": "PASS",
+      "evidence": [
+        {
+          "file": "gpu_fuzzy_trader/features/fuzzy_scaling.py",
+          "line": 151,
+          "reason": "The validator compares orig.notna() with the coercion mask, so non-null malformed text is rejected while true nulls are not treated as conversion failures. The same separation exists in fit at lines 194-219 and apply at lines 267-287."
+        },
+        {
+          "file": "tests/unit/test_fuzzy_scaling.py",
+          "line": 175,
+          "reason": "Production apply behavior is tested for out-of-range, infinity, and malformed text, and true NaN warm-up is tested at lines 197-209. A realistic 'bad' or 'NaN' string is now rejected."
+        }
+      ]
+    },
+    {
+      "id": "AC-2",
+      "status": "PASS",
+      "evidence": [
+        {
+          "file": "gpu_fuzzy_trader/features/catalog.py",
+          "line": 81,
+          "reason": "supplied_ff bypasses dispersion filtering and enforces the ordered allowlist and exact count at lines 81-103."
+        },
+        {
+          "file": "gpu_fuzzy_trader/features/fuzzy_scaling.py",
+          "line": 194,
+          "reason": "Bounded on-chain values are validated, including infinity and no-finite-value checks, before a FEATURE_SCALE_MANIFEST override is returned at line 221."
+        },
+        {
+          "file": "gpu_fuzzy_trader/run_pipeline.py",
+          "line": 3227,
+          "reason": "Fresh split frames are validated before scaling and Phase 2; the cached path performs the same validation at lines 3154-3158."
+        },
+        {
+          "file": "tests/unit/test_feature_catalog.py",
+          "line": 103,
+          "reason": "The production catalog test retains a constant and 98%-NaN required feature and asserts all 30 ordered features."
+        }
+      ]
+    },
+    {
+      "id": "AC-3",
+      "status": "FAIL",
+      "evidence": [
+        {
+          "file": "gpu_fuzzy_trader/rb_governor.py",
+          "line": 564,
+          "reason": "_strategy stamps the current digest, but out.update(extra) runs afterward and repairs only missing digests at lines 566-569. An extra strategy_contract containing a stale non-empty digest therefore produces an internally inconsistent RB artifact."
+        },
+        {
+          "file": "gpu_fuzzy_trader/phases/phase5_oos.py",
+          "line": 816,
+          "reason": "Phase 5 selects the first truthy digest instead of requiring every present digest copy to equal the current digest. A current top-level digest with stale provenance or MTF-manifest digest is accepted."
+        },
+        {
+          "file": "gpu_fuzzy_trader/phases/phase5_oos.py",
+          "line": 880,
+          "reason": "A stale or missing MTF archive raises built-in ValueError from load_mtf_archive_payload, but load_strategies catches only OSError, JSONDecodeError, and the unrelated custom ValidationError at line 952. A valid strategy with a stale archive can abort loading instead of being rejected/skipped."
+        },
+        {
+          "file": "gpu_fuzzy_trader/output/writer.py",
+          "line": 375,
+          "reason": "The writer preserves feature_contract_digest but does not validate or reconcile nested digest copies, so it preserves the inconsistent artifact described above."
+        }
+      ]
+    },
+    {
+      "id": "AC-4",
+      "status": "FAIL",
+      "evidence": [
+        {
+          "file": "gpu_fuzzy_trader/run_pipeline.py",
+          "line": 4483,
+          "reason": "A stale LWC archive does trigger run_phase2 rebuild, but the rebuilt archive is persisted only when all_lwc_rules is non-empty at run_phase2 lines 4401-4403 and run_mtf_composition lines 4596-4601. If discovery returns no rules, the stale file remains on disk."
+        },
+        {
+          "file": "tests/unit/test_mtf_pipeline_integration.py",
+          "line": 340,
+          "reason": "The LWC recovery test supplies a non-empty mocked rebuild and therefore does not exercise the stale-file/empty-rebuild case."
+        }
+      ]
+    },
+    {
+      "id": "AC-5",
+      "status": "PASS",
+      "evidence": [
+        {
+          "file": "gpu_fuzzy_trader/mtf/archives.py",
+          "line": 385,
+          "reason": "JSON lists and non-dict payloads are rejected before schema validation, and dict payloads require a current digest at lines 395-408."
+        },
+        {
+          "file": "tests/unit/test_mtf_pipeline_integration.py",
+          "line": 319,
+          "reason": "Both load_mtf_rule_archive and load_mtf_archive_payload are tested against a legacy list payload and must raise."
+        }
+      ]
+    },
+    {
+      "id": "AC-6",
+      "status": "FAIL",
+      "evidence": [
+        {
+          "file": "tests/unit/test_data_splitter.py",
+          "line": 613,
+          "reason": "Split cache mismatch and missing-digest rejection are covered."
+        },
+        {
+          "file": "tests/unit/test_mtf_pipeline_integration.py",
+          "line": 293,
+          "reason": "MTF missing-digest, list rejection, and non-empty LWC/HWC/MWC rebuild cases are covered through lines 565."
+        },
+        {
+          "file": "tests/unit/test_phase2_rule_pool.py",
+          "line": 1189,
+          "reason": "Phase 2 tests only load a missing-digest archive and assert None; they do not verify replacement/rebuild behavior when save_archive receives an invalid archive."
+        },
+        {
+          "file": "tests/unit/test_phase5_oos.py",
+          "line": 475,
+          "reason": "RB mismatch, missing-digest, and normal/generated_lwc output cases are covered, but there is no Phase 5 test for a stale MTF archive escaping as ValueError or for inconsistent digest copies."
+        },
+        {
+          "file": "tests/unit/test_output_writer.py",
+          "line": 705,
+          "reason": "Writer coverage checks preservation of a fabricated digest only; it does not test current-digest stamping or consistency with nested provenance."
+        }
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "category": "correctness",
+      "status": "FAIL",
+      "evidence": "Numeric coercion, manifest validation, catalog retention, list rejection, and non-empty rebuilds are correct. The RB digest can be overridden or inconsistently accepted, and Phase 5 lets built-in archive ValueError escape instead of fail-closed skipping (gpu_fuzzy_trader/rb_governor.py:541-569; gpu_fuzzy_trader/phases/phase5_oos.py:816-827,880-952)."
+    },
+    {
+      "category": "test_quality",
+      "status": "FAIL",
+      "evidence": "The added tests exercise the happy/non-empty recovery paths and simple missing-digest loaders, but do not exercise Phase 5 stale-MTF error handling, empty LWC rebuilds, nested digest inconsistency, or Phase 2 invalid-archive replacement (tests/unit/test_mtf_pipeline_integration.py:293-565; tests/unit/test_phase2_rule_pool.py:1189-1203; tests/unit/test_phase5_oos.py:475-594)."
+    },
+    {
+      "category": "impact",
+      "status": "FAIL",
+      "evidence": "The post-impact traversal reports 411 impacted nodes and reaches the RB, writer, MTF, and Phase 5 contracts. The new archive and digest behavior therefore affects deployment loading, not only isolated helpers."
+    },
+    {
+      "category": "code_quality",
+      "status": "FAIL",
+      "evidence": "Digest handling is not uniform across top-level, provenance, nested strategy, and MTF manifest copies; Phase 5 uses first-truthy selection, while the RB boundary repairs only missing values. Bounded-value validation is also duplicated across validator, fit, and apply paths (gpu_fuzzy_trader/features/fuzzy_scaling.py:144-168,194-219,267-287)."
+    },
+    {
+      "category": "scope",
+      "status": "PASS",
+      "evidence": "BASE..HEAD contains the 25 package files listed by the review package. The second-fix commit changes 11 in-scope files; untracked .antigravity/ and .opencode/ scratch are not treated as production scope violations."
+    },
+    {
+      "category": "verification",
+      "status": "CANNOT_VERIFY",
+      "evidence": "The deterministic package reports passing related suites and the implementer claims 451 passed, but independent .venv pytest and Python commands were denied by the shell permission policy. git diff --check for BASE..HEAD was clean."
+    }
+  ],
+  "adversarial_checks": [
+    {
+      "risk": "A non-null on-chain value is 'bad', 'NaN', or an empty string.",
+      "result": "PASS",
+      "evidence": "The orig.notna() & converted.isna() mask rejects conversion failures in validator, fit, and apply at fuzzy_scaling.py:151,197,269."
+    },
+    {
+      "risk": "FEATURE_SCALE_MANIFEST is present while a required on-chain column is all infinite.",
+      "result": "PASS",
+      "evidence": "fit_fuzzy_feature_scaling validates target columns before returning the manifest override at fuzzy_scaling.py:194-221."
+    },
+    {
+      "risk": "A stale LWC archive is rebuilt and discovery returns non-empty rules.",
+      "result": "PASS",
+      "evidence": "run_mtf_composition calls run_phase2 on archive failure and writes the normalized non-empty result with the current digest at run_pipeline.py:4483-4503,4596-4601; the test covers this at test_mtf_pipeline_integration.py:340-419."
+    },
+    {
+      "risk": "A stale LWC archive is rebuilt but discovery returns no rules.",
+      "result": "FAIL",
+      "evidence": "The stale archive is not removed or replaced because both save sites are guarded by non-empty rules at run_pipeline.py:4401-4403,4596-4601."
+    },
+    {
+      "risk": "Phase 5 loads a valid strategy whose frozen MTF archive has a stale or missing digest.",
+      "result": "FAIL",
+      "evidence": "load_mtf_archive_payload raises ValueError at mtf/archives.py:403-407, outside the exception tuple in phase5_oos.py:952-958."
+    },
+    {
+      "risk": "An RB extra contains a current top-level digest but stale nested provenance/strategy-contract digest.",
+      "result": "FAIL",
+      "evidence": "rb_governor.py:564-569 permits the nested stale value, and phase5_oos.py:816-827 accepts the first truthy top-level value without checking all copies."
+    },
+    {
+      "risk": "A legacy MTF archive is a JSON list.",
+      "result": "PASS",
+      "evidence": "load_mtf_archive_payload rejects lists before the schema gate at mtf/archives.py:385-393."
+    }
+  ],
+  "findings": [
+    {
+      "id": "F-AC3-PHASE5-MTF-VALUEERROR",
+      "title": "Phase 5 lets stale MTF archive errors escape strategy loading",
+      "file": "gpu_fuzzy_trader/phases/phase5_oos.py",
+      "line": 880,
+      "severity": "HIGH",
+      "blocking": true,
+      "description": "load_mtf_archive_payload raises built-in ValueError for a missing or mismatched digest, but load_strategies catches only OSError, JSONDecodeError, and the custom ValidationError. A valid RB/MTF strategy with a stale archive can abort load_strategies instead of being rejected and skipped as its documented invalid-file behavior requires."
+    },
+    {
+      "id": "F-AC3-RB-DIGEST-INCONSISTENCY",
+      "title": "RB digest stamping can preserve stale nested metadata",
+      "file": "gpu_fuzzy_trader/rb_governor.py",
+      "line": 564,
+      "severity": "HIGH",
+      "blocking": true,
+      "description": "_strategy updates the stamped output with extra after computing the current digest and only restores missing values. An extra strategy_contract or provenance with a stale non-empty digest remains inconsistent, while Phase 5 selects the first truthy digest at phase5_oos.py:816-827 and can accept the artifact."
+    },
+    {
+      "id": "F-AC4-LWC-EMPTY-REBUILD-LEAVES-STALE",
+      "title": "Empty LWC rebuild leaves the stale archive on disk",
+      "file": "gpu_fuzzy_trader/run_pipeline.py",
+      "line": 4596,
+      "severity": "MEDIUM",
+      "blocking": true,
+      "description": "After a stale LWC archive triggers discovery, the archive is saved only when all_lwc is truthy. An empty discovery result leaves the old digest-mismatched file in place, violating the stale-cache stop condition and causing repeated stale-cache handling on later runs."
+    },
+    {
+      "id": "F-AC6-MISSING-ADVERSARIAL-COVERAGE",
+      "title": "Required invalidation and recovery edge paths remain untested",
+      "file": "tests/unit/test_mtf_pipeline_integration.py",
+      "line": 340,
+      "severity": "MEDIUM",
+      "blocking": true,
+      "description": "Coverage proves non-empty MTF rebuilds and basic missing-digest rejection, but does not test Phase 5 stale-archive error handling, empty LWC replacement, Phase 2 invalid-archive replacement, or consistency of all RB digest copies. The writer test also accepts an arbitrary fabricated digest rather than verifying the current boundary digest."
+    }
+  ],
+  "verdict": "REQUEST_CHANGES",
+  "impact": {
+    "pass": false,
+    "risk": "HIGH"
+  },
+  "notes": "Independent task review. The six acceptance criteria were evaluated after reading the deterministic package and BASE..HEAD source. No production code was edited. The package/implementer test claims remain unverified locally because shell execution was denied. A fresh pre-impact is required before the next fix-loop implementer."
+}

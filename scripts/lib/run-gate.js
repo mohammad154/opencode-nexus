@@ -88,14 +88,21 @@ export function buildRunGateReminder(activeRun, opts = {}) {
     ].join("\n");
   }
 
-  if (!gate) return null;
-  if (!includeNext) return gate;
-
   const runForNext =
     typeof activeRun === "string"
       ? { state: activeRun, run_id: runId }
       : activeRun || null;
   const next = resolveNextAction(runForNext, { worktree });
+  if (next.action === "block_for_agent_budget") {
+    gate = [
+      "## Nexus Delegation Gate",
+      `Active run ${runId || "unknown"} cannot dispatch another implementer.`,
+      "STOP: the agent-call budget is exhausted. Record BLOCKED and reconcile; do not start another subagent.",
+    ].join("\n");
+  }
+
+  if (!gate) return null;
+  if (!includeNext) return gate;
   return appendNextActionToGate(gate, next);
 }
 

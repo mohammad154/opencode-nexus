@@ -1,0 +1,147 @@
+{
+  "schema_version": "1.2",
+  "run_id": "santiment-onchain-20260910",
+  "unit_or_task": "unit-1",
+  "task_id": "unit-1-fix",
+  "agent": "reviewer",
+  "base_commit": "4f5d98b8aea1945ea1e65868ac4f5aa8bbbdf848",
+  "created_at": "2026-09-10T18:00:00Z",
+  "review_scope": "task",
+  "reviewed_commit": "604bec312dda9daab013ba7186915747bb3dac96",
+  "review_package_digest": "bb97c680e9ac28870ed26ee5729f0c473713491626bf623b46bf02cc809db15f",
+  "files_reviewed": [
+    "gpu_fuzzy_trader/data/onchain_pipeline.py",
+    "gpu_fuzzy_trader/data/onchain_registry.py",
+    "tests/unit/test_onchain_pipeline.py",
+    "tests/unit/test_onchain_registry.py"
+  ],
+  "acceptance": [
+    {
+      "id": "AC-1",
+      "status": "PASS",
+      "evidence": [
+        {
+          "file": "gpu_fuzzy_trader/data/onchain_pipeline.py",
+          "line": 127,
+          "reason": "The hourly path moves the first boundary to the next full hour, computes the last complete boundary from max plus 15 minutes, slices before resampling, and keeps the four-observation guard for retained non-Funding buckets at lines 134-140. A 20:30 start and 20:15 end therefore cannot create partial buckets or use future data."
+        },
+        {
+          "file": "tests/unit/test_onchain_pipeline.py",
+          "line": 301,
+          "reason": "The 20:30-to-20:15 fixture asserts the first and last retained buckets, and extending the suffix to 20:45 adds only the newly complete final bucket while all earlier rows remain equal at lines 307-310."
+        }
+      ]
+    },
+    {
+      "id": "AC-2",
+      "status": "PASS",
+      "evidence": [
+        {
+          "file": "gpu_fuzzy_trader/data/onchain_pipeline.py",
+          "line": 229,
+          "reason": "pct_change disables implicit forward filling, and build_symbol_feature_frame keeps each transformed feature as a release-indexed Series before as-of alignment at lines 277-293. A semantic NaN at its own release label remains a NaN instead of being replaced by a blanket column ffill."
+        },
+        {
+          "file": "tests/unit/test_onchain_pipeline.py",
+          "line": 320,
+          "reason": "The final-frame regression feeds a valid warm-up followed by a constant zero-scale Age Consumed tail through build_symbol_feature_frame and requires the tail to remain all NaN at lines 347-349, which would fail if stale values were carried across the semantic NaNs."
+        }
+      ]
+    },
+    {
+      "id": "AC-3",
+      "status": "PASS",
+      "evidence": [
+        {
+          "file": "tests/unit/test_onchain_pipeline.py",
+          "line": 291,
+          "reason": "The patch adds boundary trimming, suffix invariance, and interior-gap regressions at lines 291-317, plus a post-warm-up final-frame semantic-NaN regression at lines 320-349. These tests import and invoke the production functions at lines 10-15 rather than testing mocks or helpers only."
+        },
+        {
+          "file": "tests/unit/test_onchain_pipeline.py",
+          "line": 372,
+          "reason": "The BTC/ETH real-source final-frame regression is present through lines 372-388. Its conditional skip is limited to checkouts without data/Onchain-Data; the synthetic production-path regressions are not skipped."
+        }
+      ]
+    },
+    {
+      "id": "AC-4",
+      "status": "PASS",
+      "evidence": [
+        {
+          "file": "gpu_fuzzy_trader/data/onchain_registry.py",
+          "line": 33,
+          "reason": "The unchanged registry retains version 1.0.0 and twelve ordered ff_oc_* contracts through line 181, including the required aggregation, transforms, release delays, windows, and minimum periods. Only Funding has allow_funding_gap=True at lines 72-84; the derived names remain ordered at lines 183-185."
+        },
+        {
+          "file": "gpu_fuzzy_trader/data/onchain_pipeline.py",
+          "line": 49,
+          "reason": "The audit still rejects duplicate dates, non-finite values, unsupported assets, incomplete non-Funding grids, and missing source metrics at lines 49-84. Funding remains bounded past-only ffill with the eight-hour limit and fail-closed unresolved gaps at lines 94-118; the module has no bfill, interpolate, or fillna(0)."
+        },
+        {
+          "file": "tests/unit/test_onchain_pipeline.py",
+          "line": 120,
+          "reason": "The retained tests assert the exact 25-row past-only Funding carry and rejection beyond eight hours at lines 120-134, while lines 140-210 retain aggregation, release, prior-only bounded scaling, warm-up, constant-series, and suffix-invariance coverage. Registry invariants remain covered at tests/unit/test_onchain_registry.py:13-39."
+        }
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "category": "correctness",
+      "status": "PASS",
+      "evidence": "Source inspection verifies causal full-bucket trimming at gpu_fuzzy_trader/data/onchain_pipeline.py:127-149 and release-indexed NaN-preserving alignment at lines 277-293. The deterministic package reports the targeted verification passed (review package:291-296), and the adversarial boundary, interior-gap, semantic-NaN, and Funding cases are directly covered."
+    },
+    {
+      "category": "test_quality",
+      "status": "PASS",
+      "evidence": "The new tests call aggregate_metric and build_symbol_feature_frame from the production module at tests/unit/test_onchain_pipeline.py:10-15. Boundary completion is compared at lines 301-310, interior rejection is exercised at lines 313-317, and the final-frame NaN behavior is exercised at lines 320-349; the package records the related suite as passing."
+    },
+    {
+      "category": "impact",
+      "status": "PASS",
+      "evidence": "The review package BASE..HEAD diff contains only the in-scope pipeline production change and its tests (review package:273-289). Graph tracing finds build_symbol_feature_frame as the only current production caller in this new module and no external production dependents; the registry, audit, and Funding contracts remain unchanged."
+    }
+  ],
+  "adversarial_checks": [
+    {
+      "risk": "A later source suffix completes the prior partial end bucket and changes an earlier aggregate.",
+      "result": "PASS",
+      "evidence": "gpu_fuzzy_trader/data/onchain_pipeline.py:127-135 trims at source boundaries, and tests/unit/test_onchain_pipeline.py:301-310 requires the 20:15 and 20:45 runs to have identical earlier rows."
+    },
+    {
+      "risk": "An interior missing 15-minute observation is mistaken for a permissible boundary truncation.",
+      "result": "PASS",
+      "evidence": "The retained bucket count guard is at gpu_fuzzy_trader/data/onchain_pipeline.py:134-140, and tests/unit/test_onchain_pipeline.py:313-317 requires the unexpected-timestamp-gap error for an interior hole."
+    },
+    {
+      "risk": "A post-warm-up zero-scale interval becomes a stale finite feature during global alignment.",
+      "result": "PASS",
+      "evidence": "Each source release row, including semantic NaN rows, is retained before alignment at gpu_fuzzy_trader/data/onchain_pipeline.py:277-293; tests/unit/test_onchain_pipeline.py:320-349 requires the constant-tail values to stay NaN."
+    },
+    {
+      "risk": "Funding repair uses a future value or accepts a gap longer than eight hours.",
+      "result": "PASS",
+      "evidence": "gpu_fuzzy_trader/data/onchain_pipeline.py:99-106 uses only ffill(limit=32), while tests/unit/test_onchain_pipeline.py:120-134 checks both the 25-row past-only carry and over-limit failure."
+    }
+  ],
+  "findings": [
+    {
+      "id": "HYGIENE-1",
+      "title": "Untracked harness scratch directories remain",
+      "file": ".antigravity/handoffs/* and .opencode/*",
+      "line": null,
+      "severity": "LOW",
+      "blocking": false,
+      "evidence": "git status --short reports ?? .antigravity/ and ?? .opencode/. These are harness handoff/review artifacts outside the tracked BASE..HEAD code diff; final merge uses the tracked diff only. This is non-blocking workspace hygiene.",
+      "resolved": false,
+      "commit": null
+    }
+  ],
+  "verdict": "APPROVED",
+  "impact": {
+    "pass": true,
+    "risk": "MEDIUM"
+  },
+  "notes": "Approved the tracked four-file unit-1 fix after independent source and package review. Review package digest: bb97c680e9ac28870ed26ee5729f0c473713491626bf623b46bf02cc809db15f. The untracked .antigravity and .opencode scratch directories are recorded as LOW, non-blocking hygiene only."
+}

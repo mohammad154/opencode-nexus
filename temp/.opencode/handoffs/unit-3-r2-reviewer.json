@@ -1,0 +1,299 @@
+{
+  "schema_version": "1.2",
+  "run_id": "santiment-onchain-20260910-r2",
+  "unit_or_task": "unit-3",
+  "task_id": "unit-3-r2",
+  "agent": "reviewer",
+  "base_commit": "856f501c6ad1c74b6a0da0c7bd0af8fe1448659b",
+  "created_at": "2026-09-11T08:50:00Z",
+  "review_scope": "task",
+  "reviewed_commit": "476f4b9de7962eb5e31676ec83c39ce3c0d9eea2",
+  "review_package_digest": "605ee07bbe3ed1449df3392c6596fb0b4d68aa27d7544a09953b8f1b3a173edd",
+  "files_reviewed": [
+    "gpu_fuzzy_trader/config.py",
+    "gpu_fuzzy_trader/data/multi_timeframe.py",
+    "gpu_fuzzy_trader/features/catalog.py",
+    "gpu_fuzzy_trader/features/fuzzy_scaling.py",
+    "gpu_fuzzy_trader/research_integrity.py",
+    "gpu_fuzzy_trader/run_pipeline.py",
+    "tests/unit/test_config_additions.py",
+    "tests/unit/test_config_validation.py",
+    "tests/unit/test_feature_catalog.py",
+    "tests/unit/test_fuzzy_scaling.py",
+    "tests/unit/test_mtf_pipeline_integration.py",
+    "tests/unit/test_multi_timeframe.py",
+    "tests/unit/test_onchain_feature_contract.py",
+    "tests/unit/test_research_integrity.py",
+    "tests/unit/test_run_pipeline.py",
+    "gpu_fuzzy_trader/data/splitter.py",
+    "gpu_fuzzy_trader/mtf/archives.py",
+    "gpu_fuzzy_trader/phases/phase2_rule_pool.py",
+    "gpu_fuzzy_trader/phases/phase5_oos.py",
+    "gpu_fuzzy_trader/data/onchain_registry.py"
+  ],
+  "acceptance": [
+    {
+      "id": "AC-1",
+      "status": "FAIL",
+      "evidence": [
+        {
+          "file": "gpu_fuzzy_trader/config.py",
+          "line": 266,
+          "reason": "The default allowlist is ordered as the 18 legacy names followed by ONCHAIN_FEATURE_NAMES, and candidate_rule_feature_columns returns that list in supplied_ff mode at features/catalog.py:28-36. However, the production catalog then unconditionally applies _remove_low_dispersion at features/catalog.py:80-85, and the pipeline uses build_rule_feature_specs at run_pipeline.py:3438-3440. A required feature that is constant or more than 95% NaN can therefore make the actual Phase 2 catalog contain 29 or fewer features. The added exact-count tests exercise candidates with varying values at tests/unit/test_onchain_feature_contract.py:32-42, not this production failure mode."
+        },
+        {
+          "file": "gpu_fuzzy_trader/features/catalog.py",
+          "line": 30,
+          "reason": "The supplied_ff branch correctly rejects missing allowlisted columns and excludes generated LWC/MTF columns, while the generated_lwc branch remains separate at lines 38-56. The exact-30 candidate sub-contract passes, but the full production-catalog criterion is not guaranteed after dispersion filtering."
+        }
+      ]
+    },
+    {
+      "id": "AC-2",
+      "status": "PASS",
+      "evidence": [
+        {
+          "file": "gpu_fuzzy_trader/run_pipeline.py",
+          "line": 236,
+          "reason": "The MTF merge keeps only columns in the OHLCV/base-label/internal set or the allowlisted RULE_ALLOWED_FF_FEATURES at lines 236-245. Its right side admits only MTF score columns and lwc_* columns at lines 246-251, so arbitrary ff_*, hwc_*, and mwc_* inputs cannot survive."
+        },
+        {
+          "file": "tests/unit/test_mtf_pipeline_integration.py",
+          "line": 488,
+          "reason": "The integration test supplies an allowed legacy and on-chain feature plus ff_legacy_lwc and hwc_stale_feature, then asserts allowed features survive and arbitrary ff_/HWC/MWC artifacts do not at lines 498-507."
+        }
+      ]
+    },
+    {
+      "id": "AC-3",
+      "status": "FAIL",
+      "evidence": [
+        {
+          "file": "gpu_fuzzy_trader/features/fuzzy_scaling.py",
+          "line": 183,
+          "reason": "A bounded_continuous scale-1.0 entry is inferred for an on-chain column from training values at lines 183-189, but apply_fuzzy_feature_scaling divides and clips every manifest entry at lines 217-229, including bounded_continuous values."
+        },
+        {
+          "file": "gpu_fuzzy_trader/run_pipeline.py",
+          "line": 3210,
+          "reason": "The normal split path applies the train-fitted scaling to train, validation, validation-fitness, and validation-selection frames at lines 3210-3212. The only runtime range check is later in _run_phase2 at lines 3472-3474. A valid training frame with a validation value of 2.5 is clipped to 1.0 before the check, so Phase 2 does not reject the out-of-range input and the supplied value is silently changed. An all-infinite training column also satisfies finite.size == 0 at fuzzy_scaling.py:184 and is clipped instead of rejected."
+        },
+        {
+          "file": "tests/unit/test_run_pipeline.py",
+          "line": 718,
+          "reason": "The added test sends a bad frame directly to _run_phase2 at lines 720-725. It does not exercise _load_and_split_data's scaling-before-validation order, so it cannot detect the validation-value clipping failure."
+        }
+      ]
+    },
+    {
+      "id": "AC-4",
+      "status": "PASS",
+      "evidence": [
+        {
+          "file": "gpu_fuzzy_trader/data/multi_timeframe.py",
+          "line": 251,
+          "reason": "The RSI computation and midline transform remain unchanged at lines 251-253; only the duplicate rsi_14 assignment is absent."
+        },
+        {
+          "file": "tests/unit/test_multi_timeframe.py",
+          "line": 141,
+          "reason": "The test still checks the generated feature output and explicitly requires rsi_14_midline, rejects rsi_14, and checks the warm-up NaN at lines 141-159."
+        }
+      ]
+    },
+    {
+      "id": "AC-5",
+      "status": "FAIL",
+      "evidence": [
+        {
+          "file": "gpu_fuzzy_trader/research_integrity.py",
+          "line": 100,
+          "reason": "feature_contract_digest does hash the ordered allowlist, source mode, registry version, selected transform fields, and the top-level manifest contract_digest at lines 100-119. It is recorded in dataset and ledger records at lines 129-138 and 180-185, and in the Phase 2 resume identity at run_pipeline.py:531-540."
+        },
+        {
+          "file": "gpu_fuzzy_trader/data/splitter.py",
+          "line": 384,
+          "reason": "Split-cache loading checks split geometry, source_sha256, artifact hashes, and frame structure at lines 384-419, but never compares a feature_contract_digest. run_pipeline.py:3122-3131 only checks that cached train data has the 30 column names. Changing the mode or on-chain manifest digest while keeping the same 30 columns and CSV/artifact bytes therefore reuses the stale split."
+        },
+        {
+          "file": "gpu_fuzzy_trader/run_pipeline.py",
+          "line": 4407,
+          "reason": "MTF composition loads existing HWC, MWC, and LWC archives at lines 4407-4441 without comparing their lineage to the current feature_contract_digest. The MTF manifest merely records the current digest at lines 4013-4015, which can relabel an old archive instead of rejecting it. The archive loader validates schema and stored hashes only at mtf/archives.py:381-382."
+        },
+        {
+          "file": "gpu_fuzzy_trader/phases/phase5_oos.py",
+          "line": 795,
+          "reason": "Standalone strategy loading accepts a valid on-disk RB output through Output_Writer at lines 795-807. MTF checks at lines 814-869 bind archive hashes to the stored strategy manifest, not to the current feature contract, and non-MTF strategies have no current digest comparison. Thus stale RB outputs can still be evaluated after a contract change."
+        },
+        {
+          "file": "gpu_fuzzy_trader/phases/phase2_rule_pool.py",
+          "line": 2792,
+          "reason": "The persistent Phase 2 archive validator compares only the feature_signature at lines 2792-2799; save_archive emits that signature without a feature-contract digest at lines 4156-4160. The sidecar Phase 2 resume identity is covered, but the persistent archive path is not."
+        }
+      ]
+    },
+    {
+      "id": "AC-SUPPLEMENTAL-CONFIRMATIONS",
+      "status": "PASS",
+      "evidence": [
+        {
+          "file": "gpu_fuzzy_trader/config.py",
+          "line": 2708,
+          "reason": "validate_config checks exactly 30 unique ff_* names and the source mode at lines 2708-2713; the deterministic verification command in the review package reports printed output 30."
+        },
+        {
+          "file": "gpu_fuzzy_trader/run_pipeline.py",
+          "line": 236,
+          "reason": "Under the supplied_ff production branch, HWC/MWC context scores are added only as MTF runtime columns and are not in the 30-feature allowlist. The MTF merge keeps them separate from supplied features."
+        },
+        {
+          "file": "gpu_fuzzy_trader/run_pipeline.py",
+          "line": 3210,
+          "reason": "Scaling is fitted from train_df and then applied to validation/test-style frames; the changed code does not use test or forward data to define feature names, transforms, or winners."
+        },
+        {
+          "file": ".opencode/reviews/santiment-onchain-20260910-r2-unit-3-task-review-package.md",
+          "line": 274,
+          "reason": "The tracked BASE..HEAD package lists exactly the 15 requested changed files at lines 274-289; no unit-1 or unit-2 implementation file is in the diff. Untracked scratch under .antigravity/ and .opencode/ is excluded as requested."
+        }
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "category": "correctness",
+      "status": "FAIL",
+      "evidence": "The source has three blocking correctness gaps: validation occurs after bounded values are clipped (gpu_fuzzy_trader/run_pipeline.py:3210-3212, 3472-3474), the actual production catalog can shrink below 30 through dispersion filtering (gpu_fuzzy_trader/features/catalog.py:80-85), and feature-contract digests are recorded but not enforced for split, MTF, persistent Phase 2 archive, or RB reuse (gpu_fuzzy_trader/data/splitter.py:384-419; gpu_fuzzy_trader/run_pipeline.py:4407-4441)."
+    },
+    {
+      "category": "test_quality",
+      "status": "FAIL",
+      "evidence": "The deterministic package reports its listed tests passing, but the new tests cover candidate ordering, digest sensitivity, digest presence, and a direct _run_phase2 rejection. They do not cover a constant/mostly-NaN required feature, validation data outside [-1,1] before/after scaling, split-cache invalidation, MTF/LWC archive invalidation, RB output invalidation, or a caller overriding the ledger digest."
+    },
+    {
+      "category": "impact",
+      "status": "FAIL",
+      "evidence": "Config/catalog/scaling changes reach the normal catalog/prune/Phase 2 path at gpu_fuzzy_trader/run_pipeline.py:1388-1405 and the OOS dataset preparation at gpu_fuzzy_trader/phases/phase5_oos.py:995-1011. The graph also shows split, MTF archive, Phase 2 archive, and strategy-loader callers, but those contracts do not consume or compare the new digest. The package's direct_dependents=[] summary is therefore incomplete for this review."
+    },
+    {
+      "category": "code_quality",
+      "status": "FAIL",
+      "evidence": "The feature-contract API presents a digest as lineage protection, but its enforcement is fragmented: records and the Phase 2 sidecar use it while split/archive/RB readers ignore it. The public ExperimentLedger.append implementation also allows record data to overwrite the computed digest because **dict(record) follows it at research_integrity.py:181-185."
+    },
+    {
+      "category": "scope",
+      "status": "PASS",
+      "evidence": "The tracked diff contains only the 15 package files named in the task. Unit-1 and unit-2 production modules are unchanged. Untracked .antigravity/ and .opencode/ scratch was not used as a production-scope finding."
+    },
+    {
+      "category": "verification",
+      "status": "PASS",
+      "evidence": "The supplied deterministic review package reports verification PASSED with zero failures, and the independent git diff --check inspection was clean. Passing verification does not cover the missing adversarial paths above."
+    }
+  ],
+  "adversarial_checks": [
+    {
+      "risk": "A validation row has an on-chain value of 2.5 while the train values are valid.",
+      "result": "FAIL",
+      "evidence": "fit_fuzzy_feature_scaling creates a scale-1.0 bounded entry from train at gpu_fuzzy_trader/features/fuzzy_scaling.py:183-189; apply_fuzzy_feature_scaling clips the validation value at lines 217-229 before _run_phase2 validates at gpu_fuzzy_trader/run_pipeline.py:3472-3474."
+    },
+    {
+      "risk": "An on-chain input contains only +inf values.",
+      "result": "FAIL",
+      "evidence": "finite.size == 0 causes a bounded_continuous manifest entry at gpu_fuzzy_trader/features/fuzzy_scaling.py:184-189, and the generic clip at lines 226-229 converts +inf to 1.0 before the finite-only range validator can reject it."
+    },
+    {
+      "risk": "A valid 30-column supplied tape has one constant or mostly warm-up-NaN required feature.",
+      "result": "FAIL",
+      "evidence": "The candidate list has 30 names, but _remove_low_dispersion drops a column when one value exceeds the threshold at gpu_fuzzy_trader/features/catalog.py:60-75; build_rule_feature_specs always applies it at lines 80-88 before the Phase 2 catalog is returned."
+    },
+    {
+      "risk": "The on-chain manifest contract_digest or source mode changes while the split CSV and 30 column names stay the same.",
+      "result": "FAIL",
+      "evidence": "load_cached_split_if_fresh verifies source/artifact hashes and split geometry only at gpu_fuzzy_trader/data/splitter.py:384-419, while run_pipeline.py:3122-3131 checks only missing names. No feature digest comparison rejects this stale split."
+    },
+    {
+      "risk": "An existing MTF/LWC archive or accepted RB strategy is reused after the feature contract changes.",
+      "result": "FAIL",
+      "evidence": "MTF archive reuse is selected at gpu_fuzzy_trader/run_pipeline.py:4407-4441 and validates stored archive hashes, while phase5_oos.py:814-869 validates the strategy's stored manifest and archive hashes. Neither compares the current feature_contract_digest."
+    },
+    {
+      "risk": "The aggregation or source cadence in an on-chain registry spec changes without a version bump.",
+      "result": "FAIL",
+      "evidence": "The registry contract has source_cadence, target_cadence, aggregation, and allow_funding_gap fields at gpu_fuzzy_trader/data/onchain_registry.py:22-30, but the digest serializes only selected fields at gpu_fuzzy_trader/research_integrity.py:104-114. Such a transform-contract change can leave the digest unchanged when the manifest digest is absent or unchanged."
+    },
+    {
+      "risk": "A caller passes a stale feature_contract_digest in an ExperimentLedger record.",
+      "result": "FAIL",
+      "evidence": "ExperimentLedger.append computes the current digest at gpu_fuzzy_trader/research_integrity.py:181-183, then expands dict(record) at line 184, allowing the caller's same-named field to overwrite it."
+    },
+    {
+      "risk": "An arbitrary ff_*, stale HWC/MWC feature, or allowed on-chain feature enters the MTF runtime merge.",
+      "result": "PASS",
+      "evidence": "The allowlist filter and right-side runtime selection at gpu_fuzzy_trader/run_pipeline.py:236-251 retain allowed ff_* names and MTF/lwc runtime columns while excluding arbitrary ff_*, hwc_*, and mwc_* base columns; the integration assertions are at tests/unit/test_mtf_pipeline_integration.py:498-507."
+    },
+    {
+      "risk": "Removing the duplicate RSI alias changes the computed midline values or leaves production references to rsi_14.",
+      "result": "PASS",
+      "evidence": "Only the alias assignment is removed at gpu_fuzzy_trader/data/multi_timeframe.py:251-253; the updated output test at tests/unit/test_multi_timeframe.py:141-159 checks the retained midline and absent alias."
+    },
+    {
+      "risk": "Test or forward data is used to fit the feature scaling or select a candidate.",
+      "result": "PASS",
+      "evidence": "The changed runtime fits scaling from train_df at gpu_fuzzy_trader/run_pipeline.py:3210 and records dataset/test/forward lineage only in research_integrity.py:129-138; no changed selection path reads test/forward values."
+    }
+  ],
+  "findings": [
+    {
+      "id": "F-AC3-RANGE-CHECK-AFTER-CLIP",
+      "title": "Bounded on-chain values are clipped before the Phase 2 rejection check",
+      "file": "gpu_fuzzy_trader/run_pipeline.py",
+      "line": 3210,
+      "severity": "HIGH",
+      "blocking": true,
+      "description": "The normal loader applies the inferred bounded_continuous scaling to validation frames before _run_phase2 calls validate_onchain_feature_ranges. The generic apply function clips every feature, so a validation value such as 2.5 becomes 1.0 and passes. An all-infinite training column is also treated as having no finite violations, then clipped. Validate raw supplied frames before scaling and make bounded_continuous pass-through reject rather than clip invalid values; add an integration test through _load_and_split_data."
+    },
+    {
+      "id": "F-AC1-CATALOG-DISPERSION-DROP",
+      "title": "The actual supplied Phase 2 catalog is not guaranteed to contain all 30 features",
+      "file": "gpu_fuzzy_trader/features/catalog.py",
+      "line": 80,
+      "severity": "HIGH",
+      "blocking": true,
+      "description": "candidate_rule_feature_columns returns the 30-name contract, but build_rule_feature_specs immediately removes low-dispersion columns. A required feature with a constant or mostly warm-up-NaN training series is silently removed, so the production Phase 2 catalog has fewer than thirty supplied features. Bypass this filter for supplied_ff or otherwise fail closed when the final supplied catalog is not exactly the ordered 30; test the production build path with constant and NaN-heavy columns."
+    },
+    {
+      "id": "F-AC5-DIGEST-NOT-ENFORCED",
+      "title": "Feature-contract digest is recorded but stale split, archive, and RB artifacts are still accepted",
+      "file": "gpu_fuzzy_trader/data/splitter.py",
+      "line": 384,
+      "severity": "HIGH",
+      "blocking": true,
+      "description": "The new digest is included in the Phase 2 sidecar identity and several manifests, but split cache loading never reads it. MTF composition loads existing archives without comparing the current digest, persistent Phase 2 archives validate only feature_signature, and standalone Phase 5 accepts stored RB outputs without a current digest check. Changing RULE_FEATURE_SOURCE_MODE or the on-chain manifest contract digest while keeping the same data and 30 columns can therefore reuse stale artifacts. Add the digest to each persisted identity and reject missing/mismatched values for splits, Phase 2/LWC/MTF archives, and RB strategy outputs."
+    },
+    {
+      "id": "F-AC5-INCOMPLETE-DIGEST-PAYLOAD",
+      "title": "The digest omits registry fields that affect feature construction",
+      "file": "gpu_fuzzy_trader/research_integrity.py",
+      "line": 104,
+      "severity": "HIGH",
+      "blocking": true,
+      "description": "The transform payload includes output/source names, raw transform, scale family, delays, window, and min_periods, but omits source_cadence, target_cadence, aggregation, and allow_funding_gap from OnchainMetricSpec. A registry aggregation or cadence change without a simultaneous version/manifest update can leave feature_contract_digest unchanged. Serialize the complete registry/transform contract (and any authoritative scaling manifest) rather than selected fields."
+    },
+    {
+      "id": "F-LEDGER-DIGEST-OVERRIDE",
+      "title": "Ledger callers can overwrite the computed feature digest",
+      "file": "gpu_fuzzy_trader/research_integrity.py",
+      "line": 181,
+      "severity": "MEDIUM",
+      "blocking": false,
+      "description": "ExperimentLedger.append places feature_contract_digest before **dict(record) at lines 181-185. A caller that supplies the same key can write a stale or fabricated digest, defeating the ledger lineage field. Merge the record first and assign the computed digest last, or reject the reserved key."
+    }
+  ],
+  "verdict": "REQUEST_CHANGES",
+  "impact": {
+    "pass": false,
+    "risk": "HIGH"
+  },
+  "notes": "Independent task review of the supplied package digest. The exact allowlist, MTF retention, RSI alias removal, and train-only selection intent are present, but the production catalog/range path and the required stale-artifact invalidation are incomplete. Untracked scratch was treated as low, non-blocking hygiene."
+}

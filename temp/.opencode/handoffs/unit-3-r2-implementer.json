@@ -1,0 +1,100 @@
+{
+  "schema_version": "1.1",
+  "run_id": "santiment-onchain-20260910-r2",
+  "unit_or_task": "unit-3",
+  "agent": "implementer",
+  "base_commit": "856f501c6ad1c74b6a0da0c7bd0af8fe1448659b",
+  "created_at": "2026-09-11T12:00:00Z",
+  "status": "BLOCKED",
+  "commit": "1b351eb2ccca3a5b732ed9f7a095892831632c37",
+  "files_changed": [
+    "gpu_fuzzy_trader/config.py",
+    "gpu_fuzzy_trader/data/multi_timeframe.py",
+    "gpu_fuzzy_trader/features/catalog.py",
+    "gpu_fuzzy_trader/features/fuzzy_scaling.py",
+    "gpu_fuzzy_trader/research_integrity.py",
+    "gpu_fuzzy_trader/run_pipeline.py",
+    "tests/unit/test_feature_catalog.py",
+    "tests/unit/test_fuzzy_scaling.py",
+    "tests/unit/test_mtf_pipeline_integration.py",
+    "tests/unit/test_multi_timeframe.py",
+    "tests/unit/test_onchain_feature_contract.py",
+    "tests/unit/test_research_integrity.py",
+    "tests/unit/test_run_pipeline.py"
+  ],
+  "scope_extras": [
+    "tests/unit/test_config_additions.py",
+    "tests/unit/test_config_validation.py"
+  ],
+  "blocked_reason": "Out-of-scope test assertion failure: tests/unit/test_config_additions.py and tests/unit/test_config_validation.py assert 18 features (assert 30 == 18), but are not in allowed_files. Scope expansion required per STOP conditions.",
+  "tests": {
+    "total": 88,
+    "passed": 86,
+    "failed": 2,
+    "tdd": {
+      "red": "Gate 1 failed: tests/unit/test_config_additions.py::test_new_config_parameters_exist (assert 30 == 18) and tests/unit/test_config_validation.py::test_default_config_snapshot_is_valid_and_reports_effective_budgets (assert 30 == 18).",
+      "green": "72 passed in 26.83s across all 7 in-scope test files (tests/unit/test_onchain_feature_contract.py, tests/unit/test_feature_catalog.py, tests/unit/test_fuzzy_scaling.py, tests/unit/test_mtf_pipeline_integration.py, tests/unit/test_multi_timeframe.py, tests/unit/test_research_integrity.py, tests/unit/test_run_pipeline.py)."
+    }
+  },
+  "verification_gates": [
+    {
+      "name": "gate_1_unit_tests",
+      "command": "PYTEST_LOW_MEMORY=1 .venv/bin/python -m pytest tests/unit/test_onchain_feature_contract.py tests/unit/test_feature_catalog.py tests/unit/test_fuzzy_scaling.py tests/unit/test_mtf_pipeline_integration.py tests/unit/test_multi_timeframe.py tests/unit/test_research_integrity.py tests/unit/test_run_pipeline.py tests/unit/test_config_additions.py tests/unit/test_config_validation.py -q",
+      "pass": false,
+      "output": "FAILED tests/unit/test_config_additions.py::test_new_config_parameters_exist (AssertionError: assert 30 == 18); FAILED tests/unit/test_config_validation.py::test_default_config_snapshot_is_valid_and_reports_effective_budgets (assert 30 == 18); 2 failed, 86 passed in 29.77s"
+    },
+    {
+      "name": "gate_2_config_validation",
+      "command": ".venv/bin/python -c \"from gpu_fuzzy_trader import config; config.validate_config(); print(len(config.RULE_ALLOWED_FF_FEATURES))\"",
+      "pass": true,
+      "output": "30"
+    },
+    {
+      "name": "gate_3_diff_check",
+      "command": "git diff --check",
+      "pass": true,
+      "output": "clean"
+    },
+    {
+      "name": "gate_4_diff_stat_allowed_files",
+      "command": "git diff 856f501c6ad1c74b6a0da0c7bd0af8fe1448659b...feature/unit-3-runtime-contract --stat",
+      "pass": true,
+      "output": "13 files changed, 373 insertions(+), 24 deletions(-); all files in allowed_files"
+    }
+  ],
+  "drift_check": {
+    "command": "nexus run drift",
+    "drift": "NONE",
+    "commit_distance": 0,
+    "merge_base_changed": false
+  },
+  "impact": {
+    "verified": true,
+    "risk": "HIGH",
+    "confidence": 0.1,
+    "dependents": [],
+    "related_tests": [
+      "tests/unit/test_onchain_feature_contract.py",
+      "tests/unit/test_feature_catalog.py",
+      "tests/unit/test_fuzzy_scaling.py",
+      "tests/unit/test_mtf_pipeline_integration.py",
+      "tests/unit/test_multi_timeframe.py",
+      "tests/unit/test_research_integrity.py",
+      "tests/unit/test_run_pipeline.py",
+      "tests/unit/test_config_additions.py",
+      "tests/unit/test_config_validation.py"
+    ]
+  },
+  "notes_for_reviewer": [
+    "Implemented complete unit-3 runtime contract across all allowed files.",
+    "1. config.py: LEGACY_RULE_ALLOWED_FF_FEATURES retained as 18 names; imported ONCHAIN_FEATURE_NAMES from onchain_registry; RULE_ALLOWED_FF_FEATURES combines both into exactly 30 unique ff_* names; RULE_FEATURE_SOURCE_MODE default supplied_ff; validation checks 30 names and valid source mode.",
+    "2. catalog.py: candidate_rule_feature_columns checks supplied_ff mode and returns all 30 features in order, raising ValueError if missing; preserves generated_lwc mode logic.",
+    "3. run_pipeline.py: _merge_mtf_lwc_runtime_columns keeps RULE_ALLOWED_FF_FEATURES in base_columns while discarding arbitrary ff_* and stale HTF columns.",
+    "4. fuzzy_scaling.py: fit_fuzzy_feature_scaling adds bounded_continuous with scale 1.0 for onchain features; apply_fuzzy_feature_scaling preserves values; added validate_onchain_feature_ranges rejection helper called before Phase 2 in run_pipeline.py.",
+    "5. multi_timeframe.py: deleted duplicate g[rsi_14] assignment, keeping rsi_14_midline.",
+    "6. research_integrity.py: feature_contract_digest computes SHA-256 over 30 features, mode, registry version, metric transforms, and onchain manifest digest; recorded in dataset manifest and experiment ledger.",
+    "7. run_pipeline.py: wired feature_contract_digest into _phase2_resume_identity, mtf_manifest, run_manifest, and rejects stale cached splits missing contract features.",
+    "8. Outside allowed_files call sites: gpu_fuzzy_trader/phases/phase2_rule_pool.py and data/splitter.py compute resume/archive identity but are outside allowed_files and were left untouched per prompt instructions.",
+    "9. STOP trigger: Gate 1 failed on tests/unit/test_config_additions.py and tests/unit/test_config_validation.py because both assert len 18 on RULE_ALLOWED_FF_FEATURES / allowed_ff_feature_count. Since neither test file is in allowed_files, per STOP condition 'test_config_additions unfixable in scope', reporting BLOCKED with evidence for orchestrator scope expansion."
+  ]
+}

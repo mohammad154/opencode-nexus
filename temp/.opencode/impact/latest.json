@@ -1,0 +1,956 @@
+{
+  "ok": true,
+  "schema_version": "1.0",
+  "provider": "nexus-impact",
+  "graph_provider": "nexus-impact",
+  "base_commit": "688ffdb36348456a0566fff3628cd0682a129535",
+  "head_commit": "688ffdb36348456a0566fff3628cd0682a129535",
+  "worktree_head": "688ffdb36348456a0566fff3628cd0682a129535",
+  "changed_files": [
+    {
+      "status": "M",
+      "path": "data/train_new.csv",
+      "planned": true
+    },
+    {
+      "status": "M",
+      "path": "data/test_new.csv",
+      "planned": true
+    },
+    {
+      "status": "M",
+      "path": "data/onchain_feature_manifest.json",
+      "planned": true
+    }
+  ],
+  "ignored_files": [
+    {
+      "path": ".opencode/BASELINE_EVIDENCE_UNIT2.md",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/CONTEXT.md",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/RUN_SUCCESSION.md",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/active-run",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/cache/impact/files.json",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/cache/impact/imports.json",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/cache/impact/meta.json",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/cache/impact/symbols.json",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/config/scope-policy.json",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/handoffs/unit-1-fix-implementer.json",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/handoffs/unit-1-fix-reviewer.json",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/handoffs/unit-1-fix-reviewer2.json",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/handoffs/unit-1-implementer.json",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/handoffs/unit-1-reviewer.json",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/handoffs/unit-2-fix-r2-implementer.json",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/handoffs/unit-2-fix-r2-reviewer.json",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/handoffs/unit-2-fix2-r2-implementer.json",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/handoffs/unit-2-fix2-r2-reviewer.json",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/handoffs/unit-2-fix3-r2-implementer.json",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/handoffs/unit-2-fix3-r2-reviewer.json",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/handoffs/unit-2-implementer.json",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/handoffs/unit-2-reviewer.json",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/handoffs/unit-3-fix-r2-implementer.json",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/handoffs/unit-3-fix-r2-reviewer.json",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/handoffs/unit-3-fix2-r2-implementer.json",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/handoffs/unit-3-fix2-r2-reviewer.json",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/handoffs/unit-3-fix3-r2-implementer.json",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/handoffs/unit-3-fix3-r2-reviewer.json",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/handoffs/unit-3-fix4-r2-implementer.json",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/handoffs/unit-3-fix4-r2-reviewer.json",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/handoffs/unit-3-fix5-r2-implementer.json",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/handoffs/unit-3-fix5-r2-reviewer.json",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/handoffs/unit-3-fix6-r2-implementer.json",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/handoffs/unit-3-fix6-r2-reviewer.json",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/handoffs/unit-3-r2-implementer.json",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/handoffs/unit-3-r2-reviewer.json",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/handoffs/unit-3-scope-r2-implementer.json",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/handoffs/unit-4-fix-r2-implementer.json",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/handoffs/unit-4-fix-r3-reviewer.json",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/handoffs/unit-4-fix2-r3-implementer.json",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/handoffs/unit-4-fix2-r3-reviewer.json",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/handoffs/unit-4-fix3-r3-implementer.json",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/handoffs/unit-4-fix3-r3-reviewer.json",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/handoffs/unit-4-r2-implementer.json",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/handoffs/unit-4-r2-reviewer.json",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/impact/latest.json",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/nexus.json",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/plans/PLAN.md",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/reviews/santiment-onchain-20260910-r2-unit-2-task-review-package.json",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/reviews/santiment-onchain-20260910-r2-unit-2-task-review-package.md",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/reviews/santiment-onchain-20260910-r2-unit-3-task-review-package.json",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/reviews/santiment-onchain-20260910-r2-unit-3-task-review-package.md",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/reviews/santiment-onchain-20260910-r2-unit-4-task-review-package.json",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/reviews/santiment-onchain-20260910-r2-unit-4-task-review-package.md",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/reviews/santiment-onchain-20260910-r3-unit-4-task-review-package.json",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/reviews/santiment-onchain-20260910-r3-unit-4-task-review-package.md",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/reviews/santiment-onchain-20260910-task-task-review-package.json",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/reviews/santiment-onchain-20260910-task-task-review-package.md",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/reviews/santiment-onchain-20260910-unit-2-task-review-package.json",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/reviews/santiment-onchain-20260910-unit-2-task-review-package.md",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/runs/run-2026-09-10T15-20-12-413-c14e2b/state.json",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/runs/run-2026-09-12T09-42-07-920-1b9a18/state.json",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/runs/santiment-onchain-20260910-r2/baseline.json",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/runs/santiment-onchain-20260910-r2/metrics.jsonl",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/runs/santiment-onchain-20260910-r2/state.json",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/runs/santiment-onchain-20260910-r2/verification.json",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/runs/santiment-onchain-20260910-r3/baseline.json",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/runs/santiment-onchain-20260910-r3/metrics.jsonl",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/runs/santiment-onchain-20260910-r3/state.json",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/runs/santiment-onchain-20260910-r3/verification.json",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/runs/santiment-onchain-20260910/baseline.json",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/runs/santiment-onchain-20260910/metrics.jsonl",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/runs/santiment-onchain-20260910/state.json",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/runs/santiment-onchain-20260910/verification.json",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/tasks/task-1.md",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/tasks/task-2.md",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/tasks/task-3.md",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/tasks/task-4.md",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/tasks/task-5.md",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/tasks/task-6.md",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/tasks/task-7.md",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/trajectories/run-2026-09-10T15-20-12-413-c14e2b.jsonl",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/trajectories/run-2026-09-12T09-42-07-920-1b9a18.jsonl",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/trajectories/santiment-onchain-20260910-r2.jsonl",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/trajectories/santiment-onchain-20260910-r3.jsonl",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    },
+    {
+      "path": ".opencode/trajectories/santiment-onchain-20260910.jsonl",
+      "reason": "ignored",
+      "pattern": ".opencode/**"
+    }
+  ],
+  "added_lines": 0,
+  "deleted_lines": 0,
+  "changed_symbols": [],
+  "direct_dependents": [],
+  "transitive_dependents": [],
+  "affected_packages": [
+    "."
+  ],
+  "related_tests": [],
+  "risk": "MEDIUM",
+  "level": "MEDIUM",
+  "computed_risk": "MEDIUM",
+  "risk_signals": [
+    "low_impact_confidence"
+  ],
+  "confidence": 0.5,
+  "verification_mode": "strict",
+  "trusted": false,
+  "analysis_quality": "PRECISE",
+  "graph_quality": "PRECISE",
+  "analysis_complete": true,
+  "pre_impact": true,
+  "phase": "pre",
+  "graph_freshness": {
+    "valid": true,
+    "current_head": "688ffdb36348456a0566fff3628cd0682a129535"
+  },
+  "uncertainties": [],
+  "dimensions": {
+    "symbols": 0,
+    "dependents": 0,
+    "tests": 0
+  },
+  "index_stats": {
+    "parsed": 0,
+    "cacheHits": 194,
+    "unsupported": 194,
+    "files": 194,
+    "ignored": 0,
+    "ignored_files": [],
+    "cache_invalidated": false,
+    "cache_invalidation_reason": null,
+    "path_filter_version": "nexus-path-filter-1.0"
+  },
+  "path_filter": {
+    "version": "nexus-path-filter-1.0",
+    "ignored_patterns": [
+      ".git/**",
+      "node_modules/**",
+      ".node_modules/**",
+      ".venv/**",
+      "venv/**",
+      "__pycache__/**",
+      "*.pyc",
+      "*.pyo",
+      "dist/**",
+      "build/**",
+      "coverage/**",
+      ".cache/**",
+      ".tmp/**",
+      ".opencode/**",
+      "graphify-out/**",
+      ".antigravity/**"
+    ],
+    "ignored_files": [
+      {
+        "path": ".opencode/BASELINE_EVIDENCE_UNIT2.md",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/CONTEXT.md",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/RUN_SUCCESSION.md",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/active-run",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/cache/impact/files.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/cache/impact/imports.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/cache/impact/meta.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/cache/impact/symbols.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/config/scope-policy.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-1-fix-implementer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-1-fix-reviewer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-1-fix-reviewer2.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-1-implementer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-1-reviewer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-2-fix-r2-implementer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-2-fix-r2-reviewer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-2-fix2-r2-implementer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-2-fix2-r2-reviewer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-2-fix3-r2-implementer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-2-fix3-r2-reviewer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-2-implementer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-2-reviewer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-3-fix-r2-implementer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-3-fix-r2-reviewer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-3-fix2-r2-implementer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-3-fix2-r2-reviewer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-3-fix3-r2-implementer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-3-fix3-r2-reviewer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-3-fix4-r2-implementer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-3-fix4-r2-reviewer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-3-fix5-r2-implementer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-3-fix5-r2-reviewer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-3-fix6-r2-implementer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-3-fix6-r2-reviewer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-3-r2-implementer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-3-r2-reviewer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-3-scope-r2-implementer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-4-fix-r2-implementer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-4-fix-r3-reviewer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-4-fix2-r3-implementer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-4-fix2-r3-reviewer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-4-fix3-r3-implementer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-4-fix3-r3-reviewer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-4-r2-implementer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/handoffs/unit-4-r2-reviewer.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/impact/latest.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/nexus.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/plans/PLAN.md",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/reviews/santiment-onchain-20260910-r2-unit-2-task-review-package.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/reviews/santiment-onchain-20260910-r2-unit-2-task-review-package.md",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/reviews/santiment-onchain-20260910-r2-unit-3-task-review-package.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/reviews/santiment-onchain-20260910-r2-unit-3-task-review-package.md",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/reviews/santiment-onchain-20260910-r2-unit-4-task-review-package.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/reviews/santiment-onchain-20260910-r2-unit-4-task-review-package.md",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/reviews/santiment-onchain-20260910-r3-unit-4-task-review-package.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/reviews/santiment-onchain-20260910-r3-unit-4-task-review-package.md",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/reviews/santiment-onchain-20260910-task-task-review-package.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/reviews/santiment-onchain-20260910-task-task-review-package.md",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/reviews/santiment-onchain-20260910-unit-2-task-review-package.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/reviews/santiment-onchain-20260910-unit-2-task-review-package.md",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/runs/run-2026-09-10T15-20-12-413-c14e2b/state.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/runs/run-2026-09-12T09-42-07-920-1b9a18/state.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/runs/santiment-onchain-20260910-r2/baseline.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/runs/santiment-onchain-20260910-r2/metrics.jsonl",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/runs/santiment-onchain-20260910-r2/state.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/runs/santiment-onchain-20260910-r2/verification.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/runs/santiment-onchain-20260910-r3/baseline.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/runs/santiment-onchain-20260910-r3/metrics.jsonl",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/runs/santiment-onchain-20260910-r3/state.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/runs/santiment-onchain-20260910-r3/verification.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/runs/santiment-onchain-20260910/baseline.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/runs/santiment-onchain-20260910/metrics.jsonl",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/runs/santiment-onchain-20260910/state.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/runs/santiment-onchain-20260910/verification.json",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/tasks/task-1.md",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/tasks/task-2.md",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/tasks/task-3.md",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/tasks/task-4.md",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/tasks/task-5.md",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/tasks/task-6.md",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/tasks/task-7.md",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/trajectories/run-2026-09-10T15-20-12-413-c14e2b.jsonl",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/trajectories/run-2026-09-12T09-42-07-920-1b9a18.jsonl",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/trajectories/santiment-onchain-20260910-r2.jsonl",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/trajectories/santiment-onchain-20260910-r3.jsonl",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      },
+      {
+        "path": ".opencode/trajectories/santiment-onchain-20260910.jsonl",
+        "reason": "ignored",
+        "pattern": ".opencode/**"
+      }
+    ]
+  },
+  "placeholder_fields": []
+}

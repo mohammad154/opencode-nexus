@@ -1,0 +1,299 @@
+{
+  "schema_version": "1.2",
+  "run_id": "santiment-onchain-20260910-r2",
+  "unit_or_task": "unit-2",
+  "task_id": "unit-2-fix3-r2",
+  "agent": "reviewer",
+  "base_commit": "272349316aa6a8bf2ece8764db90511e3f9d1025",
+  "created_at": "2026-09-11T08:30:00Z",
+  "review_scope": "task",
+  "reviewed_commit": "856f501c6ad1c74b6a0da0c7bd0af8fe1448659b",
+  "review_package_digest": "3a9171b53bb7625af02e1e19e097eb1d6319ba02b3904d5dc6e5a94d7a1b54a8",
+  "files_reviewed": [
+    "scripts/build_onchain_dataset.py",
+    "tests/unit/test_onchain_dataset_builder.py",
+    "gpu_fuzzy_trader/data/onchain_pipeline.py",
+    ".gitignore"
+  ],
+  "acceptance": [
+    {
+      "id": "AC-ROW-COUNT-OVERRIDES",
+      "status": "PASS",
+      "evidence": [
+        {
+          "file": "scripts/build_onchain_dataset.py",
+          "line": 60,
+          "reason": "TRAIN_EXPECTED_ROWS and TEST_EXPECTED_ROWS are fixed to 140352 and 39152; verify_dataset_shape compares directly to these constants at lines 83-90. The function signature at lines 64-68 has no expected-row override parameters."
+        },
+        {
+          "file": "scripts/build_onchain_dataset.py",
+          "line": 141,
+          "reason": "The CLI parser has no expected-row options, and verify-only forwards only train, test, and manifest at lines 204-209. A realistic shortened-tape invocation using the removed flags is rejected by argparse before verification."
+        },
+        {
+          "file": "tests/unit/test_onchain_dataset_builder.py",
+          "line": 818,
+          "reason": "The parser-rejection test checks both removed flags are absent and asserts SystemExit for each."
+        },
+        {
+          "file": "tests/unit/test_onchain_dataset_builder.py",
+          "line": 601,
+          "reason": "Train and test truncation tests still exercise the production verifier through the controlled module-constant monkeypatch seam and reject one-row-short tapes at lines 619-644 and 665-688."
+        }
+      ]
+    },
+    {
+      "id": "AC-F11-MANIFEST-ROLLBACK",
+      "status": "PASS",
+      "evidence": [
+        {
+          "file": "scripts/build_onchain_dataset.py",
+          "line": 360,
+          "reason": "With --replace, train and test backups are created at lines 362-366 before any os.replace call at lines 375-379."
+        },
+        {
+          "file": "scripts/build_onchain_dataset.py",
+          "line": 380,
+          "reason": "The common replace-failure handler restores train, test, and a pre-existing manifest at lines 382-399; for an originally absent manifest it removes any created destination at lines 400-401. This covers the realistic failure after both tapes have already been published."
+        },
+        {
+          "file": "tests/unit/test_onchain_dataset_builder.py",
+          "line": 463,
+          "reason": "The production builder is forced to fail on the manifest destination and checks train bytes, test bytes, cleanup, and the original manifest state for both pre-existing and absent manifest cases at lines 474-533."
+        }
+      ]
+    },
+    {
+      "id": "AC-F1",
+      "status": "PASS",
+      "evidence": [
+        {
+          "file": "scripts/build_onchain_dataset.py",
+          "line": 15,
+          "reason": "Direct execution inserts the repository root before importing the package."
+        },
+        {
+          "file": "tests/unit/test_onchain_dataset_builder.py",
+          "line": 292,
+          "reason": "The direct script entrypoint is exercised in a subprocess and its help output is checked."
+        }
+      ]
+    },
+    {
+      "id": "AC-F2",
+      "status": "PASS",
+      "evidence": [
+        {
+          "file": "scripts/build_onchain_dataset.py",
+          "line": 374,
+          "reason": "If the second tape replace fails after train publication, the handler restores both backups and the manifest before cleaning staged paths."
+        },
+        {
+          "file": "tests/unit/test_onchain_dataset_builder.py",
+          "line": 397,
+          "reason": "The second-replace failure test checks both tape bytes, manifest pre-existing/absent states, backups, and staged-file cleanup."
+        }
+      ]
+    },
+    {
+      "id": "AC-F3",
+      "status": "PASS",
+      "evidence": [
+        {
+          "file": "scripts/build_onchain_dataset.py",
+          "line": 416,
+          "reason": "The non-replace path publishes custom outputs with copyfile and contains no os.replace call."
+        },
+        {
+          "file": "tests/unit/test_onchain_dataset_builder.py",
+          "line": 550,
+          "reason": "The test installs an os.replace sentinel and runs the production non-replace path successfully, then checks temporary-file cleanup on failure."
+        }
+      ]
+    },
+    {
+      "id": "AC-F4",
+      "status": "PASS",
+      "evidence": [
+        {
+          "file": "gpu_fuzzy_trader/data/onchain_pipeline.py",
+          "line": 502,
+          "reason": "The staged verifier requires every original column and compares numeric values, NaN masks, keys, and ordering without tolerance."
+        },
+        {
+          "file": "tests/unit/test_onchain_dataset_builder.py",
+          "line": 324,
+          "reason": "A material production-path mutation of the original close column is rejected."
+        }
+      ]
+    },
+    {
+      "id": "AC-F5",
+      "status": "PASS",
+      "evidence": [
+        {
+          "file": "gpu_fuzzy_trader/data/onchain_pipeline.py",
+          "line": 410,
+          "reason": "The on-chain validator rejects malformed non-empty text, infinities, and finite values outside [-1, 1], while allowing empty warm-up values."
+        },
+        {
+          "file": "tests/unit/test_onchain_dataset_builder.py",
+          "line": 305,
+          "reason": "Malformed text is rejected through verify_staged_dataset and whitespace/NaN warm-up values remain accepted."
+        }
+      ]
+    },
+    {
+      "id": "AC-F10",
+      "status": "PASS",
+      "evidence": [
+        {
+          "file": "gpu_fuzzy_trader/data/onchain_pipeline.py",
+          "line": 614,
+          "reason": "Manifest verification rebuilds the canonical contract, checks top-level mirrors, and recomputes the contract digest."
+        },
+        {
+          "file": "tests/unit/test_onchain_dataset_builder.py",
+          "line": 691,
+          "reason": "Production verify-only tests reject tampered coverage, mismatched mirrors, and missing canonical keys."
+        }
+      ]
+    },
+    {
+      "id": "AC-F12",
+      "status": "PASS",
+      "evidence": [
+        {
+          "file": "scripts/build_onchain_dataset.py",
+          "line": 255,
+          "reason": "All output and manifest parent directories are created before temporary files are created."
+        },
+        {
+          "file": "tests/unit/test_onchain_dataset_builder.py",
+          "line": 757,
+          "reason": "The production builder is run with three nonexistent nested parent directories and creates all outputs."
+        }
+      ]
+    },
+    {
+      "id": "AC-F13",
+      "status": "PASS",
+      "evidence": [
+        {
+          "file": "scripts/build_onchain_dataset.py",
+          "line": 427,
+          "reason": "The outer failure path removes staged train, test, and manifest files for both custom temporary names and default .staged.csv names."
+        },
+        {
+          "file": "tests/unit/test_onchain_dataset_builder.py",
+          "line": 787,
+          "reason": "A forced production verification failure with default outputs asserts that no staged CSV remains."
+        }
+      ]
+    },
+    {
+      "id": "AC-UNIT-2-ORIGINAL",
+      "status": "PASS",
+      "evidence": [
+        {
+          "file": "gpu_fuzzy_trader/data/onchain_pipeline.py",
+          "line": 308,
+          "reason": "The original backward as-of per-symbol enrichment preserves row order and original columns and appends the twelve registered features; duplicate target and feature timestamps fail closed."
+        },
+        {
+          "file": "scripts/build_onchain_dataset.py",
+          "line": 305,
+          "reason": "Both staged tapes are written, re-read, and verified before publication; replacement remains guarded by --replace and non-replace output remains copyfile-based at lines 416-425."
+        },
+        {
+          "file": "gpu_fuzzy_trader/data/onchain_pipeline.py",
+          "line": 642,
+          "reason": "Manifest construction retains deterministic contract fields and keeps created_at outside the hashed contract."
+        },
+        {
+          "file": ".gitignore",
+          "line": 236,
+          "reason": "Extracted sources, staged files, temporary files, and rollback backups remain ignored, preventing generated artifacts from entering status."
+        }
+      ]
+    },
+    {
+      "id": "AC-UNIT-1-UNTOUCHED",
+      "status": "PASS",
+      "evidence": [
+        {
+          "file": ".opencode/reviews/santiment-onchain-20260910-r2-unit-2-task-review-package.md",
+          "line": 271,
+          "reason": "The BASE..HEAD changed-file list contains only scripts/build_onchain_dataset.py and tests/unit/test_onchain_dataset_builder.py; no unit-1 implementation file is in this fix diff."
+        }
+      ]
+    },
+    {
+      "id": "AC-SCOPE-2-FILES",
+      "status": "PASS",
+      "evidence": [
+        {
+          "file": ".opencode/reviews/santiment-onchain-20260910-r2-unit-2-task-review-package.md",
+          "line": 271,
+          "reason": "The tracked BASE..HEAD diff lists exactly the builder and its unit test as changed files. Untracked scratch under .antigravity/ and .opencode/ is excluded from this scope judgment."
+        }
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "category": "correctness",
+      "status": "PASS",
+      "evidence": "The source directly enforces 140352/39152 with no public override path at scripts/build_onchain_dataset.py:60-90 and 141-209. The replace transaction backs up and restores train, test, and manifest state at scripts/build_onchain_dataset.py:360-415, including absent-manifest cleanup."
+    },
+    {
+      "category": "test_quality",
+      "status": "PASS",
+      "evidence": "The added tests call the production parser, verifier, and builder. They reject both removed flags, exercise canonical truncation through the intended monkeypatch seam, and force manifest-destination failure for both manifest states at tests/unit/test_onchain_dataset_builder.py:463-533 and 818-839. The deterministic package reports 54 related unit tests passed."
+    },
+    {
+      "category": "impact",
+      "status": "PASS",
+      "evidence": "The reviewed BASE..HEAD diff is limited to the builder and its tests, with no current production direct dependents beyond the CLI path; the related pipeline and registry tests remain in the verification set."
+    },
+    {
+      "category": "scope",
+      "status": "PASS",
+      "evidence": "Only scripts/build_onchain_dataset.py and tests/unit/test_onchain_dataset_builder.py are in the tracked package diff."
+    }
+  ],
+  "adversarial_checks": [
+    {
+      "risk": "A shortened tape is verified by passing the old expected-row flags or direct override arguments.",
+      "result": "PASS",
+      "evidence": "The flags are absent from the parser and the verifier signature has no override parameters; direct checks use the two canonical constants at scripts/build_onchain_dataset.py:60-90."
+    },
+    {
+      "risk": "The second tape replacement succeeds, then manifest replacement fails, leaving test newer than train/manifest.",
+      "result": "PASS",
+      "evidence": "Both tape backups are made before publication and the common exception handler restores train, test, and manifest at scripts/build_onchain_dataset.py:360-415; tests/unit/test_onchain_dataset_builder.py:463-533 covers pre-existing and absent manifests."
+    },
+    {
+      "risk": "A failure occurs after train publication but before test publication.",
+      "result": "PASS",
+      "evidence": "The same handler restores both tape backups and cleans staged artifacts; the existing second-replace failure test checks both tapes and both manifest states at tests/unit/test_onchain_dataset_builder.py:397-460."
+    },
+    {
+      "risk": "Manifest replacement has a side effect before raising, so an absent manifest is accidentally left behind.",
+      "result": "PASS",
+      "evidence": "The absent-manifest branch removes any destination that exists after a failed replace at scripts/build_onchain_dataset.py:394-407, while a pre-existing manifest is restored from its backup at lines 394-399."
+    },
+    {
+      "risk": "A verification failure leaves default staged CSV artifacts or calls os.replace in non-replace mode.",
+      "result": "PASS",
+      "evidence": "Failure cleanup removes all staging paths at scripts/build_onchain_dataset.py:427-456, and the production custom-output test forbids os.replace at tests/unit/test_onchain_dataset_builder.py:550-598."
+    }
+  ],
+  "findings": [],
+  "verdict": "APPROVED",
+  "impact": {
+    "pass": true,
+    "risk": "MEDIUM"
+  },
+  "notes": "Independent task review of the supplied digest. The two requested fixes are complete, prior unit-2 safeguards remain in the current source, unit-1 is absent from the two-file fix diff, and untracked scratch was not treated as a scope violation."
+}

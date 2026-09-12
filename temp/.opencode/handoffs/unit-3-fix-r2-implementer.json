@@ -1,0 +1,100 @@
+{
+  "schema_version": "1.1",
+  "run_id": "santiment-onchain-20260910-r2",
+  "unit_or_task": "unit-3",
+  "agent": "implementer",
+  "base_commit": "476f4b9de7962eb5e31676ec83c39ce3c0d9eea2",
+  "created_at": "2026-09-11T13:00:00Z",
+  "status": "DONE",
+  "commit": "b5b53f8124d18d83727d0369f94705769c7790f2",
+  "files_changed": [
+    "gpu_fuzzy_trader/data/splitter.py",
+    "gpu_fuzzy_trader/features/catalog.py",
+    "gpu_fuzzy_trader/features/fuzzy_scaling.py",
+    "gpu_fuzzy_trader/mtf/archives.py",
+    "gpu_fuzzy_trader/phases/phase2_rule_pool.py",
+    "gpu_fuzzy_trader/phases/phase5_oos.py",
+    "gpu_fuzzy_trader/research_integrity.py",
+    "gpu_fuzzy_trader/run_pipeline.py",
+    "tests/unit/test_data_splitter.py",
+    "tests/unit/test_feature_catalog.py",
+    "tests/unit/test_fuzzy_scaling.py",
+    "tests/unit/test_mtf_pipeline_integration.py",
+    "tests/unit/test_phase2_rule_pool.py",
+    "tests/unit/test_phase5_oos.py",
+    "tests/unit/test_research_integrity.py",
+    "tests/unit/test_run_pipeline.py"
+  ],
+  "tests": {
+    "total": 383,
+    "passed": 383,
+    "failed": 0,
+    "tdd": {
+      "red": "Failures observed before implementation: (1) test_validate_onchain_feature_ranges_fails_closed, test_fit_fuzzy_feature_scaling_rejects_all_infinite_onchain_column, test_apply_fuzzy_feature_scaling_rejects_out_of_range_or_inf_bounded_continuous failed because bounded continuous values were clipped and infinite values were ignored; (2) test_catalog_supplied_ff_mode_bypasses_dispersion_and_retains_all_30 failed with AssertionError (28 != 30) due to low-dispersion filtering; (3) test_cache_rejected_when_feature_contract_digest_changes and test_cache_rejected_when_feature_contract_digest_missing failed because splitter accepted stale split cache; (4) test_stale_mtf_archive_rejected failed because MTF archive loader did not validate digest; (5) test_load_archive_rejects_stale_feature_contract_digest failed because Phase 2 archive validator did not validate digest; (6) test_stale_rb_output_rejected_when_digest_mismatches_or_missing failed because Phase 5 loaded strategy without digest verification; (7) test_feature_contract_digest_sensitive_to_cadence_and_aggregation and test_feature_contract_digest_sensitive_to_scale_manifest failed because cadence/aggregation/scaling manifest were not in digest payload; (8) test_experiment_ledger_append_cannot_override_feature_contract_digest failed because caller record overwrote computed digest; (9) test_load_and_split_data_rejects_validation_out_of_range_before_phase2 and test_load_and_split_data_rejects_all_inf_training_column failed because validation data was clipped before check.",
+      "green": "383 passed in 136.69s across all 13 test files (tests/unit/test_onchain_feature_contract.py, tests/unit/test_feature_catalog.py, tests/unit/test_fuzzy_scaling.py, tests/unit/test_mtf_pipeline_integration.py, tests/unit/test_multi_timeframe.py, tests/unit/test_research_integrity.py, tests/unit/test_run_pipeline.py, tests/unit/test_config_additions.py, tests/unit/test_config_validation.py, tests/unit/test_data_splitter.py, tests/unit/test_phase5_oos.py, tests/unit/test_phase2_rule_pool.py, tests/unit/test_mtf_composer.py)."
+    }
+  },
+  "verification_gates": [
+    {
+      "name": "gate_1_unit_tests",
+      "command": "PYTEST_LOW_MEMORY=1 .venv/bin/python -m pytest tests/unit/test_onchain_feature_contract.py tests/unit/test_feature_catalog.py tests/unit/test_fuzzy_scaling.py tests/unit/test_mtf_pipeline_integration.py tests/unit/test_multi_timeframe.py tests/unit/test_research_integrity.py tests/unit/test_run_pipeline.py tests/unit/test_config_additions.py tests/unit/test_config_validation.py tests/unit/test_data_splitter.py tests/unit/test_phase5_oos.py tests/unit/test_phase2_rule_pool.py tests/unit/test_mtf_composer.py -q",
+      "pass": true,
+      "output": "383 passed, 1 warning in 136.69s"
+    },
+    {
+      "name": "gate_2_config_validation",
+      "command": ".venv/bin/python -c \"from gpu_fuzzy_trader import config; config.validate_config(); print(len(config.RULE_ALLOWED_FF_FEATURES))\"",
+      "pass": true,
+      "output": "30"
+    },
+    {
+      "name": "gate_3_diff_check_and_diff_stat",
+      "command": "git diff --check; git diff 476f4b9de7962eb5e31676ec83c39ce3c0d9eea2...feature/unit-3-runtime-contract --stat",
+      "pass": true,
+      "output": "git diff --check is clean; 16 files changed, 436 insertions(+), 41 deletions(-); all files in allowed_files"
+    }
+  ],
+  "drift_check": {
+    "command": "nexus run drift",
+    "drift": "NONE",
+    "commit_distance": 0,
+    "merge_base_changed": false
+  },
+  "impact": {
+    "verified": true,
+    "risk": "HIGH",
+    "confidence": 0.1,
+    "dependents": [
+      "gpu_fuzzy_trader/data/splitter.py",
+      "gpu_fuzzy_trader/features/catalog.py",
+      "gpu_fuzzy_trader/features/fuzzy_scaling.py",
+      "gpu_fuzzy_trader/mtf/archives.py",
+      "gpu_fuzzy_trader/phases/phase2_rule_pool.py",
+      "gpu_fuzzy_trader/phases/phase5_oos.py",
+      "gpu_fuzzy_trader/research_integrity.py",
+      "gpu_fuzzy_trader/run_pipeline.py"
+    ],
+    "related_tests": [
+      "tests/unit/test_onchain_feature_contract.py",
+      "tests/unit/test_feature_catalog.py",
+      "tests/unit/test_fuzzy_scaling.py",
+      "tests/unit/test_mtf_pipeline_integration.py",
+      "tests/unit/test_multi_timeframe.py",
+      "tests/unit/test_research_integrity.py",
+      "tests/unit/test_run_pipeline.py",
+      "tests/unit/test_config_additions.py",
+      "tests/unit/test_config_validation.py",
+      "tests/unit/test_data_splitter.py",
+      "tests/unit/test_phase5_oos.py",
+      "tests/unit/test_phase2_rule_pool.py",
+      "tests/unit/test_mtf_composer.py"
+    ]
+  },
+  "findings_addressed": [
+    "F-AC3-RANGE-CHECK-AFTER-CLIP: Validated raw supplied frames for on-chain range before scaling in _load_and_split_data; updated bounded_continuous apply to reject non-finite/out-of-range values instead of clipping them (permits true NaN warm-up); updated fit_fuzzy_feature_scaling to fail on all-infinite on-chain training columns. Added integration tests in test_run_pipeline.py and test_fuzzy_scaling.py.",
+    "F-AC1-CATALOG-DISPERSION-DROP: In supplied_ff mode, bypassed _remove_low_dispersion entirely and asserted exact 30 ordered features. Added test_catalog_supplied_ff_mode_bypasses_dispersion_and_retains_all_30 with constant and 95%+ NaN features.",
+    "F-AC5-DIGEST-NOT-ENFORCED: Enforced feature_contract_digest across artifacts: (a) splitter.py persists digest in manifest and rejects cache hit on missing or mismatch digest; (b) run_pipeline.py rebuilds MTF archives on digest mismatch; (c) mtf/archives.py persists digest in archive identity and validates during payload loading; (d) phases/phase2_rule_pool.py persists digest in save_archive and validates in _validate_archive_payload; (e) phases/phase5_oos.py validates digest during standalone strategy loading, rejecting stale RB outputs. Added tests for stale split, MTF archive, Phase 2 archive, and RB output rejections.",
+    "F-AC5-INCOMPLETE-DIGEST-PAYLOAD: Updated research_integrity.py to serialize complete OnchainMetricSpec fields (source_column, output_feature, source_cadence, target_cadence, aggregation, raw_transform, scale_family, release_delay_minutes, scale_window_observations, min_periods, allow_funding_gap) and scaling_manifest into digest payload. Added sensitivity tests.",
+    "F-LEDGER-DIGEST-OVERRIDE: Fixed ExperimentLedger.append to assign computed feature_contract_digest after caller record, preventing caller spoofing. Added test."
+  ]
+}

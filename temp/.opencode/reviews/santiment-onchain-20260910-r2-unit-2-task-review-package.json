@@ -1,0 +1,26 @@
+{
+  "schema_version": "1.0",
+  "ok": true,
+  "scope": "task",
+  "run_id": "santiment-onchain-20260910-r2",
+  "unit_or_task": "unit-2",
+  "run_base_commit": "5fed2f16b8dadecfc1ab4048a5148a2eeef53ad7",
+  "base_commit": "272349316aa6a8bf2ece8764db90511e3f9d1025",
+  "head_commit": "856f501c6ad1c74b6a0da0c7bd0af8fe1448659b",
+  "path": ".opencode/reviews/santiment-onchain-20260910-r2-unit-2-task-review-package.md",
+  "absolute_path": "/home/danaee/trading_platform/.opencode/reviews/santiment-onchain-20260910-r2-unit-2-task-review-package.md",
+  "meta_path": ".opencode/reviews/santiment-onchain-20260910-r2-unit-2-task-review-package.json",
+  "changed_files": [
+    "scripts/build_onchain_dataset.py",
+    "tests/unit/test_onchain_dataset_builder.py"
+  ],
+  "production_files": [
+    "scripts/build_onchain_dataset.py"
+  ],
+  "acceptance_criteria": [
+    "remove public row-count overrides enforce canonical 140352 39152",
+    "backup and restore test tape on manifest replace failure"
+  ],
+  "digest_sha256": "3a9171b53bb7625af02e1e19e097eb1d6319ba02b3904d5dc6e5a94d7a1b54a8",
+  "generated_at": "2026-09-11T08:08:34.113Z"
+}

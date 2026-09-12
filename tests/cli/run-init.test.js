@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { loadEvidence } from "../../scripts/nexus-run.js";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const runCli = path.join(repoRoot, "scripts", "nexus-run.js");
@@ -62,4 +63,27 @@ test("nexus run init preserves corrupt state unless --force is explicit", (t) =>
   const forced = invoke(root, ["init", "--run-id", "corrupt", "--force"]);
   assert.equal(forced.status, 0, forced.stderr);
   assert.equal(JSON.parse(fs.readFileSync(statePath, "utf8")).run_id, "corrupt");
+});
+
+test("review-handoff-file preserves the complete reviewer artifact", (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "nexus-review-handoff-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const handoff = {
+    schema_version: "1.2",
+    run_id: "review-file",
+    unit_or_task: "unit-1",
+    agent: "reviewer",
+    verdict: "APPROVED",
+    acceptance: [{ id: "AC-1", status: "PASS", evidence: [{ file: "src/app.js", reason: "covered" }] }],
+    files_reviewed: ["src/app.js"],
+    checks: [{ category: "correctness", status: "PASS", evidence: "checked" }],
+  };
+  const handoffPath = path.join(root, "reviewer.json");
+  fs.writeFileSync(handoffPath, JSON.stringify(handoff));
+  const evidence = loadEvidence({
+    "review-handoff-file": handoffPath,
+    json: JSON.stringify({ impact: { risk: "LOW" } }),
+  });
+  assert.deepEqual(evidence.review_handoff, handoff);
+  assert.deepEqual(evidence.impact, { risk: "LOW" });
 });

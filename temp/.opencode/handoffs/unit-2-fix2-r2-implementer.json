@@ -1,0 +1,69 @@
+{
+  "schema_version": "1.1",
+  "run_id": "santiment-onchain-20260910-r2",
+  "unit_or_task": "unit-2",
+  "agent": "implementer",
+  "base_commit": "080a4b422e4bce96dc88088c25aee41f468ca364",
+  "created_at": "2026-09-10T19:30:00Z",
+  "status": "DONE",
+  "commit": "272349316aa6a8bf2ece8764db90511e3f9d1025",
+  "files_changed": [
+    ".gitignore",
+    "gpu_fuzzy_trader/data/onchain_pipeline.py",
+    "scripts/build_onchain_dataset.py",
+    "tests/unit/test_onchain_dataset_builder.py"
+  ],
+  "tests": {
+    "total": 52,
+    "passed": 52,
+    "failed": 0,
+    "tdd": {
+      "red": "pytest tests/unit/test_onchain_dataset_builder.py failed when asserting 140352 train / 39152 test row count check in verify-only (ValueError: train: row count violation: expected exact 140352 rows, got 8), and test_verify_dataset_shape_rejects_tampered_coverage_and_noncanonical_layout failed when asserting contract_digest mismatch rejection",
+      "green": "52 passed in 8.14s across tests/unit/test_onchain_dataset_builder.py, tests/unit/test_onchain_pipeline.py, and tests/unit/test_onchain_registry.py"
+    }
+  },
+  "verification_gates": [
+    {
+      "name": "gate_1_unit_tests",
+      "command": "PYTEST_LOW_MEMORY=1 .venv/bin/python -m pytest tests/unit/test_onchain_dataset_builder.py tests/unit/test_onchain_pipeline.py tests/unit/test_onchain_registry.py -q",
+      "pass": true,
+      "output": "52 passed in 8.14s"
+    },
+    {
+      "name": "gate_2_diff_check",
+      "command": "git diff --check",
+      "pass": true,
+      "output": "clean"
+    },
+    {
+      "name": "gate_3_diff_stat_allowed_files",
+      "command": "git diff 5fed2f16b8dadecfc1ab4048a5148a2eeef53ad7...feature/unit-2-onchain-builder --stat",
+      "pass": true,
+      "output": "4 files changed, 885 insertions(+), 111 deletions(-) (only allowed files: .gitignore, gpu_fuzzy_trader/data/onchain_pipeline.py, scripts/build_onchain_dataset.py, tests/unit/test_onchain_dataset_builder.py)"
+    }
+  ],
+  "drift_check": {
+    "command": "nexus run drift",
+    "drift": "NONE",
+    "commit_distance": 0,
+    "merge_base_changed": false
+  },
+  "impact": {
+    "verified": true,
+    "risk": "HIGH",
+    "confidence": 0.1,
+    "dependents": [],
+    "related_tests": [
+      "tests/unit/test_onchain_dataset_builder.py",
+      "tests/unit/test_onchain_pipeline.py",
+      "tests/unit/test_onchain_registry.py"
+    ]
+  },
+  "findings_addressed": [
+    "F-9: verify-only enforces canonical 140352 train and 39152 test row counts (TRAIN_EXPECTED_ROWS=140352, TEST_EXPECTED_ROWS=39152) and exact ordered 37-column contract; regression tests added for truncated train and test tapes",
+    "F-10: recomputed contract_digest in verify-only via rebuild_contract_object and compute_manifest_contract_digest helpers; enforced canonical manifest layout ('contract' and 'created_at' keys); regression test added for tampered coverage field and noncanonical layout",
+    "F-11: manifest published atomically with tapes via staged temp path and updated last after both tapes succeed; rollback restores pre-existing manifest bytes or removes staged/published manifest on replace failure; test extended to verify manifest bytes equal pre-run bytes when pre-existing and when absent",
+    "F-12: parent directories created with mkdir before NamedTemporaryFile staging file creation; regression test added with custom output in nonexistent nested directory",
+    "F-13: default .staged.csv files cleaned up unconditionally on failure in exception handler; regression test added asserting no .staged.csv remains after forced verification failure with default outputs"
+  ]
+}
