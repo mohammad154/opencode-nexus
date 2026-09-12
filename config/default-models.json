@@ -7,7 +7,8 @@
   "implementer": {
     "mode": "subagent",
     "model": "opencode/deepseek-v4-flash-free",
-    "variant": "high"
+    "variant": "high",
+    "steps": 64
   },
   "reviewer": {
     "mode": "subagent",

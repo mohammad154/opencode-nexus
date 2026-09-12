@@ -22,6 +22,8 @@ Requirements:
 - If `review_findings` are present (fix loop), address every finding; re-check impacted callers/tests.
 - For behavioral changes / bug fixes: TDD red then green; put `tdd.red` / `tdd.green` in the handoff.
 - Run verification gates exactly; never claim pass without commands.
+- Use one planned evidence path per acceptance criterion. Do not repeat equivalent probes or replays after the required evidence already exists.
+- If a required criterion cannot be proven after the planned evidence path, stop and report `BLOCKED` with exact evidence instead of continuing exploratory tool calls.
 - Stay on the assigned feature branch / worktree; never commit to base.
 - Write handoff JSON to `.opencode/handoffs/<id>-implementer.json` with
   `schema_version: "1.1"` and all contract fields: `run_id`, `unit_or_task`,

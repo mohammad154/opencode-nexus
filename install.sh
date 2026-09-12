@@ -65,6 +65,7 @@ PLANNING_MODELS="$SCRIPT_DIR/config/planning-models.json"
 MODELS_EXAMPLE="$SCRIPT_DIR/config/models.example.json"
 PKG_JSON="$SCRIPT_DIR/package.json"
 LEGACY_GIT_SPEC="nexus@git+https://github.com/mohammad154/opencode-nexus.git"
+LOCAL_PLUGIN_FILE="$CONFIG_DIR/plugins/nexus.js"
 
 # Record, exactly once per file, whether an agent file existed before Nexus and
 # where its pristine pre-Nexus backup lives. Re-running or upgrading Nexus must
@@ -117,6 +118,15 @@ PKG_VERSION="$(jq -r '.version' "$PKG_JSON")"
 PLUGIN_SPEC="${NEXUS_PLUGIN_SPEC:-${PKG_NAME}@${PKG_VERSION}}"
 
 mkdir -p "$CONFIG_DIR" "$AGENTS_DIR"
+# A checked-out Nexus plugin can be deliberately linked here for local
+# development or a hotfix. OpenCode loads global plugin files automatically;
+# keeping an npm spec as well loads Nexus twice and can reactivate a stale
+# cached copy. Only preserve a live symlink, so a broken override falls back to
+# the package requested by this installer.
+LOCAL_PLUGIN_OVERRIDE=false
+if [[ -L "$LOCAL_PLUGIN_FILE" && -e "$LOCAL_PLUGIN_FILE" ]]; then
+  LOCAL_PLUGIN_OVERRIDE=true
+fi
 if [[ -f "$CONFIG_FILE" ]]; then bak "$CONFIG_FILE"; else printf '{\n  "$schema": "https://opencode.ai/config.json"\n}\n' >"$CONFIG_FILE"; fi
 MJ="$(cat "$DEFAULT_MODELS")"
 if [[ -f "$MODELS_FILE" ]]; then
@@ -155,13 +165,13 @@ TMP="$(mktemp)"
 # Only merge object-valued agent entries (skip any leftover non-objects).
 # Defaults fill missing keys; existing user model/variant values win. Modes are
 # forced below so custom models cannot accidentally reappear as primary agents.
-if ! jq --arg p "$PLUGIN_SPEC" --arg name "$PKG_NAME" --arg legacy "$LEGACY_GIT_SPEC" --arg plan_model "${NEXUS_PLAN_ADVISOR_MODEL:-}" --argjson m "$MJ" --argjson planning "$PLANNING_JSON" --argjson prune "$PRUNE_JSON" '
+if ! jq --arg p "$PLUGIN_SPEC" --arg name "$PKG_NAME" --arg legacy "$LEGACY_GIT_SPEC" --arg plan_model "${NEXUS_PLAN_ADVISOR_MODEL:-}" --argjson local_plugin_override "$LOCAL_PLUGIN_OVERRIDE" --argjson m "$MJ" --argjson planning "$PLANNING_JSON" --argjson prune "$PRUNE_JSON" '
   .plugin = (
     ((.plugin // []) | map(select(
       . != $legacy
       and . != $name
       and (startswith($name + "@") | not)
-    ))) + [$p]
+    ))) + (if $local_plugin_override then [] else [$p] end)
   )
   | .agent = (.agent // {})
   | reduce (($m | to_entries[] | select(.value|type=="object")) ) as $e (.;
@@ -194,6 +204,9 @@ if ! jq --arg p "$PLUGIN_SPEC" --arg name "$PKG_NAME" --arg legacy "$LEGACY_GIT_
   exit 1
 fi
 mv "$TMP" "$CONFIG_FILE"
+if [[ "$LOCAL_PLUGIN_OVERRIDE" == "true" ]]; then
+  echo "  [opencode] Preserved local Nexus plugin override: $LOCAL_PLUGIN_FILE"
+fi
 ORCHESTRATOR_MODEL="$(jq -r '.agent.orchestrator.model // empty' "$CONFIG_FILE")"
 PLAN_ADVISOR_MODEL="$(jq -r '.agent["plan-advisor"].model // empty' "$CONFIG_FILE")"
 if [[ -n "$ORCHESTRATOR_MODEL" && -n "$PLAN_ADVISOR_MODEL" && "$ORCHESTRATOR_MODEL" == "$PLAN_ADVISOR_MODEL" ]]; then

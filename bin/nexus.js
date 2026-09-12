@@ -186,6 +186,20 @@ function isNexusPluginSpec(spec) {
   );
 }
 
+function localNexusPluginOverride(configDir) {
+  const candidate = path.join(configDir, "plugins", "nexus.js");
+  try {
+    // Match install.sh: a live symlink at this exact Nexus plugin path is an
+    // intentional local override. A regular file or broken link should not
+    // suppress the normal package-install diagnostic.
+    return fs.lstatSync(candidate).isSymbolicLink() && fs.existsSync(candidate)
+      ? candidate
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 function isGitRepo(cwd = process.cwd()) {
   const r = spawnSync("git", ["rev-parse", "--is-inside-work-tree"], {
     cwd,
@@ -322,12 +336,20 @@ function doctor() {
     try {
       const config = JSON.parse(fs.readFileSync(configFile, "utf8"));
       const matches = pluginEntries(config).filter(isNexusPluginSpec);
-      pluginOk = matches.length === 1;
-      pluginDetail = pluginOk
-        ? matches[0]
-        : matches.length === 0
-          ? "plugin not configured"
-          : `unexpected plugin entries: ${matches.join(", ")}`;
+      const localPlugin = localNexusPluginOverride(configDir);
+      if (localPlugin) {
+        pluginOk = matches.length === 0;
+        pluginDetail = pluginOk
+          ? `local override: ${localPlugin}`
+          : `local override conflicts with package plugin entries: ${matches.join(", ")}`;
+      } else {
+        pluginOk = matches.length === 1;
+        pluginDetail = pluginOk
+          ? matches[0]
+          : matches.length === 0
+            ? "plugin not configured"
+            : `unexpected plugin entries: ${matches.join(", ")}`;
+      }
     } catch (err) {
       pluginDetail = `unreadable: ${err.message}`;
     }

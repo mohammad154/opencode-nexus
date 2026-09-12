@@ -122,6 +122,42 @@ test("nexus doctor reports impact-engine without requiring graphify", () => {
   }
 });
 
+test("nexus doctor recognizes a local Nexus plugin override and flags duplicates", () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "nexus-doctor-local-plugin-"));
+  const configDir = path.join(home, ".config", "opencode");
+  try {
+    fs.mkdirSync(path.join(configDir, "plugins"), { recursive: true });
+    fs.writeFileSync(
+      path.join(configDir, "opencode.json"),
+      JSON.stringify({ plugin: [] }),
+    );
+    fs.symlinkSync(
+      path.join(repoRoot, ".opencode", "plugins", "nexus.js"),
+      path.join(configDir, "plugins", "nexus.js"),
+    );
+    const env = {
+      HOME: home,
+      OPENCODE_CONFIG_DIR: configDir,
+      PATH: "/usr/bin:/bin",
+    };
+
+    const localOnly = invoke(["doctor"], env, home);
+    assert.match(localOnly.stdout, /ok\s+plugin\s+local override:/);
+
+    fs.writeFileSync(
+      path.join(configDir, "opencode.json"),
+      JSON.stringify({ plugin: [`${pkg.name}@${pkg.version}`] }),
+    );
+    const duplicate = invoke(["doctor"], env, home);
+    assert.match(
+      duplicate.stdout,
+      /!!\s+plugin\s+local override conflicts with package plugin entries:/,
+    );
+  } finally {
+    fs.rmSync(home, { recursive: true, force: true });
+  }
+});
+
 test("nexus project-init bootstraps an external repo", () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "nexus-project-init-"));
   try {

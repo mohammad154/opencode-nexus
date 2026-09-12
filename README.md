@@ -216,6 +216,12 @@ nexus install
 
 The installer is idempotent — re-run `nexus install` or `./install.sh` to update.
 
+If `~/.config/opencode/plugins/nexus.js` is a live symlink (for example, to a
+checked-out hotfix), the installer preserves that local Nexus plugin and removes
+the Nexus npm-plugin entry from `opencode.json`. This prevents OpenCode from
+loading both the local copy and an older cached package. Restart OpenCode after
+changing the link or running the installer.
+
 Git clone fallback (if you are not using npm):
 
 ```bash
@@ -352,6 +358,11 @@ cp ~/.config/opencode/nexus.models.example.json ~/.config/opencode/nexus.models.
 # edit nexus.models.json
 nexus install
 ```
+
+The default implementer has `"steps": 64`: a finite ceiling on agentic tool
+iterations. At the ceiling OpenCode requests a text summary instead of allowing
+unbounded tool calls. You can set a different positive `steps` value in your
+`nexus.models.json` override when a unit demonstrably needs it.
 
 One-off overrides (no file edit):
 

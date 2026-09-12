@@ -39,7 +39,22 @@ fi
 jq -e '(.agent | has("blast-analyzer")) | not' "$HOME/.config/opencode/opencode.json" >/dev/null
 jq -e '.agent["plan-advisor"].mode == "subagent"' "$HOME/.config/opencode/opencode.json" >/dev/null
 jq -e '(.agent["plan-advisor"] | has("planning_only")) | not' "$HOME/.config/opencode/opencode.json" >/dev/null
+jq -e '.agent.implementer.steps == 64' "$HOME/.config/opencode/opencode.json" >/dev/null
 echo "PASS: installer writes only OpenCode artifacts"
+
+echo "== local plugin override survives install =="
+mkdir -p "$HOME/.config/opencode/plugins"
+ln -s "$ROOT/.opencode/plugins/nexus.js" "$HOME/.config/opencode/plugins/nexus.js"
+local_config_tmp="$(mktemp)"
+jq --arg spec "$(jq -r '"\(.name)@\(.version)"' "$ROOT/package.json")" \
+  '.plugin = [$spec, "example/other-plugin@1"]' \
+  "$HOME/.config/opencode/opencode.json" >"$local_config_tmp"
+mv "$local_config_tmp" "$HOME/.config/opencode/opencode.json"
+out="$(run_install 2>&1)" || { echo "$out"; exit 1; }
+echo "$out" | grep -q 'Preserved local Nexus plugin override'
+jq -e '.plugin == ["example/other-plugin@1"]' "$HOME/.config/opencode/opencode.json" >/dev/null
+test -L "$HOME/.config/opencode/plugins/nexus.js"
+echo "PASS: local plugin override suppresses duplicate cached Nexus plugin"
 
 echo "== rejected unknown flags =="
 if run_install --only cursor >/tmp/nexus-unknown-flag.log 2>&1; then

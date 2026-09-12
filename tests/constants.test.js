@@ -84,6 +84,11 @@ test("default-models.json declares modes so json-only agent entries stay out of 
   );
   assert.equal(models.orchestrator.mode, "primary");
   assert.equal(models.implementer.mode, "subagent");
+  assert.equal(
+    models.implementer.steps,
+    64,
+    "implementer must have a finite agentic-iteration safety ceiling",
+  );
   assert.equal(models.reviewer.mode, "subagent");
   assert.equal(
     Object.keys(models)
@@ -118,6 +123,7 @@ test("models.example.json is V5-only and does not reintroduce retired agents", (
     example.reviewer.model.split("/")[0],
     "example should use different provider/family prefixes for implementer vs reviewer",
   );
+  assert.equal(example.implementer.steps, 64);
   for (const retired of [
     "unified-reviewer",
     "spec-reviewer",
