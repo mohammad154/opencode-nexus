@@ -120,6 +120,38 @@ test("compaction adds only compact active-run context and artifact pointers", as
   assert.equal(output.context[0].includes("nexus classify"), false);
 });
 
+test("compaction omits stale Context.md that conflicts with durable run state", async () => {
+  const worktree = tempDir("nexus-plugin-stale-context-");
+  fs.mkdirSync(path.join(worktree, ".opencode"), { recursive: true });
+  fs.writeFileSync(
+    path.join(worktree, ".opencode", "CONTEXT.md"),
+    [
+      "# Nexus Context",
+      "- Active run: obsolete-run",
+      "- Current phase: PLANNED → obsolete unit",
+    ].join("\n"),
+  );
+  writeJson(path.join(worktree, ".opencode", "runs", "active", "state.json"), {
+    run_id: "active",
+    state: "IMPLEMENTING",
+    workflow: "default",
+    current_unit: "unit-5",
+    updated_at: "2026-07-30T12:00:00.000Z",
+  });
+
+  const plugin = await NexusPlugin({ worktree });
+  const output = {};
+  await plugin["experimental.session.compacting"]({}, output);
+
+  assert.equal(output.context.length, 1);
+  assert.match(output.context[0], /Nexus Context Status/);
+  assert.match(output.context[0], /CONTEXT\.md omitted/);
+  assert.match(output.context[0], /declares run obsolete-run/);
+  assert.equal(output.context[0].includes("obsolete unit"), false);
+  assert.match(output.context[0], /run_id: active/);
+  assert.match(output.context[0], /state: IMPLEMENTING/);
+});
+
 test("chat transform injects delegation gate when no active run", async () => {
   const worktree = tempDir("nexus-plugin-gate-");
   const plugin = await NexusPlugin({ worktree });
@@ -258,6 +290,25 @@ test("agent permissions place catch-all '*' before specific rules", () => {
       );
     }
   }
+});
+
+test("implementer blocks destructive git cleanup of user work", () => {
+  const implementer = fs.readFileSync(
+    path.resolve(import.meta.dirname, "../../agents/implementer.md"),
+    "utf8",
+  );
+  const bash = implementer.match(/\n  bash:\n((?:    .*\n)+)/)?.[1] || "";
+  assert.match(bash, /^    "\*": allow/m);
+  for (const command of [
+    "git restore*",
+    "git reset*",
+    "git checkout*",
+    "git clean*",
+    "git switch*",
+  ]) {
+    assert.ok(bash.includes(`"${command}": deny`), `missing deny rule for ${command}`);
+  }
+  assert.match(implementer, /Treat every pre-existing modified or untracked file as user-owned/);
 });
 
 test("plan-advisor Bash permissions fail closed to read-only inspection", () => {

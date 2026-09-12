@@ -4,6 +4,15 @@ import { DEFAULT_SCOPE_POLICY } from "./path-filter.js";
 
 const DEFAULT_CONTEXT = `# Nexus Context
 
+This file holds durable human notes; it is not the source of truth for a live
+Nexus workflow. Read \`.opencode/active-run\` and then
+\`.opencode/runs/<run-id>/state.json\` for the current run, phase, and unit.
+Before resuming, use \`nexus next\` or \`nexus run status\`; ignore any stale
+phase text in this file.
+
+Treat existing modified or untracked worktree files as user-owned. Never reset,
+restore, clean, delete, or overwrite them merely to create a baseline.
+
 workflow: default
 execution_mode: delegated
 branch_cleanup_policy: always

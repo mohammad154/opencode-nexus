@@ -7,7 +7,13 @@ permission:
     "/usr/local/lib/node_modules/@mohammad154/opencode-nexus/schemas/*": allow
     "~/.cache/opencode/packages/@mohammad154/**": allow
   edit: allow
-  bash: allow
+  bash:
+    "*": allow
+    "git restore*": deny
+    "git reset*": deny
+    "git checkout*": deny
+    "git clean*": deny
+    "git switch*": deny
   task:
     "*": deny
 ---
@@ -25,6 +31,13 @@ Requirements:
 - Use one planned evidence path per acceptance criterion. Do not repeat equivalent probes or replays after the required evidence already exists.
 - If a required criterion cannot be proven after the planned evidence path, stop and report `BLOCKED` with exact evidence instead of continuing exploratory tool calls.
 - Stay on the assigned feature branch / worktree; never commit to base.
+- Treat every pre-existing modified or untracked file as user-owned. Never use
+  `git restore`, `git reset`, `git checkout`, `git clean`, branch switching,
+  direct deletion, or overwrite to manufacture a pristine baseline. If an
+  acceptance criterion requires one, STOP and ask the orchestrator for an
+  isolated worktree or explicit recovery plan. A task's own atomic build tool
+  may publish only its declared outputs after its staging checks pass; do not
+  shell-clean those final outputs.
 - Write handoff JSON to `.opencode/handoffs/<id>-implementer.json` with
   `schema_version: "1.1"` and all contract fields: `run_id`, `unit_or_task`,
   `agent`, `base_commit`, `created_at`, `status`, `commit`, `files_changed`,

@@ -30,6 +30,7 @@ function buildCompactRouter() {
     "OpenCode Nexus V5 is installed. Keep this routing pointer compact and load detailed instructions only with the native skill tool when the phase requires them.",
     "Route: start/orient → using-nexus; clarify only if ambiguous → brainstorming; always write a plan → writing-plans; standard/deep planning may dispatch plan-advisor once; run nexus plan-check before PLANNED; before every implementer → impact-analysis (nexus impact); execute cohesive units → orchestrating; isolate work → using-feature-branches; finish → finishing-a-development-branch; stuck/BLOCKED → reconcile.",
     "Three invariants: (1) brainstorm then PLAN.md for every request (2) fresh pre-impact before every implementer dispatch including REQUEST_CHANGES fix loops (3) every task needs independent reviewer APPROVED.",
+    "State: active-run/state.json, not CONTEXT.md. Never reset/restore/clean/delete existing files.",
     "Portable commands: nexus project-init | nexus next | nexus run ... | nexus impact ... | nexus estimate ...",
     "Use nexus run for state machine gates. Use nexus next (or the injected Nexus Next Action block) for the deterministic next step — including REQUIRED_DISPATCH agent. Do NOT assume repo-local scripts/ exists.",
     "Execution: orchestrator, implementer, reviewer only; plan-advisor is planning-only. Dispatch reviewer only after VERIFYING/PASSED. Verification is deterministic, never a verifier subagent. Never self-implement or skip reviewer. No legacy classify/blast/Graphify routing.",
@@ -42,11 +43,34 @@ function getBootstrapText() {
   return buildCompactRouter();
 }
 
-function readContextFile(worktree) {
+function readContextFile(worktree, runState = null) {
   const contextPath = path.join(worktree, ".opencode", "CONTEXT.md");
-  if (!fs.existsSync(contextPath)) return null;
+  if (!fs.existsSync(contextPath)) return { text: null, warning: null };
   const data = fs.readFileSync(contextPath, "utf8").trim();
-  return data.length > 0 ? data : null;
+  if (data.length === 0) return { text: null, warning: null };
+
+  // CONTEXT.md is an optional, human-maintained note. It is commonly read by
+  // OpenCode as a system reminder, so never carry a declared stale phase/run
+  // across compaction when durable state disagrees.
+  const declaredRun = data.match(/^- Active run:\s*([^\s(]+)/m)?.[1];
+  if (declaredRun && runState?.run_id && declaredRun !== runState.run_id) {
+    return {
+      text: null,
+      warning:
+        `CONTEXT.md omitted: it declares run ${declaredRun}, but durable state declares ${runState.run_id}.`,
+    };
+  }
+
+  const declaredPhase = data.match(/^- Current phase:\s*([A-Z_]+)/m)?.[1];
+  if (declaredPhase && runState?.state && declaredPhase !== runState.state) {
+    return {
+      text: null,
+      warning:
+        `CONTEXT.md omitted: it declares phase ${declaredPhase}, but durable state declares ${runState.state}.`,
+    };
+  }
+
+  return { text: data, warning: null };
 }
 
 function readPlanFile(worktree) {
@@ -233,9 +257,11 @@ export const NexusPlugin = async ({ worktree }) => {
       if (!activeRun) return;
 
       const chunks = [];
-      const liveContext = readContextFile(worktree);
-      if (liveContext) {
-        chunks.push("## Nexus Live Context\n" + liveContext.slice(0, 1200));
+      const liveContext = readContextFile(worktree, activeRun.state);
+      if (liveContext.text) {
+        chunks.push("## Nexus Live Context\n" + liveContext.text.slice(0, 1200));
+      } else if (liveContext.warning) {
+        chunks.push("## Nexus Context Status\n- " + liveContext.warning);
       }
 
       chunks.push(activeRun.text);
