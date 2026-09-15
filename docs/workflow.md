@@ -55,13 +55,31 @@ nexus run transition --to TASK_IMPACT_READY
 Pre-impact before every implementer (including fix loops). `nexus verify` runs
 fresh post-impact while the run remains in `VERIFYING` or `FINAL_VERIFYING`.
 
+An execution unit may contain several implementation steps. The implementer
+runs each step's targeted check as work progresses, then completes the unit's
+declared verification gates. These checks are implementer practice, not separate
+Nexus verification states: Nexus does not persist or authorize each internal
+step independently. After the complete unit, deterministic `nexus verify` must
+pass before its one task reviewer is dispatched.
+
 ## Review
 
 Only after task verification is `PASSED`: run `nexus review-package --scope task`
 then dispatch `reviewer`. A pending, failed, running, or timed-out verification
 never dispatches a reviewer.
 
-After the last task APPROVED: `nexus review-package --scope final` then dispatch `reviewer` again (`review_scope: final`) before `FINAL_VERIFYING`. Final packages use immutable `run_base_commit..HEAD` (whole branch), not the last task’s pre-head.
+After the last task APPROVED: `nexus review-package --scope final` then dispatch
+`reviewer` again (`review_scope: final`) before `FINAL_VERIFYING`. Final packages
+use immutable `run_base_commit..HEAD` (whole branch), not the last task's
+pre-head. They include a `Previous task review evidence` section with task
+approval handoffs/packages and their bindings. Reuse a prior result only when
+`review_evidence_bound: true`, `files_changed_after_review` is available, and
+the files owning that criterion are absent from the list. The final reviewer
+confirms the recorded unit, reviewed commit, and package digest, then focuses on
+cross-unit integration and changes since the approvals. Reopen criteria with
+changed owning files, missing/unbound/stale evidence, a missing post-review file
+list, or an integration defect. The final whole-branch reviewer remains
+mandatory for every multi-unit run.
 
 For a genuinely single-unit run, the task review may be reused for
 `FINAL_VERIFYING` only when the caller opts in and Nexus can bind the same
@@ -106,8 +124,21 @@ nexus run transition --to PLANNED --plan-check
 
 `task-*` identifiers remain accepted for V5 compatibility, but new plans should
 use **Execution Unit** headings. Each unit should be cohesive, independently
-verifiable, reviewable, and safe. Add an `## Execution Unit Justification`
-section explaining why the plan has neither fewer nor more units.
+verifiable, reviewable, and safe. Each unit must state `user_outcome`,
+`independently_shippable`, `review_boundary`, and `estimated_lines`. Use
+`review_boundary: NONE` unless an independent boundary applies; valid boundary
+values are `PUBLIC_CONTRACT`, `SECURITY_BOUNDARY`, `MIGRATION_BOUNDARY`,
+`INDEPENDENT_ROLLBACK`, `INDEPENDENT_SHIPPING`, `REVIEW_SIZE_LIMIT`, and
+`SUBSYSTEM_BOUNDARY`. Add an `## Execution Unit Justification` section explaining
+why the plan has neither fewer nor more units. Internal steps are not units.
+
+Merge dependent units by default when they are not independently shippable and
+their combined scope fits the configured reviewer-audit limits, unless a named
+review boundary justifies keeping them separate. A `KEEP_SEPARATE` disposition
+must use one of the seven boundary codes above as `reason_code`, plus a concrete
+evidence-based explanation. `MERGED` is valid only after the plan is revised;
+rerun `nexus plan-check` until no merge-candidate warning for those units
+remains, then remove the stale disposition.
 
 Planning depth is `compact`, `standard`, or `deep`. Compact planning skips the
 advisor; standard planning uses one advisor call; deep planning uses one call

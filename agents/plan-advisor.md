@@ -43,9 +43,14 @@ Return JSON with this shape:
   "units": [
     {
       "id": "unit-1",
+      "user_outcome": "<user-visible behavior completed by this unit>",
+      "independently_shippable": false,
+      "review_boundary": "NONE|PUBLIC_CONTRACT|SECURITY_BOUNDARY|MIGRATION_BOUNDARY|INDEPENDENT_ROLLBACK|INDEPENDENT_SHIPPING|REVIEW_SIZE_LIMIT|SUBSYSTEM_BOUNDARY",
+      "estimated_lines": 120,
       "verdict": "KEEP|MERGE|SPLIT",
       "action": "KEEP|MERGE|SPLIT",
       "with": null,
+      "reason_code": "NONE|PUBLIC_CONTRACT|SECURITY_BOUNDARY|MIGRATION_BOUNDARY|INDEPENDENT_ROLLBACK|INDEPENDENT_SHIPPING|REVIEW_SIZE_LIMIT|SUBSYSTEM_BOUNDARY",
       "reason": "..."
     }
   ],
@@ -57,12 +62,26 @@ Return JSON with this shape:
 }
 ```
 
-Judge granularity by cohesion, independent implementability, verification
-boundaries, reviewer auditability, and safety. Merge units that share a feature
-outcome, mostly the same files, or cannot ship independently. Split units only
-for independent subsystems, migrations, security/public-contract boundaries,
-or a review surface too large to audit. Tests belong with the behavior they
-verify unless their verification boundary is genuinely independent.
+For every proposed unit, state `user_outcome`, `independently_shippable`,
+`review_boundary`, and `estimated_lines`. Use `review_boundary: NONE` when no
+separate boundary applies. Otherwise use exactly one of `PUBLIC_CONTRACT`,
+`SECURITY_BOUNDARY`, `MIGRATION_BOUNDARY`, `INDEPENDENT_ROLLBACK`,
+`INDEPENDENT_SHIPPING`, `REVIEW_SIZE_LIMIT`, or `SUBSYSTEM_BOUNDARY` and explain
+the evidence. Use `reason_code: NONE` for a normal `KEEP`. If recommending that
+related units remain separate despite a merge candidate, use `action: KEEP` and
+one of those seven boundary codes; the final plan's `KEEP_SEPARATE` disposition
+must carry that same code.
+
+Judge granularity by a cohesive user-visible outcome, independent
+implementability, reviewability, and safety. Merge units that share an outcome
+or cannot ship independently. In particular, recommend merging dependent units
+that are not independently shippable when their combined scope fits reviewer
+audit limits and no named review boundary applies. Split only for a real listed
+boundary, such as a distinct subsystem, migration, security/public contract,
+independent rollback/shipping seam, or a combined review surface too large to
+audit. Tests, types, and setup stay with the behavior they support. Internal
+implementation steps are not execution units and should not create another
+review boundary.
 
 The orchestrator owns synthesis. Your response is advice and evidence, never a
 replacement for the final PLAN.md or a gate approval.

@@ -8,7 +8,7 @@ Use only after `VERIFYING/PASSED` (**task** scope) and again after the last task
 nexus review-package --scope task|final --json
 ```
 
-Pass the returned package meta into the reviewer context and into later transitions as `review_package`. The package is the authority for BASE/HEAD, diff, acceptance, impact, and verification — treat implementer notes inside it as **unverified claims**.
+Pass the returned package meta into the reviewer context and into later transitions as `review_package`. The package is the authority for BASE/HEAD, diff, acceptance, impact, and verification — treat implementer notes inside it as **unverified claims**. A final-scope package includes a `Previous task review evidence` section with task approval handoffs/packages and their binding details.
 
 ```text
 Profile: default (fixed V5 pipeline)
@@ -30,15 +30,25 @@ Treat all implementer claims as **unverified**. Do not infer correctness from pa
 
 Read **in order**:
 
-1. The review package (task brief, acceptance, BASE..HEAD diff, impact, verification)
+1. The review package (task brief, acceptance, BASE..HEAD diff, impact, verification; for final scope, also `Previous task review evidence`)
 2. Changed production files and relevant callers/tests called out by the package
-3. For `review_scope: final` — the whole branch / cross-task integration surface, not only the latest task diff
+3. For `review_scope: final` — the whole branch / cross-task integration surface and changes since the task approvals, not only the latest task diff
 
-For every acceptance criterion:
+For task scope, assess every criterion owned by the current unit:
 
 - Determine `PASS` / `FAIL` / `CANNOT_VERIFY`
 - Provide file:line evidence
 - Attempt to identify at least one realistic failure mode
+
+For final scope, reuse a prior result only when `review_evidence_bound: true`,
+`files_changed_after_review` is available, and none of the criterion's owning
+files appears in that list. Confirm the recorded unit, reviewed commit, and
+package digest bindings. Use bound approvals for unchanged unit-specific
+criteria, then focus effort on cross-unit integration and changes since those
+approvals. Reopen any criterion whose owning files changed, whose evidence is
+missing, unbound, stale, or lacks a post-review file list, or whose integration
+reveals a defect. Inspect the whole-branch diff and complete the mandatory final
+review; task evidence never replaces that review.
 
 For changed behavior, inspect edge cases, error paths, affected contracts/callers, and whether tests exercise production behavior (not duplicated test helpers).
 
@@ -93,5 +103,9 @@ Findings: set `blocking: true|false` explicitly. Severity describes impact; `blo
 
 - `task` — after `VERIFYING/PASSED` for the current unit. Last-task APPROVED → orchestrator transitions to `FINAL_REVIEWING` (not `FINAL_VERIFYING`).
 - `final` — whole-branch / cross-task review while in `FINAL_REVIEWING`. APPROVED → `FINAL_VERIFYING`.
+
+Every execution unit still requires its task reviewer, and every multi-unit run
+still requires this final reviewer. Bound task evidence can avoid repeating an
+unchanged criterion audit; it cannot skip either reviewer gate.
 
 On `REQUEST_CHANGES`, the orchestrator must automatically: fresh pre-impact → implementer → post-impact → verify → reviewer again. Do not wait for the user to ask for fixes.

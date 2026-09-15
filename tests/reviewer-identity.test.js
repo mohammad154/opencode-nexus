@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createEmptyRunState } from "../scripts/lib/migrate-artifacts.js";
-import { canTransition } from "../scripts/lib/state-machine.js";
+import { canTransition, transition } from "../scripts/lib/state-machine.js";
 import { validateHandoff } from "../scripts/lib/schema-validate.js";
 import {
   goodImplementerHandoff,
@@ -56,6 +56,102 @@ test("FINAL_REVIEWING accepts task-scope APPROVED with review package", () => {
     }),
   });
   assert.equal(ok.ok, true, JSON.stringify(ok.errors));
+});
+
+test("same-unit APPROVED review clears that unit's prior blocking findings", () => {
+  const oldFinding = {
+    id: "F-OLD",
+    title: "Finding fixed in the current commit",
+    severity: "HIGH",
+    blocking: true,
+  };
+  const state = baseReviewingState({
+    last_review_handoff: goodReviewerHandoff({
+      run_id: "run-reviewer-test",
+      unit_or_task: "unit-1",
+      verdict: "REQUEST_CHANGES",
+      findings: [oldFinding],
+    }),
+    pending_review_findings: [oldFinding],
+  });
+  const result = transition(state, "FINAL_REVIEWING", {
+    review_handoff: goodReviewerHandoff({
+      run_id: "run-reviewer-test",
+      unit_or_task: "unit-1",
+      review_scope: "task",
+      reviewed_commit: "impl222",
+    }),
+    review_package: goodReviewPackage({
+      scope: "task",
+      run_id: "run-reviewer-test",
+      unit_or_task: "unit-1",
+    }),
+  });
+  assert.equal(result.ok, true, JSON.stringify(result.errors));
+  assert.equal(result.state.pending_review_findings, null);
+  assert.equal(result.state.pending_review_unit, null);
+});
+
+test("same-unit approval does not clear findings from another unit", () => {
+  const oldFinding = {
+    id: "F-OTHER",
+    title: "Unresolved finding from another unit",
+    severity: "HIGH",
+    blocking: true,
+  };
+  const state = baseReviewingState({
+    last_review_handoff: goodReviewerHandoff({
+      run_id: "run-reviewer-test",
+      unit_or_task: "unit-0",
+      verdict: "REQUEST_CHANGES",
+      findings: [oldFinding],
+    }),
+    pending_review_findings: [oldFinding],
+  });
+  const result = canTransition(state, "FINAL_REVIEWING", {
+    review_handoff: goodReviewerHandoff({
+      run_id: "run-reviewer-test",
+      unit_or_task: "unit-1",
+      review_scope: "task",
+      reviewed_commit: "impl222",
+    }),
+    review_package: goodReviewPackage({
+      scope: "task",
+      run_id: "run-reviewer-test",
+      unit_or_task: "unit-1",
+    }),
+  });
+  assert.equal(result.ok, false);
+  assert.match(result.errors.join(" "), /unresolved findings: F-OTHER/);
+});
+
+test("final approval can proceed after a same-unit task approval cleared old findings", () => {
+  const oldFinding = {
+    id: "F-OLD",
+    title: "Finding fixed in the current commit",
+    severity: "HIGH",
+    blocking: true,
+  };
+  const taskApproval = goodReviewerHandoff({
+    run_id: "run-reviewer-test",
+    unit_or_task: "unit-1",
+    review_scope: "task",
+  });
+  const state = finalReviewingState({
+    ...createEmptyRunState("run-reviewer-test"),
+    current_unit: "unit-1",
+    implementer_commit: "impl222",
+    head_commit: "base111",
+    last_task_review_handoff: taskApproval,
+    last_review_handoff: taskApproval,
+    pending_review_findings: [oldFinding],
+  });
+  const result = canTransition(
+    state,
+    "FINAL_VERIFYING",
+    finalVerifyingEvidence({ run_id: "run-reviewer-test" }),
+  );
+  assert.equal(result.ok, true, JSON.stringify(result.errors));
 });
 
 test("FINAL_VERIFYING requires final-scope APPROVED", () => {

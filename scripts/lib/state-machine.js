@@ -526,12 +526,96 @@ function reviewerWorkspaceMutationErrors(worktree) {
     : [];
 }
 
-function stateUnitCount(state = {}) {
-  const candidate = state.execution_units ?? state.units ?? state.tasks;
-  if (Array.isArray(candidate)) return candidate.length;
-  if (Number.isFinite(Number(candidate))) return Math.floor(Number(candidate));
-  if (Number.isFinite(Number(state.task_count))) return Math.floor(Number(state.task_count));
+function executionUnitCount(value) {
+  if (Array.isArray(value)) return value.length;
+  if (typeof value === "number" && Number.isInteger(value) && value >= 0) {
+    return value;
+  }
+  if (typeof value === "string" && /^\d+$/.test(value.trim())) {
+    return Number(value.trim());
+  }
   return null;
+}
+
+function unitCountEntries(source = {}) {
+  const entries = [];
+  for (const key of ["execution_units", "units", "tasks", "task_count", "unit_count"]) {
+    const value = source?.[key];
+    if (value == null) continue;
+    entries.push({ name: key, count: executionUnitCount(value) });
+  }
+  const planCheck = source?.plan_check;
+  if (planCheck && typeof planCheck === "object") {
+    for (const key of ["execution_units", "tasks", "unit_count"]) {
+      const value = planCheck[key];
+      if (value == null) continue;
+      entries.push({ name: `plan_check.${key}`, count: executionUnitCount(value) });
+    }
+  }
+  return entries;
+}
+
+function plannedUnitCountErrors(ctx = {}) {
+  const entries = unitCountEntries(ctx);
+  const errors = entries
+    .filter((entry) => entry.count == null)
+    .map((entry) => `PLANNED has invalid execution-unit count evidence in ${entry.name}`);
+  const counts = [...new Set(entries.map((entry) => entry.count).filter((count) => count != null))];
+  if (counts.some((count) => count < 1)) {
+    errors.push("PLANNED requires at least one execution unit in its plan evidence");
+  }
+  if (counts.length > 1) {
+    errors.push(
+      `PLANNED execution-unit count mismatch: ${entries
+        .map((entry) => `${entry.name}=${entry.count ?? "invalid"}`)
+        .join(", ")}`,
+    );
+  }
+  return errors;
+}
+
+function stateUnitCount(state = {}) {
+  const counts = unitCountEntries(state)
+    .map((entry) => entry.count)
+    .filter((count) => count != null);
+  return counts.length > 0 ? Math.max(...counts) : null;
+}
+
+function taskReviewPackageSnapshot(reviewPackage) {
+  if (!reviewPackage || typeof reviewPackage !== "object") return null;
+  return {
+    schema_version: reviewPackage.schema_version || null,
+    scope: reviewPackage.scope || null,
+    run_id: reviewPackage.run_id || null,
+    unit_or_task: reviewPackage.unit_or_task || null,
+    base_commit: reviewPackage.base_commit || null,
+    head_commit: reviewPackage.head_commit || null,
+    path: reviewPackage.path || null,
+    digest_sha256: reviewPackage.digest_sha256 || null,
+    acceptance_criteria: Array.isArray(reviewPackage.acceptance_criteria)
+      ? reviewPackage.acceptance_criteria
+      : [],
+    changed_files: Array.isArray(reviewPackage.changed_files)
+      ? reviewPackage.changed_files
+      : [],
+    production_files: Array.isArray(reviewPackage.production_files)
+      ? reviewPackage.production_files
+      : [],
+  };
+}
+
+function taskReviewHistoryEntry(state, handoff, reviewPackage) {
+  const id = String(
+    state.current_unit || handoff.unit_or_task || handoff.task_id || "current-unit",
+  );
+  return {
+    id,
+    acceptance_criteria: state.acceptance_criteria || [],
+    reviewed_commit: handoff.reviewed_commit,
+    verdict: handoff.verdict,
+    review_handoff: handoff,
+    review_package: taskReviewPackageSnapshot(reviewPackage),
+  };
 }
 
 function singleUnitReuseErrors(state, ctx, handoff, reviewPackage) {
@@ -965,6 +1049,7 @@ export function canTransition(state, to, ctx = {}) {
     if (!adminSkip && ctx.plan_check?.ok === false) {
       errors.push("PLANNED rejects a failed plan-check report");
     }
+    if (!adminSkip) errors.push(...plannedUnitCountErrors(ctx));
   }
 
   if (to === "TASK_IMPACT_READY") {
@@ -1325,13 +1410,33 @@ function canSelfApproveSafe(state, reviewData, ctx = {}) {
 function unresolvedHighFromCtx(ctx, state) {
   const review =
     ctx.review_handoff || ctx.unified_handoff || state.last_review_handoff;
+  const currentUnit = String(state.current_unit || state.current_task || "");
+  const taskApproval =
+    review?.review_scope === "task" ? review : state.last_task_review_handoff;
+  const taskApprovalUnit = String(
+    taskApproval?.unit_or_task || taskApproval?.task_id || "",
+  );
+  const pendingReviewUnit = String(
+    state.pending_review_unit ||
+      (state.last_review_handoff?.review_scope === "task"
+        ? state.last_review_handoff.unit_or_task ||
+            state.last_review_handoff.task_id
+        : "") ||
+      "",
+  );
+  const approvedFixReview =
+    taskApproval?.verdict === "APPROVED" &&
+    (taskApproval.review_scope || "task") === "task" &&
+    currentUnit !== "" &&
+    taskApprovalUnit === currentUnit &&
+    pendingReviewUnit === currentUnit;
   const findings = [
     ...(ctx.findings || []),
     ...(state.findings || []),
     ...(ctx.integration_handoff?.findings || []),
     ...(review?.findings || []),
-    ...(state.pending_review_findings || []),
-    ...(state.last_review_handoff?.findings || []),
+    ...(approvedFixReview ? [] : state.pending_review_findings || []),
+    ...(approvedFixReview ? [] : state.last_review_handoff?.findings || []),
   ];
   return findings.filter(isBlockingFinding);
 }
@@ -1349,22 +1454,23 @@ function fixLoopAttemptsForUnit(state = {}, unit) {
 }
 
 function resolveAgentCallBudget(state, ctx = {}, to = null) {
-  const unitCandidate =
-    to === "PLANNED"
-      ? ctx.execution_units ?? ctx.units ?? ctx.tasks ?? ctx.task_count
-      : state.execution_units ?? state.units ?? state.tasks ?? state.task_count;
-  const units = Array.isArray(unitCandidate)
-    ? unitCandidate.length || 1
-    : Number(unitCandidate) > 0
-      ? Math.floor(Number(unitCandidate))
-      : 1;
+  const unitEvidence = unitCountEntries(to === "PLANNED" ? ctx : state);
+  const counts = unitEvidence
+    .map((entry) => entry.count)
+    .filter((count) => count != null && count > 0);
+  const units = counts.length > 0 ? Math.max(...counts) : 1;
   const planningAdvisorCalls = Math.max(
     Number(state.plan_advisor_calls) || 0,
     planAdvisorCallsFromContext(ctx, state),
   );
+  const storedBudget = state.agent_call_budget;
+  const staleDerivedBudget =
+    storedBudget?.source === "v5-default-workflow" &&
+    Number(storedBudget.units) !== units &&
+    Number(storedBudget.max_calls) === Number(storedBudget.derived_max_calls);
   const budget = getAgentCallBudget({
     units,
-    maxCalls: state.agent_call_budget?.max_calls,
+    maxCalls: staleDerivedBudget ? undefined : storedBudget?.max_calls,
     planningAdvisorCalls,
   });
   const used = Number.isInteger(state.agent_calls_used) ? state.agent_calls_used : 0;
@@ -1421,7 +1527,10 @@ function agentCallsForTransition(from, to, state, ctx) {
 function assertAgentCallBudget(state, to, ctx = {}) {
   const from = state.state;
   const charge = agentCallsForTransition(from, to, state, ctx);
-  if (!charge.count) return { ok: true, used: state.agent_calls_used || 0 };
+  if (!charge.count) {
+    const { used, budget } = resolveAgentCallBudget(state, ctx, to);
+    return { ok: true, used, budget };
+  }
 
   const { used, budget } = resolveAgentCallBudget(state, ctx, to);
   if (used + charge.count > budget.max_calls) {
@@ -1561,9 +1670,23 @@ export function transition(state, to, evidence = {}, providers = null) {
       ctx.question || ctx.user_question || ctx.clarifying_question || null;
   }
   if (to === "PLANNED") {
-    if (ctx.tasks != null) next.tasks = ctx.tasks;
-    if (ctx.units != null) next.units = ctx.units;
-    if (ctx.execution_units != null) next.execution_units = ctx.execution_units;
+    const plannedUnits =
+      ctx.plan_check?.execution_units ??
+      ctx.plan_check?.tasks ??
+      ctx.execution_units ??
+      ctx.units ??
+      ctx.tasks;
+    if (Array.isArray(plannedUnits)) {
+      next.execution_units = plannedUnits;
+      next.units = plannedUnits;
+      next.tasks = plannedUnits;
+      next.task_count = plannedUnits.length;
+    } else {
+      const plannedCount = unitCountEntries(ctx)
+        .map((entry) => entry.count)
+        .find((count) => count != null);
+      if (plannedCount != null) next.task_count = plannedCount;
+    }
     const planningMode = planningModeFromContext(ctx, state);
     if (planningMode) next.planning_mode = planningMode;
     const advisor = planAdvisorEvidence(ctx, state);
@@ -1606,6 +1729,7 @@ export function transition(state, to, evidence = {}, providers = null) {
       if (data.verdict === "REQUEST_CHANGES") {
         next.pending_review_findings = data.findings || [];
         const unit = reviewUnitForFixLoop(state, data);
+        next.pending_review_unit = unit;
         next.fix_loop_attempts = {
           ...(state.fix_loop_attempts && typeof state.fix_loop_attempts === "object"
             ? state.fix_loop_attempts
@@ -1614,15 +1738,18 @@ export function transition(state, to, evidence = {}, providers = null) {
         };
       } else if (data.verdict === "APPROVED") {
         next.pending_review_findings = null;
+        next.pending_review_unit = null;
+        next.last_task_review_handoff = data;
         const history = Array.isArray(state.task_history)
           ? [...state.task_history]
           : [];
-        history.push({
-          id: state.current_unit || data.unit_or_task,
-          acceptance_criteria: state.acceptance_criteria || [],
-          reviewed_commit: data.reviewed_commit,
-          verdict: data.verdict,
-        });
+        history.push(
+          taskReviewHistoryEntry(
+            state,
+            data,
+            ctx.review_package || state.review_package,
+          ),
+        );
         next.task_history = history;
       }
     }
@@ -1687,15 +1814,20 @@ export function transition(state, to, evidence = {}, providers = null) {
       const { data } = normalizeAndValidateHandoff("reviewer", raw);
       next.last_task_review_handoff = data;
       next.last_review_handoff = data;
+      if (data.verdict === "APPROVED") {
+        next.pending_review_findings = null;
+        next.pending_review_unit = null;
+      }
       const history = Array.isArray(state.task_history)
         ? [...state.task_history]
         : [];
-      history.push({
-        id: state.current_unit || data.unit_or_task,
-        acceptance_criteria: state.acceptance_criteria || [],
-        reviewed_commit: data.reviewed_commit,
-        verdict: data.verdict,
-      });
+      history.push(
+        taskReviewHistoryEntry(
+          state,
+          data,
+          ctx.review_package || state.review_package,
+        ),
+      );
       next.task_history = history;
     }
     if (ctx.review_package) next.review_package = ctx.review_package;
@@ -1706,6 +1838,10 @@ export function transition(state, to, evidence = {}, providers = null) {
       const { data } = normalizeAndValidateHandoff("reviewer", raw);
       next.last_final_review_handoff = data;
       next.last_review_handoff = data;
+      if (data.verdict === "APPROVED" && data.review_scope === "final") {
+        next.pending_review_findings = null;
+        next.pending_review_unit = null;
+      }
     }
     if (ctx.review_package) next.review_package = ctx.review_package;
     if (state.state === "REVIEWING" && finalReviewReuseRequested(ctx)) {

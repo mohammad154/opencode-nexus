@@ -86,9 +86,19 @@ nexus run inspect --run-id <id>
 
 Separate implementation steps from execution units. Prefer the minimum number
 of cohesive units that remain independently implementable, verifiable,
-reviewable, and safe. Every PLAN.md must include `## Execution Unit
+reviewable, and safe. Every unit must state `user_outcome`,
+`independently_shippable`, `review_boundary`, and `estimated_lines`. Use
+`review_boundary: NONE` unless one real independent boundary applies; valid
+values are `PUBLIC_CONTRACT`, `SECURITY_BOUNDARY`, `MIGRATION_BOUNDARY`,
+`INDEPENDENT_ROLLBACK`, `INDEPENDENT_SHIPPING`, `REVIEW_SIZE_LIMIT`, and
+`SUBSYSTEM_BOUNDARY`. Every PLAN.md must include `## Execution Unit
 Justification` with the number of units and reasons why fewer or more units are
 not appropriate.
+
+Merge dependent units that are not independently shippable when their combined
+scope fits reviewer-audit limits and no named boundary justifies a split. An
+implementation step, test, type, or setup task is not an execution unit by
+itself.
 
 Planning modes:
 
@@ -108,7 +118,11 @@ It checks the dependency DAG,
 acceptance/verification ownership, duplicate or overlapping scope, suspicious
 test/setup-only units, reviewer-audit size, and the call estimate. Every
 actionable warning must have a `MERGED` or `KEEP_SEPARATE` disposition with a
-reason; a failed check must not be hidden in the transition evidence.
+reason; `KEEP_SEPARATE` also requires a `reason_code` from the seven valid
+review-boundary values and an evidence-based explanation. `MERGED` means the
+plan was actually consolidated: rerun `nexus plan-check` until the candidate
+disappears, then remove its stale disposition. A failed check must not be
+hidden in the transition evidence.
 
 ## Lifecycle
 
@@ -121,6 +135,7 @@ reason; a failed check must not be hidden in the transition evidence.
 - A unit has at most three remediation attempts. On `FIX_LOOP_EXHAUSTED` or `AGENT_CALL_BUDGET_EXCEEDED`, do not dispatch another agent: transition to `BLOCKED` with the reported code, then reconcile/re-plan.
 - During execution dispatch only `implementer` and `reviewer`; `plan-advisor` is allowed only in the planning gate above.
 - `VERIFYING` and `FINAL_VERIFYING` are deterministic measurement states, never a verifier subagent. Enter them quickly, then run `nexus verify`.
+- The implementer runs targeted checks after internal implementation steps, then completes the unit's declared gates. Nexus does not persist or authorize each internal step as a separate verification boundary: run deterministic `nexus verify` for the completed unit before its one task reviewer.
 - Dispatch the reviewer only after `nexus next` reports `transition_to_reviewing`. If verification is `RUNNING` or `TIMED_OUT`, run `nexus verify --resume`; if `FAILED`, inspect/repair it without redispatching implementer or reviewer automatically.
 - Fresh implementer per execution unit; isolated worktree; `allowed_files` scope lock.
 - Pass pre-impact (dependents, callers, related tests) into the implementer prompt.

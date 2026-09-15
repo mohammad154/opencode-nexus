@@ -7,6 +7,7 @@
 import fs from "fs";
 import path from "path";
 import { planningModeFromEvidence } from "./planning.js";
+import { getAgentCallBudget } from "./providers.js";
 
 /**
  * @typedef {object} NextAction
@@ -27,12 +28,23 @@ function planExists(worktree) {
 }
 
 function stateHasSingleUnit(runState) {
-  const candidate =
-    runState?.execution_units ?? runState?.units ?? runState?.tasks;
-  if (Array.isArray(candidate)) return candidate.length === 1;
-  if (Number.isFinite(Number(candidate))) return Number(candidate) === 1;
-  if (runState?.task_count != null) return Number(runState.task_count) === 1;
-  return false;
+  const candidates = [
+    runState?.execution_units,
+    runState?.units,
+    runState?.tasks,
+    runState?.task_count,
+    runState?.plan_check?.execution_units,
+    runState?.plan_check?.tasks,
+    runState?.plan_check?.unit_count,
+  ].filter((candidate) => candidate != null);
+  const counts = candidates
+    .map((candidate) => {
+      if (Array.isArray(candidate)) return candidate.length;
+      const count = Number(candidate);
+      return Number.isInteger(count) && count >= 0 ? count : null;
+    })
+    .filter((count) => count != null && count > 0);
+  return counts.length > 0 && Math.max(...counts) === 1;
 }
 
 function stateRunPlanningMode(runState) {
@@ -57,7 +69,36 @@ function stateRunPlanningMode(runState) {
 
 function exhaustedAgentCallBudget(runState) {
   const used = Number(runState?.agent_calls_used);
-  const max = Number(runState?.agent_call_budget?.max_calls);
+  const storedBudget = runState?.agent_call_budget;
+  let max = Number(storedBudget?.max_calls);
+  const unitCount = [
+    runState?.execution_units,
+    runState?.units,
+    runState?.tasks,
+    runState?.task_count,
+    runState?.plan_check?.execution_units,
+    runState?.plan_check?.tasks,
+    runState?.plan_check?.unit_count,
+  ]
+    .filter((candidate) => candidate != null)
+    .map((candidate) => {
+      if (Array.isArray(candidate)) return candidate.length;
+      const count = Number(candidate);
+      return Number.isInteger(count) && count >= 0 ? count : null;
+    })
+    .filter((count) => count != null && count > 0)
+    .reduce((largest, count) => Math.max(largest, count), 0);
+  const storedIsStaleDerived =
+    unitCount > 0 &&
+    storedBudget?.source === "v5-default-workflow" &&
+    Number(storedBudget.units) !== unitCount &&
+    Number(storedBudget.max_calls) === Number(storedBudget.derived_max_calls);
+  if (storedIsStaleDerived) {
+    max = getAgentCallBudget({
+      units: unitCount,
+      planningAdvisorCalls: runState.plan_advisor_calls,
+    }).max_calls;
+  }
   return Number.isFinite(used) && Number.isFinite(max) && max >= 0 && used >= max
     ? { used, max }
     : null;

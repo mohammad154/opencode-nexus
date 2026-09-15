@@ -23,12 +23,37 @@ const GENERIC_TITLE_WORDS = new Set([
 
 const ACTIONABLE_WARNING_CODES = new Set([
   "MERGE_CANDIDATE",
+  "STRONG_MERGE_CANDIDATE",
   "TEST_ONLY_UNIT",
   "SETUP_ONLY_UNIT",
   "DUPLICATE_ALLOWED_FILE",
   "OVERSIZED_UNIT",
 ]);
 const WARNING_DISPOSITION_DECISIONS = new Set(["MERGED", "KEEP_SEPARATE"]);
+
+// KEEP_SEPARATE reasons are contract categories; free text explains the
+// concrete boundary but cannot invent a new category.
+const KEEP_SEPARATE_REASON_CODES = new Set([
+  "PUBLIC_CONTRACT",
+  "SECURITY_BOUNDARY",
+  "MIGRATION_BOUNDARY",
+  "INDEPENDENT_ROLLBACK",
+  "INDEPENDENT_SHIPPING",
+  "REVIEW_SIZE_LIMIT",
+  "SUBSYSTEM_BOUNDARY",
+]);
+// These values make review boundaries explicit; free-form text cannot suppress
+// the strong merge rule.
+const REVIEW_BOUNDARIES = new Set([
+  "none",
+  "public_contract",
+  "security_boundary",
+  "migration_boundary",
+  "independent_rollback",
+  "independent_shipping",
+  "review_size_limit",
+  "subsystem_boundary",
+]);
 
 function clean(value) {
   return String(value ?? "").replace(/\r$/, "").trim();
@@ -47,6 +72,46 @@ function scalarAfter(lines, pattern) {
 function parseNumber(value) {
   const match = String(value ?? "").match(/\b(\d+)\b/);
   return match ? Number(match[1]) : null;
+}
+
+function parseEstimatedLines(value) {
+  const text = clean(value);
+  if (!text) return null;
+  if (/^\d+$/.test(text)) return Number(text);
+  return text;
+}
+
+function parseBooleanMetadata(value) {
+  const text = clean(value);
+  if (/^true$/i.test(text)) return true;
+  if (/^false$/i.test(text)) return false;
+  return text;
+}
+
+function normalizeUserOutcome(value) {
+  return typeof value === "string" ? value.trim().replace(/\s+/g, " ") : value;
+}
+
+function userOutcomeKey(value) {
+  if (typeof value !== "string") return "";
+  return value
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim();
+}
+
+function normalizeReviewBoundary(value) {
+  return typeof value === "string"
+    ? value.trim().toLowerCase().replace(/[\s-]+/g, "_")
+    : value;
+}
+
+function firstOwnValue(object, keys) {
+  for (const key of keys) {
+    if (Object.prototype.hasOwnProperty.call(object, key)) return object[key];
+  }
+  return undefined;
 }
 
 function splitValues(value) {
@@ -90,6 +155,7 @@ function normalizeWarningDispositions(raw) {
       units: [...new Set(units)],
       file: clean(disposition.file),
       decision: clean(disposition.decision).toUpperCase(),
+      reason_code: clean(disposition.reason_code ?? disposition.reasonCode).toUpperCase(),
       reason: clean(disposition.reason),
     };
   });
@@ -115,7 +181,7 @@ function parseWarningDispositions(lines) {
       continue;
     }
     if (!current) continue;
-    const field = line.match(/^\s*[-*]?\s*(units?|unit_ids?|file|decision|reason)\s*:\s*(.*)$/i);
+    const field = line.match(/^\s*[-*]?\s*(units?|unit_ids?|file|decision|reason_code|reason)\s*:\s*(.*)$/i);
     if (!field) continue;
     const key = field[1].toLowerCase();
     const value = unquote(field[2]);
@@ -192,6 +258,11 @@ function parseUnit(section, index) {
     effort: scalarAfter(lines, /^[-*]\s*effort\s*:\s*/i),
     confidence: scalarAfter(lines, /^[-*]\s*confidence\s*:\s*/i),
     risk: scalarAfter(lines, /^[-*]\s*risk\s+if\s+wrong\s*:\s*/i),
+    user_outcome: scalarAfter(lines, /^[-*]\s*user[_ ]+outcome\s*:\s*/i),
+    independently_shippable: parseBooleanMetadata(
+      scalarAfter(lines, /^[-*]\s*independently[_ ]+shippable\s*:\s*/i),
+    ),
+    review_boundary: scalarAfter(lines, /^[-*]\s*review[_ ]+boundary\s*:\s*/i),
   };
 
   const allowedFiles = [];
@@ -202,6 +273,13 @@ function parseUnit(section, index) {
   const verification = [];
   const evidence = [];
   for (const line of lines) {
+    if (
+      /^[-*]\s*(?:id|depends(?:\s+on)?|deps|effort|confidence|risk\s+if\s+wrong|user[_ ]+outcome|independently[_ ]+shippable|review[_ ]+boundary|estimated[_ ]+lines?|lines?)\s*:/i.test(line)
+    ) {
+      inScope = false;
+      inAcceptance = false;
+      inVerification = false;
+    }
     if (/^[-*]\s*scope\s*:/i.test(line)) {
       inScope = true;
       inAcceptance = false;
@@ -271,7 +349,7 @@ function parseUnit(section, index) {
 
   const estimatedLineText = scalarAfter(
     lines,
-    /^[-*]\s*(?:estimated\s+)?lines?\s*:\s*/i,
+    /^[-*]\s*(?:estimated[_ ]+)?lines?\s*:\s*/i,
   );
   const title = section.title;
   return {
@@ -281,7 +359,7 @@ function parseUnit(section, index) {
       .filter(
         (line) =>
           line &&
-          !/^[-*]\s*(?:id|depends|deps|effort|confidence|risk|scope|acceptance|verification|evidence|allowed|files|estimated\s+lines?|lines?)\b/i.test(line),
+          !/^[-*]\s*(?:id|depends|deps|effort|confidence|risk|scope|acceptance|verification|evidence|allowed|files|user[_ ]+outcome|independently[_ ]+shippable|review[_ ]+boundary|estimated[_ ]+lines?|lines?)\b/i.test(line),
       )
       .join(" "),
     depends_on: metadata.depends_on,
@@ -292,7 +370,10 @@ function parseUnit(section, index) {
     effort: metadata.effort,
     confidence: metadata.confidence,
     risk: metadata.risk,
-    estimated_lines: parseNumber(estimatedLineText),
+    user_outcome: normalizeUserOutcome(metadata.user_outcome),
+    independently_shippable: metadata.independently_shippable,
+    review_boundary: normalizeReviewBoundary(metadata.review_boundary),
+    estimated_lines: parseEstimatedLines(estimatedLineText),
     source_heading: section.title,
   };
 }
@@ -337,10 +418,21 @@ function normalizeUnit(raw, index) {
     verification_gates: Array.isArray(verification)
       ? verification.map((item) => clean(typeof item === "object" ? item.command || item.cmd || item.text : item)).filter(Boolean)
       : splitValues(verification),
-    estimated_lines:
-      unit.estimated_lines == null
-        ? parseNumber(unit.lines)
-        : Number(unit.estimated_lines) || null,
+    user_outcome: normalizeUserOutcome(
+      firstOwnValue(unit, ["user_outcome", "userOutcome"]),
+    ),
+    independently_shippable: firstOwnValue(unit, [
+      "independently_shippable",
+      "independentlyShippable",
+    ]),
+    review_boundary: normalizeReviewBoundary(
+      firstOwnValue(unit, ["review_boundary", "reviewBoundary"]),
+    ),
+    estimated_lines: firstOwnValue(unit, [
+      "estimated_lines",
+      "estimatedLines",
+      "lines",
+    ]),
   };
 }
 
@@ -418,6 +510,30 @@ function describeCandidate(a, b, overlap) {
   return reasons;
 }
 
+function hasDirectDependency(a, b) {
+  return (a.depends_on || []).includes(b.id) || (b.depends_on || []).includes(a.id);
+}
+
+function isStrongMergeCandidate(a, b, { maxFiles, maxLines }) {
+  if (!hasDirectDependency(a, b)) return false;
+  if (a.independently_shippable !== false || b.independently_shippable !== false) {
+    return false;
+  }
+  if (a.review_boundary !== "none" || b.review_boundary !== "none") return false;
+  const outcome = userOutcomeKey(a.user_outcome);
+  if (!outcome || outcome !== userOutcomeKey(b.user_outcome)) return false;
+  if (
+    !Number.isInteger(a.estimated_lines) ||
+    a.estimated_lines <= 0 ||
+    !Number.isInteger(b.estimated_lines) ||
+    b.estimated_lines <= 0
+  ) {
+    return false;
+  }
+  const files = new Set([...(a.allowed_files || []), ...(b.allowed_files || [])]);
+  return files.size <= maxFiles && a.estimated_lines + b.estimated_lines <= maxLines;
+}
+
 function warningUnits(warning) {
   if (Array.isArray(warning.units)) return warning.units.map(clean).filter(Boolean);
   if (warning.unit) return [clean(warning.unit)];
@@ -473,6 +589,40 @@ function validateWarningDispositions(warnings, dispositions) {
         code: "INVALID_WARNING_DISPOSITION",
         warning_code: disposition.code,
         message: `${disposition.code} disposition requires a reason`,
+      });
+    }
+    if (disposition.decision === "KEEP_SEPARATE") {
+      if (!KEEP_SEPARATE_REASON_CODES.has(disposition.reason_code)) {
+        errors.push({
+          code: "INVALID_WARNING_REASON_CODE",
+          warning_code: disposition.code,
+          message: `${disposition.code} KEEP_SEPARATE disposition requires a supported reason_code`,
+        });
+      }
+      const strongWarning = actionable.find(
+        (warning) =>
+          warning.code === "STRONG_MERGE_CANDIDATE" &&
+          dispositionMatchesWarning(disposition, warning),
+      );
+      if (strongWarning) {
+        errors.push({
+          code: "STRONG_MERGE_CANDIDATE_CANNOT_KEEP_SEPARATE",
+          warning_code: strongWarning.code,
+          units: warningUnits(strongWarning),
+          message: `STRONG_MERGE_CANDIDATE for ${warningUnits(strongWarning).join(", ")} cannot be kept separate while its merge prerequisites hold`,
+        });
+      }
+    }
+    if (
+      disposition.decision === "MERGED" &&
+      actionable.some((warning) => dispositionMatchesWarning(disposition, warning))
+    ) {
+      errors.push({
+        code: "MERGED_DISPOSITION_REQUIRES_PLAN_CHANGE",
+        warning_code: disposition.code,
+        units: disposition.units,
+        file: disposition.file,
+        message: `${disposition.code} is still present in the plan; merge or resolve it, rerun plan-check, and remove this disposition`,
       });
     }
     if (!actionable.some((warning) => dispositionMatchesWarning(disposition, warning))) {
@@ -574,6 +724,23 @@ export function checkPlan(plan, options = {}) {
     if ((unit.verification_gates || []).length === 0) {
       errors.push({ code: "MISSING_VERIFICATION", unit: unit.id, message: `${unit.id} has no verification gate` });
     }
+    const requiredMetadata = [
+      ["user_outcome", typeof unit.user_outcome === "string" && userOutcomeKey(unit.user_outcome).length > 0],
+      ["independently_shippable", typeof unit.independently_shippable === "boolean"],
+      ["review_boundary", typeof unit.review_boundary === "string" && REVIEW_BOUNDARIES.has(unit.review_boundary)],
+      ["estimated_lines", Number.isInteger(unit.estimated_lines) && unit.estimated_lines > 0],
+    ];
+    for (const [field, valid] of requiredMetadata) {
+      if (!valid) {
+        const missing = unit[field] == null || unit[field] === "";
+        errors.push({
+          code: missing ? "MISSING_UNIT_METADATA" : "INVALID_UNIT_METADATA",
+          unit: unit.id,
+          field,
+          message: `${unit.id} needs ${field} metadata ${missing ? "with a value" : "in the supported format"}`,
+        });
+      }
+    }
     if ((unit.allowed_files || []).length > maxFiles) {
       warnings.push({ code: "OVERSIZED_UNIT", unit: unit.id, message: `${unit.id} names ${unit.allowed_files.length} allowed files; reviewer auditability is at risk` });
     }
@@ -614,15 +781,31 @@ export function checkPlan(plan, options = {}) {
     for (let j = i + 1; j < units.length; j += 1) {
       const overlap = unitOverlap(units[i], units[j]);
       const reasons = describeCandidate(units[i], units[j], overlap);
-      if (reasons.length > 0) {
+      const strong = isStrongMergeCandidate(units[i], units[j], {
+        maxFiles,
+        maxLines,
+      });
+      if (strong || reasons.length > 0) {
+        const candidateReasons = strong
+          ? [...reasons, "direct dependency shares a non-independent user outcome within review thresholds"]
+          : reasons;
         const candidate = {
+          code: strong ? "STRONG_MERGE_CANDIDATE" : "MERGE_CANDIDATE",
           units: [units[i].id, units[j].id],
           overlap_ratio: Number(overlap.ratio.toFixed(3)),
-          reasons,
-          message: `${units[i].id} and ${units[j].id} are merge candidates: ${reasons.join(", ")}`,
+          reasons: candidateReasons,
+          message: `${units[i].id} and ${units[j].id} are merge candidates: ${candidateReasons.join(", ")}`,
         };
         mergeCandidates.push(candidate);
-        warnings.push({ code: "MERGE_CANDIDATE", ...candidate });
+        warnings.push({ ...candidate });
+        if (strong) {
+          errors.push({
+            code: "STRONG_MERGE_REQUIRED",
+            warning_code: candidate.code,
+            units: candidate.units,
+            message: `merge ${candidate.units.join(" and ")} into one execution unit and rerun plan-check`,
+          });
+        }
       }
     }
   }

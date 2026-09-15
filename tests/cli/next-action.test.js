@@ -183,6 +183,40 @@ test("REVIEWING distinguishes single-unit reuse from multi-unit final review", (
   assert.doesNotMatch(multi.instruction, /single unit.*reuse/i);
 });
 
+test("REVIEWING uses plan-check units when runtime unit aliases are absent", () => {
+  const units = [{ id: "unit-1" }, { id: "unit-2" }, { id: "unit-3" }];
+  const next = resolveNextAction({
+    run_id: "r-plan-count",
+    state: "REVIEWING",
+    execution_units: null,
+    units: null,
+    plan_check: { unit_count: 3, execution_units: units, tasks: units },
+  });
+  assert.match(next.instruction, /FINAL_REVIEWING/i);
+  assert.doesNotMatch(next.instruction, /single unit.*reuse/i);
+});
+
+test("next action repairs an automatically derived budget from plan-check units", () => {
+  const units = [{ id: "unit-1" }, { id: "unit-2" }, { id: "unit-3" }];
+  const next = resolveNextAction({
+    run_id: "r-stale-budget",
+    state: "IMPLEMENTING",
+    execution_units: null,
+    units: null,
+    task_count: null,
+    plan_check: { unit_count: 3, execution_units: units, tasks: units },
+    plan_advisor_calls: 1,
+    agent_calls_used: 6,
+    agent_call_budget: {
+      source: "v5-default-workflow",
+      units: 1,
+      max_calls: 6,
+      derived_max_calls: 6,
+    },
+  });
+  assert.equal(next.action, "dispatch_implementer");
+});
+
 test("buildRunGateReminder includes Nexus Next Action", () => {
   const text = buildRunGateReminder({
     state: "IMPLEMENTING",

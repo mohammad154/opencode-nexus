@@ -12,7 +12,7 @@ Create or update `.opencode/plans/PLAN.md` — a self-contained, verification-ga
 
 This skill borrows the three guarantees from shadcn/improve:
 - **Self-contained.** All context inlined — exact file paths, current-state excerpts, conventions with an exemplar, git commit stamped.
-- **Verification gates.** Every step ends with a command + expected output. Done criteria are machine-checkable.
+- **Verification gates.** Each implementation step ends with a targeted command + expected output. The full unit still has its own machine-checkable verification gates.
 - **Hard boundaries.** Explicit scope, explicit out-of-scope, explicit STOP conditions.
 
 ## Step 0 — Recon (always before planning)
@@ -78,19 +78,37 @@ Why not more:
 ## Plan Check Dispositions
 
 Add one disposition for every actionable warning reported by `nexus plan-check`.
-Use `KEEP_SEPARATE` when the boundary is intentional, and explain why. Use
-`MERGED` only to record that the warned scopes were combined in a plan
-revision; rerun `nexus plan-check` after that revision and remove any stale
-disposition for a warning that is no longer reported.
+For `KEEP_SEPARATE`, set `reason_code` to exactly one of `PUBLIC_CONTRACT`,
+`SECURITY_BOUNDARY`, `MIGRATION_BOUNDARY`, `INDEPENDENT_ROLLBACK`,
+`INDEPENDENT_SHIPPING`, `REVIEW_SIZE_LIMIT`, or `SUBSYSTEM_BOUNDARY`, and add a
+plain-language `reason` that explains the evidence for that boundary. Free text
+does not replace the code. Use `MERGED` only after combining the warned scopes;
+rerun `nexus plan-check` until no merge-candidate warning (`MERGE_CANDIDATE` or
+`STRONG_MERGE_CANDIDATE`) remains for those units, then remove its stale
+disposition.
+
+Choose the code that names the actual independent seam: `PUBLIC_CONTRACT` for
+separate public or wire compatibility surfaces; `SECURITY_BOUNDARY` for a
+distinct threat or privilege boundary; `MIGRATION_BOUNDARY` for an independently
+staged migration; `INDEPENDENT_ROLLBACK` when rollback must be isolated;
+`INDEPENDENT_SHIPPING` for a complete useful slice that ships alone;
+`REVIEW_SIZE_LIMIT` when the combined scope exceeds reviewer-audit limits; or
+`SUBSYSTEM_BOUNDARY` for distinct, loosely coupled subsystems. Use one code, not
+a generic rationale such as “easier to review.”
 
 - code: MERGE_CANDIDATE
   units: unit-1, unit-2
   decision: KEEP_SEPARATE
-  reason: Separate public contracts require independent review boundaries.
+  reason_code: PUBLIC_CONTRACT
+  reason: The units implement separately versioned public contracts.
 
 ## Execution Unit breakdown (ordered, dependencies noted)
 ### Execution Unit 1: <title> (slug: <slug>)
 - id: unit-1
+- user_outcome: <user-visible behavior this unit completes>
+- independently_shippable: true|false
+- review_boundary: NONE|PUBLIC_CONTRACT|SECURITY_BOUNDARY|MIGRATION_BOUNDARY|INDEPENDENT_ROLLBACK|INDEPENDENT_SHIPPING|REVIEW_SIZE_LIMIT|SUBSYSTEM_BOUNDARY
+- estimated_lines: <integer estimate for the unit's combined change>
 - Effort: XS|S|M|L|XL  (XS=<30m, S=<2h, M=half-day, L=day, XL=split)
 - Confidence: LOW|MEDIUM|HIGH
 - Risk if wrong: LOW|MEDIUM|HIGH + one-liner why
@@ -115,7 +133,9 @@ disposition for a warning that is no longer reported.
   - STOP if another task's commit already modified target file (check `git log base..HEAD -- path`)
 - Implementation sketch (curated, not full solution):
   - Step 1: ...
+    - Targeted check: `<command>` – expected: <observable result>
   - Step 2: ...
+    - Targeted check: `<command>` – expected: <observable result>
 
 (Repeat for Execution Unit 2..N)
 
@@ -131,8 +151,14 @@ flowchart LR
 
 ## Verification strategy (global)
 - Baseline: run verification commands on base_branch first, record result in handoff
-- Per-unit: run same commands + unit-specific checks
-- Final: full suite on base_branch after all units merged
+- Per-unit: run the unit's declared gates after its implementation steps; Nexus then runs deterministic `nexus verify` before the task reviewer.
+- Final: after the required multi-unit whole-branch reviewer, run final deterministic `nexus verify` with the full suite and other required checks.
+
+Targeted checks after internal steps are implementer practice for fast feedback.
+They do not create separate Nexus verification states: Nexus persists and
+authorizes verification at the completed execution-unit boundary, not after
+each internal step. A unit receives one task review only after its deterministic
+verification passes.
 
 ## Rollback / safety
 - Each execution unit is a feature branch; discard if blocked
@@ -152,6 +178,7 @@ conditions:
 
 Each task-N.md MUST include:
 - Frontmatter-like header: id, title, commit drift sha, base_branch, effort, confidence, dependencies
+- `user_outcome`, `independently_shippable`, `review_boundary`, and `estimated_lines`
 - Evidence with file:line
 - Scope in/out
 - Related callers / blast radius (run `nexus impact --json --targets <path>` or `nexus blast --files <target> --task N`)
@@ -169,8 +196,11 @@ Label confidence honestly:
 
 - Prefer the minimum number of cohesive execution units that remain independently implementable, verifiable, reviewable, and safe.
 - An implementation step is not automatically an execution unit. Keep model/types/tests/setup with the behavior they support unless an independent boundary justifies separation.
+- Give every unit the four required fields above. Use `review_boundary: NONE` when there is no independent boundary; otherwise use one of the seven boundary values and explain it.
+- Merge dependent units by default when they cannot ship independently and their combined scope fits the configured reviewer-audit limits, unless a named boundary justifies separation. Do not turn a step, test, type, or setup task into a unit on its own.
 - For every plan, include `## Execution Unit Justification` with reasons why fewer and more units are not appropriate.
 - Run `nexus plan-check --json` before transitioning to `PLANNED`; fix errors and add a disposition for every actionable warning.
+- For `KEEP_SEPARATE`, use one of the seven `reason_code` values above plus a concrete explanation. For `MERGED`, revise the plan and rerun `nexus plan-check` until no merge-candidate warning remains for those units; remove stale dispositions.
 - Prefer minimal diffs and existing patterns — cite an exemplar file per task.
 - Do not start implementation in this skill.
 - Every task file must have:

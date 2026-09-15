@@ -118,6 +118,58 @@ test("PLANNED rejects a skeletal plan without a passing plan-check report", () =
   assert.match(rejected.errors.join(" "), /failed plan-check|plan-check/i);
 });
 
+test("PLANNED persists checked execution units and uses their call budget", () => {
+  const state = transition(
+    createEmptyRunState("plan-unit-count"),
+    "BRAINSTORMING",
+    {},
+  ).state;
+  const executionUnits = [
+    { id: "unit-1" },
+    { id: "unit-2" },
+    { id: "unit-3" },
+  ];
+  const result = transition(state, "PLANNED", {
+    plan_exists: true,
+    plan_check: {
+      ok: true,
+      plan_check: "PASS",
+      unit_count: 3,
+      execution_units: executionUnits,
+      tasks: executionUnits,
+      errors: [],
+    },
+  });
+
+  assert.equal(result.ok, true, JSON.stringify(result.errors));
+  assert.deepEqual(result.state.execution_units, executionUnits);
+  assert.deepEqual(result.state.units, executionUnits);
+  assert.deepEqual(result.state.tasks, executionUnits);
+  assert.equal(result.state.task_count, 3);
+  assert.equal(result.state.agent_call_budget.units, 3);
+  assert.ok(result.state.agent_call_budget.max_calls > 6);
+});
+
+test("PLANNED rejects disagreement between checked and runtime unit counts", () => {
+  const state = transition(
+    createEmptyRunState("plan-unit-count-mismatch"),
+    "BRAINSTORMING",
+    {},
+  ).state;
+  const result = canTransition(state, "PLANNED", {
+    plan_exists: true,
+    execution_units: [{ id: "unit-1" }],
+    plan_check: {
+      ok: true,
+      unit_count: 3,
+      execution_units: [{ id: "unit-1" }, { id: "unit-2" }, { id: "unit-3" }],
+    },
+  });
+
+  assert.equal(result.ok, false);
+  assert.match(result.errors.join(" "), /execution-unit count mismatch/i);
+});
+
 test("plan_skip rejected without admin compatibility mode", () => {
   let state = transition(createEmptyRunState("t2c"), "BRAINSTORMING", {}).state;
   const r = transition(state, "PLANNED", { plan_skip: true });
@@ -318,6 +370,55 @@ test("IMPLEMENTING is rejected before dispatch when the agent-call budget is exh
   assert.match(result.errors.join(" "), /AGENT_CALL_BUDGET_EXCEEDED/);
 });
 
+test("a stale one-unit derived budget is reconciled from persisted plan-check units", () => {
+  const providers = mockTrustProviders({
+    impact: sealedImpact({ phase: "pre", pre_impact: true, trusted: false }),
+  });
+  let state = advanceToImpactReady(createEmptyRunState("budget-plan-reconcile"), providers);
+  const executionUnits = [
+    { id: "unit-1" },
+    { id: "unit-2" },
+    { id: "unit-3" },
+  ];
+  state = {
+    ...state,
+    execution_units: null,
+    units: null,
+    tasks: null,
+    task_count: null,
+    plan_check: {
+      ok: true,
+      unit_count: 3,
+      execution_units: executionUnits,
+      tasks: executionUnits,
+    },
+    agent_calls_used: 6,
+    agent_call_budget: {
+      source: "v5-default-workflow",
+      units: 1,
+      max_calls: 6,
+      derived_max_calls: 6,
+    },
+  };
+
+  const result = transition(
+    state,
+    "IMPLEMENTING",
+    {
+      branch: "feat/reconcile-budget",
+      acceptance_criteria: ["a"],
+      allowed_files: ["src/app.js"],
+      current_unit: "unit-1",
+      drift: driftOk(),
+    },
+    providers,
+  );
+
+  assert.equal(result.ok, true, JSON.stringify(result.errors));
+  assert.equal(result.state.agent_call_budget.units, 3);
+  assert.ok(result.state.agent_call_budget.max_calls > 6);
+});
+
 test("APPROVED task → FINAL_REVIEWING → FINAL_VERIFYING", () => {
   let state = createEmptyRunState("t8");
   state.state = "REVIEWING";
@@ -328,17 +429,25 @@ test("APPROVED task → FINAL_REVIEWING → FINAL_VERIFYING", () => {
     run_id: "t8",
     review_scope: "task",
   });
-  const toFinalReview = canTransition(state, "FINAL_REVIEWING", {
+  const taskPackage = goodReviewPackage({
+    scope: "task",
+    run_id: "t8",
+    acceptance_criteria: ["done"],
+  });
+  const toFinalReview = transition(state, "FINAL_REVIEWING", {
     review_handoff: taskReview,
-    review_package: goodReviewPackage({ scope: "task", run_id: "t8" }),
+    review_package: taskPackage,
   });
   assert.equal(toFinalReview.ok, true, JSON.stringify(toFinalReview.errors));
+  assert.equal(toFinalReview.state.task_history.length, 1);
+  assert.equal(toFinalReview.state.task_history[0].review_handoff.verdict, "APPROVED");
+  assert.equal(
+    toFinalReview.state.task_history[0].review_package.digest_sha256,
+    taskPackage.digest_sha256,
+  );
 
   state = {
-    ...state,
-    state: "FINAL_REVIEWING",
-    last_task_review_handoff: taskReview,
-    last_review_handoff: taskReview,
+    ...toFinalReview.state,
     run_base_commit: "base111",
   };
   const finalReview = goodReviewerHandoff({

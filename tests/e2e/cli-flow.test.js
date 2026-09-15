@@ -79,8 +79,62 @@ Why not more:
 ### Execution Unit 1: application behavior
 - id: unit-1
 - Allowed files: \`src/app.js\`
+- user_outcome: Return the updated hello value
+- independently_shippable: true
+- review_boundary: NONE
+- estimated_lines: 5
 - Acceptance criteria:
   - [ ] hello returns the updated value.
+- Verification gates:
+  1. npm test
+`;
+
+const VALID_THREE_UNIT_PLAN = `# Plan
+- Planning mode: compact
+
+## Execution Unit Justification
+Number of units: 3
+
+Why not fewer:
+- Each unit owns a separate deliverable.
+
+Why not more:
+- Tests and internal implementation steps stay with each deliverable.
+
+## Execution Unit breakdown
+### Execution Unit 1: normalize archive timestamps
+- id: unit-1
+- user_outcome: Normalize archive timestamps
+- independently_shippable: true
+- review_boundary: NONE
+- estimated_lines: 80
+- Allowed files: \`src/timestamps.js\`
+- Acceptance criteria:
+  - [ ] archive timestamps normalize correctly.
+- Verification gates:
+  1. npm test
+
+### Execution Unit 2: validate candle gaps
+- id: unit-2
+- user_outcome: Validate candle gaps
+- independently_shippable: true
+- review_boundary: NONE
+- estimated_lines: 90
+- Allowed files: \`src/gaps.js\`
+- Acceptance criteria:
+  - [ ] missing candle gaps are detected.
+- Verification gates:
+  1. npm test
+
+### Execution Unit 3: report ingestion quality
+- id: unit-3
+- user_outcome: Report ingestion quality
+- independently_shippable: true
+- review_boundary: NONE
+- estimated_lines: 70
+- Allowed files: \`src/quality.js\`
+- Acceptance criteria:
+  - [ ] ingestion quality is reported.
 - Verification gates:
   1. npm test
 `;
@@ -391,6 +445,35 @@ test("nexus-run completes a full CLI workflow in a temporary repository", () => 
   const status = invoke(root, home, ["status", "--run-id", runId]);
   assert.equal(status.state.state, "COMPLETED");
   assert.equal(status.state.transitions.at(-1).to, "COMPLETED");
+});
+
+test("PLANNED persists the checked unit count into runtime state and call budget", () => {
+  const { root, home } = makeTempRepo();
+  const runId = "e2e-plan-count";
+
+  invoke(root, home, ["init", "--run-id", runId]);
+  invoke(root, home, ["transition", "--run-id", runId, "--to", "BRAINSTORMING"]);
+  fs.mkdirSync(path.join(root, ".opencode", "plans"), { recursive: true });
+  fs.writeFileSync(
+    path.join(root, ".opencode", "plans", "PLAN.md"),
+    VALID_THREE_UNIT_PLAN,
+  );
+
+  const planned = invoke(root, home, [
+    "transition",
+    "--run-id",
+    runId,
+    "--to",
+    "PLANNED",
+    "--plan-check",
+  ]);
+  assert.equal(planned.state.state, "PLANNED");
+  assert.equal(planned.state.plan_check.unit_count, 3);
+  assert.equal(planned.state.execution_units.length, 3);
+  assert.equal(planned.state.units.length, 3);
+  assert.equal(planned.state.task_count, 3);
+  assert.equal(planned.state.agent_call_budget.units, 3);
+  assert.ok(planned.state.agent_call_budget.max_calls > 6);
 });
 
 test("CLASSIFIED and DIRECT_IMPLEMENTING are rejected in V5 CLI", () => {

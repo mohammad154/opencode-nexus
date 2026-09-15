@@ -354,13 +354,24 @@ function cmdClassify(flags) {
 }
 
 function resolvedRunUnits(state) {
-  const candidate =
-    state?.execution_units ??
-    state?.units ??
-    state?.classification?.units;
-  if (Array.isArray(candidate)) return Math.max(1, candidate.length);
-  const units = Number(candidate);
-  return Number.isFinite(units) && units > 0 ? Math.floor(units) : 1;
+  const candidates = [
+    state?.execution_units,
+    state?.units,
+    state?.tasks,
+    state?.task_count,
+    state?.classification?.units,
+    state?.plan_check?.execution_units,
+    state?.plan_check?.tasks,
+    state?.plan_check?.unit_count,
+  ].filter((candidate) => candidate != null);
+  const counts = candidates
+    .map((candidate) => {
+      if (Array.isArray(candidate)) return candidate.length;
+      const count = Number(candidate);
+      return Number.isInteger(count) && count >= 0 ? count : null;
+    })
+    .filter((count) => count != null && count > 0);
+  return counts.length > 0 ? Math.max(...counts) : 1;
 }
 
 function cmdTransition(flags) {
@@ -399,7 +410,7 @@ function cmdTransition(flags) {
     profile: state.profile || state.classification?.profile,
     changeClass: state.change_class || state.classification?.change_class,
     executionMode: state.execution_mode || state.classification?.execution_mode,
-    units: resolvedRunUnits(state),
+    units: resolvedRunUnits(to === "PLANNED" ? { ...state, ...evidence } : state),
   });
 
   // Provider revalidation happens inside transition(); do not pre-inject

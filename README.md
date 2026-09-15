@@ -74,8 +74,8 @@ After install, OpenCode has three canonical execution agents plus one planning-o
 | Agent | Role |
 |---|---|
 | `orchestrator` | Owns the fixed workflow, plan, and execution-unit loop |
-| `implementer` | Implements one execution unit and verifies it |
-| `reviewer` | Spec + correctness + quality + regression review every execution unit |
+| `implementer` | Implements one execution unit, running targeted checks after its internal steps |
+| `reviewer` | Reviews each verified execution unit, then the whole branch for multi-unit integration |
 | `plan-advisor` | Conditional read-only challenge for standard/deep plans; never executes code |
 
 Nexus also installs a plugin and model config, with the **Nexus Impact Engine** as the primary canonical evidence provider.
@@ -318,9 +318,11 @@ Only the **implementer** writes production code. Nexus uses one fixed V5 workflo
 - Every implementer dispatch requires fresh pre-impact evidence.
 - Standard/deep plans may use one independent `plan-advisor` call before synthesis; compact plans do not.
 - `nexus run transition --to PLANNED --plan-check` runs the deterministic execution-unit DAG, acceptance/verification, decomposition-warning, and call-estimate gate and persists its passing report; standalone `nexus plan-check` is diagnostic.
+- Every execution unit states `user_outcome`, `independently_shippable`, `review_boundary`, and `estimated_lines`; implementation steps remain inside the unit.
+- The implementer runs targeted checks after internal steps. Nexus does not persist or authorize each step as a separate verification boundary: it runs deterministic `nexus verify` for the completed unit before dispatching one task reviewer.
 - Every task receives a task-scoped review package and reviewer after verification.
 - A reviewer `REQUEST_CHANGES` is capped at three remediation attempts per execution unit; exhaustion or an agent-call-budget limit becomes `BLOCKED`, not another subagent dispatch.
-- After the final task, a final review package and reviewer examine the whole run for multi-unit integration before final verification. A single-unit run may reuse its task review only with the explicit digest/HEAD-bound gate.
+- After the final task, a final review package and reviewer examine the whole branch and its multi-unit integration before final verification. The package includes `Previous task review evidence`; the final reviewer can reuse a task result only when `review_evidence_bound: true`, `files_changed_after_review` is available, and the criterion's owning files are absent from that list, then focus on integration and later changes. This never skips the final or task review. A single-unit run may reuse its task review only with the explicit digest/HEAD-bound gate.
 - Impact risk controls verification-ladder intensity; it does not select a workflow profile or change the review roster.
 - `IMPLEMENTING → VERIFYING` and `FINAL_REVIEWING → FINAL_VERIFYING` are fast authorization transitions. They persist `verification_status: PENDING`; they do not execute tests.
 - Run `nexus verify` in either verification state to measure fresh post-impact, discover the risk-based ladder, execute checks, and seal evidence. Only `verification_status: PASSED` authorizes the next review/completion transition. A timeout stays in the same state; use `nexus verify --resume`.

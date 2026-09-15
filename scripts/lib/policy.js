@@ -225,13 +225,24 @@ const TDD_CHANGE_CLASSES = new Set([
 ]);
 
 export function resolvedRunUnits(state = {}) {
-  const candidate =
-    state.units ??
-    state.execution_units ??
-    state.classification?.units ??
-    state.task_count;
-  const units = Number(candidate);
-  return Number.isFinite(units) && units > 0 ? Math.floor(units) : 1;
+  const candidates = [
+    state.units,
+    state.execution_units,
+    state.tasks,
+    state.task_count,
+    state.classification?.units,
+    state.plan_check?.execution_units,
+    state.plan_check?.tasks,
+    state.plan_check?.unit_count,
+  ].filter((candidate) => candidate != null);
+  const counts = candidates
+    .map((candidate) => {
+      if (Array.isArray(candidate)) return candidate.length;
+      const count = Number(candidate);
+      return Number.isInteger(count) && count >= 0 ? count : null;
+    })
+    .filter((count) => count != null && count > 0);
+  return counts.length > 0 ? Math.max(...counts) : 1;
 }
 
 export function isMultiTaskRun(state = {}) {

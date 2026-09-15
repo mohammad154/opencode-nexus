@@ -11,7 +11,8 @@ test("README documents the fixed V5 workflow", () => {
   assert.match(readme, /V5 installs only `orchestrator`, `implementer`, and `reviewer`/);
   assert.match(readme, /V5 has one fixed workflow/);
   assert.match(readme, /Every task receives a task-scoped review package and reviewer/);
-  assert.match(readme, /final review package and reviewer examine the whole run/);
+  assert.match(readme, /final review package and reviewer examine the whole branch/);
+  assert.match(readme, /Previous task review evidence/);
   assert.doesNotMatch(readme, /--with-optional-agents/);
   assert.doesNotMatch(readme, /--profile balanced/);
   assert.doesNotMatch(readme, /Direct \(no-dispatch\)/);

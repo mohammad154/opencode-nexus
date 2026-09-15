@@ -27,6 +27,8 @@ Requirements:
 - Read the **pre-impact** report (risk, confidence, related tests, dependents/callers) — do not invent numbers. Use that context so you do not break callers.
 - If `review_findings` are present (fix loop), address every finding; re-check impacted callers/tests.
 - For behavioral changes / bug fixes: TDD red then green; put `tdd.red` / `tdd.green` in the handoff.
+- Treat the plan's implementation steps as work inside this one assigned unit. Run each step's targeted check after that step and record its command and result; do not dispatch a reviewer between steps.
+- After all steps, return the complete handoff. Nexus then runs deterministic `nexus verify`; only a `PASSED` result authorizes the single task-review dispatch for this unit. Internal step checks are not separately persisted or authorized by Nexus.
 - Run verification gates exactly; never claim pass without commands.
 - Use one planned evidence path per acceptance criterion. Do not repeat equivalent probes or replays after the required evidence already exists.
 - If a required criterion cannot be proven after the planned evidence path, stop and report `BLOCKED` with exact evidence instead of continuing exploratory tool calls.

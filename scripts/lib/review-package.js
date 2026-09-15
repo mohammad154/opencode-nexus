@@ -60,6 +60,77 @@ function summarizeVerification(v) {
   return lines.join("\n");
 }
 
+function isCommitAncestor(worktree, ancestor, descendant) {
+  if (!ancestor || !descendant) return false;
+  if (ancestor === descendant) return true;
+  return runGit(worktree, ["merge-base", "--is-ancestor", ancestor, descendant]).ok;
+}
+
+function filesChangedBetween(worktree, base, head) {
+  if (!isCommitAncestor(worktree, base, head)) return null;
+  const result = runGit(worktree, ["diff", "--name-only", base, head]);
+  if (!result.ok) return null;
+  return result.stdout
+    .split(/\r?\n/)
+    .map((file) => file.trim())
+    .filter(Boolean);
+}
+
+function previousTaskReviews(worktree, runState, runId, headCommit) {
+  if (!Array.isArray(runState.task_history)) return [];
+  return runState.task_history.map((entry) => {
+    const unit = String(entry?.id || "");
+    const handoff = entry?.review_handoff || null;
+    const reviewPackage = entry?.review_package || null;
+    const criteria = Array.isArray(entry?.acceptance_criteria)
+      ? entry.acceptance_criteria.map(String)
+      : [];
+    const packageCriteria = Array.isArray(reviewPackage?.acceptance_criteria)
+      ? reviewPackage.acceptance_criteria.map(String)
+      : [];
+    const criteriaMatch =
+      criteria.length === packageCriteria.length &&
+      criteria.every((criterion, index) => criterion === packageCriteria[index]);
+    const handoffBound = Boolean(
+      handoff?.verdict === "APPROVED" &&
+        handoff.review_scope === "task" &&
+        handoff.run_id === runId &&
+        (handoff.unit_or_task || handoff.task_id) === unit &&
+        handoff.reviewed_commit === entry.reviewed_commit &&
+        Array.isArray(handoff.acceptance) &&
+        Array.isArray(handoff.checks),
+    );
+    const packageBound = Boolean(
+      reviewPackage?.scope === "task" &&
+        reviewPackage.run_id === runId &&
+        reviewPackage.unit_or_task === unit &&
+        reviewPackage.head_commit === entry.reviewed_commit &&
+        /^[a-f0-9]{64}$/i.test(reviewPackage.digest_sha256 || "") &&
+        criteriaMatch,
+    );
+    const changedAfterReview = filesChangedBetween(
+      worktree,
+      entry.reviewed_commit,
+      headCommit,
+    );
+    return {
+      unit_or_task: unit || null,
+      verdict: entry.verdict || handoff?.verdict || null,
+      review_scope: handoff?.review_scope || null,
+      reviewed_commit: entry.reviewed_commit || null,
+      review_package_digest_sha256: reviewPackage?.digest_sha256 || null,
+      review_package_head_commit: reviewPackage?.head_commit || null,
+      review_evidence_bound: handoffBound && packageBound,
+      acceptance: Array.isArray(handoff?.acceptance) ? handoff.acceptance : [],
+      checks: Array.isArray(handoff?.checks) ? handoff.checks : [],
+      files_reviewed: Array.isArray(handoff?.files_reviewed)
+        ? handoff.files_reviewed
+        : [],
+      files_changed_after_review: changedAfterReview,
+    };
+  });
+}
+
 /** Resolve package markdown path against worktree. */
 export function resolveReviewPackagePath(pkg, worktree) {
   if (!pkg?.path) return null;
@@ -113,6 +184,9 @@ export function buildReviewPackage(worktree, opts = {}) {
       : null) ||
     runState.acceptance_criteria ||
     [];
+  const priorTaskReviews = scope === "final"
+    ? previousTaskReviews(worktree, runState, runId, headCommit)
+    : [];
 
   const nameStatus = runGit(worktree, [
     "diff",
@@ -187,6 +261,16 @@ export function buildReviewPackage(worktree, opts = {}) {
     "",
     planExcerpt,
     "",
+    ...(scope === "final"
+      ? [
+          "## Previous task review evidence",
+          "",
+          priorTaskReviews.length
+            ? ["```json", JSON.stringify(priorTaskReviews, null, 2), "```"].join("\n")
+            : "_No prior task approvals are recorded._",
+          "",
+        ]
+      : []),
     "## Changed files",
     "",
     changedFiles.length
@@ -245,6 +329,7 @@ export function buildReviewPackage(worktree, opts = {}) {
     changed_files: changedFiles,
     production_files: productionChanged,
     acceptance_criteria: acceptance,
+    previous_task_reviews: priorTaskReviews,
     digest_sha256: digest,
     generated_at: generatedAt,
   };
