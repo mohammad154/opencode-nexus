@@ -40,7 +40,7 @@ function invoke(worktree, home, args, { expectStatus = 0 } = {}) {
       ...process.env,
       HOME: home,
       NEXUS_WORKTREE: worktree,
-      PATH: `${path.join(home, "bin")}:${process.env.PATH || ""}`,
+      PATH: `${path.join(home, "bin")}${path.delimiter}${process.env.PATH || ""}`,
     },
   });
   assert.equal(
@@ -537,7 +537,7 @@ test("nexus CLI run forwards workflow in an external temporary repository", () =
         ...process.env,
         HOME: home,
         NEXUS_WORKTREE: root,
-        PATH: `${path.join(home, "bin")}:${process.env.PATH || ""}`,
+        PATH: `${path.join(home, "bin")}${path.delimiter}${process.env.PATH || ""}`,
       },
     });
     assert.equal(

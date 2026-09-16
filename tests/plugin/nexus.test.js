@@ -38,7 +38,7 @@ test("plugin injects V5 compact router and keeps automatic skill routing", async
   const plugin = await NexusPlugin({ worktree });
   const config = {};
   await plugin.config(config);
-  assert.ok(config.skills.paths.some((entry) => entry.endsWith("/skills")));
+  assert.ok(config.skills.paths.some((entry) => path.basename(entry) === "skills"));
 
   const output = {
     messages: [
@@ -288,7 +288,7 @@ test("agent permissions place catch-all '*' before specific rules", () => {
 
   for (const file of files) {
     const content = fs.readFileSync(path.join(agentsDir, file), "utf8");
-    const lines = content.split("\n");
+    const lines = content.split(/\r?\n/);
     let inEdit = false;
     let editKeys = [];
 

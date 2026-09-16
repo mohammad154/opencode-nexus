@@ -15,6 +15,9 @@ import {
 import { compareBaselines } from "../verification/compare.js";
 import { sealProviderArtifact, sha256Digest } from "../artifact-seal.js";
 import { validateContainedPath } from "../filesystem-boundary.js";
+import { resolveExecutable } from "../resolve-executable.js";
+
+export { resolveExecutable } from "../resolve-executable.js";
 
 const DEFAULT_TIMEOUTS_SECONDS = Object.freeze({
   targetedTest: 300,
@@ -163,7 +166,7 @@ function resolvedSpawnExit(result, failDefault) {
   return failDefault;
 }
 
-export function runStep(step, worktree, timeoutMs = null) {
+export function runStep(step, worktree, timeoutMs = null, executionOptions = {}) {
   if (!step.command || typeof step.command !== "string") {
     return {
       status: 1,
@@ -180,11 +183,23 @@ export function runStep(step, worktree, timeoutMs = null) {
       stderr: "args required",
     };
   }
-  const r = spawnSync(step.command, step.args, {
+  const env = executionOptions.env ?? process.env;
+  const command = resolveExecutable(step.command, {
+    platform: executionOptions.platform ?? process.platform,
+    env,
+    cwd: worktree || process.cwd(),
+    fsModule: executionOptions.fsModule,
+    pathModule: executionOptions.pathModule,
+    isFile: executionOptions.isFile,
+  });
+  const spawn = typeof executionOptions.spawnSync === "function"
+    ? executionOptions.spawnSync
+    : spawnSync;
+  const r = spawn(command, step.args, {
     cwd: worktree,
     encoding: "utf8",
     shell: false,
-    env: process.env,
+    env,
     ...(Number.isFinite(timeoutMs) && timeoutMs > 0 ? { timeout: timeoutMs } : {}),
   });
   return {

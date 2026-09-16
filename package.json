@@ -28,7 +28,7 @@
     "uninstall.sh"
   ],
   "scripts": {
-    "test": "node --test \"tests/**/*.test.js\"",
+    "test": "node scripts/nexus-test-runner.js",
     "test:install": "bash scripts/test-install-only.sh && bash scripts/test-optional-agents.sh && bash scripts/test-uninstall-lifecycle.sh",
     "postinstall": "node ./scripts/ensure-cli-on-path.js",
     "preuninstall": "node ./scripts/preuninstall.js",

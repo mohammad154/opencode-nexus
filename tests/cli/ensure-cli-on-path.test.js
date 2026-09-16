@@ -25,6 +25,12 @@ const repoRoot = path.resolve(
   "../..",
 );
 const targetBin = path.join(repoRoot, "bin", "nexus.js");
+const shimSuffix = process.platform === "win32" ? ".cmd" : "";
+const missingPath = ["/usr/bin", "/bin"].join(path.delimiter);
+
+function shimPath(binDir, name) {
+  return path.join(binDir, `${name}${shimSuffix}`);
+}
 
 function tempHome() {
   return fs.mkdtempSync(path.join(os.tmpdir(), "nexus-cli-path-"));
@@ -44,7 +50,7 @@ test("local installs are skipped so npx/cache installs do not pollute PATH", () 
   try {
     const result = run([], {
       home,
-      env: { PATH: "/usr/bin:/bin" },
+      env: { PATH: missingPath },
       pkgRoot: repoRoot,
       log: silentLog(),
     });
@@ -70,7 +76,7 @@ test("global install links nexus and opencode-nexus into ~/.local/bin", () => {
     });
     assert.equal(result.action, "ensure");
     for (const name of BIN_NAMES) {
-      const dest = path.join(binDir, name);
+      const dest = shimPath(binDir, name);
       assert.equal(fs.existsSync(dest), true, dest);
       assert.equal(isOurShim(dest), true);
       const body = fs.readFileSync(dest, "utf8");
@@ -104,12 +110,16 @@ test("does not overwrite an unrelated nexus command", () => {
   try {
     const binDir = userBinDir(home);
     fs.mkdirSync(binDir, { recursive: true });
-    const foreign = path.join(binDir, "nexus");
-    fs.writeFileSync(foreign, "#!/bin/sh\necho foreign\n", { mode: 0o755 });
+    const foreign = shimPath(binDir, "nexus");
+    const foreignBody =
+      process.platform === "win32"
+        ? "@echo off\r\necho foreign\r\n"
+        : "#!/bin/sh\necho foreign\n";
+    fs.writeFileSync(foreign, foreignBody, { mode: 0o755 });
     const result = writeShims({ home, targetBin });
     assert.deepEqual(result.skipped, [foreign]);
-    assert.equal(fs.readFileSync(foreign, "utf8"), "#!/bin/sh\necho foreign\n");
-    assert.equal(isOurShim(path.join(binDir, "opencode-nexus")), true);
+    assert.equal(fs.readFileSync(foreign, "utf8"), foreignBody);
+    assert.equal(isOurShim(shimPath(binDir, "opencode-nexus")), true);
   } finally {
     fs.rmSync(home, { recursive: true, force: true });
   }
@@ -123,7 +133,7 @@ test("remove only deletes shims this package created", () => {
     fs.writeFileSync(path.join(binDir, "keep-me"), "ok\n");
     const bashrc = path.join(home, ".bashrc");
     fs.writeFileSync(bashrc, "export PATH=/usr/bin\n");
-    ensureUserBinOnPath({ home, pathEnv: "/usr/bin:/bin" });
+    ensureUserBinOnPath({ home, pathEnv: missingPath });
     assert.match(fs.readFileSync(bashrc, "utf8"), new RegExp(RC_MARKER));
     const result = run(["--remove"], {
       home,
@@ -132,8 +142,8 @@ test("remove only deletes shims this package created", () => {
       log: silentLog(),
     });
     assert.equal(result.action, "remove");
-    assert.equal(fs.existsSync(path.join(binDir, "nexus")), false);
-    assert.equal(fs.existsSync(path.join(binDir, "opencode-nexus")), false);
+    assert.equal(fs.existsSync(shimPath(binDir, "nexus")), false);
+    assert.equal(fs.existsSync(shimPath(binDir, "opencode-nexus")), false);
     assert.equal(fs.readFileSync(path.join(binDir, "keep-me"), "utf8"), "ok\n");
     assert.deepEqual(result.pathFix.updated, [bashrc]);
     assert.equal(fs.readFileSync(bashrc, "utf8"), "export PATH=/usr/bin\n\n");
@@ -182,12 +192,12 @@ test("PATH helper appends a snippet once when ~/.local/bin is missing from PATH"
     fs.mkdirSync(userBinDir(home), { recursive: true });
     const bashrc = path.join(home, ".bashrc");
     fs.writeFileSync(bashrc, "export PATH=/usr/bin\n");
-    const first = ensureUserBinOnPath({ home, pathEnv: "/usr/bin:/bin" });
+    const first = ensureUserBinOnPath({ home, pathEnv: missingPath });
     assert.equal(first.alreadyOnPath, false);
     assert.deepEqual(first.updated, [bashrc]);
     const text = fs.readFileSync(bashrc, "utf8");
     assert.match(text, new RegExp(RC_MARKER));
-    const second = ensureUserBinOnPath({ home, pathEnv: "/usr/bin:/bin" });
+    const second = ensureUserBinOnPath({ home, pathEnv: missingPath });
     assert.deepEqual(second.updated, []);
     assert.equal(fs.readFileSync(bashrc, "utf8"), text);
   } finally {
@@ -203,7 +213,7 @@ test("pathHasDir matches the user bin directory", () => {
       pathHasDir(binDir, `/usr/bin${path.delimiter}${binDir}`),
       true,
     );
-    assert.equal(pathHasDir(binDir, "/usr/bin:/bin"), false);
+    assert.equal(pathHasDir(binDir, missingPath), false);
   } finally {
     fs.rmSync(home, { recursive: true, force: true });
   }
@@ -224,7 +234,7 @@ test("sudo global install writes shims to the invoking user's home", () => {
   try {
     const result = run([], {
       env: {
-        PATH: "/usr/bin:/bin",
+        PATH: missingPath,
         npm_config_global: "true",
         SUDO_USER: "danaee",
       },
@@ -234,7 +244,7 @@ test("sudo global install writes shims to the invoking user's home", () => {
       log: silentLog(),
     });
     assert.equal(result.action, "ensure");
-    assert.equal(fs.existsSync(path.join(userBinDir(userHome), "nexus")), true);
+    assert.equal(fs.existsSync(shimPath(userBinDir(userHome), "nexus")), true);
   } finally {
     fs.rmSync(userHome, { recursive: true, force: true });
   }

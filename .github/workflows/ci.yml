@@ -41,3 +41,15 @@ jobs:
         run: bash scripts/test-optional-agents.sh
       - name: Uninstall lifecycle
         run: bash scripts/test-uninstall-lifecycle.sh
+
+  ci:
+    name: CI
+    if: ${{ always() }}
+    needs: [test, install]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail when a required CI job did not pass
+        if: ${{ needs.test.result != 'success' || needs.install.result != 'success' }}
+        run: exit 1
+      - name: Confirm required CI jobs passed
+        run: echo "All CI jobs passed"

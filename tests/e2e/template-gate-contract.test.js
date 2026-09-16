@@ -276,3 +276,15 @@ test("CI runs npm test", () => {
   const ci = read(".github/workflows/ci.yml");
   assert.match(ci, /run:\s*npm test/);
 });
+
+test("CI workflows expose stable required-check names", () => {
+  const ci = read(".github/workflows/ci.yml");
+  assert.match(ci, /\n  ci:\n\s+name: CI\n/);
+  assert.match(ci, /needs: \[test, install\]/);
+
+  const security = read(".github/workflows/plugin-security-scan.yml");
+  assert.match(
+    security,
+    /jobs:\s*\n\s+scan:\s*\n\s+name: Plugin Security Scan\n/,
+  );
+});

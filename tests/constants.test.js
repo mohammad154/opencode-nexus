@@ -63,7 +63,7 @@ test("orchestrator is primary; implementer and reviewer are subagents", () => {
       "utf8",
     );
     assert.ok(
-      body.startsWith("---\n"),
+      body.replace(/\r\n/g, "\n").startsWith("---\n"),
       `${agent}.md must start with YAML frontmatter so OpenCode can read mode`,
     );
     const expected =

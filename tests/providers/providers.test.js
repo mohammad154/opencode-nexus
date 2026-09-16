@@ -193,7 +193,7 @@ test("metrics JSONL records measurements without prompts or raw errors", () => {
   });
 
   const raw = fs.readFileSync(metricsPath, "utf8");
-  assert.equal(raw.trim().split("\n").length, 4);
+  assert.equal(raw.trim().split(/\r?\n/).length, 4);
   assert.equal(raw.includes("secret"), false);
   const totals = telemetry.getTotals();
   assert.equal(totals.duration_ms, 12);
@@ -234,7 +234,7 @@ test("metrics enforce the hard agent-call budget and record rejected calls", () 
   assert.equal(budget.used_calls, 2);
   assert.equal(budget.remaining_calls, 0);
   assert.equal(budget.source, "v5-default-workflow");
-  const lines = fs.readFileSync(metricsPath, "utf8").trim().split("\n").map(JSON.parse);
+  const lines = fs.readFileSync(metricsPath, "utf8").trim().split(/\r?\n/).map(JSON.parse);
   assert.equal(lines.filter((line) => line.event === "agent_call").length, 2);
   assert.equal(lines.filter((line) => line.failure_code === "AGENT_CALL_BUDGET_EXCEEDED").length, 1);
   assert.equal(telemetry.getTotals().call_count, 2);
@@ -276,5 +276,8 @@ test("impact blast provider analyzes in a git worktree", (t) => {
   const result = getBlastProvider("nexus-impact").analyze({ worktree });
   assert.equal(result.ok, true);
   assert.equal(result.report.provider, "nexus-impact");
-  assert.match(result.path, /\.opencode\/impact\/latest\.json$/);
+  assert.equal(
+    path.normalize(result.path),
+    path.join(worktree, ".opencode", "impact", "latest.json"),
+  );
 });

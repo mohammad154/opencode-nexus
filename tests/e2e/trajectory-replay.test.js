@@ -29,7 +29,7 @@ function invoke(worktree, home, args) {
       ...process.env,
       HOME: home,
       NEXUS_WORKTREE: worktree,
-      PATH: `${path.join(home, "bin")}:${process.env.PATH || ""}`,
+      PATH: `${path.join(home, "bin")}${path.delimiter}${process.env.PATH || ""}`,
     },
   });
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
@@ -44,7 +44,7 @@ function invokeFailure(worktree, home, args) {
       ...process.env,
       HOME: home,
       NEXUS_WORKTREE: worktree,
-      PATH: `${path.join(home, "bin")}:${process.env.PATH || ""}`,
+      PATH: `${path.join(home, "bin")}${path.delimiter}${process.env.PATH || ""}`,
     },
   });
   assert.notEqual(result.status, 0, `${result.stdout}\n${result.stderr}`);

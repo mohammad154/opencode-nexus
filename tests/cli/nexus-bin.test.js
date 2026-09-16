@@ -107,7 +107,7 @@ test("nexus doctor reports impact-engine without requiring graphify", () => {
       {
         HOME: home,
         OPENCODE_CONFIG_DIR: path.join(home, ".config", "opencode"),
-        PATH: "/usr/bin:/bin",
+        PATH: ["/usr/bin", "/bin"].join(path.delimiter),
       },
       home,
     );
@@ -138,7 +138,7 @@ test("nexus doctor recognizes a local Nexus plugin override and flags duplicates
     const env = {
       HOME: home,
       OPENCODE_CONFIG_DIR: configDir,
-      PATH: "/usr/bin:/bin",
+      PATH: ["/usr/bin", "/bin"].join(path.delimiter),
     };
 
     const localOnly = invoke(["doctor"], env, home);

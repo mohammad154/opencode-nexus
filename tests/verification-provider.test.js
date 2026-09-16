@@ -6,9 +6,117 @@ import os from "node:os";
 import {
   createVerificationProvider,
   resolveVerificationTimeouts,
+  resolveExecutable,
+  runStep,
 } from "../scripts/lib/providers/verification-provider.js";
 import { verifySealedArtifact } from "../scripts/lib/artifact-seal.js";
 import { discoverVerification } from "../scripts/lib/verification/discover.js";
+
+function writeFixtureFile(file) {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, "fixture");
+}
+
+function windowsFixtureOptions(root, binPath) {
+  return {
+    platform: "win32",
+    cwd: root,
+    env: {
+      // Windows environment names are case-insensitive.
+      Path: `${binPath};${path.join(root, "secondary-bin")}`,
+      pathext: ".cmd;.exe;.bat",
+    },
+    // Use the host path implementation so this fixture runs on POSIX too.
+    pathModule: path,
+  };
+}
+
+test("resolveExecutable resolves Windows PATH/PATHEXT commands portably", () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "nexus-executable-"));
+  const bin = path.join(tmp, "bin");
+  const secondaryBin = path.join(tmp, "secondary-bin");
+  try {
+    writeFixtureFile(path.join(bin, "npm.cmd"));
+    writeFixtureFile(path.join(bin, "npm.exe"));
+    writeFixtureFile(path.join(bin, "npm.bat"));
+    writeFixtureFile(path.join(secondaryBin, "pnpm.bat"));
+    const options = windowsFixtureOptions(tmp, bin);
+
+    assert.equal(resolveExecutable("npm", options), path.join(bin, "npm.cmd"));
+    assert.equal(resolveExecutable("pnpm", options), path.join(secondaryBin, "pnpm.bat"));
+    assert.equal(resolveExecutable("npm.exe", options), path.join(bin, "npm.exe"));
+    assert.equal(
+      resolveExecutable(path.join(bin, "npm"), options),
+      path.join(bin, "npm.cmd"),
+    );
+    assert.equal(
+      resolveExecutable(path.join(bin, "npm.cmd"), options),
+      path.join(bin, "npm.cmd"),
+    );
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test("resolveExecutable leaves POSIX commands unchanged", () => {
+  assert.equal(
+    resolveExecutable("npm", {
+      platform: "linux",
+      env: { PATH: "/fixture/bin" },
+    }),
+    "npm",
+  );
+});
+
+test("resolveExecutable handles Windows-qualified paths through an injected file probe", () => {
+  const existing = new Set(["C:\\tools\\npm.cmd"]);
+  const options = {
+    platform: "win32",
+    cwd: "C:\\worktree",
+    env: { PATH: "C:\\other", PATHEXT: ".cmd;.exe;.bat" },
+    pathModule: path.win32,
+    isFile: (candidate) => existing.has(candidate),
+  };
+
+  assert.equal(
+    resolveExecutable("C:\\tools\\npm", options),
+    "C:\\tools\\npm.cmd",
+  );
+  assert.equal(
+    resolveExecutable("C:\\tools\\npm.cmd", options),
+    "C:\\tools\\npm.cmd",
+  );
+});
+
+test("runStep uses the resolved Windows executable with shell:false", () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "nexus-run-step-"));
+  const bin = path.join(tmp, "bin");
+  const commandPath = path.join(bin, "npm.cmd");
+  try {
+    writeFixtureFile(commandPath);
+    const options = windowsFixtureOptions(tmp, bin);
+    let invocation;
+    const result = runStep(
+      { command: "npm", args: ["test"] },
+      tmp,
+      1000,
+      {
+        ...options,
+        spawnSync(command, args, spawnOptions) {
+          invocation = { command, args, spawnOptions };
+          return { status: 0, stdout: "ok", stderr: "" };
+        },
+      },
+    );
+
+    assert.equal(result.status, 0);
+    assert.equal(invocation.command, commandPath);
+    assert.deepEqual(invocation.args, ["test"]);
+    assert.equal(invocation.spawnOptions.shell, false);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
 
 test("verification fails closed when zero executable checks exist", () => {
   const prov = createVerificationProvider();

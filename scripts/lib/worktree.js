@@ -17,6 +17,55 @@ const SAFE_TASK_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const MAX_TASK_ID_LENGTH = 128;
 const MAX_CANONICAL_TASK_ID_LENGTH = 240;
 
+function normalizePathIdentity(value, platform) {
+  if (typeof value !== "string" || value.length === 0) return null;
+
+  const pathApi = platform === "win32" ? path.win32 : path.posix;
+  let normalized;
+  try {
+    // realpathSync() supplies canonical paths at the call sites below. Keep
+    // this normalization separate from containment validation so path identity
+    // cannot weaken the existing filesystem boundary checks.
+    normalized = pathApi.normalize(value);
+  } catch {
+    return null;
+  }
+
+  if (platform !== "win32") return normalized;
+
+  // Win32 accepts both separators and treats drive letters and path
+  // components case-insensitively. path.win32.normalize() handles separator
+  // and dot-segment normalization; lower-casing establishes the filesystem
+  // identity, including the drive letter.
+  normalized = normalized.replace(/\//g, "\\");
+  const root = path.win32.parse(normalized).root;
+  if (normalized.length > root.length) {
+    normalized = normalized.replace(/[\\]+$/, "");
+  }
+  return normalized.toLowerCase();
+}
+
+/**
+ * Compare canonical/real paths using the identity rules of a platform.
+ *
+ * The optional platform is injectable so Win32 identity can be tested from a
+ * non-Windows host. Filesystem callers should retain their realpath and
+ * containment checks before using this comparison.
+ */
+export function samePath(left, right, options = {}) {
+  const platform =
+    typeof options === "string"
+      ? options
+      : options?.platform || process.platform;
+  const normalizedLeft = normalizePathIdentity(left, platform);
+  const normalizedRight = normalizePathIdentity(right, platform);
+  return (
+    normalizedLeft !== null &&
+    normalizedRight !== null &&
+    normalizedLeft === normalizedRight
+  );
+}
+
 /**
  * Turn an opaque task ID into one filesystem path segment without lossy
  * replacement. Safe IDs remain readable; other IDs are URI-encoded so that
@@ -132,7 +181,7 @@ function existingGitWorktree(repoRoot, dir) {
       path: dir,
     };
   }
-  if (realDir !== realTop) {
+  if (!samePath(realDir, realTop)) {
     return {
       ok: false,
       code: "INVALID_WORKTREE",
@@ -152,7 +201,7 @@ function existingGitWorktree(repoRoot, dir) {
   }
   const registeredHere = registered.some((candidate) => {
     try {
-      return fs.realpathSync(candidate) === realDir;
+      return samePath(fs.realpathSync(candidate), realDir);
     } catch {
       return false;
     }

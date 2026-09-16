@@ -9,6 +9,7 @@ import {
   createTaskWorktree,
   removeTaskWorktree,
   listTaskWorktrees,
+  samePath,
   worktreeRoot,
 } from "../scripts/lib/worktree.js";
 
@@ -58,6 +59,49 @@ function invokeRunCli(args, cwd) {
     env: { ...process.env, NEXUS_WORKTREE: cwd },
   });
 }
+
+test("samePath applies injectable Win32 identity rules", () => {
+  const win32 = { platform: "win32" };
+
+  assert.equal(
+    samePath("C:\\Repo\\foo", "c:\\repo\\foo", win32),
+    true,
+  );
+  assert.equal(
+    samePath("C:/Repo/foo", "c:\\repo\\foo", win32),
+    true,
+  );
+  assert.equal(
+    samePath("C:\\Repo\\foo", "D:\\Repo\\foo", win32),
+    false,
+  );
+  assert.equal(
+    samePath("C:\\Repo\\foo", "c:\\repo\\foo", { platform: "linux" }),
+    false,
+  );
+});
+
+test("worktree containment remains fail-closed for symlinked task paths", () => {
+  const { dir, commit1 } = createTestRepo();
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), "nexus-worktree-outside-"));
+  const linked = path.join(worktreeRoot(dir), "escape");
+  try {
+    fs.mkdirSync(path.dirname(linked), { recursive: true });
+    fs.symlinkSync(
+      outside,
+      linked,
+      process.platform === "win32" ? "junction" : "dir",
+    );
+
+    const result = createTaskWorktree(dir, "escape", { baseCommit: commit1 });
+    assert.equal(result.ok, false);
+    assert.equal(result.code, "FILESYSTEM_BOUNDARY");
+    assert.equal(result.reason, "symlink_component");
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+    fs.rmSync(outside, { recursive: true, force: true });
+  }
+});
 
 test("createTaskWorktree uses baseCommit when creating new worktree", () => {
   const { dir, commit1, commit2, git } = createTestRepo();
