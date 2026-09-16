@@ -6,6 +6,21 @@ compatibility: opencode
 
 # Finishing a Development Branch (V5 fixed execution workflow + script cleanup)
 
+## Continuous default
+
+Branch finishing is part of the same automatic workflow. After sealed final
+verification and `COMPLETED`, continue through the selected merge and guarded
+cleanup policy in the same turn; do not ask the user to say “continue”. The
+default project policy is `merge_policy: always_to_base` and
+`branch_cleanup_policy: always`, so local merge plus ancestry-checked cleanup
+is automatic.
+
+Pause only for `merge_policy: prompt` or a critical operation outside the
+default local workflow: push/PR publication, force-discard, destructive
+migration/data loss, secrets, deployment/external side effects, or a material
+scope change. Never infer approval for those operations from approval of the
+code review or final verification.
+
 ## Checkpoint scope
 
 When `execution_mode: checkpoint` in `.opencode/CONTEXT.md`, run this skill after
@@ -33,7 +48,9 @@ After reviews pass:
    ```
    For `discarded` unmerged branches only: add `--force-discard`.
 5. **Outcome memory**: follow `lessonPolicy` (the default is `noteworthy-only`; see `outcome-memory`).
-6. If checkpoint mode, wait for explicit continue before the next unit.
+6. If the user explicitly selected checkpoint mode, wait for explicit continue
+   before the next unit. This opt-in checkpoint does not apply to the default
+   continuous workflow.
 
 ### `merge_policy: prompt` (opt-in only)
 

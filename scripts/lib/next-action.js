@@ -9,6 +9,7 @@ import path from "path";
 import { planningModeFromEvidence } from "./planning.js";
 import { getAgentCallBudget } from "./providers.js";
 import { validateContainedPath } from "./filesystem-boundary.js";
+import { DEFAULT_MAX_FIX_LOOP_ATTEMPTS } from "./review-protocol.js";
 
 /**
  * @typedef {object} NextAction
@@ -21,6 +22,7 @@ import { validateContainedPath } from "./filesystem-boundary.js";
  * @property {string|null} command - suggested CLI
  * @property {string} instruction - imperative one-liner for the orchestrator
  * @property {string[]} steps     - ordered checklist
+ * @property {{mode: "AUTO"|"AWAIT_AGENT"|"AWAIT_USER"|"MANUAL"|"FINISH", resume_on: string|null}} continuation
  */
 
 function planExists(worktree) {
@@ -132,12 +134,93 @@ function agentBudgetBlock(runId, state, budget) {
   };
 }
 
+function exhaustedFixLoop(runState) {
+  if (runState?.state !== "REVIEWING" && runState?.state !== "FINAL_REVIEWING") {
+    return null;
+  }
+  const handoff = runState?.last_review_handoff;
+  if (handoff?.verdict !== "REQUEST_CHANGES") return null;
+  const unit = String(
+    runState?.pending_review_unit ||
+      runState?.current_unit ||
+      handoff.unit_or_task ||
+      handoff.task_id ||
+      "",
+  ).trim();
+  const attempts = Number(runState?.fix_loop_attempts?.[unit]);
+  if (!unit || !Number.isInteger(attempts) || attempts < DEFAULT_MAX_FIX_LOOP_ATTEMPTS) {
+    return null;
+  }
+  return { unit, attempts };
+}
+
+function fixLoopBlock(runId, state, loop) {
+  return {
+    ok: true,
+    run_id: runId,
+    state,
+    action: "block_for_fix_loop",
+    agent: null,
+    skill: "reconcile",
+    command:
+      `nexus run transition --to BLOCKED --run-id ${runId || "<id>"} ` +
+      `--json '{"block_code":"FIX_LOOP_EXHAUSTED","block_reason":"maximum reviewer remediation attempts reached"}'`,
+    instruction:
+      `Fix-loop budget is exhausted for ${loop.unit} (${loop.attempts}/${DEFAULT_MAX_FIX_LOOP_ATTEMPTS}). Do not dispatch another reviewer or implementer; transition to BLOCKED and reconcile.`,
+    steps: [
+      "Do not dispatch another reviewer or implementer",
+      "Transition to BLOCKED with FIX_LOOP_EXHAUSTED",
+      "Load reconcile and repair the remaining finding or replan the unit",
+    ],
+  };
+}
+
 function verificationStatus(runState, phase) {
   const record = runState?.verification;
-  if (record && typeof record === "object" && (!record.phase || record.phase === phase)) {
+  if (record && typeof record === "object" && !record.phase) {
+    return record.status || runState?.verification_status || "PENDING";
+  }
+  if (record && typeof record === "object" && record.phase !== phase) return "PENDING";
+  if (record && typeof record === "object") {
     return record.status || runState?.verification_status || "PENDING";
   }
   return runState?.verification_status || "PENDING";
+}
+
+function continuationFor(next) {
+  if (next.state === "COMPLETED") {
+    return { mode: "FINISH", resume_on: null };
+  }
+  if (next.state === "WAITING_FOR_USER") {
+    return { mode: "AWAIT_USER", resume_on: "user_answer" };
+  }
+  if (next.state === "FAILED") {
+    return { mode: "MANUAL", resume_on: null };
+  }
+  if (
+    next.state === "BLOCKED" ||
+    next.action === "reconcile" ||
+    next.action === "block_for_agent_budget" ||
+    next.action === "block_for_fix_loop"
+  ) {
+    return { mode: "MANUAL", resume_on: "repair" };
+  }
+  if (next.action === "report_failed_verification") {
+    return { mode: "MANUAL", resume_on: "repair" };
+  }
+  if (next.action === "unknown_state") {
+    return { mode: "MANUAL", resume_on: null };
+  }
+  if (next.agent === "plan-advisor") {
+    return { mode: "AWAIT_AGENT", resume_on: "plan_advisor_handoff" };
+  }
+  if (next.agent === "implementer") {
+    return { mode: "AWAIT_AGENT", resume_on: "implementer_handoff" };
+  }
+  if (next.agent === "reviewer") {
+    return { mode: "AWAIT_AGENT", resume_on: "reviewer_handoff" };
+  }
+  return { mode: "AUTO", resume_on: null };
 }
 
 /**
@@ -145,7 +228,7 @@ function verificationStatus(runState, phase) {
  * @param {{ worktree?: string|null }} [opts]
  * @returns {NextAction}
  */
-export function resolveNextAction(runState, opts = {}) {
+function resolveNextActionInternal(runState, opts = {}) {
   const worktree = opts.worktree || null;
   const state = runState?.state || null;
   const runId = runState?.run_id || null;
@@ -401,7 +484,9 @@ export function resolveNextAction(runState, opts = {}) {
           };
       }
 
-    case "REVIEWING":
+    case "REVIEWING": {
+      const loop = exhaustedFixLoop(runState);
+      if (loop) return fixLoopBlock(runId, state, loop);
       if (stateHasSingleUnit(runState)) {
         return {
           ok: true,
@@ -440,8 +525,11 @@ export function resolveNextAction(runState, opts = {}) {
           "If REQUEST_CHANGES: fresh nexus impact → TASK_IMPACT_READY → implementer → reviewer",
         ],
       };
+    }
 
-    case "FINAL_REVIEWING":
+    case "FINAL_REVIEWING": {
+      const loop = exhaustedFixLoop(runState);
+      if (loop) return fixLoopBlock(runId, state, loop);
       return {
         ok: true,
         run_id: runId,
@@ -459,6 +547,7 @@ export function resolveNextAction(runState, opts = {}) {
           "If REQUEST_CHANGES: fresh nexus impact → TASK_IMPACT_READY → implementer → … → final review again",
         ],
       };
+    }
 
     case "FINAL_VERIFYING":
       switch (verificationStatus(runState, "FINAL")) {
@@ -577,6 +666,16 @@ export function resolveNextAction(runState, opts = {}) {
 }
 
 /**
+ * Resolve the next action and attach the restart-safe continuation contract.
+ * Keeping this at the single public exit point ensures every action branch is
+ * classified, including future branches added to the internal resolver.
+ */
+export function resolveNextAction(runState, opts = {}) {
+  const next = resolveNextActionInternal(runState, opts);
+  return { ...next, continuation: continuationFor(next) };
+}
+
+/**
  * Format next-action as an orchestrator injection block.
  * @param {NextAction} next
  */
@@ -586,6 +685,8 @@ export function formatNextActionInjection(next) {
     `- state: ${next.state || "none"}`,
     `- run_id: ${next.run_id || "none"}`,
     `- action: ${next.action}`,
+    `- continuation: ${next.continuation?.mode || "AUTO"} (resume_on=${next.continuation?.resume_on || "null"})`,
+    `- user_input: ${next.continuation?.mode === "AWAIT_USER" ? "required (planning clarification)" : "none (continue; critical approval only)"}`,
   ];
   if (next.agent) {
     lines.push(`- REQUIRED_DISPATCH: ${next.agent}`);

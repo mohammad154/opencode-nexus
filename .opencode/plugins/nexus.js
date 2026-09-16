@@ -28,14 +28,15 @@ function buildCompactRouter() {
   return [
     "<EXTREMELY_IMPORTANT>",
     BOOTSTRAP_MARKER,
-    "OpenCode Nexus V5 is installed. Keep this routing pointer compact and load detailed instructions only with the native skill tool when the phase requires them.",
-    "Route: start/orient → using-nexus; clarify only if ambiguous → brainstorming; always write a plan → writing-plans; standard/deep planning may dispatch plan-advisor once; run nexus plan-check before PLANNED; before every implementer → impact-analysis (nexus impact); execute cohesive units → orchestrating; isolate work → using-feature-branches; finish → finishing-a-development-branch; stuck/BLOCKED → reconcile.",
+    "Nexus V5 installed. Load detailed instructions only with the native skill tool when needed.",
+    "Route: start/orient → using-nexus; clarify only if ambiguous → brainstorming; always plan → writing-plans; standard/deep → plan-advisor; plan-check → PLANNED; pre-impact → impact-analysis (nexus impact); units → orchestrating; branches → using-feature-branches; finish → finishing-a-development-branch; blocked → reconcile.",
+    "Autonomy: after the plan is confirmed, continue safe commands and Task-dispatches in the same turn. Do not ask to continue, test, review, fix, merge, or clean up under the default policy; ask only for plan decisions or critical irreversible/external approval.",
     "Three invariants: (1) brainstorm then PLAN.md for every request (2) fresh pre-impact before every implementer dispatch including REQUEST_CHANGES fix loops (3) every task needs independent reviewer APPROVED.",
-    "State: active-run/state.json, not CONTEXT.md. Never reset/restore/clean/delete existing files.",
+    "State: active-run/state.json, not CONTEXT.md. Never reset/restore/clean/delete files.",
     "Portable commands: nexus project-init | nexus next | nexus run ... | nexus impact ... | nexus estimate ...",
-    "Use nexus run for state machine gates. Use nexus next (or the injected Nexus Next Action block) for the deterministic next step — including REQUIRED_DISPATCH agent. Do NOT assume repo-local scripts/ exists.",
-    "Execution: orchestrator, implementer, reviewer only; plan-advisor is planning-only. Dispatch reviewer only after VERIFYING/PASSED. Verification is deterministic, never a verifier subagent. Never self-implement or skip reviewer. No legacy classify/blast/Graphify routing.",
-    "Lifecycle: CREATED → BRAINSTORMING ↔ WAITING_FOR_USER → PLANNED → TASK_IMPACT_READY → IMPLEMENTING → VERIFYING (nexus verify: PENDING/RUNNING/PASSED/FAILED/TIMED_OUT) → REVIEWING → FINAL_REVIEWING → FINAL_VERIFYING (nexus verify) → COMPLETED. Follow nexus next: resume timeout; never reviewer before PASSED. Task PASSED → review-package → reviewer; final approval → final package/reviewer (or evidence-bound single-unit reuse).",
+    "Use nexus run for gates and nexus next for the deterministic next step, including REQUIRED_DISPATCH. Do not assume repo-local scripts/ exists.",
+    "Execution: orchestrator, implementer, reviewer; plan-advisor only during planning. Reviewer follows PASSED verification; verification is deterministic. Never self-implement or skip review.",
+    "Lifecycle: CREATED → BRAINSTORMING ↔ WAITING_FOR_USER → PLANNED → TASK_IMPACT_READY → IMPLEMENTING → VERIFYING → REVIEWING → FINAL_REVIEWING → FINAL_VERIFYING → COMPLETED. Follow nexus next for timeout resume, review packages, and final approval.",
     "</EXTREMELY_IMPORTANT>",
   ].join("\n");
 }

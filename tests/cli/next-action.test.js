@@ -33,6 +33,39 @@ test("resolveNextAction maps IMPLEMENTING → dispatch implementer", () => {
   assert.match(text, /REQUIRED_DISPATCH: implementer/);
 });
 
+test("resolveNextAction attaches centralized restart-safe continuation modes", () => {
+  const cases = [
+    [{ state: "CREATED" }, { mode: "AUTO", resume_on: null }],
+    [
+      { state: "BRAINSTORMING", planning_mode: "standard" },
+      { mode: "AWAIT_AGENT", resume_on: "plan_advisor_handoff" },
+    ],
+    [{ state: "IMPLEMENTING" }, { mode: "AWAIT_AGENT", resume_on: "implementer_handoff" }],
+    [{ state: "REVIEWING" }, { mode: "AWAIT_AGENT", resume_on: "reviewer_handoff" }],
+    [{ state: "WAITING_FOR_USER" }, { mode: "AWAIT_USER", resume_on: "user_answer" }],
+    [
+      { state: "VERIFYING", verification_status: "FAILED", verification: { phase: "TASK", status: "FAILED" } },
+      { mode: "MANUAL", resume_on: "repair" },
+    ],
+    [
+      { state: "IMPLEMENTING", agent_calls_used: 23, agent_call_budget: { max_calls: 23 } },
+      { mode: "MANUAL", resume_on: "repair" },
+    ],
+    [{ state: "BLOCKED" }, { mode: "MANUAL", resume_on: "repair" }],
+    [{ state: "UNKNOWN" }, { mode: "MANUAL", resume_on: null }],
+    [{ state: "FAILED" }, { mode: "MANUAL", resume_on: null }],
+    [{ state: "COMPLETED" }, { mode: "FINISH", resume_on: null }],
+  ];
+
+  for (const [state, continuation] of cases) {
+    const next = resolveNextAction({ run_id: "continuation-test", ...state });
+    assert.deepEqual(next.continuation, continuation, state.state);
+    if (continuation.mode === "AUTO") {
+      assert.notEqual(next.continuation.mode, "AWAIT_USER", state.state);
+    }
+  }
+});
+
 test("resolveNextAction maps REVIEWING → dispatch reviewer", () => {
   const next = resolveNextAction({ run_id: "r1", state: "REVIEWING" });
   assert.equal(next.action, "dispatch_reviewer");
@@ -64,6 +97,18 @@ test("resolveNextAction makes task and final verification status deterministic",
   }
 });
 
+test("resolveNextAction does not reuse verification status from another phase", () => {
+  const next = resolveNextAction({
+    run_id: "phase-mismatch",
+    state: "FINAL_VERIFYING",
+    verification_status: "PASSED",
+    verification: { status: "PASSED", phase: "TASK" },
+  });
+  assert.equal(next.action, "run_verification");
+  assert.equal(next.command, "nexus verify");
+  assert.deepEqual(next.continuation, { mode: "AUTO", resume_on: null });
+});
+
 test("resolveNextAction maps PLANNED → pre_impact", () => {
   const next = resolveNextAction({ run_id: "r1", state: "PLANNED" });
   assert.equal(next.action, "pre_impact");
@@ -92,6 +137,21 @@ test("resolveNextAction blocks an implementer dispatch when the agent-call budge
     assert.equal(next.agent, null, state);
     assert.match(next.instruction, /do not Task-dispatch/i);
   }
+});
+
+test("resolveNextAction blocks reviewer redispatch after the fix-loop cap", () => {
+  const next = resolveNextAction({
+    run_id: "fix-loop-stop",
+    state: "REVIEWING",
+    current_unit: "unit-1",
+    pending_review_unit: "unit-1",
+    fix_loop_attempts: { "unit-1": 3 },
+    last_review_handoff: { verdict: "REQUEST_CHANGES", unit_or_task: "unit-1" },
+  });
+  assert.equal(next.action, "block_for_fix_loop");
+  assert.equal(next.agent, null);
+  assert.equal(next.continuation.mode, "MANUAL");
+  assert.match(next.instruction, /do not dispatch another reviewer or implementer/i);
 });
 
 test("resolveNextAction with no state → init_run", () => {

@@ -8,6 +8,23 @@ compatibility: opencode
 
 Agent claims are never evidence. Scripts measure; the state machine seals provider output; implementers code; the reviewer is read-only.
 
+## Continuous execution
+
+The orchestrator owns a continuous controller loop. Once brainstorming has
+settled the current decision frontier and the plan is confirmed, execute the
+next deterministic command, dispatch the required subagent, consume its
+handoff, and re-run `nexus next` in the same turn. Do not return control to the
+user for routine transitions, tests, verification, reviewer dispatches,
+`REQUEST_CHANGES` fix loops, verification resumes, local merge, or guarded
+cleanup.
+
+Pause only for `WAITING_FOR_USER` planning clarification, a critical approval
+(configured `merge_policy: prompt`, push/PR, force-discard, destructive
+migration/data loss, secrets/deploy/external side effect, or material scope
+change), a failed/manual evidence repair, or an environment permission/error
+that cannot be resolved safely. A passing final verification authorizes
+`COMPLETED`; it does not authorize unrelated external side effects.
+
 ## Execution invariants
 
 1. Every request: **brainstorming** → **writing-plans**.

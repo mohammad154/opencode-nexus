@@ -35,6 +35,10 @@ When `merge_policy: always_to_base` (default):
 - After the active **execution unit** passes its task-scoped review, merge the
   feature branch into `base_branch` before starting the next unit.
 - Do not ask whether to merge unless `merge_policy: prompt`.
+- Continue the local merge and guarded cleanup automatically in the same
+  workflow turn. A code-review approval or final verification never implies
+  permission to push, force-discard, deploy, or perform a destructive
+  migration; those remain explicit critical approvals.
 
 ## Branch policy
 

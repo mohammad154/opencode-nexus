@@ -4,6 +4,7 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import { NexusPlugin } from "../../.opencode/plugins/nexus.js";
+import { buildRunGateReminder } from "../../scripts/lib/run-gate.js";
 
 function tempDir(prefix) {
   return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
@@ -61,6 +62,8 @@ test("plugin injects V5 compact router and keeps automatic skill routing", async
   assert.match(injected, /BRAINSTORMING/);
   assert.match(injected, /TASK_IMPACT_READY/);
   assert.match(injected, /WAITING_FOR_USER/);
+  assert.match(injected, /Autonomy:/);
+  assert.match(injected, /continue.*same turn/i);
   assert.equal(injected.includes("nexus-using-nexus"), false);
   assert.equal(injected.includes("nexus-brainstorming"), false);
   for (const bad of FORBIDDEN_V3) {
@@ -74,6 +77,29 @@ test("plugin injects V5 compact router and keeps automatic skill routing", async
   const partCount = output.messages[0].parts.length;
   await plugin["experimental.chat.messages.transform"]({}, output);
   assert.equal(output.messages[0].parts.length, partCount);
+});
+
+test("completion gate continues branch finishing without a routine user prompt", () => {
+  const text = buildRunGateReminder({ state: "COMPLETED", run_id: "done" });
+  assert.match(text, /COMPLETED/);
+  assert.match(text, /finishing-a-development-branch/);
+  assert.match(text, /always_to_base/);
+  assert.match(text, /continuation: FINISH/);
+  assert.doesNotMatch(text, /please say continue/i);
+});
+
+test("fix-loop exhaustion gate blocks another reviewer dispatch", () => {
+  const text = buildRunGateReminder({
+    state: "REVIEWING",
+    run_id: "fix-loop-stop",
+    current_unit: "unit-1",
+    pending_review_unit: "unit-1",
+    fix_loop_attempts: { "unit-1": 3 },
+    last_review_handoff: { verdict: "REQUEST_CHANGES", unit_or_task: "unit-1" },
+  });
+  assert.match(text, /exhausted.*fix-loop budget/i);
+  assert.match(text, /block_for_fix_loop/);
+  assert.doesNotMatch(text, /REQUIRED_DISPATCH: reviewer/);
 });
 
 test("compaction omits run summaries without an active run", async () => {
@@ -309,6 +335,34 @@ test("implementer blocks destructive git cleanup of user work", () => {
     assert.ok(bash.includes(`"${command}": deny`), `missing deny rule for ${command}`);
   }
   assert.match(implementer, /Treat every pre-existing modified or untracked file as user-owned/);
+  assert.match(implementer, /critical side effect without a bound user approval/);
+});
+
+test("orchestrator can finish the default local branch but keeps critical side effects gated", () => {
+  const orchestrator = fs.readFileSync(
+    path.resolve(import.meta.dirname, "../../agents/orchestrator.md"),
+    "utf8",
+  );
+  const bash = orchestrator.match(/\n  bash:\n((?:    .*\n)+)/)?.[1] || "";
+  for (const command of [
+    "git symbolic-ref*",
+    "git checkout*",
+    "git merge*",
+    "bash scripts/nexus-branch-cleanup.sh*",
+  ]) {
+    assert.match(bash, new RegExp(`"${command.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}": allow`));
+  }
+  for (const command of [
+    "git push*",
+    "git reset*",
+    "git clean*",
+    "git checkout --*",
+    "bash scripts/nexus-branch-cleanup.sh*--force-discard*",
+  ]) {
+    assert.match(bash, new RegExp(`"${command.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}": ask`));
+  }
+  assert.match(orchestrator, /routine local merge[\s\S]*guarded cleanup are automatic/i);
+  assert.match(orchestrator, /push\/PR publication/);
 });
 
 test("plan-advisor Bash permissions fail closed to read-only inspection", () => {

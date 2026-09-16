@@ -11,7 +11,7 @@ fail() { echo "FAIL: $*" >&2; exit 1; }
 
 # --- Test 1: install → upgrade → upgrade → uninstall restores original -------
 T1="$(mktemp -d)"
-trap 'rm -rf "$T1" "${T2:-}"' EXIT
+trap 'rm -rf "$T1" "${T2:-}" "${T3:-}"' EXIT
 (
   export HOME="$T1"
   CD="$HOME/.config/opencode"; AD="$CD/agents"
@@ -35,7 +35,84 @@ trap 'rm -rf "$T1" "${T2:-}"' EXIT
 ) || fail "upgrade→uninstall did not restore the user's original agent file"
 pass "upgrade→upgrade→upgrade→uninstall restores the user's original agent file"
 
-# --- Test 2: uninstall without jq still removes agent files ------------------
+# --- Test 2: full global OpenCode footprint is removed ----------------------
+T3="$(mktemp -d)"
+(
+  export HOME="$T3"
+  CD="$HOME/.config/opencode"; AD="$CD/agents"
+  mkdir -p "$AD" "$CD/plugins" "$HOME/bin" "$HOME/project"
+  printf '#!/bin/sh\nexit 0\n' >"$HOME/bin/opencode"; chmod +x "$HOME/bin/opencode"
+  export PATH="$HOME/bin:/usr/bin:/bin"
+  git init -q "$HOME/project"
+  cat >"$CD/opencode.json" <<'JSON'
+{
+  "plugin": ["user/plugin"],
+  "agent": {
+    "orchestrator": {"model": "user/model", "custom": "keep"},
+    "custom": {"model": "user-model"}
+  },
+  "permission": {
+    "external_directory": {
+      "custom/path/**": "allow",
+      "/usr/local/lib/node_modules/@mohammad154/opencode-nexus/**": "deny"
+    },
+    "other": "keep"
+  }
+  }
+JSON
+  printf '{"orchestrator":{"model":"user/model"}}\n' >"$CD/nexus.models.json"
+  printf 'user-owned model example\n' >"$CD/nexus.models.example.json"
+  printf 'ORIGINAL USER ORCHESTRATOR\n' >"$AD/orchestrator.md"
+  ln -s "$ROOT/.opencode/plugins/nexus.js" "$CD/plugins/nexus.js"
+  printf 'export PATH=/usr/bin\n' >"$HOME/.bashrc"
+  CACHE="$HOME/.cache/opencode/packages/@mohammad154"
+  mkdir -p "$CACHE/opencode-nexus@4.3.6" "$CACHE/other-package@1.0.0"
+  printf 'cached Nexus package\n' >"$CACHE/opencode-nexus@4.3.6/package.json"
+  printf 'cached unrelated package\n' >"$CACHE/other-package@1.0.0/package.json"
+  mkdir -p "$HOME/.local/bin"
+  printf '#!/bin/sh\n# opencode-nexus-cli-shim\n' >"$HOME/.local/bin/nexus"
+  printf '#!/bin/sh\n# opencode-nexus-cli-shim\n' >"$HOME/.local/bin/opencode-nexus"
+
+  for _ in 1 2; do
+    ( cd "$HOME/project" && "$ROOT/install.sh" ) >/dev/null 2>&1
+    sleep 1
+  done
+  # Exercise cleanup of the legacy generic backup name as well.
+  printf 'legacy backup\n' >"$CD/opencode.json.bak.legacy"
+  printf 'legacy backup\n' >"$AD/orchestrator.md.bak.legacy"
+  printf '%s\n' '---' 'description: OPTIONAL COMPAT AGENT' '---' 'You are the Nexus knowledge-graph agent.' >"$AD/knowledge-graph.md"
+  ( cd "$HOME/project" && "$ROOT/uninstall.sh" ) >/dev/null 2>&1
+
+  [[ ! -e "$CD/nexus.models.json" ]] || { echo "nexus.models.json left behind"; exit 1; }
+  [[ ! -e "$CD/nexus.models.example.json" ]] \
+    || { echo "nexus.models.example.json left behind"; exit 1; }
+  [[ ! -e "$CD/nexus-install-manifest.json" ]] || { echo "manifest left behind"; exit 1; }
+  [[ ! -e "$CD/plugins/nexus.js" ]] || { echo "local plugin override left behind"; exit 1; }
+  grep -q '^ORIGINAL USER ORCHESTRATOR$' "$AD/orchestrator.md" \
+    || { echo "pre-existing orchestrator was not restored"; exit 1; }
+  [[ ! -e "$AD/knowledge-graph.md" ]] || { echo "legacy Nexus agent left behind"; exit 1; }
+  [[ ! -e "$HOME/.local/bin/nexus" && ! -e "$HOME/.local/bin/opencode-nexus" ]] \
+    || { echo "CLI shim left behind"; exit 1; }
+  [[ ! -e "$CACHE/opencode-nexus@4.3.6" && -e "$CACHE/other-package@1.0.0" ]] \
+    || { echo "OpenCode Nexus cache was not removed safely"; exit 1; }
+  ! grep -q 'opencode-nexus CLI PATH' "$HOME/.bashrc" \
+    || { echo "Nexus PATH block left behind"; exit 1; }
+  if find "$CD" -type f \( -name '*.nexus-*' -o -name '*.bak.*' \) -print -quit | grep -q .; then
+    echo "Nexus installer backup left behind"; exit 1
+  fi
+  jq -e '
+    .plugin == ["user/plugin"]
+    and .agent.orchestrator.model == "user/model"
+    and .agent.orchestrator.custom == "keep"
+    and .agent.custom.model == "user-model"
+    and .permission.other == "keep"
+    and .permission.external_directory["custom/path/**"] == "allow"
+    and .permission.external_directory["/usr/local/lib/node_modules/@mohammad154/opencode-nexus/**"] == "deny"
+  ' "$CD/opencode.json" >/dev/null
+) || fail "full uninstall left Nexus artifacts or changed user configuration"
+pass "full uninstall removes models, local plugin, CLI shims, PATH block, cache, permissions, and backups"
+
+# --- Test 3: uninstall without jq still removes agent files ------------------
 T2="$(mktemp -d)"
 (
   export HOME="$T2"

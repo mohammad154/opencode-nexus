@@ -12,7 +12,7 @@ CANONICAL_AGENTS=(orchestrator implementer reviewer)
 # Planning-only specialist. It is not part of the execution roster and is only
 # dispatched for standard/deep planning when the orchestrator decides it helps.
 PLANNING_AGENTS=(plan-advisor)
-RETIRED_AGENTS=(diagnostician unified-reviewer spec-reviewer code-reviewer integration-reviewer reconciler blast-analyzer)
+RETIRED_AGENTS=(diagnostician unified-reviewer spec-reviewer code-reviewer integration-reviewer reconciler blast-analyzer knowledge-graph)
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -53,12 +53,21 @@ prune_optional_from_dir() {
   done
 }
 
-bak() { [[ -f "$1" ]] && cp "$1" "$1.bak.$(date +%Y%m%d%H%M%S)" || true; }
+bak() {
+  [[ -f "$1" ]] || return 0
+  local backup
+  backup="$(mktemp "$1.nexus-backup.XXXXXX")"
+  if ! cp "$1" "$backup"; then
+    rm -f "$backup"
+    return 1
+  fi
+}
 
 CONFIG_DIR="${OPENCODE_CONFIG_DIR:-$HOME/.config/opencode}"
 AGENTS_DIR="$CONFIG_DIR/agents"
 CONFIG_FILE="$CONFIG_DIR/opencode.json"
 MODELS_FILE="$CONFIG_DIR/nexus.models.json"
+MODELS_EXAMPLE_FILE="$CONFIG_DIR/nexus.models.example.json"
 MANIFEST_FILE="$CONFIG_DIR/nexus-install-manifest.json"
 DEFAULT_MODELS="$SCRIPT_DIR/config/default-models.json"
 PLANNING_MODELS="$SCRIPT_DIR/config/planning-models.json"
@@ -82,7 +91,7 @@ manifest_record_original() {
   local existed="false" backup=""
   if [[ -f "$target" ]]; then
     existed="true"
-    backup="$target.nexus-original.$(date +%Y%m%d%H%M%S)"
+    backup="$(mktemp "$target.nexus-original.XXXXXX")"
     cp "$target" "$backup"
   fi
   local tmp; tmp="$(mktemp)"
@@ -127,13 +136,15 @@ LOCAL_PLUGIN_OVERRIDE=false
 if [[ -L "$LOCAL_PLUGIN_FILE" && -e "$LOCAL_PLUGIN_FILE" ]]; then
   LOCAL_PLUGIN_OVERRIDE=true
 fi
+manifest_record_original "$CONFIG_FILE"
 if [[ -f "$CONFIG_FILE" ]]; then bak "$CONFIG_FILE"; else printf '{\n  "$schema": "https://opencode.ai/config.json"\n}\n' >"$CONFIG_FILE"; fi
 MJ="$(cat "$DEFAULT_MODELS")"
 if [[ -f "$MODELS_FILE" ]]; then
   MJ="$(jq -s 'def strip: with_entries(select(.key|startswith("_")|not)); .[0]*(.[1]|strip)' <(printf '%s\n' "$MJ") "$MODELS_FILE")"
 else
-  cp "$MODELS_EXAMPLE" "$CONFIG_DIR/nexus.models.example.json"
-  echo "  Created $CONFIG_DIR/nexus.models.example.json"
+  manifest_record_original "$MODELS_EXAMPLE_FILE"
+  cp "$MODELS_EXAMPLE" "$MODELS_EXAMPLE_FILE"
+  echo "  Created $MODELS_EXAMPLE_FILE"
 fi
 PLANNING_JSON="$(cat "$PLANNING_MODELS")"
 if [[ -f "$MODELS_FILE" ]]; then

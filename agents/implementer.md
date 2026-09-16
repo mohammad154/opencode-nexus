@@ -49,6 +49,11 @@ Requirements:
   Do not set `verification_exempt`.
 - Never delete branches; cleanup is orchestrator/script only.
 - Never write reviewer handoffs or self-approve.
+- Do not perform a critical side effect without a bound user approval recorded
+  by the orchestrator. This includes destructive migrations or data-loss steps,
+  force-discard, push/PR publication, secrets or credential handling,
+  deployment, external API/message/purchase actions, and material scope or
+  acceptance changes. Stop with `BLOCKED` and state the exact approval needed.
 
 Hard rules:
 - Do not expand scope without noting `scope_extras` and requesting re-impact.

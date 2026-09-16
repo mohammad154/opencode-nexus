@@ -35,6 +35,16 @@ if [ -d "$HOME/.local/bin" ]; then
 fi
 `;
 
+function shellRcFiles(home) {
+  return [
+    ".profile",
+    ".bashrc",
+    ".zshrc",
+    ".zprofile",
+    ".bash_profile",
+  ].map((name) => path.join(home, name));
+}
+
 export function userBinDir(home = os.homedir()) {
   return path.join(home, ".local", "bin");
 }
@@ -181,6 +191,41 @@ export function removeShims({ home } = {}) {
   return { binDir, removed };
 }
 
+/**
+ * Remove only the PATH block this package appended to shell startup files.
+ * A marker is used instead of rewriting arbitrary PATH assignments so user
+ * shell configuration remains untouched.
+ */
+export function removePathSnippets({ home } = {}) {
+  const updated = [];
+  for (const file of shellRcFiles(home)) {
+    if (!fs.existsSync(file)) continue;
+    const current = fs.readFileSync(file, "utf8");
+    if (!current.includes(RC_MARKER)) continue;
+
+    const lines = current.split("\n");
+    const kept = [];
+    let removing = false;
+    for (const line of lines) {
+      if (!removing && line === RC_MARKER) {
+        removing = true;
+        continue;
+      }
+      if (removing) {
+        if (line === "fi") removing = false;
+        continue;
+      }
+      kept.push(line);
+    }
+    const next = kept.join("\n");
+    if (next !== current) {
+      fs.writeFileSync(file, next);
+      updated.push(file);
+    }
+  }
+  return { updated };
+}
+
 export function ensureUserBinOnPath({
   home,
   pathEnv = process.env.PATH || "",
@@ -189,15 +234,8 @@ export function ensureUserBinOnPath({
   if (pathHasDir(binDir, pathEnv)) {
     return { binDir, alreadyOnPath: true, updated: [] };
   }
-  const rcFiles = [
-    ".profile",
-    ".bashrc",
-    ".zshrc",
-    ".zprofile",
-    ".bash_profile",
-  ].map((name) => path.join(home, name));
   const updated = [];
-  for (const file of rcFiles) {
+  for (const file of shellRcFiles(home)) {
     if (!fs.existsSync(file)) continue;
     const current = fs.readFileSync(file, "utf8");
     if (current.includes(RC_MARKER)) continue;
@@ -225,10 +263,14 @@ export function run(argv = process.argv.slice(2), options = {}) {
 
   if (remove) {
     const result = removeShims({ home });
+    const pathFix = removePathSnippets({ home });
     if (result.removed.length > 0) {
       log.log(`Removed Nexus CLI shims from ${result.binDir}`);
     }
-    return { action: "remove", ...result };
+    if (pathFix.updated.length > 0) {
+      log.log(`Removed Nexus CLI PATH entries from: ${pathFix.updated.join(", ")}`);
+    }
+    return { action: "remove", ...result, pathFix };
   }
 
   if (!isGlobalInstall(env, root)) {

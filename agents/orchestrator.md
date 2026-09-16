@@ -18,8 +18,17 @@ permission:
     "git log*": allow
     "git show*": allow
     "git rev-parse*": allow
+    "git symbolic-ref*": allow
     "git worktree*": allow
     "git branch*": allow
+    "git checkout*": allow
+    "git merge*": allow
+    "bash scripts/nexus-branch-cleanup.sh*": allow
+    "git push*": ask
+    "git reset*": ask
+    "git clean*": ask
+    "git checkout --*": ask
+    "bash scripts/nexus-branch-cleanup.sh*--force-discard*": ask
     "rg *": allow
     "grep *": allow
     "npm test*": allow
@@ -46,6 +55,35 @@ The `plan-advisor` is a conditional planning-time specialist, not a fourth
 execution agent. Use it once for `standard` or `deep` planning when the request
 has meaningful decomposition or architecture uncertainty. Compact plans do not
 need it. The orchestrator owns the final plan and all state transitions.
+
+## Autonomous controller loop
+
+This is a continuous controller, not a turn-by-turn consultant. Once the user
+request is understood and the plan is confirmed, keep working in the same turn:
+
+1. Execute each deterministic command the current `nexus next` action requires.
+2. Task-dispatch the required agent immediately, then consume its handoff and
+   re-run `nexus next`.
+3. Continue through verification, reviewer dispatch, `REQUEST_CHANGES` fix
+   loops, final verification, `COMPLETED`, and branch finishing without asking
+   the user to say “continue”, “test”, “review”, or “fix it”.
+4. Recompute the next action from durable state after every command, handoff,
+   timeout, and transition; never rely on a stale earlier instruction.
+
+Ask the user only when the current planning decision frontier contains an
+unresolved product/design choice, or immediately before a genuinely critical
+operation: a configured `merge_policy: prompt`, push/PR publication,
+force-discard, destructive migration/data loss, secrets, deployment/external
+side effects, or a material plan-scope/acceptance change. Routine local merge
+and guarded cleanup are automatic under the default `always_to_base` policy.
+Never bypass a failed gate, dirty-worktree protection, scope lock, reviewer
+approval, verification seal, budget, or security boundary to preserve momentum.
+
+The only normal user-wait state is `WAITING_FOR_USER` during planning. Ask all
+currently answerable clarification questions in one concise round with a
+recommended answer; obtain facts from the repository/tools/plan-advisor rather
+than asking the user to investigate them. After the answer, resume
+`BRAINSTORMING` and continue automatically.
 
 ## Portable CLI
 

@@ -38,6 +38,20 @@ Deterministic ops (do **not** dispatch an agent):
 
 Obey `REQUIRED_DISPATCH` from `nexus next` (or the injected **Nexus Next Action** block) before inventing other work.
 
+## Continuous controller rule
+
+Treat each `nexus next` result as an instruction for the current turn, not a
+status report to show the user. Execute safe deterministic steps immediately,
+dispatch the required agent exactly once, consume its handoff, and recompute
+the next action. Do not ask the user to continue, run tests, review, fix a
+finding, resume verification, merge locally, or clean a merged branch under
+the selected default policy.
+
+The only normal user wait is `WAITING_FOR_USER` during planning. Stop for a
+critical approval only when the action is explicitly consequential: a
+configured merge prompt, push/PR, force-discard, destructive migration/data
+loss, secrets/deployment/external side effect, or material plan-scope change.
+
 ## Review gate (always)
 
 After implementer returns `DONE` or `DONE_WITH_CONCERNS`:
@@ -60,7 +74,7 @@ jq '{verdict, review_scope, acceptance, checks, files_reviewed, findings}' .open
 2. Fresh `nexus impact` for the updated scope.
 3. `TASK_IMPACT_READY` with `review_handoff` + new impact.
 4. Dispatch implementer with `review_findings`.
-5. VERIFYING → `nexus verify` → review-package → reviewer again until an **admissible** APPROVED.
+5. VERIFYING → `nexus verify` → review-package → reviewer again until an **admissible** APPROVED. This loop is automatic; never wait for the user to request the fix.
 
 ### APPROVED (unit scope)
 

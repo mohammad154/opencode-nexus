@@ -12,6 +12,7 @@ import {
   isGlobalInstall,
   isOurShim,
   pathHasDir,
+  removePathSnippets,
   removeShims,
   resolveInstallHome,
   run,
@@ -120,6 +121,10 @@ test("remove only deletes shims this package created", () => {
     const binDir = userBinDir(home);
     writeShims({ home, targetBin });
     fs.writeFileSync(path.join(binDir, "keep-me"), "ok\n");
+    const bashrc = path.join(home, ".bashrc");
+    fs.writeFileSync(bashrc, "export PATH=/usr/bin\n");
+    ensureUserBinOnPath({ home, pathEnv: "/usr/bin:/bin" });
+    assert.match(fs.readFileSync(bashrc, "utf8"), new RegExp(RC_MARKER));
     const result = run(["--remove"], {
       home,
       env: {},
@@ -130,6 +135,21 @@ test("remove only deletes shims this package created", () => {
     assert.equal(fs.existsSync(path.join(binDir, "nexus")), false);
     assert.equal(fs.existsSync(path.join(binDir, "opencode-nexus")), false);
     assert.equal(fs.readFileSync(path.join(binDir, "keep-me"), "utf8"), "ok\n");
+    assert.deepEqual(result.pathFix.updated, [bashrc]);
+    assert.equal(fs.readFileSync(bashrc, "utf8"), "export PATH=/usr/bin\n\n");
+  } finally {
+    fs.rmSync(home, { recursive: true, force: true });
+  }
+});
+
+test("removePathSnippets preserves startup configuration outside the Nexus block", () => {
+  const home = tempHome();
+  try {
+    const bashrc = path.join(home, ".bashrc");
+    fs.writeFileSync(bashrc, "export PATH=/custom/bin\n\n# opencode-nexus CLI PATH\nif [ -d \"$HOME/.local/bin\" ]; then\n  export PATH=\"$HOME/.local/bin:$PATH\"\nfi\n\nexport EDITOR=vi\n");
+    const result = removePathSnippets({ home });
+    assert.deepEqual(result.updated, [bashrc]);
+    assert.equal(fs.readFileSync(bashrc, "utf8"), "export PATH=/custom/bin\n\n\nexport EDITOR=vi\n");
   } finally {
     fs.rmSync(home, { recursive: true, force: true });
   }

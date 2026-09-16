@@ -11,6 +11,25 @@ Nexus is a **fixed** three-agent execution workflow for OpenCode. The orchestrat
 2. Every implementer call requires fresh impact analysis.
 3. Every implementation must be approved by an independent reviewer.
 
+## Continuous execution and user boundaries
+
+Nexus is continuous after planning: the orchestrator executes deterministic
+gates, dispatches the required subagents, consumes handoffs, resumes
+verification, runs reviewer fix loops, and finishes the selected branch policy
+without asking the user to say “continue”, “test”, “review”, or “fix”.
+
+During `BRAINSTORMING`, ask one consolidated round covering the whole current
+decision frontier, with recommendations. Repository, Git, impact, and test
+facts are obtained by tools or read-only agents; the user answers decisions.
+`WAITING_FOR_USER` is reserved for this planning clarification boundary.
+
+Routine local merge and ancestry-checked cleanup are automatic under the
+default `always_to_base` / `branch_cleanup_policy: always` policy. Ask only for
+`merge_policy: prompt` or a critical operation: push/PR publication,
+force-discard, destructive migration/data loss, secrets, deployment/external
+side effects, or a material scope/acceptance change. A sealed final review and
+verification authorize `COMPLETED`, not unrelated external side effects.
+
 ## Lifecycle
 
 ```text

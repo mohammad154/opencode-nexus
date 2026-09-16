@@ -148,6 +148,7 @@ test("published scripts allowlist excludes test-only harnesses", () => {
 
   assert.deepEqual(publishedScripts, [
     "scripts/ensure-cli-on-path.js",
+    "scripts/preuninstall.js",
     "scripts/lib/",
     "scripts/nexus-*.js",
     "scripts/nexus-*.sh",

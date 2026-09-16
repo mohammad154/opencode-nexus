@@ -387,7 +387,12 @@ NEXUS_IMPLEMENTER_MODEL=anthropic/claude-sonnet-4-20250514 nexus install
 
 ## Uninstall
 
-Removes Nexus agents and plugin entries. Project-local `.opencode/` data is left alone. Pre-existing OpenCode agent files are restored from installer backups when those backups exist.
+The uninstall removes the complete Nexus installation footprint: agents, plugin
+entries, Nexus permission rules, model files, local plugin overrides, OpenCode
+package-cache copies, CLI shims, the injected shell PATH block, and installer
+backups. It restores pre-existing OpenCode agent/config entries when installer
+provenance is available, while preserving unrelated shared config and
+project-local `.opencode/` workflow data.
 
 ```bash
 nexus uninstall
@@ -401,6 +406,14 @@ From a clone:
 # equivalent:
 ./install.sh --uninstall
 ```
+
+Run `nexus uninstall` before removing the npm package. npm 7 and newer do not
+run package uninstall lifecycle scripts, so `npm uninstall` alone can remove
+the package files but cannot safely edit the shared OpenCode configuration.
+If the command is no longer available, run
+`npx @mohammad154/opencode-nexus@latest uninstall` first. If you only run
+`nexus uninstall`, the package remains installed so the command can still be
+used; remove the package separately when you are done.
 
 ---
 
