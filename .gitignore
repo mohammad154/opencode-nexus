@@ -12,6 +12,9 @@
 .opencode/worktrees/
 .opencode/memory/
 
+# Generated Nexus workspaces / scanner artifacts
+temp/
+
 # Legacy Graphify output (optional local tool; not a Nexus V4 runtime prerequisite)
 graphify-out/
 
