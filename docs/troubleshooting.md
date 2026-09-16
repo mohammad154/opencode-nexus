@@ -84,3 +84,12 @@ as meaningful verification.
 
 If every available step is skipped or unavailable, the provider returns
 `VERIFICATION_UNAVAILABLE`; this is not a passing verification result.
+
+## Workspace integrity rejects a runtime symlink
+
+Package managers commonly create executable links under
+`.opencode/node_modules/.bin`. Nexus accepts those links only when their
+existing canonical targets remain inside `.opencode`; external or dangling
+runtime links remain blocked. Do not bypass the verification gate or delete
+runtime dependencies to manufacture a clean measurement—repair the path or
+update Nexus when a valid internal package-manager link is rejected.

@@ -92,7 +92,9 @@ function runtimeRelativePath(worktree, absolute) {
 /**
  * Runtime state is deliberately stricter than source inventory. Runtime
  * paths may be read or written by Nexus, so an external or dangling symlink
- * must fail closed instead of being treated as an ignored artifact.
+ * must fail closed instead of being treated as an ignored artifact. Internal
+ * links created by package managers (for example npm's `.bin` links) are
+ * safe only when their canonical target remains inside `.opencode`.
  */
 function assertRuntimeTreeSafe(worktree) {
   const runtimeRoot = path.join(worktree, ".opencode");
@@ -123,8 +125,20 @@ function assertRuntimeTreeSafe(worktree) {
   }
 
   const pending = [runtimeRoot];
+  const visited = new Set();
   while (pending.length > 0) {
     const current = pending.pop();
+    let currentRealpath;
+    try {
+      currentRealpath = fs.realpathSync(current);
+    } catch (error) {
+      throw new Error(
+        `runtime path ${runtimeRelativePath(worktree, current)} is unavailable (${error?.message || error})`,
+      );
+    }
+    if (visited.has(currentRealpath)) continue;
+    visited.add(currentRealpath);
+
     let entries;
     try {
       entries = fs.readdirSync(current, { withFileTypes: true });
@@ -136,9 +150,13 @@ function assertRuntimeTreeSafe(worktree) {
     for (const entry of entries) {
       const absolute = path.join(current, entry.name);
       const relative = runtimeRelativePath(worktree, absolute);
-      const boundary = validateContainedPath(worktree, absolute, {
+      // Do not reject every symlink blindly: npm uses symlinks for executable
+      // shims in node_modules/.bin. Canonical containment under the runtime
+      // root still rejects external and dangling links before anything can be
+      // followed.
+      const boundary = validateContainedPath(runtimeRoot, absolute, {
         allowMissing: false,
-        rejectSymlinks: true,
+        rejectSymlinks: false,
       });
       if (!boundary.ok) {
         throw new Error(
@@ -154,7 +172,16 @@ function assertRuntimeTreeSafe(worktree) {
         );
       }
       if (stat.isSymbolicLink()) {
-        throw new Error(`runtime path ${relative} is a symlink`);
+        let targetStat;
+        try {
+          targetStat = fs.statSync(absolute);
+        } catch (error) {
+          throw new Error(
+            `runtime path ${relative} target is unavailable (${error?.message || error})`,
+          );
+        }
+        if (targetStat.isDirectory()) pending.push(boundary.realpath);
+        continue;
       }
       if (stat.isDirectory()) pending.push(absolute);
     }
