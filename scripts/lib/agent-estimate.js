@@ -7,7 +7,9 @@ import {
  * Canonical agent-cost model shared by the estimator and runtime budget.
  *
  * `fixLoops` counts observed/assumed fix-loop pairs. The returned
- * `budget_ceiling` reserves bounded fix-loop headroom of `max(2, units)` calls
+ * `budget_ceiling` reserves bounded fix-loop headroom of `max(3, units)` calls
+ * so one verification-repair pass has room for implementer + task reviewer +
+ * final reviewer
  * and always includes the final reviewer unless an explicitly eligible
  * single-unit reuse is requested.
  */
@@ -32,7 +34,7 @@ export function agentCostModel({
   const finalReviewer =
     singleUnitFinalReviewReuse && count === 1 ? 0 : 1;
   const total = implementer + taskReviewer + finalReviewer + planAdvisor;
-  const fixHeadroom = Math.max(2, count);
+  const fixHeadroom = Math.max(3, count);
 
   return {
     units: count,

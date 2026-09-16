@@ -21,7 +21,7 @@ cleanup.
 Pause only for `WAITING_FOR_USER` planning clarification, a critical approval
 (configured `merge_policy: prompt`, push/PR, force-discard, destructive
 migration/data loss, secrets/deploy/external side effect, or material scope
-change), a failed/manual evidence repair, or an environment permission/error
+change), a non-repairable/manual evidence repair, or an environment permission/error
 that cannot be resolved safely. A passing final verification authorizes
 `COMPLETED`; it does not authorize unrelated external side effects.
 
@@ -63,6 +63,7 @@ merge candidates, oversized/test-only/setup-only units, and estimated calls.
 CREATED → BRAINSTORMING ↔ WAITING_FOR_USER → PLANNED
   → TASK_IMPACT_READY (pre-impact per unit)
   → IMPLEMENTING → VERIFYING (PENDING) → `nexus verify` → VERIFYING (PASSED)
+  → eligible FAILED → TASK_IMPACT_READY (one bounded automatic repair)
   → REVIEWING
        ├── REQUEST_CHANGES → TASK_IMPACT_READY (fresh impact) → …
        └── APPROVED → next unit TASK_IMPACT_READY | FINAL_REVIEWING → FINAL_VERIFYING → COMPLETED
@@ -107,9 +108,9 @@ task verification `PASSED`; `COMPLETED` requires sealed final verification
 1. Missing `.opencode/` → `nexus project-init` then `nexus run init`.
 2. Before `IMPLEMENTING` → complete brainstorm → plan → **pre-impact**. Do not edit production files.
 3. At `IMPLEMENTING` → only dispatch **implementer** via Task tool.
-4. In `VERIFYING` / `FINAL_VERIFYING` → follow `nexus next`: run deterministic `nexus verify`, resume a timeout with `nexus verify --resume`, and transition only after `PASSED`.
+4. In `VERIFYING` / `FINAL_VERIFYING` → follow `nexus next`: run deterministic `nexus verify`, resume a timeout with `nexus verify --resume`, and for one current sealed executed-check failure run fresh impact and re-enter `TASK_IMPACT_READY` once. Non-repairable failures remain manual; never dispatch a verifier subagent.
 5. After `VERIFYING/PASSED → REVIEWING` → dispatch **reviewer** (see [`reviewer-prompt.md`](reviewer-prompt.md)).
-5. On `REQUEST_CHANGES` → extract findings → fresh pre-impact → implementer → verify → reviewer. Do not ask the user to "fix review issues".
+5. On verification failure, let `nexus next` choose the guarded automatic repair or manual reconciliation. On `REQUEST_CHANGES` → extract findings → fresh pre-impact → implementer → verify → reviewer. Do not ask the user to "fix review issues".
 
 ## Next action (deterministic)
 

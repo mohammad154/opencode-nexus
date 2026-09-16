@@ -38,6 +38,7 @@ export function buildRunGateReminder(activeRun, opts = {}) {
   const { state, run_id: runId } = resolveState(activeRun);
   const includeNext = opts.includeNextAction !== false;
   const worktree = opts.worktree || null;
+  const currentHead = opts.current_head || opts.currentHead || null;
 
   let gate = null;
 
@@ -105,7 +106,10 @@ export function buildRunGateReminder(activeRun, opts = {}) {
     typeof activeRun === "string"
       ? { state: activeRun, run_id: runId }
       : activeRun || null;
-  const next = resolveNextAction(runForNext, { worktree });
+  const next = resolveNextAction(runForNext, {
+    worktree,
+    current_head: currentHead,
+  });
   if (next.action === "block_for_agent_budget") {
     gate = [
       "## Nexus Delegation Gate",
@@ -117,6 +121,18 @@ export function buildRunGateReminder(activeRun, opts = {}) {
       "## Nexus Delegation Gate",
       `Active run ${runId || "unknown"} has exhausted its reviewer fix-loop budget.`,
       "DO NOW: Transition to BLOCKED and reconcile; do not redispatch a reviewer or implementer.",
+    ].join("\n");
+  } else if (next.action === "repair_verification") {
+    gate = [
+      "## Nexus Delegation Gate",
+      `Active run ${runId || "unknown"} has an eligible deterministic verification failure.`,
+      "DO NOW: Run fresh impact and transition to TASK_IMPACT_READY for the one bounded automatic repair; do not ask the user or dispatch a verifier subagent.",
+    ].join("\n");
+  } else if (next.action === "block_for_verification_repair") {
+    gate = [
+      "## Nexus Delegation Gate",
+      `Active run ${runId || "unknown"} has exhausted its automatic verification-repair budget.`,
+      "DO NOW: Transition to BLOCKED with VERIFICATION_REPAIR_EXHAUSTED and reconcile; do not dispatch another repair pass.",
     ].join("\n");
   }
 

@@ -65,6 +65,31 @@ has_backup_for_path() {
     || [[ -f "$t.bak" ]]
 }
 
+backup_is_usable() {
+  local t=$1 backup=$2
+  [[ -n "$backup" && "$backup" != "$t" ]] || return 1
+  [[ -f "$backup" && ! -L "$backup" && -r "$backup" ]] || return 1
+  # Config backups are JSON documents. Reject a damaged backup rather than
+  # replacing a user's current config with an unparsable file.
+  if [[ "$t" == "$CF" ]] && command -v jq >/dev/null 2>&1; then
+    jq -e 'type == "object"' "$backup" >/dev/null 2>&1 || return 1
+  fi
+}
+
+manifest_pre_nexus_existed_without_jq() {
+  local t=$1 entry
+  entry="$(grep -F -A 3 "\"$t\":" "$MANIFEST_FILE" 2>/dev/null || true)"
+  if printf '%s\n' "$entry" \
+      | grep -Eq '"pre_nexus_existed"[[:space:]]*:[[:space:]]*true'; then
+    return 0
+  fi
+  if printf '%s\n' "$entry" \
+      | grep -Eq '"pre_nexus_existed"[[:space:]]*:[[:space:]]*false'; then
+    return 1
+  fi
+  return 2
+}
+
 is_nexus_agent_file() {
   local t=$1
   [[ -f "$t" ]] || return 1
@@ -97,10 +122,15 @@ bak_restore() {
     if [[ "$recorded" == "true" ]]; then
       existed="$(jq -r --arg t "$t" '.files[$t].pre_nexus_existed' "$MANIFEST_FILE" 2>/dev/null || echo "false")"
       backup="$(jq -r --arg t "$t" '.files[$t].original_backup // ""' "$MANIFEST_FILE" 2>/dev/null || echo "")"
-      if [[ "$existed" == "true" && -n "$backup" && -f "$backup" ]]; then
-        mv "$backup" "$t"
+      if [[ "$existed" == "true" ]]; then
+        if backup_is_usable "$t" "$backup"; then
+          mv "$backup" "$t"
+        else
+          echo "  Warn: original backup missing or unusable for $t; preserving current file" >&2
+          return 0
+        fi
       else
-        # File did not exist before Nexus, or its pristine copy is unavailable.
+        # The manifest proves Nexus created this file, so it is safe to remove.
         rm -f "$t"
       fi
       # Drop the manifest entry now that provenance is consumed.
@@ -115,11 +145,35 @@ bak_restore() {
   # sidecar with the pristine content; older releases used .bak.*.
   local original oldest
   original="$(ls -tr "$t".nexus-original.* 2>/dev/null | head -1 || true)"
-  if [[ -n "$original" ]]; then
+  if [[ -n "$original" && -f "$original" && ! -L "$original" ]]; then
     mv "$original" "$t"
   else
     oldest="$(ls -tr "$t".bak.* 2>/dev/null | head -1 || true)"
-    if [[ -n "$oldest" ]]; then mv "$oldest" "$t"; elif [[ -f "$t.bak" ]]; then mv "$t.bak" "$t"; else rm -f "$t"; fi
+    if [[ -n "$oldest" && -f "$oldest" && ! -L "$oldest" ]]; then
+      mv "$oldest" "$t"
+    elif [[ -f "$t.bak" && ! -L "$t.bak" ]]; then
+      mv "$t.bak" "$t"
+    elif manifest_has_entry "$t"; then
+      # Without jq, still honor the manifest's pre-existing provenance. A
+      # missing sidecar must not turn a user's file into a removable Nexus
+      # file.
+      local existed_status=2
+      if manifest_pre_nexus_existed_without_jq "$t"; then
+        existed_status=0
+      else
+        existed_status=$?
+      fi
+      if [[ "$existed_status" == "0" ]]; then
+        echo "  Warn: original backup missing or unusable for $t; preserving current file" >&2
+        return 0
+      else
+        # A false or unknown provenance record retains the historical cleanup
+        # behavior for Nexus-created and legacy-owned files.
+        rm -f "$t"
+      fi
+    else
+      rm -f "$t"
+    fi
   fi
   cleanup_backups_for_path "$t"
 }

@@ -57,7 +57,7 @@ loss, secrets/deployment/external side effect, or material plan-scope change.
 After implementer returns `DONE` or `DONE_WITH_CONCERNS`:
 
 1. Fast-transition to `VERIFYING`, then run `nexus verify`.
-2. On `TIMED_OUT` or `RUNNING`, use `nexus verify --resume`; on `FAILED`, inspect/repair without dispatching a reviewer.
+2. On `TIMED_OUT` or `RUNNING`, use `nexus verify --resume`. On `FAILED`, follow `nexus next`: only a current sealed failure from an executed check may take the one automatic fresh-impact → `TASK_IMPACT_READY` repair path; all other failures require reconciliation without dispatching a reviewer. There is no verifier subagent.
 3. Only after `VERIFYING/PASSED`: do not review in the orchestrator turn; generate `nexus review-package --scope task --json`.
 4. Dispatch **reviewer** with [`reviewer-prompt.md`](reviewer-prompt.md) and the package path. Do **not** prime the verdict.
 5. Wait `.opencode/handoffs/<id>-reviewer.json`. Nexus admits APPROVED only when acceptance/checks/files_reviewed evidence is structurally valid.

@@ -6,10 +6,15 @@
 
 import fs from "fs";
 import path from "path";
+import { spawnSync } from "node:child_process";
 import { planningModeFromEvidence } from "./planning.js";
 import { getAgentCallBudget } from "./providers.js";
 import { validateContainedPath } from "./filesystem-boundary.js";
-import { DEFAULT_MAX_FIX_LOOP_ATTEMPTS } from "./review-protocol.js";
+import { verifySealedArtifact } from "./artifact-seal.js";
+import {
+  DEFAULT_MAX_FIX_LOOP_ATTEMPTS,
+  DEFAULT_MAX_VERIFICATION_REPAIR_ATTEMPTS,
+} from "./review-protocol.js";
 
 /**
  * @typedef {object} NextAction
@@ -187,6 +192,125 @@ function verificationStatus(runState, phase) {
   return runState?.verification_status || "PENDING";
 }
 
+function currentHead(worktree, suppliedHead = null) {
+  if (typeof suppliedHead === "string" && suppliedHead.trim()) {
+    return suppliedHead.trim();
+  }
+  if (!worktree) return null;
+  try {
+    const result = spawnSync("git", ["rev-parse", "HEAD"], {
+      cwd: worktree,
+      encoding: "utf8",
+    });
+    if (result.status !== 0) return null;
+    return String(result.stdout || "").trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+function hasExecutedFailedCheck(artifact) {
+  return Array.isArray(artifact?.results) && artifact.results.some((result) =>
+    result &&
+    result.status !== "UNAVAILABLE" &&
+    result.status !== "SKIPPED" &&
+    result.timed_out !== true &&
+    result.error_code == null &&
+    result.signal == null &&
+    result.pass === false &&
+    result.exit_code != null,
+  );
+}
+
+/**
+ * The resolver is deliberately conservative: the state machine is the final
+ * authority, but `nexus next` must not advertise an automatic repair for a
+ * timeout, unavailable provider, stale HEAD, dirty/unmeasurable worktree, or
+ * an unexecuted check.
+ */
+function verificationRepairCandidate(runState, phase, worktree, suppliedHead = null) {
+  const summary = runState?.verification;
+  const artifactField = phase === "FINAL" ? "final_verification" : "provider_verification";
+  const artifact = runState?.[artifactField];
+  const head = currentHead(worktree, suppliedHead);
+  const attempts = Math.max(
+    0,
+    Math.floor(Number(runState?.verification_repair_attempts) || 0),
+  );
+
+  if (
+    runState?.verification_status !== "FAILED" ||
+    summary?.status !== "FAILED" ||
+    summary?.phase !== phase ||
+    summary?.failure_reason !== "VERIFICATION_FAILED" ||
+    !verifySealedArtifact(artifact) ||
+    artifact.ok !== false ||
+    artifact.timed_out === true ||
+    artifact.workspace_integrity_available !== true ||
+    artifact.workspace_clean !== true ||
+    !hasExecutedFailedCheck(artifact) ||
+    !head ||
+    summary.worktree_head !== head ||
+    artifact.worktree_head !== head ||
+    !summary.artifact_digest ||
+    summary.artifact_digest !== artifact.artifact_digest
+  ) {
+    return null;
+  }
+
+  return {
+    phase,
+    artifact_digest: artifact.artifact_digest,
+    attempts,
+  };
+}
+
+function verificationRepairBlock(runId, state, candidate) {
+  const phaseLabel = candidate?.phase || "verification";
+  return {
+    ok: true,
+    run_id: runId,
+    state,
+    action: "block_for_verification_repair",
+    agent: null,
+    skill: "reconcile",
+    command:
+      `nexus run transition --to BLOCKED --run-id ${runId || "<id>"} ` +
+      `--json '{"block_code":"VERIFICATION_REPAIR_EXHAUSTED","block_reason":"automatic ${phaseLabel.toLowerCase()} verification repair budget exhausted"}'`,
+    instruction:
+      `The bounded automatic ${phaseLabel.toLowerCase()} verification repair was already used (${candidate.attempts}/${DEFAULT_MAX_VERIFICATION_REPAIR_ATTEMPTS}). Transition to BLOCKED and reconcile; do not dispatch another automatic repair pass.`,
+    steps: [
+      "Do not dispatch another implementer or reviewer from the failed verification state",
+      "Transition to BLOCKED with VERIFICATION_REPAIR_EXHAUSTED",
+      "Load reconcile and inspect the failed sealed artifact before choosing a manual repair",
+    ],
+  };
+}
+
+function verificationRepairAction(runId, state, candidate) {
+  const phaseLabel = candidate.phase;
+  return {
+    ok: true,
+    run_id: runId,
+    state,
+    action: "repair_verification",
+    agent: null,
+    skill: "impact-analysis",
+    command:
+      `nexus impact --json --targets <current unit files> && ` +
+      `nexus run transition --to TASK_IMPACT_READY --run-id ${runId || "<id>"} ` +
+      `--json '{"verification_repair":{"phase":"${phaseLabel}","artifact_digest":"${candidate.artifact_digest}"},"impact":<fresh-impact-report>}'`,
+    instruction:
+      `Verification failed on an executed check, but the sealed evidence is current and the workspace is clean. Run one fresh impact analysis, then transition directly to TASK_IMPACT_READY for the bounded automatic repair; do not ask the user or dispatch a verifier subagent.`,
+    steps: [
+      "Load skill: impact-analysis",
+      "Run fresh nexus impact for the current execution-unit scope",
+      `Transition ${state} → TASK_IMPACT_READY with verification_repair.phase=${phaseLabel} and the exact persisted artifact digest`,
+      "Re-run nexus next and dispatch the implementer only after TASK_IMPACT_READY",
+    ],
+  };
+}
+
 function continuationFor(next) {
   if (next.state === "COMPLETED") {
     return { mode: "FINISH", resume_on: null };
@@ -201,7 +325,8 @@ function continuationFor(next) {
     next.state === "BLOCKED" ||
     next.action === "reconcile" ||
     next.action === "block_for_agent_budget" ||
-    next.action === "block_for_fix_loop"
+    next.action === "block_for_fix_loop" ||
+    next.action === "block_for_verification_repair"
   ) {
     return { mode: "MANUAL", resume_on: "repair" };
   }
@@ -457,6 +582,18 @@ function resolveNextActionInternal(runState, opts = {}) {
             steps: ["nexus verify --resume", "After PASSED: nexus run transition --to REVIEWING"],
           };
         case "FAILED":
+          {
+            const candidate = verificationRepairCandidate(
+              runState,
+              "TASK",
+              worktree,
+              opts.current_head || opts.currentHead,
+            );
+            if (candidate && candidate.attempts < DEFAULT_MAX_VERIFICATION_REPAIR_ATTEMPTS) {
+              return verificationRepairAction(runId, state, candidate);
+            }
+            if (candidate) return verificationRepairBlock(runId, state, candidate);
+          }
           return {
             ok: true,
             run_id: runId,
@@ -466,8 +603,8 @@ function resolveNextActionInternal(runState, opts = {}) {
             skill: "orchestrating",
             command: "nexus run inspect",
             instruction:
-              "Verification failed. Inspect the sealed evidence and repair the failure; do not dispatch a reviewer or silently re-enter IMPLEMENTING.",
-            steps: ["nexus run inspect", "Fix the reported failure under normal workflow controls", "Run nexus verify again"],
+              "Verification failed without eligible current sealed evidence for the bounded automatic repair. Inspect the artifact and handle the failure manually; do not dispatch a reviewer or silently re-enter IMPLEMENTING.",
+            steps: ["nexus run inspect", "Reconcile the reported failure and obtain any required approval", "Run nexus verify again"],
           };
         default:
           return {
@@ -579,6 +716,18 @@ function resolveNextActionInternal(runState, opts = {}) {
             steps: ["nexus verify --resume", "After PASSED: nexus run transition --to COMPLETED"],
           };
         case "FAILED":
+          {
+            const candidate = verificationRepairCandidate(
+              runState,
+              "FINAL",
+              worktree,
+              opts.current_head || opts.currentHead,
+            );
+            if (candidate && candidate.attempts < DEFAULT_MAX_VERIFICATION_REPAIR_ATTEMPTS) {
+              return verificationRepairAction(runId, state, candidate);
+            }
+            if (candidate) return verificationRepairBlock(runId, state, candidate);
+          }
           return {
             ok: true,
             run_id: runId,
@@ -588,8 +737,8 @@ function resolveNextActionInternal(runState, opts = {}) {
             skill: "orchestrating",
             command: "nexus run inspect",
             instruction:
-              "Final verification failed. Inspect the sealed evidence; COMPLETED remains forbidden.",
-            steps: ["nexus run inspect", "Repair through the normal workflow", "Run nexus verify again"],
+              "Final verification failed without eligible current sealed evidence for the bounded automatic repair. Inspect the artifact; COMPLETED remains forbidden.",
+            steps: ["nexus run inspect", "Reconcile the reported failure and obtain any required approval", "Run nexus verify again"],
           };
         default:
           return {

@@ -43,6 +43,7 @@ import {
 } from "./scope-lock.js";
 import {
   DEFAULT_MAX_FIX_LOOP_ATTEMPTS,
+  DEFAULT_MAX_VERIFICATION_REPAIR_ATTEMPTS,
   fixLoopDecision,
   isApprovalAdmissible,
   isBlockingFinding,
@@ -316,19 +317,55 @@ function gitIsAncestor(worktree, ancestor, descendant) {
   return null;
 }
 
-function gitDirtyPaths(worktree) {
-  if (!worktree) return [];
-  const result = spawnSync(
-    "git",
-    ["status", "--porcelain", "--untracked-files=all"],
-    { cwd: worktree, encoding: "utf8" },
-  );
-  if (result.status !== 0) return [];
-  return String(result.stdout || "")
-    .split(/\r?\n/)
-    .map((line) => line.slice(3).trim())
-    .filter(Boolean)
-    .map((file) => file.replace(/^"|"$/g, ""));
+/**
+ * Measure working-tree paths for reviewer authorization.
+ *
+ * An unavailable Git status is not equivalent to a clean workspace. Keep the
+ * availability/error evidence explicit so authorization gates can fail closed.
+ *
+ * @returns {{available: boolean, dirty_paths: string[], error?: string}}
+ */
+export function gitDirtyPaths(worktree) {
+  if (!worktree) {
+    return {
+      available: false,
+      dirty_paths: [],
+      error: "git status unavailable: worktree path is required",
+    };
+  }
+
+  let result;
+  try {
+    result = spawnSync(
+      "git",
+      ["status", "--porcelain", "--untracked-files=all"],
+      { cwd: worktree, encoding: "utf8" },
+    );
+  } catch (error) {
+    return {
+      available: false,
+      dirty_paths: [],
+      error: `git status unavailable: ${error?.message || String(error)}`,
+    };
+  }
+
+  if (result.error || result.status !== 0) {
+    const detail = String(result.stderr || result.stdout || "").trim();
+    return {
+      available: false,
+      dirty_paths: [],
+      error: `git status unavailable: ${result.error?.message || detail || `exit status ${result.status}`}`,
+    };
+  }
+
+  return {
+    available: true,
+    dirty_paths: String(result.stdout || "")
+      .split(/\r?\n/)
+      .map((line) => line.slice(3).trim())
+      .filter(Boolean)
+      .map((file) => file.replace(/^"|"$/g, "")),
+  };
 }
 
 export function requiredEvidence(from, to) {
@@ -346,11 +383,13 @@ export function requiredEvidence(from, to) {
     ],
     "IMPLEMENTING->VERIFYING": ["implementer_handoff"],
     "VERIFYING->REVIEWING": ["provider_verification"],
+    "VERIFYING->TASK_IMPACT_READY": ["verification_repair", "impact"],
     "REVIEWING->TASK_IMPACT_READY": ["review_handoff"],
     "REVIEWING->FINAL_REVIEWING": ["review_handoff", "review_package"],
     "REVIEWING->FINAL_VERIFYING": ["review_handoff", "review_package"],
     "FINAL_REVIEWING->FINAL_VERIFYING": ["review_handoff", "review_package"],
     "FINAL_REVIEWING->TASK_IMPACT_READY": ["review_handoff"],
+    "FINAL_VERIFYING->TASK_IMPACT_READY": ["verification_repair", "impact"],
     "FINAL_VERIFYING->COMPLETED": ["final_verification"],
   };
   return map[`${from}->${to}`] || [];
@@ -666,7 +705,11 @@ function currentReviewTip(state, ctx = {}) {
 
 function reviewerWorkspaceMutationErrors(worktree) {
   if (!worktree) return [];
-  const dirtyCode = gitDirtyPaths(worktree).filter(
+  const status = gitDirtyPaths(worktree);
+  if (!status.available) {
+    return [`reviewer approval rejected: workspace status unavailable (${status.error})`];
+  }
+  const dirtyCode = status.dirty_paths.filter(
     (file) => !file.startsWith(".opencode/"),
   );
   return dirtyCode.length > 0
@@ -785,13 +828,20 @@ function singleUnitReuseErrors(state, ctx, handoff, reviewPackage) {
     errors.push("single-unit final-review reuse requires unchanged code after task review");
   }
   if (ctx.worktree) {
-    const dirtyCode = gitDirtyPaths(ctx.worktree).filter(
-      (file) => !file.startsWith(".opencode/"),
-    );
-    if (dirtyCode.length > 0) {
+    const status = gitDirtyPaths(ctx.worktree);
+    if (!status.available) {
       errors.push(
-        `single-unit final-review reuse rejected: code changed after review (${dirtyCode.join(", ")})`,
+        `single-unit final-review reuse rejected: workspace status unavailable (${status.error})`,
       );
+    } else {
+      const dirtyCode = status.dirty_paths.filter(
+        (file) => !file.startsWith(".opencode/"),
+      );
+      if (dirtyCode.length > 0) {
+        errors.push(
+          `single-unit final-review reuse rejected: code changed after review (${dirtyCode.join(", ")})`,
+        );
+      }
     }
   }
   if (!reviewPackage || typeof reviewPackage !== "object") {
@@ -1082,7 +1132,10 @@ export function canTransition(state, to, ctx = {}) {
   if (from === "PLANNED") allowed.add("TASK_IMPACT_READY");
   if (from === "TASK_IMPACT_READY") allowed.add("IMPLEMENTING");
   if (from === "IMPLEMENTING") allowed.add("VERIFYING");
-  if (from === "VERIFYING") allowed.add("REVIEWING");
+  if (from === "VERIFYING") {
+    allowed.add("REVIEWING");
+    if (ctx.verification_repair) allowed.add("TASK_IMPACT_READY");
+  }
   if (from === "REVIEWING") {
     allowed.add("TASK_IMPACT_READY"); // REQUEST_CHANGES fix loop or next task
     allowed.add("FINAL_REVIEWING"); // last task APPROVED → whole-branch review
@@ -1094,7 +1147,10 @@ export function canTransition(state, to, ctx = {}) {
     allowed.add("FINAL_VERIFYING"); // final-scope APPROVED
     allowed.add("TASK_IMPACT_READY"); // REQUEST_CHANGES on final review
   }
-  if (from === "FINAL_VERIFYING") allowed.add("COMPLETED");
+  if (from === "FINAL_VERIFYING") {
+    allowed.add("COMPLETED");
+    if (ctx.verification_repair) allowed.add("TASK_IMPACT_READY");
+  }
   if (from === "BLOCKED") {
     const resumeTarget = state.blocked_from || state.resume_state;
     if (
@@ -1190,6 +1246,9 @@ export function canTransition(state, to, ctx = {}) {
   }
 
   if (to === "TASK_IMPACT_READY") {
+    if (from === "VERIFYING" || from === "FINAL_VERIFYING") {
+      errors.push(...verificationRepairErrors(state, ctx));
+    }
     // Fresh pre-impact required every time (including after REQUEST_CHANGES)
     const impact =
       ctx.impact?.report ||
@@ -1604,6 +1663,82 @@ function fixLoopAttemptsForUnit(state = {}, unit) {
   return Math.max(0, Math.floor(Number(raw[unit]) || 0));
 }
 
+function verificationRepairPhase(state = {}) {
+  if (state.state === "VERIFYING") return "TASK";
+  if (state.state === "FINAL_VERIFYING") return "FINAL";
+  return null;
+}
+
+function hasExecutedFailedCheck(artifact) {
+  return Array.isArray(artifact?.results) && artifact.results.some((result) =>
+    result &&
+    result.status !== "UNAVAILABLE" &&
+    result.status !== "SKIPPED" &&
+    result.timed_out !== true &&
+    result.error_code == null &&
+    result.signal == null &&
+    result.pass === false &&
+    result.exit_code != null,
+  );
+}
+
+function verificationRepairErrors(state = {}, ctx = {}) {
+  const phase = verificationRepairPhase(state);
+  if (!phase) return [];
+
+  const errors = [];
+  const repair = ctx.verification_repair;
+  const summary = state.verification || {};
+  const artifact = phase === "FINAL" ? state.final_verification : state.provider_verification;
+  const worktree = ctx.worktree || state.worktree;
+  const head = gitRevParse(worktree, "HEAD");
+
+  if (!repair || typeof repair !== "object") {
+    errors.push(`${state.state} → TASK_IMPACT_READY requires verification_repair evidence`);
+    return errors;
+  }
+  if (repair.phase !== phase) {
+    errors.push(`verification repair phase mismatch (got ${repair.phase || "missing"}, want ${phase})`);
+  }
+  if (state.verification_status !== "FAILED" || summary.status !== "FAILED") {
+    errors.push(`${state.state} repair requires persisted FAILED verification status`);
+  }
+  if (summary.phase !== phase) {
+    errors.push(`verification repair requires ${phase} verification summary`);
+  }
+  if (!verifySealedArtifact(artifact) || artifact.ok !== false) {
+    errors.push("verification repair requires a sealed failed verification artifact");
+  }
+  if (!head || artifact?.worktree_head !== head || summary.worktree_head !== head) {
+    errors.push("verification repair requires failed evidence bound to current HEAD");
+  }
+  if (artifact?.workspace_integrity_available !== true || artifact?.workspace_clean !== true) {
+    errors.push("verification repair requires an available clean workspace measurement");
+  }
+  if (summary.failure_reason !== "VERIFICATION_FAILED") {
+    errors.push(
+      `verification failure ${summary.failure_reason || "unknown"} is not eligible for automatic repair`,
+    );
+  }
+  if (!hasExecutedFailedCheck(artifact)) {
+    errors.push("verification repair requires at least one executed failed check");
+  }
+  if (
+    !repair.artifact_digest ||
+    repair.artifact_digest !== summary.artifact_digest ||
+    repair.artifact_digest !== artifact?.artifact_digest
+  ) {
+    errors.push("verification repair artifact_digest does not match persisted failed evidence");
+  }
+  const attempts = Math.max(0, Math.floor(Number(state.verification_repair_attempts) || 0));
+  if (attempts >= DEFAULT_MAX_VERIFICATION_REPAIR_ATTEMPTS) {
+    errors.push(
+      `VERIFICATION_REPAIR_EXHAUSTED: ${attempts} repair attempt(s) already used; transition to BLOCKED and reconcile`,
+    );
+  }
+  return errors;
+}
+
 function resolveAgentCallBudget(state, ctx = {}, to = null) {
   const unitEvidence = unitCountEntries(to === "PLANNED" ? ctx : state);
   const counts = unitEvidence
@@ -1886,6 +2021,20 @@ export function transition(state, to, evidence = {}, providers = null) {
     }
     if (ctx.current_unit || ctx.next_unit) {
       next.current_unit = ctx.next_unit || ctx.current_unit;
+    }
+    if (state.state === "VERIFYING" || state.state === "FINAL_VERIFYING") {
+      next.verification_repair_attempts =
+        (Number(state.verification_repair_attempts) || 0) + 1;
+      next.last_verification_repair = {
+        phase: state.state === "FINAL_VERIFYING" ? "FINAL" : "TASK",
+        artifact_digest: state.verification?.artifact_digest || null,
+        attempt: next.verification_repair_attempts,
+      };
+      // A failed final verification invalidates all final-review reuse evidence.
+      delete next.final_verification;
+      delete next.final_post_impact;
+      delete next.last_final_review_handoff;
+      next.final_review_reused = false;
     }
     const reviewRaw =
       ctx.review_handoff || ctx.unified_handoff || ctx.request_changes_handoff;

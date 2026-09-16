@@ -36,7 +36,7 @@ function buildCompactRouter() {
     "Portable commands: nexus project-init | nexus next | nexus run ... | nexus impact ... | nexus estimate ...",
     "Use nexus run for gates and nexus next for the deterministic next step, including REQUIRED_DISPATCH. Do not assume repo-local scripts/ exists.",
     "Execution: orchestrator, implementer, reviewer; plan-advisor only during planning. Reviewer follows PASSED verification; verification is deterministic. Never self-implement or skip review.",
-    "Lifecycle: CREATED → BRAINSTORMING ↔ WAITING_FOR_USER → PLANNED → TASK_IMPACT_READY → IMPLEMENTING → VERIFYING → REVIEWING → FINAL_REVIEWING → FINAL_VERIFYING → COMPLETED. Follow nexus next for timeout resume, review packages, and final approval.",
+    "Lifecycle: CREATED → BRAINSTORMING ↔ WAITING_FOR_USER → PLANNED → TASK_IMPACT_READY → IMPLEMENTING → VERIFYING → REVIEWING → FINAL_REVIEWING → FINAL_VERIFYING → COMPLETED. Follow nexus next for timeout resume, one eligible sealed verification-failure repair, review packages, and final approval; never create a verifier subagent.",
     "</EXTREMELY_IMPORTANT>",
   ].join("\n");
 }

@@ -84,21 +84,115 @@ function pathInventory(worktree, statusPaths) {
   return { ok: true, paths: [...paths].sort() };
 }
 
-function entryForFile(worktree, relative) {
-  const absolute = path.join(worktree, ...relative.split("/"));
-  const boundary = validateContainedPath(worktree, absolute, {
+function runtimeRelativePath(worktree, absolute) {
+  const relative = path.relative(worktree, absolute).replace(/\\/g, "/");
+  return relative || ".";
+}
+
+/**
+ * Runtime state is deliberately stricter than source inventory. Runtime
+ * paths may be read or written by Nexus, so an external or dangling symlink
+ * must fail closed instead of being treated as an ignored artifact.
+ */
+function assertRuntimeTreeSafe(worktree) {
+  const runtimeRoot = path.join(worktree, ".opencode");
+  let rootStat;
+  try {
+    rootStat = fs.lstatSync(runtimeRoot);
+  } catch (error) {
+    if (error?.code === "ENOENT") return;
+    throw new Error(
+      `runtime path .opencode is unavailable (${error?.message || error})`,
+    );
+  }
+
+  const rootBoundary = validateContainedPath(worktree, runtimeRoot, {
     allowMissing: false,
     rejectSymlinks: true,
   });
-  if (!boundary.ok) {
+  if (!rootBoundary.ok) {
     throw new Error(
-      `workspace path ${relative} violates filesystem boundary (${boundary.reason})`,
+      `runtime path .opencode violates filesystem boundary (${rootBoundary.reason})`,
+    );
+  }
+  if (rootStat.isSymbolicLink()) {
+    throw new Error("runtime path .opencode is a symlink");
+  }
+  if (!rootStat.isDirectory()) {
+    throw new Error("runtime path .opencode is not a directory");
+  }
+
+  const pending = [runtimeRoot];
+  while (pending.length > 0) {
+    const current = pending.pop();
+    let entries;
+    try {
+      entries = fs.readdirSync(current, { withFileTypes: true });
+    } catch (error) {
+      throw new Error(
+        `runtime path ${runtimeRelativePath(worktree, current)} is unreadable (${error?.message || error})`,
+      );
+    }
+    for (const entry of entries) {
+      const absolute = path.join(current, entry.name);
+      const relative = runtimeRelativePath(worktree, absolute);
+      const boundary = validateContainedPath(worktree, absolute, {
+        allowMissing: false,
+        rejectSymlinks: true,
+      });
+      if (!boundary.ok) {
+        throw new Error(
+          `runtime path ${relative} violates filesystem boundary (${boundary.reason})`,
+        );
+      }
+      let stat;
+      try {
+        stat = fs.lstatSync(absolute);
+      } catch (error) {
+        throw new Error(
+          `runtime path ${relative} is unavailable (${error?.message || error})`,
+        );
+      }
+      if (stat.isSymbolicLink()) {
+        throw new Error(`runtime path ${relative} is a symlink`);
+      }
+      if (stat.isDirectory()) pending.push(absolute);
+    }
+  }
+}
+
+function entryForFile(worktree, relative) {
+  const absolute = path.join(worktree, ...relative.split("/"));
+  // Validate only the parent first. The final source entry may itself be a
+  // symlink; resolving it here would reject safe repository links and would
+  // also read through an external target during measurement.
+  const parentBoundary = validateContainedPath(worktree, path.dirname(absolute), {
+    allowMissing: false,
+    rejectSymlinks: true,
+  });
+  if (!parentBoundary.ok) {
+    throw new Error(
+      `workspace path ${relative} violates filesystem boundary (${parentBoundary.reason})`,
     );
   }
   try {
     const stat = fs.lstatSync(absolute);
     if (stat.isSymbolicLink()) {
-      throw new Error(`workspace path ${relative} became a symlink during measurement`);
+      // Source links are identity metadata, not content to dereference. This
+      // intentionally accepts internal, external-target, and dangling links:
+      // lstat/readlink cannot escape the measurement or fail because a target
+      // is absent. Any later consumer that follows the target must validate it
+      // independently against its own containment policy.
+      return `${relative}\0symlink\0${stat.mode}\0${fs.readlinkSync(absolute)}`;
+    }
+    const boundary = validateContainedPath(worktree, absolute, {
+      allowMissing: false,
+      rejectSymlinks: true,
+    });
+    if (!boundary.ok) {
+      throw new Error(
+        `workspace path ${relative} violates filesystem boundary (${boundary.reason})`,
+      );
     }
     if (!stat.isFile()) {
       return `${relative}\0mode\0${stat.mode}`;
@@ -138,6 +232,15 @@ export function inspectWorkspace(worktree) {
     return {
       available: false,
       error: `workspace path violates filesystem boundary (${rootBoundary.reason})`,
+    };
+  }
+
+  try {
+    assertRuntimeTreeSafe(root);
+  } catch (error) {
+    return {
+      available: false,
+      error: `runtime path measurement failed: ${error?.message || error}`,
     };
   }
 

@@ -103,3 +103,10 @@ never reused.
 `VERIFYING → REVIEWING` and `FINAL_VERIFYING → COMPLETED` are pure gates. They
 consume only the durable `PASSED` summary plus the matching sealed post-impact
 and provider evidence. They never execute a test or provider command.
+
+For a normal executed-check failure, `nexus next` may authorize one guarded
+repair loop: current sealed artifact → fresh impact → `TASK_IMPACT_READY` →
+implementer → review. The state machine requires the failed artifact to match
+current HEAD, a clean and available workspace measurement, and an actual
+failed check. Timeouts, unavailable measurements, stale/dirty evidence, and a
+second failed repair are manual or `BLOCKED`; no verifier agent is created.

@@ -14,6 +14,9 @@ export const MANDATORY_CHECK_CATEGORIES = [
 // small and deterministic so one hard unit cannot consume the whole run.
 export const DEFAULT_MAX_FIX_LOOP_ATTEMPTS = 3;
 
+// Keep automatic verification repair bounded to one implementer/review pass.
+export const DEFAULT_MAX_VERIFICATION_REPAIR_ATTEMPTS = 1;
+
 export function isLikelyProductionPath(file) {
   const f = String(file || "").replace(/\\/g, "/");
   if (!f || f.startsWith(".opencode/")) return false;

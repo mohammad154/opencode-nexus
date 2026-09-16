@@ -38,7 +38,7 @@ request → brainstorm → (optional plan-advisor) → plan → plan-check → (
 
 Durable state: `.opencode/runs/<run-id>/state.json`
 
-States: `CREATED` → `BRAINSTORMING` ↔ `WAITING_FOR_USER` → `PLANNED` → `TASK_IMPACT_READY` → `IMPLEMENTING` → `VERIFYING` → `REVIEWING` → (`TASK_IMPACT_READY` on REQUEST_CHANGES / next unit) → `FINAL_REVIEWING` → `FINAL_VERIFYING` → `COMPLETED`
+States: `CREATED` → `BRAINSTORMING` ↔ `WAITING_FOR_USER` → `PLANNED` → `TASK_IMPACT_READY` → `IMPLEMENTING` → `VERIFYING` → `REVIEWING` → (`TASK_IMPACT_READY` on REQUEST_CHANGES / eligible failed verification / next unit) → `FINAL_REVIEWING` → `FINAL_VERIFYING` → `COMPLETED`
 
 ```text
 Implementer
@@ -60,9 +60,13 @@ post-impact, plan discovery, checks, timeouts, progress, and sealed evidence;
 it does not transition to `REVIEWING` or `COMPLETED` itself.
 
 Use `nexus next` for the exact action. In particular, `PENDING` means
-`nexus verify`, `RUNNING`/`TIMED_OUT` mean `nexus verify --resume`, `FAILED`
-means inspect and repair without dispatching a reviewer, and `PASSED` means run
-the corresponding authorization transition.
+`nexus verify`, `RUNNING`/`TIMED_OUT` mean `nexus verify --resume`, and `PASSED`
+means run the corresponding authorization transition. For a `FAILED` result,
+`nexus next` automatically performs one fresh-impact repair only when the
+sealed artifact is bound to current HEAD, the workspace measurement is
+available and clean, and an executable check actually failed. Timeout,
+unavailable, stale, dirty, and other non-repairable failures remain manual;
+there is no verifier subagent.
 
 ## Impact Engine
 
@@ -109,7 +113,7 @@ review path.
 
 Verdicts: `APPROVED` | `REQUEST_CHANGES`. Approvals require evidence (all persisted acceptance criteria, mandatory checks, production-file coverage in `files_reviewed` or explicit `files_skipped`, bound review-package digest); empty APPROVED is gate-invalid.
 
-On `REQUEST_CHANGES`, the orchestrator automatically re-impacts and re-dispatches the implementer — the user does not need to ask for fixes. This is capped at three remediation attempts per execution unit. After `FIX_LOOP_EXHAUSTED` or `AGENT_CALL_BUDGET_EXCEEDED`, it must transition to `BLOCKED` and reconcile instead of dispatching another subagent.
+On an eligible verification `FAILED`, the orchestrator automatically re-impacts and re-dispatches the implementer once; this is separate from reviewer `REQUEST_CHANGES` remediation. On `REQUEST_CHANGES`, it automatically re-impacts and re-dispatches the implementer — the user does not need to ask for fixes. Reviewer remediation is capped at three attempts per execution unit. After `VERIFICATION_REPAIR_EXHAUSTED`, `FIX_LOOP_EXHAUSTED`, or `AGENT_CALL_BUDGET_EXCEEDED`, it must transition to `BLOCKED` and reconcile instead of dispatching another subagent.
 
 For any transition that consumes a handoff, pass the complete handoff file rather than reconstructing a partial object: `--implementer-handoff-file .opencode/handoffs/<id>-implementer.json` or `--review-handoff-file .opencode/handoffs/<id>-reviewer.json`. This preserves the acceptance and evidence required by the state gate.
 

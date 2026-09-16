@@ -61,9 +61,10 @@ nexus run inspect --run-id <id>
 nexus next
 ```
 
-Do not dispatch a reviewer and do not bypass the state gate. Repair through the
-normal impact/implementer loop when code must change, then run a fresh
-`nexus verify`.
+Do not dispatch a reviewer and do not bypass the state gate. Follow `nexus
+next`: it automatically enters the guarded impact/implementer repair loop once
+when the evidence is eligible; otherwise reconcile the failure manually, then
+run a fresh `nexus verify`.
 
 ## Scope expansion is reported
 

@@ -10,6 +10,7 @@ import {
   formatNextActionInjection,
 } from "../../scripts/lib/next-action.js";
 import { buildRunGateReminder } from "../../scripts/lib/run-gate.js";
+import { sealProviderArtifact } from "../../scripts/lib/artifact-seal.js";
 
 const root = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -19,6 +20,69 @@ const bin = path.join(root, "bin", "nexus.js");
 
 function tempDir(prefix) {
   return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+}
+
+function git(worktree, args) {
+  const result = spawnSync("git", args, {
+    cwd: worktree,
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      GIT_AUTHOR_NAME: "Nexus Test",
+      GIT_AUTHOR_EMAIL: "nexus-test@example.invalid",
+      GIT_COMMITTER_NAME: "Nexus Test",
+      GIT_COMMITTER_EMAIL: "nexus-test@example.invalid",
+    },
+  });
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  return String(result.stdout || "").trim();
+}
+
+function failedVerificationRun(t, { phase = "TASK", attempts = 0, overrides = {} } = {}) {
+  const worktree = tempDir("nexus-next-repair-");
+  t.after(() => fs.rmSync(worktree, { recursive: true, force: true }));
+  fs.mkdirSync(path.join(worktree, "src"), { recursive: true });
+  fs.writeFileSync(path.join(worktree, "src", "app.js"), "export const app = true;\n");
+  git(worktree, ["init"]);
+  git(worktree, ["add", "."]);
+  git(worktree, ["commit", "-m", "fixture"]);
+  const head = git(worktree, ["rev-parse", "HEAD"]);
+  const artifact = sealProviderArtifact(
+    {
+      schema_version: "1.0",
+      ok: false,
+      results: [
+        { id: "test", status: "FAILED", pass: false, exit_code: 1 },
+      ],
+      workspace_integrity_available: true,
+      workspace_clean: true,
+      timed_out: false,
+    },
+    head,
+  );
+  const verification = {
+    status: "FAILED",
+    phase,
+    worktree_head: head,
+    artifact_digest: artifact.artifact_digest,
+    failure_reason: "VERIFICATION_FAILED",
+    workspace_integrity_available: true,
+    workspace_clean: true,
+  };
+  return {
+    worktree,
+    state: {
+      run_id: `repair-${phase.toLowerCase()}`,
+      state: phase === "FINAL" ? "FINAL_VERIFYING" : "VERIFYING",
+      verification_status: "FAILED",
+      verification,
+      verification_repair_attempts: attempts,
+      ...(phase === "FINAL"
+        ? { final_verification: artifact }
+        : { provider_verification: artifact }),
+      ...overrides,
+    },
+  };
 }
 
 test("resolveNextAction maps IMPLEMENTING → dispatch implementer", () => {
@@ -95,6 +159,91 @@ test("resolveNextAction makes task and final verification status deterministic",
     assert.equal(next.command, command, `${state}/${status}`);
     assert.equal(next.agent, null, `${state}/${status}`);
   }
+});
+
+test("eligible task verification failures automatically re-enter fresh impact once", (t) => {
+  const { worktree, state } = failedVerificationRun(t);
+  const next = resolveNextAction(state, {
+    worktree,
+    current_head: state.verification.worktree_head,
+  });
+  assert.equal(next.action, "repair_verification");
+  assert.equal(next.agent, null);
+  assert.deepEqual(next.continuation, { mode: "AUTO", resume_on: null });
+  assert.match(next.command, /TASK_IMPACT_READY/);
+  assert.match(next.command, new RegExp(state.verification.artifact_digest));
+  assert.match(next.instruction, /fresh impact/i);
+});
+
+test("eligible final verification failures use the same bounded task repair path", (t) => {
+  const { worktree, state } = failedVerificationRun(t, { phase: "FINAL" });
+  const next = resolveNextAction(state, {
+    worktree,
+    current_head: state.verification.worktree_head,
+  });
+  assert.equal(next.action, "repair_verification");
+  assert.equal(next.agent, null);
+  assert.match(next.instruction, /bounded automatic repair/i);
+  assert.match(next.steps.join(" "), /phase=FINAL/);
+});
+
+test("verification repair exhaustion blocks instead of redispatching", (t) => {
+  const { worktree, state } = failedVerificationRun(t, { attempts: 1 });
+  const next = resolveNextAction(state, {
+    worktree,
+    current_head: state.verification.worktree_head,
+  });
+  assert.equal(next.action, "block_for_verification_repair");
+  assert.equal(next.agent, null);
+  assert.equal(next.continuation.mode, "MANUAL");
+  assert.match(next.command, /VERIFICATION_REPAIR_EXHAUSTED/);
+});
+
+test("timeouts, unavailable evidence, and stale HEADs remain manual", (t) => {
+  const timeout = failedVerificationRun(t, {
+    overrides: {
+      verification: {
+        status: "FAILED",
+        phase: "TASK",
+        worktree_head: "stale",
+        artifact_digest: "stale",
+        failure_reason: "VERIFICATION_TIMED_OUT",
+      },
+    },
+  });
+  const next = resolveNextAction(timeout.state, { worktree: timeout.worktree });
+  assert.equal(next.action, "report_failed_verification");
+  assert.equal(next.continuation.mode, "MANUAL");
+});
+
+test("provider process errors remain manual even when the runner reports an exit code", (t) => {
+  const { worktree, state } = failedVerificationRun(t);
+  const artifact = sealProviderArtifact(
+    {
+      ok: false,
+      results: [
+        {
+          id: "test",
+          status: "FAILED",
+          pass: false,
+          exit_code: 1,
+          error_code: "EPERM",
+        },
+      ],
+      workspace_integrity_available: true,
+      workspace_clean: true,
+      timed_out: false,
+    },
+    state.verification.worktree_head,
+  );
+  state.provider_verification = artifact;
+  state.verification.artifact_digest = artifact.artifact_digest;
+  const next = resolveNextAction(state, {
+    worktree,
+    current_head: state.verification.worktree_head,
+  });
+  assert.equal(next.action, "report_failed_verification");
+  assert.equal(next.continuation.mode, "MANUAL");
 });
 
 test("resolveNextAction does not reuse verification status from another phase", () => {
@@ -296,6 +445,17 @@ test("buildRunGateReminder keeps a pending verification run out of reviewer disp
   assert.match(text, /Do not .*dispatch a reviewer/i);
   assert.match(text, /nexus verify/);
   assert.match(text, /run_verification/);
+});
+
+test("buildRunGateReminder exposes eligible verification repair as an automatic action", (t) => {
+  const { worktree, state } = failedVerificationRun(t);
+  const text = buildRunGateReminder(state, {
+    worktree,
+    current_head: state.verification.worktree_head,
+  });
+  assert.match(text, /fresh impact/i);
+  assert.match(text, /repair_verification/);
+  assert.doesNotMatch(text, /REQUIRED_DISPATCH/);
 });
 
 test("nexus next --json works with no run", () => {

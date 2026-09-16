@@ -45,7 +45,7 @@ justifies the call; compact plans may omit it.
 ```text
 CREATED → BRAINSTORMING ↔ WAITING_FOR_USER → PLANNED
   → TASK_IMPACT_READY → IMPLEMENTING → VERIFYING → `nexus verify` → REVIEWING
-  → (REQUEST_CHANGES → TASK_IMPACT_READY) | FINAL_REVIEWING → FINAL_VERIFYING → `nexus verify` → COMPLETED
+  → (REQUEST_CHANGES / eligible FAILED → TASK_IMPACT_READY) | FINAL_REVIEWING → FINAL_VERIFYING → `nexus verify` → COMPLETED
 ```
 
 ```bash
@@ -60,4 +60,6 @@ Execution agents: **orchestrator**, **implementer**, **reviewer**. Planning-only
 advisor: **plan-advisor** (conditional; never in the implementation loop).
 Verification is deterministic provider execution, not a fourth agent. Follow
 `nexus next`: it sends `PENDING` to `nexus verify`, timeouts to
-`nexus verify --resume`, and only a `PASSED` task verification to the reviewer.
+`nexus verify --resume`, one eligible current sealed check failure through fresh
+impact and `TASK_IMPACT_READY`, and only a `PASSED` task verification to the
+reviewer. It never dispatches a verifier subagent.

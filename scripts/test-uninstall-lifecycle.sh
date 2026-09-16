@@ -140,4 +140,30 @@ T2="$(mktemp -d)"
 ) || fail "jq-less uninstall did not remove agent files"
 pass "jq-less uninstall still removes agent files"
 
+# --- Test 4: missing pristine backup preserves current user modifications ----
+T4="$(mktemp -d)"
+(
+  export HOME="$T4"
+  CD="$HOME/.config/opencode"; AD="$CD/agents"
+  mkdir -p "$AD" "$HOME/bin" "$HOME/project"
+  printf '#!/bin/sh\nexit 0\n' >"$HOME/bin/opencode"; chmod +x "$HOME/bin/opencode"
+  export PATH="$HOME/bin:/usr/bin:/bin"
+  printf '{}\n' >"$CD/opencode.json"
+  git init -q "$HOME/project"
+  printf 'ORIGINAL USER orchestrator\n' >"$AD/orchestrator.md"
+  ( cd "$HOME/project" && "$ROOT/install.sh" ) >/dev/null 2>&1
+
+  backup="$(jq -r --arg t "$AD/orchestrator.md" '.files[$t].original_backup' "$CD/nexus-install-manifest.json")"
+  [[ -n "$backup" && -f "$backup" ]] || { echo "install did not create pristine backup"; exit 1; }
+  rm -f "$backup"
+  printf 'CURRENT USER MODIFICATION\n' >"$AD/orchestrator.md"
+
+  ( cd "$HOME/project" && "$ROOT/uninstall.sh" ) >"$T4/uninstall.log" 2>&1
+  grep -q "original backup missing or unusable" "$T4/uninstall.log" \
+    || { echo "missing-backup warning not emitted"; cat "$T4/uninstall.log"; exit 1; }
+  grep -q '^CURRENT USER MODIFICATION$' "$AD/orchestrator.md" \
+    || { echo "current user modification was deleted"; exit 1; }
+)
+pass "missing pristine backup preserves current user modification"
+
 echo "PASS: uninstall lifecycle regressions"

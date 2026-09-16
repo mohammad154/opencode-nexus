@@ -64,8 +64,9 @@ npm removal: npm 7 and newer do not run package uninstall lifecycle scripts, so
 3. Every implementation must be approved by an independent reviewer.
 
 After the plan is confirmed, the orchestrator continues deterministic gates and
-subagent dispatches automatically in the same turn, including verification
-resume, reviewer `REQUEST_CHANGES` loops, final verification, and default local
+subagent dispatches automatically in the same turn, including eligible
+verification-repair loops, verification resume, reviewer `REQUEST_CHANGES`
+loops, final verification, and default local
 branch merge/cleanup. It asks only for unresolved planning decisions or a
 critical approval such as `merge_policy: prompt`, push/PR, force-discard,
 destructive migration/data loss, secrets/deployment/external side effects, or a

@@ -379,6 +379,7 @@ export function createEmptyRunState(runId, overrides = {}) {
     current_unit: null,
     pending_review_findings: null,
     fix_loop_attempts: {},
+    verification_repair_attempts: 0,
     plan_commit: null,
     run_base_commit: null,
     head_commit: null,

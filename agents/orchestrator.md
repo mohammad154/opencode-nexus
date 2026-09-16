@@ -164,7 +164,7 @@ hidden in the transition evidence.
 
 ## Lifecycle
 
-`CREATED → BRAINSTORMING ↔ WAITING_FOR_USER → PLANNED → TASK_IMPACT_READY → IMPLEMENTING → VERIFYING → REVIEWING → FINAL_REVIEWING → FINAL_VERIFYING → COMPLETED`
+`CREATED → BRAINSTORMING ↔ WAITING_FOR_USER → PLANNED → TASK_IMPACT_READY → IMPLEMENTING → VERIFYING → (eligible FAILED → TASK_IMPACT_READY once) → REVIEWING → FINAL_REVIEWING → FINAL_VERIFYING → COMPLETED`
 
 ## Dispatch rules
 
@@ -174,7 +174,7 @@ hidden in the transition evidence.
 - During execution dispatch only `implementer` and `reviewer`; `plan-advisor` is allowed only in the planning gate above.
 - `VERIFYING` and `FINAL_VERIFYING` are deterministic measurement states, never a verifier subagent. Enter them quickly, then run `nexus verify`.
 - The implementer runs targeted checks after internal implementation steps, then completes the unit's declared gates. Nexus does not persist or authorize each internal step as a separate verification boundary: run deterministic `nexus verify` for the completed unit before its one task reviewer.
-- Dispatch the reviewer only after `nexus next` reports `transition_to_reviewing`. If verification is `RUNNING` or `TIMED_OUT`, run `nexus verify --resume`; if `FAILED`, inspect/repair it without redispatching implementer or reviewer automatically.
+- Dispatch the reviewer only after `nexus next` reports `transition_to_reviewing`. If verification is `RUNNING` or `TIMED_OUT`, run `nexus verify --resume`. If `FAILED`, follow `nexus next`: a current sealed failure from an executed check gets one automatic fresh-impact → `TASK_IMPACT_READY` repair; timeout, unavailable, stale-HEAD, dirty-worktree, and other non-repairable evidence stays manual. Never create a verifier subagent.
 - Fresh implementer per execution unit; isolated worktree; `allowed_files` scope lock.
 - Pass pre-impact (dependents, callers, related tests) into the implementer prompt.
 - On reviewer `REQUEST_CHANGES`: extract findings → **fresh pre-impact** → implementer → VERIFYING → `nexus verify` → reviewer. Do not wait for the user to say "fix review".
