@@ -14,6 +14,7 @@ import {
 } from "../verification/discover.js";
 import { compareBaselines } from "../verification/compare.js";
 import { sealProviderArtifact, sha256Digest } from "../artifact-seal.js";
+import { validateContainedPath } from "../filesystem-boundary.js";
 
 const DEFAULT_TIMEOUTS_SECONDS = Object.freeze({
   targetedTest: 300,
@@ -59,9 +60,15 @@ function finitePositiveSeconds(value) {
  */
 export function resolveVerificationTimeouts(worktree, overrides = {}) {
   const packageConfig = readJson(defaultWorkflowPath());
-  const projectConfig = readJson(
-    path.join(worktree || process.cwd(), ".opencode", "config", "workflow.json"),
-  );
+  const root = path.resolve(worktree || process.cwd());
+  const projectConfigPath = path.join(root, ".opencode", "config", "workflow.json");
+  const projectConfigBoundary = validateContainedPath(root, projectConfigPath, {
+    allowMissing: true,
+    rejectSymlinks: true,
+  });
+  const projectConfig = projectConfigBoundary.ok
+    ? readJson(projectConfigPath)
+    : {};
   const configured = {
     ...DEFAULT_TIMEOUTS_SECONDS,
     ...(packageConfig.verificationTimeouts || {}),
@@ -114,9 +121,37 @@ function formatCommand(step) {
 function spawnWasKilledOrMissing(result) {
   if (!result || typeof result !== "object") return true;
   if (result.timed_out === true) return false;
-  if (result.error && result.status == null) return true;
-  if (result.signal && result.status == null) return true;
+  // A process error is authoritative even when a runner reports a nominal
+  // status (some wrappers preserve status: 0 while also returning error).
+  if (result.error != null) return true;
+  if (result.signal) return true;
+  if (result.status == null && result.exit_code == null) return true;
   return false;
+}
+
+function runnerErrorMessage(error) {
+  if (error == null) return null;
+  if (typeof error === "string") return error;
+  return String(error.message || error.code || error);
+}
+
+function runnerOutput(result) {
+  if (!result || typeof result !== "object") return "";
+  const stdout = String(result.stdout || "");
+  const stderr = result.stderr ? String(result.stderr) : "";
+  const error = runnerErrorMessage(result.error);
+  return stdout + stderr + (error && !stderr ? error : "");
+}
+
+function runnerEvidence(result) {
+  const error = runnerErrorMessage(result?.error);
+  return {
+    error_code: result?.error?.code || null,
+    error_message: error,
+    signal: result?.signal || null,
+    stdout_tail: String(result?.stdout || "").slice(-2000),
+    stderr_tail: String(result?.stderr || error || "").slice(-2000),
+  };
 }
 
 function resolvedSpawnExit(result, failDefault) {
@@ -236,7 +271,7 @@ export function createVerificationProvider(providerOptions = {}) {
         onProgress?.({ type: "start", index: index + 1, total: totalSteps, step, timeout_ms: timeoutMs });
         const startedAt = Date.now();
         const r = runStep(step, worktree, timeoutMs);
-        const spawnFailed = Boolean(r.error) && r.status == null && !r.timed_out;
+        const spawnFailed = spawnWasKilledOrMissing(r);
         const result = {
           id: step.id,
           command: formatCommand(step),
@@ -294,9 +329,26 @@ export function createVerificationProvider(providerOptions = {}) {
           ctx.runId,
           "baseline.json",
         );
-        fs.mkdirSync(path.dirname(p), { recursive: true });
-        fs.writeFileSync(p, JSON.stringify(report, null, 2) + "\n");
-        report.path = p;
+        const root = path.resolve(ctx.worktree);
+        const boundary = validateContainedPath(root, p, {
+          allowMissing: true,
+          rejectSymlinks: true,
+        });
+        if (boundary.ok) {
+          fs.mkdirSync(path.dirname(p), { recursive: true });
+          const afterMkdir = validateContainedPath(root, p, {
+            allowMissing: true,
+            rejectSymlinks: true,
+          });
+          if (afterMkdir.ok) {
+            fs.writeFileSync(p, JSON.stringify(report, null, 2) + "\n");
+            report.path = p;
+          } else {
+            report.persist_error = `baseline path violates filesystem boundary (${afterMkdir.reason})`;
+          }
+        } else {
+          report.persist_error = `baseline path violates filesystem boundary (${boundary.reason})`;
+        }
       }
       return report;
     },
@@ -471,12 +523,8 @@ export function createVerificationProvider(providerOptions = {}) {
       const redExit = resolvedSpawnExit(redResult, 1);
       const greenExit = resolvedSpawnExit(greenResult, 1);
 
-      const redOut =
-        String(redResult.stdout || "") +
-        (redResult.stderr ? String(redResult.stderr) : "");
-      const greenOut =
-        String(greenResult.stdout || "") +
-        (greenResult.stderr ? String(greenResult.stderr) : "");
+      const redOut = runnerOutput(redResult);
+      const greenOut = runnerOutput(greenResult);
 
       const redDigest = sha256Digest(redOut);
       const greenDigest = sha256Digest(greenOut);
@@ -491,17 +539,20 @@ export function createVerificationProvider(providerOptions = {}) {
           commit: baseCommit || null,
           exit_code: redExit,
           output_digest: redDigest,
+          ...runnerEvidence(redResult),
         },
         green: {
           commit: implementerCommit || null,
           exit_code: greenExit,
           output_digest: greenDigest,
+          ...runnerEvidence(greenResult),
         },
         ok:
           redExit !== 0 &&
           greenExit === 0 &&
           redResult?.timed_out !== true &&
           greenResult?.timed_out !== true &&
+          !spawnWasKilledOrMissing(redResult) &&
           !spawnWasKilledOrMissing(greenResult),
         timed_out:
           redResult?.timed_out === true || greenResult?.timed_out === true,

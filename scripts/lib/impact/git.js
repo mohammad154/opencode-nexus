@@ -107,7 +107,10 @@ export function collectGitEvidence(worktree, options = {}) {
         const entries = [];
         if (oldPath) entries.push({ status: "D", path: oldPath, renamed_to: newPath });
         if (newPath) entries.push({ status: "A", path: newPath, renamed_from: oldPath });
-        const filtered = filterPathEntries(entries, { ignoredPatterns });
+        const filtered = filterPathEntries(entries, {
+          ignoredPatterns,
+          worktree,
+        });
         changed_files.push(...filtered.included);
         ignored_files.push(...filtered.ignored);
       } else {
@@ -115,7 +118,7 @@ export function collectGitEvidence(worktree, options = {}) {
         if (file) {
           const filtered = filterPathEntries(
             [{ status, path: file.replace(/\\/g, "/") }],
-            { ignoredPatterns },
+            { ignoredPatterns, worktree },
           );
           changed_files.push(...filtered.included);
           ignored_files.push(...filtered.ignored);
@@ -130,7 +133,10 @@ export function collectGitEvidence(worktree, options = {}) {
       const parts = line.split(/\t/);
       const [a, d] = parts;
       const file = parts.slice(2).join("\t").replace(/\\/g, "/");
-      if (file && filterPathEntries([file], { ignoredPatterns }).ignored.length) {
+      if (
+        file &&
+        filterPathEntries([file], { ignoredPatterns, worktree }).ignored.length
+      ) {
         continue;
       }
       if (a !== "-" && Number.isFinite(Number(a))) added_lines += Number(a);
@@ -147,6 +153,7 @@ export function collectGitEvidence(worktree, options = {}) {
         const path = file.replace(/\\/g, "/");
         const filtered = filterPathEntries([{ status: "A", path }], {
           ignoredPatterns,
+          worktree,
         });
         ignored_files.push(...filtered.ignored);
         if (filtered.included.length && !changed_files.some((f) => f.path === path)) {

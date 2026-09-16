@@ -1,4 +1,4 @@
-import test from "node:test";
+import test, { after } from "node:test";
 import assert from "node:assert/strict";
 import {
   createEmptyRunState,
@@ -36,21 +36,72 @@ function driftOk(head = "base111") {
   };
 }
 
-function writePlan(worktree) {
+const temporaryPlanRoots = [];
+
+after(() => {
+  for (const root of temporaryPlanRoots) {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+function writePlan(worktree, count = 1) {
   const dir = path.join(worktree, ".opencode", "plans");
   fs.mkdirSync(dir, { recursive: true });
   const p = path.join(dir, "PLAN.md");
-  fs.writeFileSync(p, "# Plan\n\n## Goal\ntest\n");
+  const units = Array.from({ length: count }, (_, index) => {
+    const id = `unit-${index + 1}`;
+    return [
+      `### Execution Unit ${index + 1}: behavior ${index + 1}`,
+      `- id: ${id}`,
+      `- user_outcome: Deliver behavior ${index + 1}`,
+      "- independently_shippable: true",
+      "- review_boundary: NONE",
+      "- estimated_lines: 10",
+      `- Allowed files: \`src/app-${index + 1}.js\``,
+      "- Acceptance criteria:",
+      `  - [ ] behavior ${index + 1} works.`,
+      "- Verification gates:",
+      "  1. npm test",
+      "",
+    ].join("\n");
+  }).join("\n");
+  fs.writeFileSync(
+    p,
+    [
+      "# Plan",
+      "- Planning mode: compact",
+      "",
+      "## Execution Unit Justification",
+      `Number of units: ${count}`,
+      "",
+      "Why not fewer:",
+      "- Each behavior is independently shippable.",
+      "",
+      "Why not more:",
+      "- No unit contains an unnecessary split.",
+      "",
+      "## Execution Unit breakdown",
+      units,
+    ].join("\n"),
+  );
   return p;
 }
 
-function advanceToPlanned(state, worktree = null) {
+function planWorktree(count = 1) {
+  const worktree = fs.mkdtempSync(path.join(os.tmpdir(), "nexus-state-plan-"));
+  temporaryPlanRoots.push(worktree);
+  writePlan(worktree, count);
+  return worktree;
+}
+
+function advanceToPlanned(state, worktree = planWorktree()) {
   let s = transition(state, "BRAINSTORMING", {}).state;
-  const plan_path = worktree ? writePlan(worktree) : null;
+  const plan_path = writePlan(worktree);
   s = transition(s, "PLANNED", {
     plan_exists: true,
     plan_check: { ok: true, plan_check: "PASS", errors: [] },
-    ...(plan_path ? { plan_path, worktree } : {}),
+    plan_path,
+    worktree,
   }).state;
   return s;
 }
@@ -76,7 +127,7 @@ test("illegal transition CREATED → IMPLEMENTING rejected", () => {
   assert.equal(r.ok, false);
 });
 
-test("CREATED → BRAINSTORMING → PLANNED without classify requires PLAN.md", () => {
+test("CREATED → BRAINSTORMING → PLANNED without classify requires PLAN.md", (t) => {
   let state = createEmptyRunState("t2");
   let r = transition(state, "BRAINSTORMING", {});
   assert.equal(r.ok, true, JSON.stringify(r.errors));
@@ -84,10 +135,13 @@ test("CREATED → BRAINSTORMING → PLANNED without classify requires PLAN.md", 
   assert.equal(r.ok, false);
   r = transition(r.state || state, "PLANNED", { plan_exists: true });
   // state may still be BRAINSTORMING from failed transition
+  const worktree = planWorktree();
+  t.after(() => fs.rmSync(worktree, { recursive: true, force: true }));
   state = transition(createEmptyRunState("t2b"), "BRAINSTORMING", {}).state;
   r = transition(state, "PLANNED", {
     plan_exists: true,
     plan_check: { ok: true, plan_check: "PASS", errors: [] },
+    worktree,
   });
   assert.equal(r.ok, true, JSON.stringify(r.errors));
   assert.equal(r.state.state, "PLANNED");
@@ -118,12 +172,14 @@ test("PLANNED rejects a skeletal plan without a passing plan-check report", () =
   assert.match(rejected.errors.join(" "), /failed plan-check|plan-check/i);
 });
 
-test("PLANNED persists checked execution units and uses their call budget", () => {
+test("PLANNED persists checked execution units and uses their call budget", (t) => {
   const state = transition(
     createEmptyRunState("plan-unit-count"),
     "BRAINSTORMING",
     {},
   ).state;
+  const worktree = planWorktree(3);
+  t.after(() => fs.rmSync(worktree, { recursive: true, force: true }));
   const executionUnits = [
     { id: "unit-1" },
     { id: "unit-2" },
@@ -139,12 +195,22 @@ test("PLANNED persists checked execution units and uses their call budget", () =
       tasks: executionUnits,
       errors: [],
     },
+    worktree,
   });
 
   assert.equal(result.ok, true, JSON.stringify(result.errors));
-  assert.deepEqual(result.state.execution_units, executionUnits);
-  assert.deepEqual(result.state.units, executionUnits);
-  assert.deepEqual(result.state.tasks, executionUnits);
+  assert.deepEqual(
+    result.state.execution_units.map((unit) => unit.id),
+    executionUnits.map((unit) => unit.id),
+  );
+  assert.deepEqual(
+    result.state.units.map((unit) => unit.id),
+    executionUnits.map((unit) => unit.id),
+  );
+  assert.deepEqual(
+    result.state.tasks.map((unit) => unit.id),
+    executionUnits.map((unit) => unit.id),
+  );
   assert.equal(result.state.task_count, 3);
   assert.equal(result.state.agent_call_budget.units, 3);
   assert.ok(result.state.agent_call_budget.max_calls > 6);

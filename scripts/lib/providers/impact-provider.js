@@ -8,6 +8,7 @@ import fs from "fs";
 import path from "path";
 import { spawnSync } from "node:child_process";
 import { analyzeImpact } from "../impact/analyze.js";
+import { validateContainedPath } from "../filesystem-boundary.js";
 
 function gitHead(worktree) {
   const r = spawnSync("git", ["rev-parse", "HEAD"], {
@@ -76,8 +77,25 @@ export function createNexusImpactProvider() {
       const outPath =
         ctx.outPath || path.join(worktree, ".opencode", "impact", "latest.json");
       try {
-        fs.mkdirSync(path.dirname(outPath), { recursive: true });
-        fs.writeFileSync(outPath, JSON.stringify(report, null, 2) + "\n");
+        const root = path.resolve(worktree);
+        const boundary = ctx.outPath
+          ? { ok: true }
+          : validateContainedPath(root, outPath, {
+              allowMissing: true,
+              rejectSymlinks: true,
+            });
+        if (boundary.ok) {
+          fs.mkdirSync(path.dirname(outPath), { recursive: true });
+          const afterMkdir = ctx.outPath
+            ? { ok: true }
+            : validateContainedPath(root, outPath, {
+                allowMissing: true,
+                rejectSymlinks: true,
+              });
+          if (afterMkdir.ok) {
+            fs.writeFileSync(outPath, JSON.stringify(report, null, 2) + "\n");
+          }
+        }
       } catch {
         // optional persist
       }

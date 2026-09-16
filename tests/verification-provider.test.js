@@ -7,6 +7,7 @@ import {
   createVerificationProvider,
   resolveVerificationTimeouts,
 } from "../scripts/lib/providers/verification-provider.js";
+import { verifySealedArtifact } from "../scripts/lib/artifact-seal.js";
 import { discoverVerification } from "../scripts/lib/verification/discover.js";
 
 test("verification fails closed when zero executable checks exist", () => {
@@ -59,6 +60,32 @@ test("verification fails when a spawn-missing check is mixed with a passing chec
   assert.equal(lint.status, "FAILED");
   assert.equal(lint.pass, false);
   assert.equal(lint.exit_code, null);
+});
+
+test("verifyTdd fails closed when a runner reports status 0 with a spawn error", () => {
+  const prov = createVerificationProvider();
+  const tddReport = prov.verifyTdd({
+    base_commit: "base",
+    implementer_commit: "impl",
+    command: ["npm", "test"],
+    runner(_step, _worktree, _commit, phase) {
+      if (phase === "red") return { status: 1, stdout: "FAIL", stderr: "" };
+      return {
+        status: 0,
+        error: Object.assign(new Error("runner could not start process"), { code: "EIO" }),
+        stdout: "",
+        stderr: "",
+      };
+    },
+  });
+
+  assert.equal(tddReport.ok, false);
+  assert.equal(tddReport.green.exit_code, 1);
+  assert.equal(tddReport.green.error_code, "EIO");
+  assert.match(tddReport.green.error_message, /could not start process/i);
+  assert.match(tddReport.green.stderr_tail, /could not start process/i);
+  assert.match(tddReport.artifact_digest, /^sha256:/);
+  assert.equal(verifySealedArtifact(tddReport), true);
 });
 
 test("verification fails when an executed check fails", () => {

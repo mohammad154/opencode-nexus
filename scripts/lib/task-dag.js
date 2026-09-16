@@ -89,6 +89,16 @@ export function readyExecutionUnits(dag, options = {}) {
 }
 
 export function scheduleParallel(dag, { maxConcurrency = 2, completed = new Set() } = {}) {
+  if (
+    !Number.isFinite(maxConcurrency) ||
+    !Number.isInteger(maxConcurrency) ||
+    maxConcurrency <= 0
+  ) {
+    return {
+      ok: false,
+      error: "maxConcurrency must be a finite positive integer",
+    };
+  }
   const cycle = detectCycle(dag);
   if (cycle) {
     return { ok: false, error: `dependency cycle: ${cycle.join(" → ")}` };
@@ -112,7 +122,7 @@ export function scheduleParallel(dag, { maxConcurrency = 2, completed = new Set(
     if (ready.length === 0) {
       return { ok: false, error: "no ready tasks — blocked DAG", done: [...done], waves };
     }
-    const wave = ready.slice(0, Math.max(1, maxConcurrency));
+    const wave = ready.slice(0, maxConcurrency);
     // Within a wave, drop file conflicts
     const selected = [];
     for (const t of wave) {

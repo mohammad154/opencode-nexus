@@ -1,15 +1,20 @@
 import { spawnSync } from "node:child_process";
+import path from "node:path";
 import { scopeExpansionNeeded, normalizeAllowedFiles } from "./impact/boundaries.js";
 import {
   DEFAULT_IGNORE_PATTERNS,
   filterPathEntries,
   isIgnoredPath,
+  normalizeRelativePath,
+  validateRuntimeRoots,
 } from "./path-filter.js";
+import { validateContainedPath } from "./filesystem-boundary.js";
 
 /** Nexus/runtime paths are not implementer scope — same policy as diff-evidence. */
 export function isNexusRuntimePath(file) {
   if (!file || typeof file !== "string") return false;
-  const normalized = file.replace(/\\/g, "/");
+  const normalized = normalizeRelativePath(file);
+  if (!normalized) return false;
   return (
     normalized === ".opencode" ||
     normalized.startsWith(".opencode/") ||
@@ -27,6 +32,69 @@ function collectGitNameOnly(stdout, files, ignoredPatterns) {
       files.add(f);
     }
   }
+}
+
+function entryPath(entry) {
+  return typeof entry === "string" ? entry : entry?.path || entry?.file || "";
+}
+
+function boundaryReason(reason) {
+  return reason === "outside_root" ? "outside_worktree" : reason;
+}
+
+function scopeBoundaryIssues(worktree, entries) {
+  const issues = [];
+  const seen = new Set();
+  for (const entry of Array.isArray(entries) ? entries : []) {
+    const raw = entryPath(entry);
+    const rel = normalizeRelativePath(raw);
+    const key = rel || String(raw || "");
+    if (seen.has(key)) continue;
+    seen.add(key);
+    if (!rel) {
+      if (raw) issues.push({ path: String(raw), reason: "unsafe_path" });
+      continue;
+    }
+    if (!worktree) continue;
+    const boundary = validateContainedPath(
+      worktree,
+      path.resolve(worktree, rel),
+      { allowMissing: true, rejectSymlinks: true },
+    );
+    if (!boundary.ok) {
+      issues.push({
+        path: rel,
+        reason: boundaryReason(boundary.reason),
+        ...(boundary.realpath ? { realpath: boundary.realpath } : {}),
+      });
+    }
+  }
+  return issues;
+}
+
+function runtimeBoundaryIssues(worktree) {
+  if (!worktree) return [];
+  const boundary = validateRuntimeRoots(worktree);
+  if (boundary.ok) return [];
+  return [
+    {
+      path: boundary.root || String(boundary.path || worktree),
+      reason: boundaryReason(boundary.reason),
+      ...(boundary.realpath ? { realpath: boundary.realpath } : {}),
+    },
+  ];
+}
+
+function unsafeScopeResult(issues, ignoredFiles = []) {
+  return {
+    ok: false,
+    code: "SCOPE_UNSAFE_PATH",
+    extras: issues.map((issue) => issue.path),
+    unsafe_files: issues,
+    ignored_files: ignoredFiles,
+    message:
+      "scope lock rejected unsafe or externally resolved paths — refusing to continue",
+  };
 }
 
 /**
@@ -99,8 +167,28 @@ export function assertScopeLock({
   allowed_files = [],
   changed_files = [],
   require_scope = true,
+  worktree = null,
 } = {}) {
   const allowed = normalizeAllowedFiles(allowed_files);
+  const changedEntries =
+    Array.isArray(changed_files) || changed_files == null
+      ? changed_files || []
+      : [changed_files];
+  const unsafeAllowed = allowed.filter((file) => !normalizeRelativePath(file));
+  if (unsafeAllowed.length > 0) {
+    return unsafeScopeResult(
+      unsafeAllowed.map((file) => ({ path: file, reason: "unsafe_path" })),
+    );
+  }
+  const filtered = filterPathEntries(changedEntries, {
+    ignoredPatterns: DEFAULT_IGNORE_PATTERNS,
+    worktree,
+  });
+  const issues = [
+    ...runtimeBoundaryIssues(worktree),
+    ...scopeBoundaryIssues(worktree, changedEntries),
+  ];
+  if (issues.length > 0) return unsafeScopeResult(issues, filtered.ignored);
   if (allowed.length === 0 && require_scope !== false) {
     return {
       ok: false,
@@ -109,9 +197,6 @@ export function assertScopeLock({
         "allowed_files must be non-empty for scope lock — empty scope fails closed",
     };
   }
-  const filtered = filterPathEntries(changed_files, {
-    ignoredPatterns: DEFAULT_IGNORE_PATTERNS,
-  });
   const measuredChangedFiles = filtered.included.map((entry) =>
     typeof entry === "string" ? entry : entry.path,
   );
@@ -172,6 +257,8 @@ export function assertTransitionScopeLock({
   }
 
   const worktree = ctx.worktree || state.worktree;
+  const runtimeIssues = runtimeBoundaryIssues(worktree);
+  if (runtimeIssues.length > 0) return unsafeScopeResult(runtimeIssues);
   const baseCommit =
     handoffData?.base_commit ||
     ctx.base_commit ||
@@ -213,6 +300,7 @@ export function assertTransitionScopeLock({
     allowed_files: allowedFiles,
     changed_files: changedFiles,
     require_scope: true,
+    worktree,
   });
 }
 

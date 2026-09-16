@@ -9,6 +9,7 @@ import { createNexusImpactProvider } from "./providers/impact-provider.js";
 import { createVerificationProvider } from "./providers/verification-provider.js";
 import { createMemoryProvider } from "./providers/memory-provider.js";
 import { agentCostModel } from "./agent-estimate.js";
+import { validateContainedPath } from "./filesystem-boundary.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SUPPORTED_PROVIDER_MODE = "nexus-impact";
@@ -225,7 +226,11 @@ function metricsPathFor({ worktree, runId, metricsPath }) {
   const runDir = path.join(worktree, ".opencode", "runs", runId);
   // The CLI creates the run directory during init. Avoid creating metric files
   // for callers that only use the state machine as an in-memory library.
-  if (!fs.existsSync(runDir)) return null;
+  const boundary = validateContainedPath(path.resolve(worktree), runDir, {
+    allowMissing: true,
+    rejectSymlinks: true,
+  });
+  if (!boundary.ok || !fs.existsSync(runDir)) return null;
   return path.join(runDir, "metrics.jsonl");
 }
 

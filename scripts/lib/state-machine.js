@@ -1,4 +1,3 @@
-import fs from "fs";
 import path from "path";
 import { spawnSync } from "node:child_process";
 import { normalizeAndValidateHandoff } from "./migrate-artifacts.js";
@@ -35,6 +34,9 @@ import {
   planAdvisorCallCount,
   validatePlanAdvisorModelDiversity,
 } from "./planning.js";
+import { checkPlanFile } from "./plan-check.js";
+import { inspectWorkspace } from "./workspace-integrity.js";
+import { validateContainedPath } from "./filesystem-boundary.js";
 import {
   assertScopeLock,
   assertTransitionScopeLock,
@@ -86,10 +88,6 @@ export const IMPACT_READY = "TASK_IMPACT_READY";
 
 function nowIso() {
   return new Date().toISOString();
-}
-
-function exists(p) {
-  return !!p && fs.existsSync(p);
 }
 
 export function sealImpactArtifact(report, worktreeHead = null) {
@@ -241,6 +239,47 @@ function assertCompletedVerification(state, ctx, errors, { phase = "TASK" } = {}
     verification.worktree_head !== postImpact.worktree_head
   ) {
     errors.push("verification summary does not match post-impact HEAD");
+  }
+
+  if (phase === "FINAL") {
+    if (!worktree) {
+      errors.push(
+        "COMPLETED requires a bound worktree for post-verification source-state validation",
+      );
+    } else {
+      const workspace = inspectWorkspace(worktree);
+      if (!workspace.available) {
+        errors.push(
+          `COMPLETED cannot validate current workspace integrity: ${workspace.error || "measurement unavailable"}`,
+        );
+      } else {
+        const evidenceDigest = artifact?.workspace_digest;
+        if (artifact?.workspace_clean !== true || !Array.isArray(artifact?.dirty_paths)) {
+          errors.push(
+            "COMPLETED requires final verification evidence proving a clean non-runtime workspace",
+          );
+        } else if (artifact.dirty_paths.length > 0) {
+          errors.push(
+            `COMPLETED rejects final verification evidence with dirty source paths: ${artifact.dirty_paths.join(", ")}`,
+          );
+        }
+        if (!evidenceDigest || artifact?.content_digest !== evidenceDigest) {
+          errors.push(
+            "COMPLETED requires matching content_digest and workspace_digest in final verification evidence",
+          );
+        }
+        if (verification?.workspace_digest !== evidenceDigest) {
+          errors.push(
+            "COMPLETED requires verification summary workspace digest to match final verification evidence",
+          );
+        }
+        if (workspace.workspace_digest !== evidenceDigest) {
+          errors.push(
+            "COMPLETED rejected: non-runtime workspace changed after final verification (workspace digest mismatch)",
+          );
+        }
+      }
+    }
   }
 
   if (phase === "TASK") assertTddEvidenceForReview(state, ctx, errors);
@@ -472,6 +511,115 @@ function planningModeFromContext(ctx = {}, state = {}) {
       classification.change_class ||
       state.change_class,
   });
+}
+
+function canonicalPlanPath(worktree) {
+  return path.resolve(worktree, ".opencode", "plans", "PLAN.md");
+}
+
+/**
+ * Recompute plan authority from the canonical plan in the bound worktree.
+ * `plan_exists`, `plan_path`, and `plan_check` are caller hints only; none of
+ * them can establish PLANNED authority. The returned context replaces those
+ * hints with the freshly measured canonical result before it is persisted.
+ */
+export function revalidateCanonicalPlanEvidence(state = {}, ctx = {}) {
+  const adminSkip =
+    (ctx.plan_skip === true || ctx.planSkip === true) &&
+    (state.compatibility_mode === "v3-admin" ||
+      ctx.compatibility_mode === "v3-admin" ||
+      ctx.admin_plan_skip === true);
+  if (adminSkip) {
+    return {
+      ok: true,
+      adminSkip: true,
+      planPath: null,
+      planCheck: null,
+      ctx,
+      errors: [],
+    };
+  }
+
+  const worktree = ctx.worktree || state.worktree;
+  if (!worktree || typeof worktree !== "string" || !worktree.trim()) {
+    return {
+      ok: false,
+      adminSkip: false,
+      planPath: null,
+      planCheck: null,
+      ctx,
+      errors: [
+        "PLANNED requires a bound worktree to independently locate and recompute .opencode/plans/PLAN.md",
+      ],
+    };
+  }
+
+  const planPath = canonicalPlanPath(worktree);
+  const requestedPath = ctx.plan_path || ctx.planPath;
+  const errors = [];
+  let requestedAbsolute = null;
+  if (requestedPath !== undefined && requestedPath !== null) {
+    if (typeof requestedPath !== "string" || !requestedPath.trim()) {
+      errors.push("PLANNED plan_path must be a non-empty string when supplied");
+    } else {
+      requestedAbsolute = path.resolve(worktree, requestedPath);
+    }
+  }
+  if (requestedAbsolute && requestedAbsolute !== planPath) {
+    errors.push(
+      `PLANNED ignores non-canonical plan_path; expected ${planPath} (got ${requestedPath})`,
+    );
+  }
+
+  const planningMode =
+    planningModeFromContext(ctx, state) ||
+    normalizePlanningMode(state.planning_mode, "compact");
+  const planBoundary = validateContainedPath(worktree, planPath, {
+    allowMissing: true,
+    rejectSymlinks: true,
+  });
+  let planCheck = null;
+  if (!planBoundary.ok) {
+    errors.push(
+      `canonical PLAN.md violates filesystem boundary (${planBoundary.reason})`,
+    );
+  } else {
+    try {
+      planCheck = checkPlanFile(planPath, { planningMode });
+    } catch (error) {
+      errors.push(`canonical plan-check failed: ${String(error?.message || error)}`);
+    }
+  }
+  if (!planCheck || planCheck.ok !== true) {
+    const details = (planCheck?.errors || [])
+      .map((error) => error?.message || String(error))
+      .join("; ");
+    errors.push(
+      `PLANNED requires a passing canonical deterministic plan-check${details ? `: ${details}` : ""}`,
+    );
+  }
+
+  const authoritative = {
+    ...ctx,
+    worktree,
+    plan_path: planPath,
+    plan_exists: Boolean(planCheck?.ok === true),
+    plan_check: planCheck,
+  };
+  if (planCheck?.ok === true) {
+    authoritative.execution_units = planCheck.execution_units;
+    authoritative.units = planCheck.execution_units;
+    authoritative.tasks = planCheck.execution_units;
+    authoritative.task_count = planCheck.execution_units.length;
+  }
+  return {
+    ok: errors.length === 0,
+    adminSkip: false,
+    planPath,
+    planCheck,
+    ctx: authoritative,
+    errors,
+  };
 }
 
 function planAdvisorCallsFromContext(ctx = {}, state = {}) {
@@ -708,13 +856,17 @@ function validateReviewerApproval(handoff, state, ctx, {
   if (canSelfApproveSafe(state, data, ctx)) {
     errors.push("no self-approval: reviewer agent matches implementer");
   }
-  errors.push(...reviewerWorkspaceMutationErrors(ctx.worktree));
+  const boundWorktree = ctx.worktree || state.worktree;
+  errors.push(...reviewerWorkspaceMutationErrors(boundWorktree));
+  if (!pkg) {
+    errors.push(`${label}: APPROVED reviewer handoff requires review_package; null is not authoritative`);
+  }
   const pkgCheck = assertReviewPackageBound(pkg, {
     scope: expectedScope,
-    worktree: ctx.worktree,
+    worktree: boundWorktree,
     state,
     handoff: data,
-    requireDigest: Boolean(ctx.worktree),
+    requireDigest: true,
   });
   if (!pkgCheck.ok) {
     errors.push(...pkgCheck.errors.map((e) => `${label}: ${e}`));
@@ -786,7 +938,7 @@ function assertVerificationGates(data, state, errors, ctx = {}) {
  * Digests never establish authenticity — always recompute at safety gates.
  */
 export function revalidateTransitionEvidence(to, ctx, providers, state = {}) {
-  const worktree = ctx.worktree || process.cwd();
+  const worktree = ctx.worktree || state.worktree || process.cwd();
   const head = gitRevParse(worktree, "HEAD");
   const next = { ...ctx };
   const errors = [];
@@ -973,34 +1125,22 @@ export function canTransition(state, to, ctx = {}) {
   }
 
   if (to === "PLANNED") {
-    const adminSkip =
-      (ctx.plan_skip === true || ctx.planSkip === true) &&
-      (state.compatibility_mode === "v3-admin" ||
-        ctx.compatibility_mode === "v3-admin" ||
-        ctx.admin_plan_skip === true);
-    const planOk =
-      adminSkip ||
-      ctx.plan_exists === true ||
-      exists(ctx.plan_path) ||
-      (ctx.worktree &&
-        exists(path.join(ctx.worktree, ".opencode", "plans", "PLAN.md")));
-    if (!planOk) {
-      errors.push(
-        "PLANNED requires .opencode/plans/PLAN.md (plan_skip only with admin/compatibility mode)",
-      );
-    }
+    const planEvidence = revalidateCanonicalPlanEvidence(state, ctx);
+    errors.push(...planEvidence.errors);
+    const planCtx = planEvidence.ctx || ctx;
+    const adminSkip = planEvidence.adminSkip === true;
     const planningMode =
-      planningModeFromContext(ctx, state) ||
+      planningModeFromContext(planCtx, state) ||
       normalizePlanningMode(state.planning_mode, "compact");
-    const advisor = planAdvisorEvidence(ctx, state);
+    const advisor = planAdvisorEvidence(planCtx, state);
     if (planningMode !== "compact" && !advisor) {
       errors.push(
         `planning mode ${planningMode} requires one independent plan-advisor handoff before PLANNED`,
       );
     }
-    const advisorCalls = planAdvisorCallsFromContext(ctx, state);
+    const advisorCalls = planAdvisorCallsFromContext(planCtx, state);
     const allowedAdvisorCalls = planAdvisorCallCount(planningMode, {
-      criticalDisagreement: hasCriticalPlanDisagreement(ctx, advisor),
+      criticalDisagreement: hasCriticalPlanDisagreement(planCtx, advisor),
     });
     if (advisorCalls > allowedAdvisorCalls) {
       errors.push(
@@ -1040,16 +1180,13 @@ export function canTransition(state, to, ctx = {}) {
       });
       if (!diversity.ok) errors.push(diversity.error);
     }
-    const planCheck = ctx.plan_check || state.plan_check;
+    const planCheck = planEvidence.planCheck;
     if (!adminSkip && planCheck?.ok !== true) {
       errors.push(
-        "PLANNED requires a passing deterministic plan-check report (use transition --plan-check)",
+        "PLANNED requires a passing deterministic plan-check report from the canonical PLAN.md",
       );
     }
-    if (!adminSkip && ctx.plan_check?.ok === false) {
-      errors.push("PLANNED rejects a failed plan-check report");
-    }
-    if (!adminSkip) errors.push(...plannedUnitCountErrors(ctx));
+    if (!adminSkip) errors.push(...plannedUnitCountErrors(planCtx));
   }
 
   if (to === "TASK_IMPACT_READY") {
@@ -1130,6 +1267,20 @@ export function canTransition(state, to, ctx = {}) {
             errors.push(...adm.errors.map((e) => `approval not admissible: ${e}`));
           }
           errors.push(...bindReviewerHandoffErrors(data, state, "reviewer"));
+          const packageCheck = assertReviewPackageBound(pkg, {
+            scope: "task",
+            worktree: ctx.worktree || state.worktree,
+            state: {
+              ...state,
+              current_unit: data.unit_or_task || data.task_id || state.current_unit,
+            },
+            handoff: data,
+          });
+          if (!packageCheck.ok) {
+            errors.push(
+              ...packageCheck.errors.map((error) => `reviewer APPROVED: ${error}`),
+            );
+          }
         }
       }
     }
@@ -1604,8 +1755,20 @@ export function transition(state, to, evidence = {}, providers = null) {
     }
   }
 
-  const check = canTransition(state, to, ctx);
+  let check = canTransition(state, to, ctx);
   if (!check.ok) return { ok: false, state, errors: check.errors };
+
+  if (to === "PLANNED") {
+    const revalidated = revalidateCanonicalPlanEvidence(state, ctx);
+    ctx = revalidated.ctx;
+    if (revalidated.errors.length) {
+      return { ok: false, state, errors: revalidated.errors };
+    }
+    // Re-run the gate with the internally recomputed evidence so no caller
+    // field can influence what is persisted by this transition.
+    check = canTransition(state, to, ctx);
+    if (!check.ok) return { ok: false, state, errors: check.errors };
+  }
 
   const budgetCheck = assertAgentCallBudget(state, to, ctx);
   if (!budgetCheck.ok) {
@@ -1634,6 +1797,9 @@ export function transition(state, to, evidence = {}, providers = null) {
       },
     ],
   };
+  if (typeof ctx.worktree === "string" && ctx.worktree.trim()) {
+    next.worktree = ctx.worktree;
+  }
 
   if (budgetCheck.charge?.count) {
     prov.telemetry?.emit?.({
@@ -1740,6 +1906,7 @@ export function transition(state, to, evidence = {}, providers = null) {
         next.pending_review_findings = null;
         next.pending_review_unit = null;
         next.last_task_review_handoff = data;
+        next.review_package = ctx.review_package || state.review_package;
         const history = Array.isArray(state.task_history)
           ? [...state.task_history]
           : [];

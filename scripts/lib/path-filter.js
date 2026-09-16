@@ -7,8 +7,9 @@
  */
 import fs from "node:fs";
 import path from "node:path";
+import { validateContainedPath } from "./filesystem-boundary.js";
 
-export const PATH_FILTER_VERSION = "nexus-path-filter-1.0";
+export const PATH_FILTER_VERSION = "nexus-path-filter-1.1";
 
 export const DEFAULT_IGNORE_PATTERNS = Object.freeze([
   ".git/**",
@@ -43,6 +44,15 @@ export const DEFAULT_SCOPE_POLICY = Object.freeze({
   ignored: DEFAULT_IGNORE_PATTERNS,
 });
 
+export const DEFAULT_RUNTIME_ROOTS = Object.freeze([
+  ".opencode",
+  ".opencode/runs",
+  ".opencode/reviews",
+  ".opencode/worktrees",
+  "graphify-out",
+  ".antigravity",
+]);
+
 function normalizePattern(pattern) {
   return String(pattern || "")
     .replace(/\\/g, "/")
@@ -57,10 +67,47 @@ export function normalizeRelativePath(value) {
   if (!normalized || normalized.startsWith("/") || /^[A-Za-z]:/.test(normalized)) {
     return null;
   }
-  if (normalized.split("/").includes("..") || normalized.includes("\0")) {
+  if (
+    normalized.split("/").some((part) => part === "." || part === "..") ||
+    normalized.includes("\0")
+  ) {
     return null;
   }
   return normalized;
+}
+
+/**
+ * Runtime roots are repository-owned state directories. Reject an existing
+ * symlink before any caller reads or writes through it.
+ */
+export function validateRuntimeRoots(
+  worktree,
+  roots = DEFAULT_RUNTIME_ROOTS,
+) {
+  if (typeof worktree !== "string" || !worktree) {
+    return { ok: false, reason: "invalid_path", path: String(worktree || "") };
+  }
+  for (const relative of Array.isArray(roots) ? roots : []) {
+    if (typeof relative !== "string" || !relative) {
+      return { ok: false, reason: "invalid_path", root: String(relative || "") };
+    }
+    const candidate = path.join(worktree, relative);
+    const result = validateContainedPath(worktree, candidate, {
+      allowMissing: true,
+      rejectSymlinks: true,
+    });
+    if (!result.ok) return { ...result, root: relative };
+    if (result.exists) {
+      try {
+        if (!fs.statSync(candidate).isDirectory()) {
+          return { ...result, ok: false, reason: "not_directory", root: relative };
+        }
+      } catch {
+        return { ...result, ok: false, reason: "unreadable_root", root: relative };
+      }
+    }
+  }
+  return { ok: true };
 }
 
 function globRegex(pattern) {
@@ -106,7 +153,10 @@ export function isIgnoredPath(rel, patterns = DEFAULT_IGNORE_PATTERNS) {
  * Filter strings or path-bearing objects while preserving object metadata.
  * The ignored list is evidence that can be surfaced in reports and tests.
  */
-export function filterPathEntries(entries = [], { ignoredPatterns = DEFAULT_IGNORE_PATTERNS } = {}) {
+export function filterPathEntries(
+  entries = [],
+  { ignoredPatterns = DEFAULT_IGNORE_PATTERNS, worktree = null } = {},
+) {
   const included = [];
   const ignored = [];
   const seen = new Set();
@@ -119,6 +169,24 @@ export function filterPathEntries(entries = [], { ignoredPatterns = DEFAULT_IGNO
     if (!normalized) {
       if (raw) ignored.push({ path: String(raw), reason: "unsafe_path" });
       continue;
+    }
+    if (worktree) {
+      const boundary = validateContainedPath(
+        worktree,
+        path.resolve(worktree, normalized),
+        { allowMissing: true, rejectSymlinks: true },
+      );
+      if (!boundary.ok) {
+        ignored.push({
+          path: normalized,
+          reason:
+            boundary.reason === "outside_root"
+              ? "outside_worktree"
+              : boundary.reason,
+          ...(boundary.realpath ? { realpath: boundary.realpath } : {}),
+        });
+        continue;
+      }
     }
     const pattern = matchingIgnorePattern(normalized, ignoredPatterns);
     if (pattern) {
@@ -145,7 +213,10 @@ function asPatterns(value) {
  * adds custom patterns, so a local policy cannot re-enable runtime noise.
  */
 export function loadScopePolicy(worktree = process.cwd()) {
-  const policyPath = path.join(worktree, ".opencode", "config", "scope-policy.json");
+  const root = typeof worktree === "string" && worktree ? worktree : "";
+  const policyPath = root
+    ? path.join(root, ".opencode", "config", "scope-policy.json")
+    : "";
   const fallback = {
     schema_version: DEFAULT_SCOPE_POLICY.schema_version,
     allowed: [...DEFAULT_SCOPE_ALLOWED_PATTERNS],
@@ -154,6 +225,17 @@ export function loadScopePolicy(worktree = process.cwd()) {
     source: "default",
     path: policyPath,
   };
+  const boundary = validateContainedPath(root, policyPath, {
+    allowMissing: true,
+    rejectSymlinks: true,
+  });
+  if (!boundary.ok) {
+    return {
+      ...fallback,
+      source: "default-unsafe",
+      error: `scope policy path violates filesystem boundary (${boundary.reason})`,
+    };
+  }
   if (!fs.existsSync(policyPath)) return fallback;
 
   try {
@@ -179,4 +261,3 @@ export function loadScopePolicy(worktree = process.cwd()) {
     };
   }
 }
-

@@ -4,6 +4,10 @@ import { validateHandoff, validateRunState } from "./schema-validate.js";
 import { assertValidRunId } from "./policy.js";
 import { withFileLock } from "./lock.js";
 import { verifySealedArtifact } from "./artifact-seal.js";
+import {
+  boundaryError,
+  validateContainedPath,
+} from "./filesystem-boundary.js";
 
 const RUN_STATE_VERSION = "1.0";
 const HANDOFF_VERSION = "1.1";
@@ -31,10 +35,35 @@ const VERIFICATION_STATUSES = new Set([
   "TIMED_OUT",
 ]);
 
+const RUN_STATE_NAMES = new Set([
+  "CREATED",
+  "BRAINSTORMING",
+  "WAITING_FOR_USER",
+  "PLANNED",
+  "TASK_IMPACT_READY",
+  "IMPLEMENTING",
+  "VERIFYING",
+  "REVIEWING",
+  "FINAL_REVIEWING",
+  "FINAL_VERIFYING",
+  "COMPLETED",
+  "BLOCKED",
+  "FAILED",
+]);
+
 function inferredVerificationPhase(state) {
   if (state === "VERIFYING") return "TASK";
   if (state === "FINAL_VERIFYING") return "FINAL";
   return null;
+}
+
+function isUsableRunStateObject(value, runId) {
+  return Boolean(
+    value &&
+      typeof value === "object" &&
+      value.run_id === runId &&
+      RUN_STATE_NAMES.has(value.state),
+  );
 }
 
 /**
@@ -80,6 +109,24 @@ export function normalizeRunState(raw) {
     completed_steps: Number.isInteger(previous.completed_steps)
       ? previous.completed_steps
       : 0,
+    workspace_clean:
+      previous.workspace_clean ?? artifact?.workspace_clean ?? null,
+    dirty_paths: Array.isArray(previous.dirty_paths)
+      ? previous.dirty_paths
+      : Array.isArray(artifact?.dirty_paths)
+        ? artifact.dirty_paths
+        : [],
+    workspace_digest:
+      previous.workspace_digest || artifact?.workspace_digest || null,
+    content_digest:
+      previous.content_digest || artifact?.content_digest || null,
+    workspace_checked_at:
+      previous.workspace_checked_at || artifact?.workspace_checked_at || null,
+    workspace_integrity_available:
+      previous.workspace_integrity_available === true ||
+      artifact?.workspace_integrity_available === true,
+    workspace_integrity_error:
+      previous.workspace_integrity_error || artifact?.workspace_integrity_error || null,
     failure_reason: previous.failure_reason || null,
   };
   return state;
@@ -290,23 +337,26 @@ export function runsDir(worktree) {
   return path.join(worktree, ".opencode", "runs");
 }
 
+function runtimePath(worktree, relativePath) {
+  const candidate = path.resolve(worktree, relativePath);
+  const boundary = validateContainedPath(worktree, candidate, {
+    allowMissing: true,
+    rejectSymlinks: true,
+  });
+  if (!boundary.ok) {
+    throw boundaryError(`Nexus runtime path ${relativePath}`, boundary);
+  }
+  return candidate;
+}
+
 export function runStatePath(worktree, runId) {
   assertValidRunId(runId);
-  const base = path.resolve(runsDir(worktree));
-  const full = path.resolve(base, runId, "state.json");
-  if (
-    !full.startsWith(base + path.sep) &&
-    full !== path.join(base, "state.json")
-  ) {
-    // Ensure resolved path stays under runsDir
-    if (!full.startsWith(base)) {
-      throw new Error(`run_id escapes runs directory: ${runId}`);
-    }
-  }
-  const runDir = path.resolve(base, runId);
-  if (!runDir.startsWith(base + path.sep) && runDir !== base) {
-    throw new Error(`run_id escapes runs directory: ${runId}`);
-  }
+  const full = path.resolve(runsDir(worktree), runId, "state.json");
+  const boundary = validateContainedPath(worktree, full, {
+    allowMissing: true,
+    rejectSymlinks: true,
+  });
+  if (!boundary.ok) throw boundaryError("run state path", boundary);
   return full;
 }
 
@@ -397,9 +447,23 @@ export function writeRunState(worktree, state) {
     err.validation = v;
     throw err;
   }
-  const dir = path.dirname(runStatePath(worktree, normalizedState.run_id));
+  const statePath = runStatePath(worktree, normalizedState.run_id);
+  const pointer = activeRunPointerPath(worktree);
+  const pointerBoundary = validateContainedPath(worktree, pointer, {
+    allowMissing: true,
+    rejectSymlinks: true,
+  });
+  if (!pointerBoundary.ok) {
+    throw boundaryError("active run pointer", pointerBoundary);
+  }
+  const dir = path.dirname(statePath);
   fs.mkdirSync(dir, { recursive: true });
-  const target = path.join(dir, "state.json");
+  const targetBoundary = validateContainedPath(worktree, statePath, {
+    allowMissing: true,
+    rejectSymlinks: true,
+  });
+  if (!targetBoundary.ok) throw boundaryError("run state path", targetBoundary);
+  const target = statePath;
 
   return withFileLock(target, () => {
     // Optimistic concurrency control: a caller that read revision N must write
@@ -435,6 +499,11 @@ export function writeRunState(worktree, state) {
       (Number.isInteger(normalizedState._revision) ? normalizedState._revision : 0) + 1;
     const { _revision: _drop, ...rest } = normalizedState;
     const tmp = `${target}.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}.tmp`;
+    const tmpBoundary = validateContainedPath(worktree, tmp, {
+      allowMissing: true,
+      rejectSymlinks: true,
+    });
+    if (!tmpBoundary.ok) throw boundaryError("run state temporary path", tmpBoundary);
     const next = { ...rest, _revision: nextRevision, updated_at: nowIso() };
     fs.writeFileSync(tmp, JSON.stringify(next, null, 2) + "\n", "utf8");
     fs.renameSync(tmp, target);
@@ -458,7 +527,7 @@ function parseContextYamlish(text) {
  * Never invents APPROVED verdicts. V5: never emits CLASSIFIED or profile routing.
  */
 export function inferRunFromContext(worktree) {
-  const contextPath = path.join(worktree, ".opencode", "CONTEXT.md");
+  const contextPath = runtimePath(worktree, path.join(".opencode", "CONTEXT.md"));
   const ctxText = fs.existsSync(contextPath)
     ? fs.readFileSync(contextPath, "utf8")
     : "";
@@ -471,14 +540,20 @@ export function inferRunFromContext(worktree) {
   }
 
   let state = "CREATED";
-  const planPath = path.join(worktree, ".opencode", "plans", "PLAN.md");
+  const planPath = runtimePath(
+    worktree,
+    path.join(".opencode", "plans", "PLAN.md"),
+  );
   if (fs.existsSync(planPath) || fields.plan_commit) {
     state = "PLANNED";
   } else if (fields.goal || fields.brainstorm || ctxText.trim().length > 0) {
     state = "BRAINSTORMING";
   }
 
-  const handoffsDir = path.join(worktree, ".opencode", "handoffs");
+  const handoffsDir = runtimePath(
+    worktree,
+    path.join(".opencode", "handoffs"),
+  );
   let latestImplementer = null;
   let latestReview = null;
   let ambiguousImplementer = false;
@@ -491,6 +566,16 @@ export function inferRunFromContext(worktree) {
     for (const f of fs.readdirSync(handoffsDir)) {
       if (!f.endsWith(".json")) continue;
       const full = path.join(handoffsDir, f);
+      const handoffBoundary = validateContainedPath(worktree, full, {
+        allowMissing: false,
+        rejectSymlinks: true,
+      });
+      if (!handoffBoundary.ok || !handoffBoundary.exists) continue;
+      try {
+        if (!fs.lstatSync(full).isFile()) continue;
+      } catch {
+        continue;
+      }
       let raw;
       try {
         raw = JSON.parse(fs.readFileSync(full, "utf8"));
@@ -583,12 +668,36 @@ export function inferRunFromContext(worktree) {
 
 export function listRunIds(worktree) {
   const dir = runsDir(worktree);
-  if (!fs.existsSync(dir)) return [];
-  return fs
-    .readdirSync(dir, { withFileTypes: true })
+  const boundary = validateContainedPath(worktree, dir, {
+    allowMissing: true,
+    rejectSymlinks: true,
+  });
+  if (!boundary.ok || !fs.existsSync(dir)) return [];
+  let entries;
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  return entries
     .filter((d) => d.isDirectory())
     .map((d) => d.name)
-    .filter((id) => fs.existsSync(runStatePath(worktree, id)));
+    .filter((id) => {
+      try {
+        assertValidRunId(id);
+        const statePath = runStatePath(worktree, id);
+        if (!fs.lstatSync(statePath).isFile()) return false;
+        // A valid-looking directory is not reusable state until its JSON has
+        // an unambiguous identity and known state. Full schema validation is
+        // intentionally left to readRunState: plugin compaction also needs a
+        // small, legacy-compatible summary shape.
+        const state = JSON.parse(fs.readFileSync(statePath, "utf8"));
+        return isUsableRunStateObject(state, id);
+      } catch {
+        // Malformed, invalid, or symlinked run entries are not safely reusable.
+        return false;
+      }
+    });
 }
 
 export function latestRunState(worktree) {
@@ -596,7 +705,14 @@ export function latestRunState(worktree) {
   if (ids.length === 0) return null;
   let best = null;
   for (const id of ids) {
-    const s = readRunState(worktree, id);
+    let s;
+    try {
+      s = readRunState(worktree, id);
+    } catch {
+      // A run can become malformed after the directory scan. Ignore it and
+      // keep status/review-package discovery usable for healthy runs.
+      continue;
+    }
     if (!best || (s.updated_at || "") > (best.updated_at || "")) best = s;
   }
   return best;
@@ -610,7 +726,17 @@ export function activeRunPointerPath(worktree) {
 
 function persistActiveRunPointer(worktree, state) {
   const pointer = activeRunPointerPath(worktree);
+  const boundary = validateContainedPath(worktree, pointer, {
+    allowMissing: true,
+    rejectSymlinks: true,
+  });
+  if (!boundary.ok) throw boundaryError("active run pointer", boundary);
   fs.mkdirSync(path.dirname(pointer), { recursive: true });
+  const afterMkdir = validateContainedPath(worktree, pointer, {
+    allowMissing: true,
+    rejectSymlinks: true,
+  });
+  if (!afterMkdir.ok) throw boundaryError("active run pointer", afterMkdir);
   if (TERMINAL_RUN_STATES.has(state.state)) {
     try {
       if (fs.existsSync(pointer)) {
@@ -635,7 +761,7 @@ function readRunStateJsonQuiet(worktree, id) {
     const p = runStatePath(worktree, id);
     if (!fs.existsSync(p)) return null;
     const data = JSON.parse(fs.readFileSync(p, "utf8"));
-    return data && typeof data === "object" ? data : null;
+    return isUsableRunStateObject(data, id) ? data : null;
   } catch {
     return null;
   }
@@ -644,7 +770,11 @@ function readRunStateJsonQuiet(worktree, id) {
 /** Newest non-terminal run, honoring `.opencode/active-run` when it is still live. */
 export function latestActiveRunState(worktree) {
   const pointer = activeRunPointerPath(worktree);
-  if (fs.existsSync(pointer)) {
+  const pointerBoundary = validateContainedPath(worktree, pointer, {
+    allowMissing: true,
+    rejectSymlinks: true,
+  });
+  if (pointerBoundary.ok && fs.existsSync(pointer)) {
     try {
       const id = fs.readFileSync(pointer, "utf8").trim();
       if (id) {

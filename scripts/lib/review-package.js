@@ -8,19 +8,25 @@ import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 
 import { isLikelyProductionPath } from "./review-protocol.js";
+import { validateContainedPath } from "./filesystem-boundary.js";
 
 function runGit(worktree, args) {
-  const r = spawnSync("git", args, {
-    cwd: worktree,
-    encoding: "utf8",
-    maxBuffer: 20 * 1024 * 1024,
-  });
-  return {
-    ok: r.status === 0,
-    stdout: String(r.stdout || ""),
-    stderr: String(r.stderr || ""),
-    status: r.status,
-  };
+  try {
+    const r = spawnSync("git", args, {
+      cwd: worktree,
+      encoding: "utf8",
+      maxBuffer: 20 * 1024 * 1024,
+    });
+    return {
+      ok: r.status === 0,
+      stdout: String(r.stdout || ""),
+      stderr: String(r.stderr || ""),
+      status: r.status,
+      error: r.error || null,
+    };
+  } catch (error) {
+    return { ok: false, stdout: "", stderr: "", status: null, error };
+  }
 }
 
 function revParse(worktree, rev) {
@@ -139,6 +145,122 @@ export function resolveReviewPackagePath(pkg, worktree) {
   return path.join(worktree, pkg.path);
 }
 
+function normalizedRelativePath(value) {
+  return typeof value === "string"
+    ? value.replace(/\\/g, "/").replace(/^\.\//, "")
+    : "";
+}
+
+function isContained(root, candidate) {
+  const relative = path.relative(root, candidate);
+  return Boolean(
+    relative &&
+      relative !== ".." &&
+      !relative.startsWith(`..${path.sep}`) &&
+      !path.isAbsolute(relative),
+  );
+}
+
+function reviewPackageRelativePath(value, extension) {
+  const normalized = normalizedRelativePath(value);
+  if (!normalized || path.isAbsolute(value) || normalized !== value.replace(/\\/g, "/").replace(/^\.\//, "")) {
+    return false;
+  }
+  if (normalized.startsWith("../") || normalized.includes("/../") || normalized.includes("\0")) {
+    return false;
+  }
+  return (
+    normalized.startsWith(".opencode/reviews/") &&
+    normalized.endsWith(extension) &&
+    normalized !== `.opencode/reviews/${extension}`
+  );
+}
+
+function isCommitId(value) {
+  return typeof value === "string" && /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/i.test(value);
+}
+
+function requiredPackageIdentityErrors(pkg) {
+  const errors = [];
+  for (const field of [
+    "schema_version",
+    "scope",
+    "run_id",
+    "unit_or_task",
+    "base_commit",
+    "head_commit",
+    "path",
+    "absolute_path",
+    "meta_path",
+    "digest_sha256",
+    "generated_at",
+  ]) {
+    if (typeof pkg?.[field] !== "string" || !pkg[field].trim()) {
+      errors.push(`review_package.${field} required`);
+    }
+  }
+  if (pkg?.ok !== true) errors.push("review_package.ok must be true");
+  if (
+    typeof pkg?.digest_sha256 === "string" &&
+    !/^[a-f0-9]{64}$/i.test(pkg.digest_sha256)
+  ) {
+    errors.push("review_package.digest_sha256 must be a raw 64-character SHA-256 digest");
+  }
+  if (typeof pkg?.path === "string" && !reviewPackageRelativePath(pkg.path, ".md")) {
+    errors.push("review_package.path must be a relative .opencode/reviews/*.md path");
+  }
+  if (typeof pkg?.meta_path === "string" && !reviewPackageRelativePath(pkg.meta_path, ".json")) {
+    errors.push("review_package.meta_path must be a relative .opencode/reviews/*.json path");
+  }
+  if (
+    typeof pkg?.generated_at === "string" &&
+    Number.isNaN(Date.parse(pkg.generated_at))
+  ) {
+    errors.push("review_package.generated_at must be an ISO timestamp");
+  }
+  if (!Array.isArray(pkg?.changed_files)) {
+    errors.push("review_package.changed_files must be an array");
+  }
+  if (!Array.isArray(pkg?.production_files)) {
+    errors.push("review_package.production_files must be an array");
+  }
+  if (!Array.isArray(pkg?.acceptance_criteria)) {
+    errors.push("review_package.acceptance_criteria must be an array");
+  }
+  return errors;
+}
+
+function comparePackageMetadata(pkg, metadata, errors) {
+  if (!metadata || typeof metadata !== "object") {
+    errors.push("review_package metadata sidecar is missing or invalid");
+    return;
+  }
+  for (const field of [
+    "schema_version",
+    "ok",
+    "scope",
+    "run_id",
+    "unit_or_task",
+    "run_base_commit",
+    "base_commit",
+    "head_commit",
+    "path",
+    "absolute_path",
+    "meta_path",
+    "digest_sha256",
+    "generated_at",
+  ]) {
+    if (metadata[field] !== pkg[field]) {
+      errors.push(`review_package metadata ${field} does not match state pointer`);
+    }
+  }
+  for (const field of ["changed_files", "production_files", "acceptance_criteria"]) {
+    if (JSON.stringify(metadata[field] || []) !== JSON.stringify(pkg[field] || [])) {
+      errors.push(`review_package metadata ${field} does not match state pointer`);
+    }
+  }
+}
+
 /**
  * Choose BASE for a review package.
  * - task: pre-task head (runState.head_commit)
@@ -161,6 +283,16 @@ export function resolveReviewPackageBase(runState = {}, scope = "task", opts = {
  * @param {object} opts
  */
 export function buildReviewPackage(worktree, opts = {}) {
+  const root = path.resolve(worktree);
+  const rootBoundary = validateContainedPath(root, root, {
+    allowMissing: false,
+    rejectSymlinks: true,
+  });
+  if (!rootBoundary.ok) {
+    throw new Error(
+      `review package worktree violates filesystem boundary (${rootBoundary.reason})`,
+    );
+  }
   const scope = opts.scope === "final" ? "final" : "task";
   const runState = opts.runState || {};
   const runId = runState.run_id || opts.run_id || "run";
@@ -217,8 +349,20 @@ export function buildReviewPackage(worktree, opts = {}) {
     diffText = `${diffText.slice(0, maxDiff)}\n\n…[diff truncated]…\n`;
   }
 
-  const planPath =
-    opts.planPath || path.join(worktree, ".opencode", "plans", "PLAN.md");
+  const planPath = opts.planPath
+    ? path.isAbsolute(opts.planPath)
+      ? opts.planPath
+      : path.resolve(root, opts.planPath)
+    : path.join(root, ".opencode", "plans", "PLAN.md");
+  const planBoundary = validateContainedPath(root, planPath, {
+    allowMissing: true,
+    rejectSymlinks: true,
+  });
+  if (!planBoundary.ok) {
+    throw new Error(
+      `review package plan path violates filesystem boundary (${planBoundary.reason})`,
+    );
+  }
   const planExcerpt = safeRead(planPath, 20_000) || "_PLAN.md not found._";
 
   const impact =
@@ -303,14 +447,44 @@ export function buildReviewPackage(worktree, opts = {}) {
     "",
   ].join("\n");
 
-  const outDir =
-    opts.outDir || path.join(worktree, ".opencode", "reviews");
+  const reviewRoot = path.resolve(root, ".opencode", "reviews");
+  const outDir = path.resolve(
+    root,
+    opts.outDir || path.join(".opencode", "reviews"),
+  );
+  if (outDir !== reviewRoot && !isContained(reviewRoot, outDir)) {
+    throw new Error("review package output must remain inside .opencode/reviews");
+  }
+  for (const [label, candidate] of [
+    ["review package root", reviewRoot],
+    ["review package output", outDir],
+  ]) {
+    const boundary = validateContainedPath(root, candidate, {
+      allowMissing: true,
+      rejectSymlinks: true,
+    });
+    if (!boundary.ok) {
+      throw new Error(`${label} violates filesystem boundary (${boundary.reason})`);
+    }
+  }
   fs.mkdirSync(outDir, { recursive: true });
   const slug = `${runId}-${unit}-${scope}`.replace(/[^A-Za-z0-9._-]+/g, "_");
   const mdName = `${slug}-review-package.md`;
   const jsonName = `${slug}-review-package.json`;
   const mdPath = path.join(outDir, mdName);
   const jsonPath = path.join(outDir, jsonName);
+  for (const [label, candidate] of [
+    ["review package markdown", mdPath],
+    ["review package metadata", jsonPath],
+  ]) {
+    const boundary = validateContainedPath(root, candidate, {
+      allowMissing: true,
+      rejectSymlinks: true,
+    });
+    if (!boundary.ok) {
+      throw new Error(`${label} violates filesystem boundary (${boundary.reason})`);
+    }
+  }
   fs.writeFileSync(mdPath, md, "utf8");
 
   const digest = createHash("sha256").update(md).digest("hex");
@@ -357,9 +531,36 @@ export function assertReviewPackagePresent(pkg, { scope, worktree } = {}) {
   }
   if (!pkg.path || typeof pkg.path !== "string" || !pkg.path.trim()) {
     errors.push("review_package.path required");
+  } else if (path.isAbsolute(pkg.path)) {
+    errors.push("review_package.path must not be absolute");
+  } else if (pkg.path.includes("\0") || pkg.path.includes("..")) {
+    errors.push("review_package.path must not escape its review directory");
   } else if (worktree) {
-    const full = resolveReviewPackagePath(pkg, worktree);
-    if (!fs.existsSync(full)) {
+    const relative = normalizedRelativePath(pkg.path);
+    const root = path.resolve(worktree);
+    const reviewRoot = path.resolve(root, ".opencode", "reviews");
+    const full = path.resolve(root, relative);
+    const rootBoundary = validateContainedPath(root, root, {
+      allowMissing: false,
+      rejectSymlinks: true,
+    });
+    const reviewRootBoundary = validateContainedPath(root, reviewRoot, {
+      allowMissing: true,
+      rejectSymlinks: true,
+    });
+    const fullBoundary = validateContainedPath(root, full, {
+      allowMissing: false,
+      rejectSymlinks: true,
+    });
+    if (
+      !rootBoundary.ok ||
+      !reviewRootBoundary.ok ||
+      !fullBoundary.ok ||
+      !reviewPackageRelativePath(relative, ".md") ||
+      !isContained(reviewRoot, full)
+    ) {
+      errors.push("review_package.path must be inside .opencode/reviews");
+    } else if (!fullBoundary.exists || !fs.existsSync(full)) {
       errors.push(`review_package file missing: ${pkg.path}`);
     }
   }
@@ -376,7 +577,6 @@ export function assertReviewPackageBound(pkg, {
   worktree,
   state = {},
   handoff = {},
-  requireDigest = true,
 } = {}) {
   const present = assertReviewPackagePresent(pkg, { scope, worktree });
   const errors = [...present.errors];
@@ -384,65 +584,193 @@ export function assertReviewPackageBound(pkg, {
     return { ok: false, errors };
   }
 
-  if (state.run_id && pkg.run_id && pkg.run_id !== state.run_id) {
+  errors.push(...requiredPackageIdentityErrors(pkg));
+
+  const expectedUnit =
+    state.current_unit || handoff.unit_or_task || handoff.task_id || null;
+  if (!expectedUnit) {
+    errors.push("review_package requires a state/handoff unit binding");
+  } else if (pkg.unit_or_task !== expectedUnit) {
+    errors.push(
+      `review_package.unit_or_task mismatch (got ${pkg.unit_or_task || "missing"}, want ${expectedUnit})`,
+    );
+  }
+
+  if (!state.run_id) {
+    errors.push("review_package binding requires state.run_id");
+  } else if (pkg.run_id !== state.run_id) {
     errors.push(
       `review_package.run_id mismatch (got ${pkg.run_id}, want ${state.run_id})`,
     );
   }
-  const unit = state.current_unit;
-  if (
-    unit &&
-    pkg.unit_or_task &&
-    pkg.unit_or_task !== unit &&
-    scope !== "final"
-  ) {
-    errors.push(
-      `review_package.unit_or_task mismatch (got ${pkg.unit_or_task}, want ${unit})`,
-    );
-  }
 
   const reviewed = handoff.reviewed_commit;
-  if (reviewed && pkg.head_commit && pkg.head_commit !== reviewed) {
+  if (!reviewed) {
+    errors.push("review_package binding requires handoff.reviewed_commit");
+  } else if (pkg.head_commit !== reviewed) {
     errors.push(
       `review_package.head_commit (${pkg.head_commit}) must equal reviewed_commit (${reviewed})`,
     );
   }
 
-  if (scope === "final" && state.run_base_commit && pkg.base_commit) {
-    if (pkg.base_commit !== state.run_base_commit) {
+  const expectedBase =
+    scope === "final"
+      ? state.run_base_commit || null
+      : state.head_commit || null;
+  if (!expectedBase) {
+    errors.push("review_package binding requires a base_commit anchor");
+  } else if (pkg.base_commit !== expectedBase) {
+    errors.push(
+      `review_package.base_commit mismatch (got ${pkg.base_commit}, want ${expectedBase})`,
+    );
+  }
+  if (scope === "final") {
+    if (!state.run_base_commit) {
+      errors.push("final review_package binding requires state.run_base_commit");
+    } else if (pkg.run_base_commit !== state.run_base_commit) {
       errors.push(
-        `final review_package.base_commit must equal run_base_commit (${state.run_base_commit})`,
+        `final review_package.run_base_commit must equal state.run_base_commit (${state.run_base_commit})`,
       );
     }
+  } else if (state.run_base_commit && pkg.run_base_commit !== state.run_base_commit) {
+    errors.push(
+      `review_package.run_base_commit must equal state.run_base_commit (${state.run_base_commit})`,
+    );
   }
 
-  if (worktree && pkg.path) {
-    const full = resolveReviewPackagePath(pkg, worktree);
-    if (full && fs.existsSync(full)) {
-      if (requireDigest) {
-        if (!pkg.digest_sha256) {
-          errors.push("review_package.digest_sha256 required");
-        } else {
-          const body = fs.readFileSync(full, "utf8");
-          const digest = createHash("sha256").update(body).digest("hex");
-          if (digest !== pkg.digest_sha256) {
-            errors.push(
-              "review_package digest mismatch (file content does not match digest_sha256)",
-            );
-          }
-        }
-      }
-      const head = revParse(worktree, "HEAD");
-      if (head && pkg.head_commit && pkg.head_commit !== head) {
-        // Soft when implementer_commit is the reviewed tip and differs from dirty HEAD
-        const tip = state.implementer_commit || reviewed;
-        if (tip && pkg.head_commit !== tip) {
-          errors.push(
-            `review_package.head_commit (${pkg.head_commit}) must match implementer/reviewed tip (${tip})`,
-          );
-        }
-      }
+  if (!worktree || typeof worktree !== "string" || !worktree.trim()) {
+    // In-memory callers can still prove the complete identity contract, but
+    // on-disk path/content verification is performed whenever a worktree is
+    // available (the CLI always supplies one).
+    return { ok: errors.length === 0, errors };
+  }
+
+  for (const field of ["base_commit", "head_commit"]) {
+    if (!isCommitId(pkg[field])) {
+      errors.push(`review_package.${field} must be a full commit id when bound to a worktree`);
     }
+  }
+  if (scope === "final" && !isCommitId(pkg.run_base_commit)) {
+    errors.push("review_package.run_base_commit must be a full commit id when bound to a worktree");
+  }
+
+  const root = path.resolve(worktree);
+  const reviewRoot = path.resolve(root, ".opencode", "reviews");
+  const relative = normalizedRelativePath(pkg.path);
+  const metaRelative = normalizedRelativePath(pkg.meta_path);
+  const full = path.resolve(root, relative);
+  const metaFull = path.resolve(root, metaRelative);
+  const rootBoundary = validateContainedPath(root, root, {
+    allowMissing: false,
+    rejectSymlinks: true,
+  });
+  if (!rootBoundary.ok) {
+    errors.push(`review_package worktree violates filesystem boundary (${rootBoundary.reason})`);
+    return { ok: false, errors };
+  }
+  const reviewRootBoundary = validateContainedPath(root, reviewRoot, {
+    allowMissing: true,
+    rejectSymlinks: true,
+  });
+  if (!reviewRootBoundary.ok) {
+    errors.push(
+      `review_package review directory violates filesystem boundary (${reviewRootBoundary.reason})`,
+    );
+    return { ok: false, errors };
+  }
+  const fullBoundary = validateContainedPath(root, full, {
+    allowMissing: false,
+    rejectSymlinks: true,
+  });
+  const metaBoundary = validateContainedPath(root, metaFull, {
+    allowMissing: false,
+    rejectSymlinks: true,
+  });
+  if (
+    !fullBoundary.ok ||
+    !isContained(reviewRoot, full) ||
+    !reviewPackageRelativePath(relative, ".md")
+  ) {
+    errors.push("review_package.path is outside the canonical .opencode/reviews directory");
+    return { ok: false, errors };
+  }
+  if (
+    !metaBoundary.ok ||
+    !isContained(reviewRoot, metaFull) ||
+    !reviewPackageRelativePath(metaRelative, ".json")
+  ) {
+    errors.push("review_package.meta_path is outside the canonical .opencode/reviews directory");
+    return { ok: false, errors };
+  }
+  if (typeof pkg.absolute_path !== "string" || !pkg.absolute_path.trim()) {
+    errors.push("review_package.absolute_path required");
+  } else if (path.resolve(pkg.absolute_path) !== full) {
+    errors.push("review_package.absolute_path does not match its canonical relative path");
+  }
+  if (path.basename(metaRelative, ".json") !== path.basename(relative, ".md")) {
+    errors.push("review_package.meta_path does not match review_package.path");
+  }
+  if (!fullBoundary.exists || !fs.existsSync(full)) {
+    errors.push(`review_package file missing: ${pkg.path}`);
+  }
+  if (!metaBoundary.exists || !fs.existsSync(metaFull)) {
+    errors.push(`review_package metadata file missing: ${pkg.meta_path}`);
+  }
+  if (errors.length > 0) return { ok: false, errors };
+
+  let realReviewRoot;
+  let realPackage;
+  let realMeta;
+  try {
+    realReviewRoot = fs.realpathSync(reviewRoot);
+    realPackage = fs.realpathSync(full);
+    realMeta = fs.realpathSync(metaFull);
+  } catch (error) {
+    errors.push(`review_package path resolution failed: ${String(error?.message || error)}`);
+    return { ok: false, errors };
+  }
+  if (!isContained(realReviewRoot, realPackage) || !isContained(realReviewRoot, realMeta)) {
+    errors.push("review_package path is symlinked outside the canonical review directory");
+  }
+
+  try {
+    const body = fs.readFileSync(full, "utf8");
+    const digest = createHash("sha256").update(body).digest("hex");
+    if (digest !== pkg.digest_sha256) {
+      errors.push(
+        "review_package digest mismatch (file content does not match digest_sha256)",
+      );
+    }
+    comparePackageMetadata(
+      pkg,
+      JSON.parse(fs.readFileSync(metaFull, "utf8")),
+      errors,
+    );
+  } catch (error) {
+    errors.push(`review_package integrity read failed: ${String(error?.message || error)}`);
+  }
+
+  const head = revParse(worktree, "HEAD");
+  if (!head) {
+    errors.push("review_package binding could not resolve current HEAD");
+  } else if (pkg.head_commit !== head) {
+    errors.push(
+      `review_package.head_commit (${pkg.head_commit}) must match current HEAD (${head})`,
+    );
+  }
+  const baseResolved = revParse(worktree, pkg.base_commit);
+  const packageHeadResolved = revParse(worktree, pkg.head_commit);
+  if (!baseResolved || !packageHeadResolved) {
+    errors.push("review_package base_commit/head_commit must resolve to commits in the bound worktree");
+  }
+  const ancestor = runGit(worktree, [
+    "merge-base",
+    "--is-ancestor",
+    pkg.base_commit,
+    pkg.head_commit,
+  ]);
+  if (!ancestor.ok) {
+    errors.push("review_package base_commit must be an ancestor of head_commit");
   }
 
   return { ok: errors.length === 0, errors };

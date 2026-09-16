@@ -65,6 +65,13 @@
         "current_step": { "type": "integer", "minimum": 0 },
         "total_steps": { "type": "integer", "minimum": 0 },
         "completed_steps": { "type": "integer", "minimum": 0 },
+        "workspace_clean": { "type": ["boolean", "null"] },
+        "dirty_paths": { "type": "array", "items": { "type": "string" } },
+        "workspace_digest": { "type": ["string", "null"] },
+        "content_digest": { "type": ["string", "null"] },
+        "workspace_checked_at": { "type": ["string", "null"] },
+        "workspace_integrity_available": { "type": "boolean" },
+        "workspace_integrity_error": { "type": ["string", "null"] },
         "failure_reason": { "type": ["string", "null"] }
       }
     },

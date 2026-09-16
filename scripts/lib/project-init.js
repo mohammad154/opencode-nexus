@@ -1,6 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
 import { DEFAULT_SCOPE_POLICY } from "./path-filter.js";
+import {
+  boundaryError,
+  validateContainedPath,
+} from "./filesystem-boundary.js";
 
 const DEFAULT_CONTEXT = `# Nexus Context
 
@@ -34,13 +38,30 @@ const PROJECT_DIRS = [
  * Idempotent: skips CONTEXT.md when it already exists.
  */
 export function projectInit(worktree, options = {}) {
+  const root = path.resolve(worktree);
+  const rootBoundary = validateContainedPath(root, root, {
+    allowMissing: false,
+    rejectSymlinks: true,
+  });
+  if (!rootBoundary.ok) throw boundaryError("project worktree", rootBoundary);
+
+  const runtimePath = (relativePath, label = "project runtime path") => {
+    const candidate = path.resolve(root, relativePath);
+    const boundary = validateContainedPath(root, candidate, {
+      allowMissing: true,
+      rejectSymlinks: true,
+    });
+    if (!boundary.ok) throw boundaryError(label, boundary);
+    return candidate;
+  };
+
   const pkgVersion = options.pkgVersion || "unknown";
   const pkgName = options.pkgName || "@mohammad154/opencode-nexus";
   const pkgRoot = options.pkgRoot || null;
 
   const createdDirs = [];
   for (const rel of PROJECT_DIRS) {
-    const abs = path.join(worktree, rel);
+    const abs = runtimePath(rel, `project directory ${rel}`);
     if (!fs.existsSync(abs)) {
       fs.mkdirSync(abs, { recursive: true });
       createdDirs.push(rel);
@@ -49,18 +70,19 @@ export function projectInit(worktree, options = {}) {
     }
   }
 
-  const contextPath = path.join(worktree, ".opencode", "CONTEXT.md");
+  const contextPath = runtimePath(
+    path.join(".opencode", "CONTEXT.md"),
+    "project CONTEXT.md",
+  );
   let contextCreated = false;
   if (!fs.existsSync(contextPath)) {
     fs.writeFileSync(contextPath, DEFAULT_CONTEXT);
     contextCreated = true;
   }
 
-  const scopePolicyPath = path.join(
-    worktree,
-    ".opencode",
-    "config",
-    "scope-policy.json",
+  const scopePolicyPath = runtimePath(
+    path.join(".opencode", "config", "scope-policy.json"),
+    "project scope policy",
   );
   let scopePolicyCreated = false;
   if (!fs.existsSync(scopePolicyPath)) {
@@ -71,7 +93,10 @@ export function projectInit(worktree, options = {}) {
     scopePolicyCreated = true;
   }
 
-  const nexusJsonPath = path.join(worktree, ".opencode", "nexus.json");
+  const nexusJsonPath = runtimePath(
+    path.join(".opencode", "nexus.json"),
+    "project nexus metadata",
+  );
   const nexusJson = {
     schema_version: "1.0",
     package: pkgName,

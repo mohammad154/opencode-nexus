@@ -3,6 +3,7 @@
  */
 import fs from "fs";
 import path from "path";
+import { validateContainedPath } from "../filesystem-boundary.js";
 
 export function createMemoryProvider() {
   return {
@@ -15,10 +16,19 @@ export function createMemoryProvider() {
       const roots = [
         path.join(worktree, ".opencode", "memory"),
         path.join(worktree, ".opencode", "reflections"),
-      ];
+      ].filter((root) =>
+        validateContainedPath(worktree, root, {
+          allowMissing: true,
+          rejectSymlinks: true,
+        }).ok,
+      );
       for (const root of roots) {
         const lessons = path.join(root, "LESSONS.md");
-        if (fs.existsSync(lessons)) {
+        const lessonsBoundary = validateContainedPath(worktree, lessons, {
+          allowMissing: false,
+          rejectSymlinks: true,
+        });
+        if (lessonsBoundary.ok && fs.existsSync(lessons)) {
           const txt = fs.readFileSync(lessons, "utf8");
           entries.push(txt.length > tailLen ? txt.slice(-tailLen) : txt);
         }
@@ -31,7 +41,13 @@ export function createMemoryProvider() {
             .slice(0, 3);
           for (const file of files) {
             try {
-              const txt = fs.readFileSync(path.join(root, file), "utf8");
+              const candidate = path.join(root, file);
+              const boundary = validateContainedPath(worktree, candidate, {
+                allowMissing: false,
+                rejectSymlinks: true,
+              });
+              if (!boundary.ok) continue;
+              const txt = fs.readFileSync(candidate, "utf8");
               entries.push(txt.length > tailLen ? txt.slice(-tailLen) : txt);
             } catch {
               /* optional */
@@ -46,6 +62,16 @@ export function createMemoryProvider() {
     },
     record(worktree, entry = {}) {
       const dir = path.join(worktree, ".opencode", "memory");
+      const boundary = validateContainedPath(worktree, dir, {
+        allowMissing: true,
+        rejectSymlinks: true,
+      });
+      if (!boundary.ok) {
+        return {
+          ok: false,
+          error: `memory path violates filesystem boundary (${boundary.reason})`,
+        };
+      }
       fs.mkdirSync(dir, { recursive: true });
       const name = `${new Date().toISOString().replace(/[:.]/g, "-")}.md`;
       const body =
@@ -53,6 +79,16 @@ export function createMemoryProvider() {
           ? entry
           : `# Outcome\n\n${entry.summary || ""}\n\n${entry.body || JSON.stringify(entry, null, 2)}\n`;
       const file = path.join(dir, name);
+      const fileBoundary = validateContainedPath(worktree, file, {
+        allowMissing: true,
+        rejectSymlinks: true,
+      });
+      if (!fileBoundary.ok) {
+        return {
+          ok: false,
+          error: `memory file violates filesystem boundary (${fileBoundary.reason})`,
+        };
+      }
       fs.writeFileSync(file, body);
       return { ok: true, path: file };
     },

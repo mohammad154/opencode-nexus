@@ -41,6 +41,7 @@ export function analyzeImpact(worktree, options = {}) {
   );
   const plannedFilter = filterPathEntries(plannedTargetEntries, {
     ignoredPatterns: policy.ignored_patterns,
+    worktree,
   });
   const plannedTargets = plannedFilter.included;
   const ignoredFiles = dedupeIgnored([

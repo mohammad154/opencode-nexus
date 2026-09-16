@@ -88,6 +88,22 @@ test("blocking finding blocks approval even when severity is MEDIUM", () => {
   assert.equal(r.ok, false);
 });
 
+test("isApprovalAdmissible rejects string files_skipped entries without a reason", () => {
+  const handoff = evidenceApproval({
+    files_reviewed: ["src/a.js"],
+    files_skipped: ["src/b.js"],
+  });
+  const r = isApprovalAdmissible(
+    handoff,
+    {},
+    { review_package: { production_files: ["src/a.js", "src/b.js"] } },
+  );
+
+  assert.equal(r.ok, false);
+  assert.ok(r.errors.some((e) => /files_skipped.*reason/i.test(e)));
+  assert.ok(r.errors.some((e) => /src\/b\.js/.test(e)));
+});
+
 test("non-blocking HIGH with blocking:false does not block admissibility", () => {
   const handoff = evidenceApproval({
     findings: [

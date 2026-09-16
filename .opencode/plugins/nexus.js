@@ -4,6 +4,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { buildRunGateReminder } from "../../scripts/lib/run-gate.js";
 import { latestActiveRunState } from "../../scripts/lib/migrate-artifacts.js";
+import { validateContainedPath } from "../../scripts/lib/filesystem-boundary.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const skillsDir = path.resolve(__dirname, "../../skills");
@@ -43,8 +44,22 @@ function getBootstrapText() {
   return buildCompactRouter();
 }
 
+function safeRuntimeFile(worktree, relativePath) {
+  const root = path.resolve(worktree);
+  const candidate = path.resolve(root, relativePath);
+  const boundary = validateContainedPath(root, candidate, {
+    allowMissing: true,
+    rejectSymlinks: true,
+  });
+  return boundary.ok ? candidate : null;
+}
+
 function readContextFile(worktree, runState = null) {
-  const contextPath = path.join(worktree, ".opencode", "CONTEXT.md");
+  const contextPath = safeRuntimeFile(
+    worktree,
+    path.join(".opencode", "CONTEXT.md"),
+  );
+  if (!contextPath) return { text: null, warning: null };
   if (!fs.existsSync(contextPath)) return { text: null, warning: null };
   const data = fs.readFileSync(contextPath, "utf8").trim();
   if (data.length === 0) return { text: null, warning: null };
@@ -74,7 +89,11 @@ function readContextFile(worktree, runState = null) {
 }
 
 function readPlanFile(worktree) {
-  const planPath = path.join(worktree, ".opencode", "plans", "PLAN.md");
+  const planPath = safeRuntimeFile(
+    worktree,
+    path.join(".opencode", "plans", "PLAN.md"),
+  );
+  if (!planPath) return null;
   if (!fs.existsSync(planPath)) return null;
   return fs.readFileSync(planPath, "utf8").trim();
 }
@@ -108,7 +127,11 @@ function readRunStateSummary(worktree) {
 }
 
 function readReconcileSummary(worktree) {
-  const reconcileDir = path.join(worktree, ".opencode", "reconcile");
+  const reconcileDir = safeRuntimeFile(
+    worktree,
+    path.join(".opencode", "reconcile"),
+  );
+  if (!reconcileDir) return null;
   try {
     if (!fs.existsSync(reconcileDir)) return null;
     const files = fs
@@ -117,7 +140,11 @@ function readReconcileSummary(worktree) {
       .sort()
       .reverse();
     if (files.length === 0) return null;
-    const latest = path.join(reconcileDir, files[0]);
+    const latest = safeRuntimeFile(
+      worktree,
+      path.join(".opencode", "reconcile", files[0]),
+    );
+    if (!latest) return null;
     const txt = fs.readFileSync(latest, "utf8").trim();
     return "## Nexus Last Reconcile\n" + txt.slice(0, 600);
   } catch {

@@ -181,6 +181,21 @@ test("nexus project-init bootstraps an external repo", () => {
   }
 });
 
+test("nexus project-init rejects a symlinked .opencode root", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "nexus-project-init-symlink-"));
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), "nexus-project-init-outside-"));
+  try {
+    fs.symlinkSync(outside, path.join(root, ".opencode"));
+    const result = invoke(["project-init"], {}, root);
+    assert.notEqual(result.status, 0);
+    assert.match(`${result.stdout}\n${result.stderr}`, /filesystem boundary|symlink/i);
+    assert.deepEqual(fs.readdirSync(outside), []);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(outside, { recursive: true, force: true });
+  }
+});
+
 test("nexus run forwards init to package script from external repo", () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "nexus-run-forward-"));
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "nexus-run-home-"));

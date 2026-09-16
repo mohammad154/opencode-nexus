@@ -1,12 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { createEmptyRunState } from "../scripts/lib/migrate-artifacts.js";
 import { canTransition, transition } from "../scripts/lib/state-machine.js";
+import { buildReviewPackage } from "../scripts/lib/review-package.js";
 import {
   goodReviewerHandoff,
   goodReviewPackage,
@@ -43,7 +43,7 @@ function reuseEvidence(overrides = {}) {
       unit_or_task: "unit-1",
       scope: "task",
       head_commit: "impl222",
-      digest_sha256: "fixture",
+      digest_sha256: "a".repeat(64),
     }),
     ...overrides,
   };
@@ -62,26 +62,34 @@ function gitFixture() {
     cwd: worktree,
     encoding: "utf8",
   }).trim();
-  const packagePath = path.join(
-    worktree,
-    ".opencode",
-    "reviews",
-    "reuse-review-package.md",
-  );
-  fs.mkdirSync(path.dirname(packagePath), { recursive: true });
-  const packageBody = "# Bound task review package\n";
-  fs.writeFileSync(packagePath, packageBody);
+  const reviewPackage = buildReviewPackage(worktree, {
+    scope: "task",
+    runState: {
+      run_id: "reuse-run",
+      current_unit: "unit-1",
+      head_commit: head,
+      implementer_commit: head,
+      run_base_commit: head,
+      acceptance_criteria: ["done"],
+    },
+    headCommit: head,
+  });
   return {
     worktree,
     head,
-    review_package: goodReviewPackage({
-      run_id: "reuse-run",
-      unit_or_task: "unit-1",
-      path: ".opencode/reviews/reuse-review-package.md",
-      head_commit: head,
-      digest_sha256: createHash("sha256").update(packageBody).digest("hex"),
-    }),
+    review_package: reviewPackage,
   };
+}
+
+function planningWorktree(mode) {
+  const worktree = fs.mkdtempSync(path.join(os.tmpdir(), "nexus-planning-gitless-"));
+  const planDir = path.join(worktree, ".opencode", "plans");
+  fs.mkdirSync(planDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(planDir, "PLAN.md"),
+    `# Plan\n- Planning mode: ${mode}\n\n## Execution Unit Justification\nNumber of units: 1\n\nWhy not fewer:\n- One cohesive behavior owns the outcome.\n\nWhy not more:\n- There is no independent boundary to split.\n\n## Execution Unit breakdown\n### Execution Unit 1: behavior\n- id: unit-1\n- user_outcome: Deliver the behavior\n- independently_shippable: true\n- review_boundary: NONE\n- estimated_lines: 10\n- Allowed files: \`src/app.js\`\n- Acceptance criteria:\n  - [ ] behavior works.\n- Verification gates:\n  1. npm test\n`,
+  );
+  return worktree;
 }
 
 test("single-unit final review reuse fails closed without a worktree", () => {
@@ -191,7 +199,9 @@ test("standard planning requires one advisor and rejects an over-budget advisor 
   assert.match(over.errors.join(" "), /permits 1/i);
 });
 
-test("standard planning accepts only a schema-complete advisor handoff", () => {
+test("standard planning accepts only a schema-complete advisor handoff", (t) => {
+  const worktree = planningWorktree("standard");
+  t.after(() => fs.rmSync(worktree, { recursive: true, force: true }));
   const state = {
     ...createEmptyRunState("planning-valid-advisor"),
     state: "BRAINSTORMING",
@@ -200,6 +210,7 @@ test("standard planning accepts only a schema-complete advisor handoff", () => {
     plan_exists: true,
     plan_check: { ok: true, plan_check: "PASS", errors: [] },
     planning_mode: "standard",
+    worktree,
     plan_advisor: {
       schema_version: "1.0",
       agent: "plan-advisor",
@@ -219,7 +230,9 @@ test("standard planning accepts only a schema-complete advisor handoff", () => {
   assert.equal(result.ok, true, JSON.stringify(result.errors));
 });
 
-test("planning transition persists the validated advisor call count", () => {
+test("planning transition persists the validated advisor call count", (t) => {
+  const worktree = planningWorktree("deep");
+  t.after(() => fs.rmSync(worktree, { recursive: true, force: true }));
   const state = {
     ...createEmptyRunState("planning-call-count"),
     state: "BRAINSTORMING",
@@ -243,6 +256,7 @@ test("planning transition persists the validated advisor call count", () => {
     plan_exists: true,
     plan_check: { ok: true, plan_check: "PASS", errors: [] },
     planning_mode: "deep",
+    worktree,
     critical_disagreement: true,
     plan_advisor_calls: 1,
     plan_advisor: advisor,

@@ -12,6 +12,7 @@ import {
   matchingIgnorePattern,
   normalizeRelativePath,
 } from "../path-filter.js";
+import { validateContainedPath } from "../filesystem-boundary.js";
 
 const BINARY_EXTENSIONS = new Set([
   ".7z",
@@ -100,16 +101,6 @@ export function isSafeRelPath(rel) {
   return true;
 }
 
-function isWithinWorktree(root, candidate) {
-  const relative = path.relative(root, candidate);
-  return (
-    relative &&
-    relative !== ".." &&
-    !relative.startsWith(`..${path.sep}`) &&
-    !path.isAbsolute(relative)
-  );
-}
-
 function targetValue(value) {
   return typeof value === "string" ? value : value?.path || value?.file || "";
 }
@@ -144,25 +135,20 @@ export function resolveVerificationTarget(worktree, value, options = {}) {
     return { ok: false, path: rel, reason: "unsupported_target" };
   }
   const abs = path.resolve(worktree, rel);
-  const lexicalRoot = path.resolve(worktree);
-  if (
-    !abs.startsWith(`${lexicalRoot}${path.sep}`) ||
-    !fs.existsSync(abs)
-  ) {
+  const boundary = validateContainedPath(worktree, abs, {
+    allowMissing: false,
+    rejectSymlinks: true,
+  });
+  if (!boundary.ok) {
+    const reason =
+      boundary.reason === "outside_root" ? "outside_worktree" : boundary.reason;
+    return { ok: false, path: rel, reason };
+  }
+  if (!boundary.exists || !fs.existsSync(abs)) {
     return { ok: false, path: rel, reason: "missing_target" };
   }
 
-  let root;
-  let realAbs;
-  try {
-    root = fs.realpathSync(worktree);
-    realAbs = fs.realpathSync(abs);
-  } catch {
-    return { ok: false, path: rel, reason: "unreadable_target" };
-  }
-  if (!isWithinWorktree(root, realAbs)) {
-    return { ok: false, path: rel, reason: "outside_worktree" };
-  }
+  const realAbs = boundary.realpath;
   try {
     if (!fs.statSync(realAbs).isFile()) {
       return { ok: false, path: rel, reason: "not_a_file" };

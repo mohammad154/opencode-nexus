@@ -44,6 +44,18 @@ test("scheduleParallel handles completed as array with unknown IDs", () => {
   assert.deepEqual(plan.waves, [["t2"]]);
 });
 
+test("scheduleParallel rejects invalid maxConcurrency before scheduling waves", () => {
+  const dag = buildTaskDag([{ id: "t1" }, { id: "t2" }]);
+  for (const maxConcurrency of [0, -1, NaN, Infinity, -Infinity, 1.5, "2", null]) {
+    const plan = scheduleParallel(dag, { maxConcurrency });
+    assert.deepEqual(plan, {
+      ok: false,
+      error: "maxConcurrency must be a finite positive integer",
+    });
+    assert.equal(plan.waves, undefined);
+  }
+});
+
 test("scheduleParallel correctly schedules waves with dependencies", () => {
   const dag = buildTaskDag([
     { id: "a", files: ["a.js"] },

@@ -48,6 +48,9 @@ export function goodReviewPackage(overrides = {}) {
     ok: true,
     scope: "task",
     path: ".opencode/reviews/fixture-review-package.md",
+    absolute_path: "/fixture/.opencode/reviews/fixture-review-package.md",
+    meta_path: ".opencode/reviews/fixture-review-package.json",
+    run_base_commit: "base111",
     base_commit: "base111",
     head_commit: "impl222",
     run_id: overrides.run_id || "test-run",
@@ -56,7 +59,7 @@ export function goodReviewPackage(overrides = {}) {
     production_files:
       overrides.production_files ||
       changed.filter((f) => !/\.md$/i.test(f) && !/(^|\/)tests?\//i.test(f)),
-    digest_sha256: "fixture",
+    digest_sha256: "a".repeat(64),
     acceptance_criteria: overrides.acceptance_criteria || ["done"],
     generated_at: "2026-07-30T00:00:00.000Z",
     ...overrides,

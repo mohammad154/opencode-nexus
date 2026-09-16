@@ -179,19 +179,25 @@ export function isApprovalAdmissible(handoff, state = {}, opts = {}) {
   }
 
   const reviewedSet = new Set(files);
-  const skipped = Array.isArray(handoff.files_skipped)
-    ? handoff.files_skipped
-    : [];
-  const skippedSet = new Set(
-    skipped
-      .map((s) => (typeof s === "string" ? s : s?.file))
-      .map(normPath)
-      .filter(Boolean),
-  );
-  for (const s of skipped) {
-    if (s && typeof s === "object" && s.file && !(s.reason && String(s.reason).trim())) {
-      errors.push(`files_skipped entry for ${s.file} requires reason`);
+  if (handoff.files_skipped !== undefined && !Array.isArray(handoff.files_skipped)) {
+    errors.push("files_skipped must be an array of entries with file and reason");
+  }
+  const skipped = Array.isArray(handoff.files_skipped) ? handoff.files_skipped : [];
+  const skippedSet = new Set();
+  for (const [index, entry] of skipped.entries()) {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+      errors.push(`files_skipped[${index}] requires an object with file and non-empty reason`);
+      continue;
     }
+    const file = typeof entry.file === "string" ? normPath(entry.file) : "";
+    const reason = typeof entry.reason === "string" ? entry.reason.trim() : "";
+    if (!file || !reason) {
+      errors.push(
+        `files_skipped[${index}] requires a non-empty file and reason`,
+      );
+      continue;
+    }
+    skippedSet.add(file);
   }
 
   const pkg = opts.review_package || state.review_package || null;

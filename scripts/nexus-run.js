@@ -41,7 +41,6 @@ import { createVerificationProvider } from "./lib/providers/verification-provide
 import { runVerificationLifecycle } from "./lib/verification-lifecycle.js";
 import { assessDrift } from "./lib/drift.js";
 import { assertValidRunId } from "./lib/policy.js";
-import { checkPlanFile } from "./lib/plan-check.js";
 import {
   appendTrajectoryStep,
   readTrajectory,
@@ -51,6 +50,10 @@ import {
   removeTaskWorktree,
   listTaskWorktrees,
 } from "./lib/worktree.js";
+import {
+  boundaryError,
+  validateContainedPath,
+} from "./lib/filesystem-boundary.js";
 
 function parseArgs(argv) {
   const out = { _: [], flags: {} };
@@ -101,27 +104,40 @@ function redact(value, key = "") {
 }
 
 function trajectoryFile(runId) {
-  return path.join(worktree(), ".opencode", "trajectories", `${runId}.jsonl`);
+  const root = path.resolve(worktree());
+  const file = path.join(root, ".opencode", "trajectories", `${runId}.jsonl`);
+  const boundary = validateContainedPath(root, file, {
+    allowMissing: true,
+    rejectSymlinks: true,
+  });
+  if (!boundary.ok) throw boundaryError("trajectory path", boundary);
+  return file;
 }
 
 function recordTrajectory(flags, action, observation, state, request = process.argv.slice(2)) {
   const runId = state?.run_id || runIdForFlags(flags);
   if (!runId) return;
-  const file = trajectoryFile(runId);
-  // Step is computed under a lockfile inside appendTrajectoryStep so concurrent
-  // writers cannot select the same step number.
-  appendTrajectoryStep(file, {
-    run_id: runId,
-    request: redact(request),
-    action: redact(action),
-    observation: redact(observation),
-    state: redact(state || null),
-    configuration: redact({
-      profile: state?.profile || null,
-      execution_mode: state?.execution_mode || null,
-      cwd: worktree(),
-    }),
-  });
+  try {
+    const file = trajectoryFile(runId);
+    // Step is computed under a lockfile inside appendTrajectoryStep so concurrent
+    // writers cannot select the same step number.
+    appendTrajectoryStep(file, {
+      run_id: runId,
+      request: redact(request),
+      action: redact(action),
+      observation: redact(observation),
+      state: redact(state || null),
+      configuration: redact({
+        profile: state?.profile || null,
+        execution_mode: state?.execution_mode || null,
+        cwd: worktree(),
+      }),
+    });
+  } catch {
+    // Trajectory capture is diagnostic; a corrupt or redirected runtime path
+    // must never turn a fail-closed gate into an unsafe write or mask it with a
+    // second exception.
+  }
 }
 
 function failCli(flags, command, error, code = 2) {
@@ -235,6 +251,17 @@ function defaultRunId() {
   return `run-${iso}-${suffix}`;
 }
 
+function runtimeFile(relativePath, label = "runtime path") {
+  const root = path.resolve(worktree());
+  const candidate = path.resolve(root, relativePath);
+  const boundary = validateContainedPath(root, candidate, {
+    allowMissing: true,
+    rejectSymlinks: true,
+  });
+  if (!boundary.ok) throw boundaryError(label, boundary);
+  return candidate;
+}
+
 function cmdInit(flags) {
   const explicit = flags["run-id"];
   const id = explicit ? String(explicit) : defaultRunId();
@@ -322,12 +349,9 @@ function cmdClassify(flags) {
       .digest("hex")}`;
 
     // Persist classification artifact for audit
-    const classPath = path.join(
-      worktree(),
-      ".opencode",
-      "runs",
-      state.run_id,
-      "classification.json",
+    const classPath = runtimeFile(
+      path.join(".opencode", "runs", state.run_id, "classification.json"),
+      "classification artifact path",
     );
     fs.mkdirSync(path.dirname(classPath), { recursive: true });
     fs.writeFileSync(classPath, JSON.stringify(classification, null, 2) + "\n");
@@ -391,20 +415,9 @@ function cmdTransition(flags) {
   // Worktree binding is useful for digest-bound review reuse and never makes
   // caller-supplied provider artifacts authoritative by itself.
   evidence.worktree = evidence.worktree || worktree();
-  if (to === "PLANNED" && flags["plan-check"] === true) {
-    const planPath =
-      flags.plan || path.join(worktree(), ".opencode", "plans", "PLAN.md");
-    if (flags.plan) evidence.plan_path = planPath;
-    evidence.plan_check = checkPlanFile(
-      planPath,
-      {
-        planningMode:
-          evidence.planning_mode ||
-          evidence.planningMode ||
-          state.planning_mode,
-      },
-    );
-  }
+  // PLANNED authority is recomputed inside the state-machine transition from
+  // the canonical .opencode/plans/PLAN.md. The optional flag remains accepted
+  // for CLI compatibility but cannot turn caller-supplied JSON into authority.
   const providers = createDefaultProviders({
     worktree: worktree(),
     profile: state.profile || state.classification?.profile,
@@ -780,7 +793,10 @@ function cmdVerify(flags) {
     const baselinePath =
       flags.compare === true
         ? runId
-          ? path.join(wt, ".opencode", "runs", runId, "baseline.json")
+          ? runtimeFile(
+              path.join(".opencode", "runs", runId, "baseline.json"),
+              "baseline artifact path",
+            )
           : null
         : String(flags.compare);
     let baselineData = null;

@@ -7,13 +7,15 @@
  *   node scripts/nexus-next.js --run-id <id>
  *   node scripts/nexus-next.js --json
  */
-import fs from "fs";
-import path from "path";
 import {
   resolveNextAction,
   formatNextActionInjection,
 } from "./lib/next-action.js";
-import { latestRunState, readRunState } from "./lib/migrate-artifacts.js";
+import {
+  latestRunState,
+  listRunIds,
+  readRunState,
+} from "./lib/migrate-artifacts.js";
 
 const args = process.argv.slice(2);
 function flag(name) {
@@ -34,21 +36,17 @@ try {
     state = latestRunState(worktree);
     if (state && ["COMPLETED", "FAILED"].includes(state.state)) {
       // Prefer a non-terminal run if latest is terminal
-      const runsRoot = path.join(worktree, ".opencode", "runs");
-      if (fs.existsSync(runsRoot)) {
-        const dirs = fs.readdirSync(runsRoot);
-        let best = null;
-        for (const id of dirs) {
-          try {
-            const s = readRunState(worktree, id);
-            if (!s || ["COMPLETED", "FAILED"].includes(s.state)) continue;
-            if (!best || (s.updated_at || "") > (best.updated_at || "")) best = s;
-          } catch {
-            /* skip */
-          }
+      let best = null;
+      for (const id of listRunIds(worktree)) {
+        try {
+          const s = readRunState(worktree, id);
+          if (!s || ["COMPLETED", "FAILED"].includes(s.state)) continue;
+          if (!best || (s.updated_at || "") > (best.updated_at || "")) best = s;
+        } catch {
+          /* skip malformed entries */
         }
-        if (best) state = best;
       }
+      if (best) state = best;
     }
   }
 } catch (err) {

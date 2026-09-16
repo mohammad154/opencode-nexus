@@ -529,9 +529,35 @@ test("TDD is measured by lifecycle, and final verification alone authorizes COMP
     assert.equal(finalResult.state.state, "FINAL_VERIFYING");
     assert.equal(finalResult.state.verification_status, "PASSED");
     assert.equal(finalResult.state.final_verification.ok, true);
+    assert.equal(finalResult.state.final_verification.workspace_clean, true);
+    assert.deepEqual(finalResult.state.final_verification.dirty_paths, []);
+    assert.match(finalResult.state.final_verification.workspace_digest, /^sha256:[a-f0-9]{64}$/);
+    assert.equal(
+      finalResult.state.final_verification.content_digest,
+      finalResult.state.final_verification.workspace_digest,
+    );
+    assert.equal(
+      finalResult.state.verification.workspace_digest,
+      finalResult.state.final_verification.workspace_digest,
+    );
+    assert.equal(
+      finalResult.state.verification.content_digest,
+      finalResult.state.final_verification.content_digest,
+    );
     assert.equal(
       canTransition(finalResult.state, "COMPLETED", { worktree: repository.root }).ok,
       true,
+    );
+    fs.appendFileSync(path.join(repository.root, "src", "app.js"), "\n// post-verification edit\n");
+    const dirtyAfterVerification = canTransition(
+      finalResult.state,
+      "COMPLETED",
+      { worktree: repository.root },
+    );
+    assert.equal(dirtyAfterVerification.ok, false);
+    assert.match(
+      dirtyAfterVerification.errors.join(" "),
+      /workspace changed|dirty source|digest mismatch/i,
     );
   } finally {
     fs.rmSync(repository.root, { recursive: true, force: true });

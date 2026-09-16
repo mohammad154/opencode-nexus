@@ -4,6 +4,10 @@
 import fs from "fs";
 import path from "path";
 import { spawnSync } from "node:child_process";
+import {
+  boundaryError,
+  validateContainedPath,
+} from "./filesystem-boundary.js";
 
 function run(cwd, args) {
   return spawnSync("git", args, { cwd, encoding: "utf8" });
@@ -53,6 +57,138 @@ function taskWorktree(repoRoot, taskId) {
   return { ok: true, safe, path: path.join(worktreeRoot(repoRoot), safe) };
 }
 
+function boundaryFailure(dir, result, label = "worktree path") {
+  const error = boundaryError(label, result);
+  return {
+    ok: false,
+    code: error.code,
+    reason: error.reason,
+    error: error.message,
+    path: dir,
+  };
+}
+
+function worktreeBoundary(repoRoot, dir) {
+  return validateContainedPath(repoRoot, dir, {
+    allowMissing: true,
+    rejectSymlinks: true,
+  });
+}
+
+function registeredWorktreePaths(repoRoot) {
+  const result = run(repoRoot, ["worktree", "list", "--porcelain"]);
+  if (result.status !== 0) return null;
+  return String(result.stdout || "")
+    .split(/\r?\n/)
+    .filter((line) => line.startsWith("worktree "))
+    .map((line) => line.slice("worktree ".length).trim())
+    .filter(Boolean);
+}
+
+function existingGitWorktree(repoRoot, dir) {
+  const boundary = worktreeBoundary(repoRoot, dir);
+  if (!boundary.ok) return boundaryFailure(dir, boundary);
+
+  let stat;
+  try {
+    stat = fs.statSync(dir);
+  } catch {
+    return {
+      ok: false,
+      code: "INVALID_WORKTREE",
+      error: "existing worktree path is unavailable",
+      path: dir,
+    };
+  }
+  if (!stat.isDirectory()) {
+    return {
+      ok: false,
+      code: "INVALID_WORKTREE",
+      error: "existing path is not a directory git worktree",
+      path: dir,
+    };
+  }
+
+  const top = run(dir, ["rev-parse", "--show-toplevel"]);
+  if (top.status !== 0 || !String(top.stdout || "").trim()) {
+    return {
+      ok: false,
+      code: "INVALID_WORKTREE",
+      error: "existing path is not a usable git worktree",
+      path: dir,
+    };
+  }
+
+  let realDir;
+  let realTop;
+  try {
+    realDir = fs.realpathSync(dir);
+    realTop = fs.realpathSync(String(top.stdout).trim());
+  } catch {
+    return {
+      ok: false,
+      code: "INVALID_WORKTREE",
+      error: "existing git worktree path cannot be canonicalized",
+      path: dir,
+    };
+  }
+  if (realDir !== realTop) {
+    return {
+      ok: false,
+      code: "INVALID_WORKTREE",
+      error: "existing path is not the expected git worktree root",
+      path: dir,
+    };
+  }
+
+  const registered = registeredWorktreePaths(repoRoot);
+  if (!registered) {
+    return {
+      ok: false,
+      code: "INVALID_WORKTREE",
+      error: "cannot verify registered git worktrees",
+      path: dir,
+    };
+  }
+  const registeredHere = registered.some((candidate) => {
+    try {
+      return fs.realpathSync(candidate) === realDir;
+    } catch {
+      return false;
+    }
+  });
+  if (!registeredHere) {
+    return {
+      ok: false,
+      code: "INVALID_WORKTREE",
+      error: "existing path is not a registered git worktree",
+      path: dir,
+    };
+  }
+
+  const inside = run(dir, ["rev-parse", "--is-inside-work-tree"]);
+  if (inside.status !== 0 || String(inside.stdout || "").trim() !== "true") {
+    return {
+      ok: false,
+      code: "INVALID_WORKTREE",
+      error: "existing path is not inside a git worktree",
+      path: dir,
+    };
+  }
+
+  const head = run(dir, ["rev-parse", "HEAD"]);
+  const headSha = String(head.stdout || "").trim();
+  if (head.status !== 0 || !headSha) {
+    return {
+      ok: false,
+      code: "INVALID_WORKTREE",
+      error: "existing git worktree has no readable HEAD",
+      path: dir,
+    };
+  }
+  return { ok: true, path: dir, head: headSha };
+}
+
 export function worktreeRoot(repoRoot) {
   return path.join(repoRoot, ".opencode", "worktrees");
 }
@@ -61,11 +197,22 @@ export function createTaskWorktree(repoRoot, taskId, { branch, baseCommit } = {}
   const task = taskWorktree(repoRoot, taskId);
   if (!task.ok) return task;
   const { safe, path: dir } = task;
+  const boundary = worktreeBoundary(repoRoot, dir);
+  if (!boundary.ok) return boundaryFailure(dir, boundary);
   fs.mkdirSync(path.dirname(dir), { recursive: true });
   if (fs.existsSync(dir)) {
+    const existing = existingGitWorktree(repoRoot, dir);
+    if (!existing.ok) return existing;
     const head = run(repoRoot, ["rev-parse", "HEAD"]);
-    const wtHead = run(dir, ["rev-parse", "HEAD"]);
     const status = run(dir, ["status", "--porcelain"]);
+    if (status.status !== 0) {
+      return {
+        ok: false,
+        code: "INVALID_WORKTREE",
+        error: "existing worktree is not a usable git worktree",
+        path: dir,
+      };
+    }
     if (status.stdout && status.stdout.trim()) {
       return {
         ok: false,
@@ -74,7 +221,7 @@ export function createTaskWorktree(repoRoot, taskId, { branch, baseCommit } = {}
       };
     }
     const headSha = (head.stdout || "").trim();
-    const wtSha = (wtHead.stdout || "").trim();
+    const wtSha = existing.head;
     const base = baseCommit ? String(baseCommit).trim() : null;
 
     if (base && wtSha && wtSha !== base) {
@@ -136,16 +283,30 @@ export function removeTaskWorktree(repoRoot, taskId) {
   const task = taskWorktree(repoRoot, taskId);
   if (!task.ok) return { ...task, removed: false };
   const { path: dir } = task;
+  const boundary = worktreeBoundary(repoRoot, dir);
+  if (!boundary.ok) return { ...boundaryFailure(dir, boundary), removed: false };
   if (!fs.existsSync(dir)) return { ok: true, removed: false };
+  const existing = existingGitWorktree(repoRoot, dir);
+  if (!existing.ok) return { ...existing, removed: false };
   const r = run(repoRoot, ["worktree", "remove", "--force", dir]);
   return { ok: r.status === 0, removed: r.status === 0, stderr: r.stderr ? r.stderr.trim() : undefined };
 }
 
 export function listTaskWorktrees(repoRoot) {
   const root = worktreeRoot(repoRoot);
-  if (!fs.existsSync(root)) return [];
-  return fs.readdirSync(root).map((name) => ({
-    task_id: name,
-    path: path.join(root, name),
-  }));
+  const boundary = worktreeBoundary(repoRoot, root);
+  if (!boundary.ok || !fs.existsSync(root)) return [];
+  let entries;
+  try {
+    entries = fs.readdirSync(root, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  return entries
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => ({
+      task_id: entry.name,
+      path: path.join(root, entry.name),
+    }))
+    .filter((entry) => existingGitWorktree(repoRoot, entry.path).ok);
 }

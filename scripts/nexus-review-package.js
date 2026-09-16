@@ -5,12 +5,14 @@
  * Usage:
  *   nexus review-package --scope task|final [--run-id <id>] [--json] [--out-dir <dir>]
  */
-import fs from "fs";
-import path from "path";
 import {
   buildReviewPackage,
 } from "./lib/review-package.js";
-import { latestRunState, readRunState } from "./lib/migrate-artifacts.js";
+import {
+  latestRunState,
+  readRunState,
+  writeRunState,
+} from "./lib/migrate-artifacts.js";
 
 function parseArgs(argv) {
   const out = {
@@ -66,24 +68,28 @@ function main() {
     outDir: args.outDir || undefined,
   });
 
-  // Persist pointer on run state when available (best-effort).
+  // Persist the package pointer through the same locked/CAS state writer as
+  // every other state mutation. A package that cannot be bound to run state
+  // must not be reported as an authoritative handoff.
   if (runState?.run_id) {
     try {
-      const statePath = path.join(
-        args.worktree,
-        ".opencode",
-        "runs",
-        runState.run_id,
-        "state.json",
+      writeRunState(args.worktree, {
+        ...runState,
+        review_package: meta,
+        updated_at: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error(
+        JSON.stringify(
+          {
+            ok: false,
+            error: `review package was written but could not be bound to run state: ${String(error?.message || error)}`,
+          },
+          null,
+          2,
+        ),
       );
-      if (fs.existsSync(statePath)) {
-        const cur = JSON.parse(fs.readFileSync(statePath, "utf8"));
-        cur.review_package = meta;
-        cur.updated_at = new Date().toISOString();
-        fs.writeFileSync(statePath, `${JSON.stringify(cur, null, 2)}\n`);
-      }
-    } catch {
-      // non-fatal — package files are still written
+      process.exit(2);
     }
   }
 

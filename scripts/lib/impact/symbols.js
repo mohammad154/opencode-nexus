@@ -6,6 +6,7 @@ import path from "path";
 import { createHash } from "node:crypto";
 import { PARSER_VERSION } from "./adapters.js";
 import { PATH_FILTER_VERSION } from "../path-filter.js";
+import { boundaryError, validateContainedPath } from "../filesystem-boundary.js";
 
 export const IMPACT_CACHE_VERSION = "2";
 
@@ -15,7 +16,18 @@ function cacheDir(worktree) {
 
 function ensureCache(worktree) {
   const dir = cacheDir(worktree);
+  const root = path.resolve(worktree);
+  const boundary = validateContainedPath(root, dir, {
+    allowMissing: true,
+    rejectSymlinks: true,
+  });
+  if (!boundary.ok) throw boundaryError("impact cache path", boundary);
   fs.mkdirSync(dir, { recursive: true });
+  const afterMkdir = validateContainedPath(root, dir, {
+    allowMissing: false,
+    rejectSymlinks: true,
+  });
+  if (!afterMkdir.ok) throw boundaryError("impact cache path", afterMkdir);
   return dir;
 }
 

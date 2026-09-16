@@ -8,6 +8,7 @@ import fs from "fs";
 import path from "path";
 import { planningModeFromEvidence } from "./planning.js";
 import { getAgentCallBudget } from "./providers.js";
+import { validateContainedPath } from "./filesystem-boundary.js";
 
 /**
  * @typedef {object} NextAction
@@ -24,7 +25,12 @@ import { getAgentCallBudget } from "./providers.js";
 
 function planExists(worktree) {
   if (!worktree) return false;
-  return fs.existsSync(path.join(worktree, ".opencode", "plans", "PLAN.md"));
+  const planPath = path.resolve(worktree, ".opencode", "plans", "PLAN.md");
+  const boundary = validateContainedPath(worktree, planPath, {
+    allowMissing: true,
+    rejectSymlinks: true,
+  });
+  return boundary.ok && boundary.exists && fs.existsSync(planPath);
 }
 
 function stateHasSingleUnit(runState) {

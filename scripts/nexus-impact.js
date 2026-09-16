@@ -7,6 +7,7 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { analyzeImpact } from "./lib/impact/analyze.js";
+import { boundaryError, validateContainedPath } from "./lib/filesystem-boundary.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -54,7 +55,23 @@ function main() {
   const outPath =
     args.outPath ||
     path.join(args.worktree, ".opencode", "impact", "latest.json");
+  if (!args.outPath) {
+    const root = path.resolve(args.worktree);
+    const boundary = validateContainedPath(root, outPath, {
+      allowMissing: true,
+      rejectSymlinks: true,
+    });
+    if (!boundary.ok) throw boundaryError("impact artifact path", boundary);
+  }
   fs.mkdirSync(path.dirname(outPath), { recursive: true });
+  if (!args.outPath) {
+    const root = path.resolve(args.worktree);
+    const boundary = validateContainedPath(root, outPath, {
+      allowMissing: true,
+      rejectSymlinks: true,
+    });
+    if (!boundary.ok) throw boundaryError("impact artifact path", boundary);
+  }
   fs.writeFileSync(outPath, text + "\n");
   if (args.json || true) {
     process.stdout.write(text + "\n");

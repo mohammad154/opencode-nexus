@@ -167,11 +167,22 @@ test("documented reviewer template produces a gate-valid evidence-backed approva
   assert.equal(data.schema_version, "1.2");
 
   const taskPkg = {
+    schema_version: "1.0",
     ok: true,
     scope: "task",
+    run_id: "contract-run",
+    unit_or_task: "unit-contract",
+    run_base_commit: "baseaaa",
     path: ".opencode/reviews/contract-task.md",
+    absolute_path: "/repo/.opencode/reviews/contract-task.md",
+    meta_path: ".opencode/reviews/contract-task.json",
     base_commit: "baseaaa",
     head_commit: "commitbb",
+    digest_sha256: "a".repeat(64),
+    changed_files: ["src/example.js"],
+    production_files: ["src/example.js"],
+    acceptance_criteria: [],
+    generated_at: "2026-07-30T12:00:00.000Z",
   };
   const reviewing = {
     ...createEmptyRunState("contract-run"),
@@ -179,6 +190,7 @@ test("documented reviewer template produces a gate-valid evidence-backed approva
     current_unit: "unit-contract",
     head_commit: "baseaaa",
     implementer_commit: "commitbb",
+    run_base_commit: "baseaaa",
   };
   const toFinalReview = canTransition(reviewing, "FINAL_REVIEWING", {
     review_handoff: data,

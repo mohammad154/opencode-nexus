@@ -254,6 +254,7 @@ test("assertReviewPackageBound verifies digest and reviewed_commit binding", () 
     state: {
       run_id: "bind",
       current_unit: "u1",
+      head_commit: base,
       implementer_commit: head,
       run_base_commit: base,
     },
@@ -282,6 +283,116 @@ test("assertReviewPackageBound verifies digest and reviewed_commit binding", () 
   });
   assert.equal(badDigest.ok, false);
   fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("review package binding rejects malformed identity without throwing", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "nexus-bind-malformed-"));
+  git(dir, ["init"]);
+  git(dir, ["config", "user.email", "t@ex.com"]);
+  git(dir, ["config", "user.name", "t"]);
+  fs.writeFileSync(path.join(dir, "a.js"), "export const a = 1;\n");
+  git(dir, ["add", "."]);
+  git(dir, ["commit", "-m", "base"]);
+  const head = git(dir, ["rev-parse", "HEAD"]);
+  const meta = buildReviewPackage(dir, {
+    scope: "task",
+    runState: {
+      run_id: "malformed",
+      current_unit: "u1",
+      head_commit: head,
+      implementer_commit: head,
+      run_base_commit: head,
+    },
+    headCommit: head,
+  });
+
+  assert.doesNotThrow(() => {
+    const result = assertReviewPackageBound(
+      { ...meta, absolute_path: undefined },
+      {
+        scope: "task",
+        worktree: dir,
+        state: {
+          run_id: "malformed",
+          current_unit: "u1",
+          head_commit: head,
+          run_base_commit: head,
+        },
+        handoff: { reviewed_commit: head },
+      },
+    );
+    assert.equal(result.ok, false);
+    assert.ok(result.errors.some((error) => /absolute_path|required/i.test(error)));
+  });
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("review package builder and binder reject symlinked review roots", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "nexus-bind-symlink-"));
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), "nexus-bind-symlink-outside-"));
+  t.after(() => {
+    fs.rmSync(dir, { recursive: true, force: true });
+    fs.rmSync(outside, { recursive: true, force: true });
+  });
+  git(dir, ["init"]);
+  git(dir, ["config", "user.email", "t@ex.com"]);
+  git(dir, ["config", "user.name", "t"]);
+  fs.writeFileSync(path.join(dir, "a.js"), "export const a = 1;\n");
+  git(dir, ["add", "."]);
+  git(dir, ["commit", "-m", "base"]);
+  const head = git(dir, ["rev-parse", "HEAD"]);
+  fs.mkdirSync(outside, { recursive: true });
+  fs.mkdirSync(path.join(dir, ".opencode"), { recursive: true });
+  fs.symlinkSync(outside, path.join(dir, ".opencode", "reviews"));
+
+  assert.throws(
+    () => buildReviewPackage(dir, {
+      scope: "task",
+      runState: {
+        run_id: "symlinked",
+        current_unit: "u1",
+        head_commit: head,
+        implementer_commit: head,
+        run_base_commit: head,
+      },
+      headCommit: head,
+    }),
+    /filesystem boundary|symlink/i,
+  );
+
+  const result = assertReviewPackageBound(
+    {
+      scope: "task",
+      path: ".opencode/reviews/escape.md",
+      meta_path: ".opencode/reviews/escape.json",
+      absolute_path: path.join(dir, ".opencode", "reviews", "escape.md"),
+      schema_version: "1.0",
+      ok: true,
+      run_id: "symlinked",
+      unit_or_task: "u1",
+      base_commit: head,
+      run_base_commit: head,
+      head_commit: head,
+      digest_sha256: "a".repeat(64),
+      generated_at: "2026-07-30T00:00:00.000Z",
+      changed_files: [],
+      production_files: [],
+      acceptance_criteria: [],
+    },
+    {
+      scope: "task",
+      worktree: dir,
+      state: {
+        run_id: "symlinked",
+        current_unit: "u1",
+        head_commit: head,
+        run_base_commit: head,
+      },
+      handoff: { reviewed_commit: head },
+    },
+  );
+  assert.equal(result.ok, false);
+  assert.match(result.errors.join(" "), /filesystem boundary|symlink|outside/i);
 });
 
 test("FINAL_VERIFYING requires final package base == run_base_commit", () => {

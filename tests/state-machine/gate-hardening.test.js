@@ -1,8 +1,11 @@
 /**
  * V5 gate hardening — fixed pipeline invariants.
  */
-import test from "node:test";
+import test, { after } from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { createEmptyRunState } from "../../scripts/lib/migrate-artifacts.js";
 import {
   canTransition,
@@ -30,14 +33,62 @@ function driftOk(head = "base111") {
   };
 }
 
+const temporaryPlanRoots = [];
+
+after(() => {
+  for (const root of temporaryPlanRoots) {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+function planWorktree() {
+  const worktree = fs.mkdtempSync(path.join(os.tmpdir(), "nexus-gate-plan-"));
+  temporaryPlanRoots.push(worktree);
+  const planDir = path.join(worktree, ".opencode", "plans");
+  fs.mkdirSync(planDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(planDir, "PLAN.md"),
+    [
+      "# Plan",
+      "- Planning mode: compact",
+      "",
+      "## Execution Unit Justification",
+      "Number of units: 1",
+      "",
+      "Why not fewer:",
+      "- One cohesive behavior owns the outcome.",
+      "",
+      "Why not more:",
+      "- There is no independent boundary to split.",
+      "",
+      "## Execution Unit breakdown",
+      "### Execution Unit 1: behavior",
+      "- id: unit-1",
+      "- user_outcome: Deliver the behavior",
+      "- independently_shippable: true",
+      "- review_boundary: NONE",
+      "- estimated_lines: 10",
+      "- Allowed files: `src/app.js`",
+      "- Acceptance criteria:",
+      "  - [ ] behavior works.",
+      "- Verification gates:",
+      "  1. npm test",
+      "",
+    ].join("\n"),
+  );
+  return worktree;
+}
+
 function toPlanned(runId = "gate") {
   let s = createEmptyRunState(runId);
   s = transition(s, "BRAINSTORMING", {}).state;
-  s = transition(s, "PLANNED", {
+  const planned = transition(s, "PLANNED", {
     plan_exists: true,
     plan_check: { ok: true, plan_check: "PASS", errors: [] },
-  }).state;
-  return s;
+    worktree: planWorktree(),
+  });
+  assert.equal(planned.ok, true, JSON.stringify(planned.errors));
+  return planned.state;
 }
 
 test("assertValidRunId rejects path separators", () => {

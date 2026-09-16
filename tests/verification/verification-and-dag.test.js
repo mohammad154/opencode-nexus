@@ -188,7 +188,7 @@ test("targeted plans execute the validated target and reject outside-worktree sy
       ],
     });
     assert.equal(symlink.steps.length, 0);
-    assert.equal(symlink.ignored_targets[0].reason, "outside_worktree");
+    assert.equal(symlink.ignored_targets[0].reason, "symlink_component");
   } finally {
     fs.rmSync(worktree, { recursive: true, force: true });
     fs.rmSync(outside, { recursive: true, force: true });

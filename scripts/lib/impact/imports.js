@@ -107,7 +107,7 @@ export function buildImportIndex(worktree, options = {}) {
   const policy = loadScopePolicy(worktree);
   const ignoredPatterns = options.ignoredPatterns || policy.ignored_patterns;
   const rawFiles = options.files || walkSourceFiles(worktree, { ignoredPatterns });
-  const filtered = filterPathEntries(rawFiles, { ignoredPatterns });
+  const filtered = filterPathEntries(rawFiles, { ignoredPatterns, worktree });
   const files = [
     ...new Set(
       filtered.included

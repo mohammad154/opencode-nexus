@@ -14,6 +14,7 @@ import {
   stableStringify,
   verifySealedArtifact,
 } from "./artifact-seal.js";
+import { inspectWorkspace } from "./workspace-integrity.js";
 import { runStatePath, writeRunState } from "./migrate-artifacts.js";
 import { requiresTdd } from "./policy.js";
 import { withFileLock } from "./lock.js";
@@ -185,6 +186,13 @@ function baseArtifact({ runId, phase, head, configDigest, artifactPath }) {
     current_step: 0,
     total_steps: 0,
     completed_steps: 0,
+    workspace_clean: null,
+    dirty_paths: [],
+    workspace_digest: null,
+    content_digest: null,
+    workspace_checked_at: null,
+    workspace_integrity_available: false,
+    workspace_integrity_error: null,
     artifact_path: artifactPath,
     failure_reason: null,
   };
@@ -211,17 +219,35 @@ function statusSummary({
     current_step: artifact.current_step || 0,
     total_steps: artifact.total_steps || 0,
     completed_steps: artifact.completed_steps || 0,
+    workspace_clean: artifact.workspace_clean ?? null,
+    dirty_paths: Array.isArray(artifact.dirty_paths) ? artifact.dirty_paths : [],
+    workspace_digest: artifact.workspace_digest || null,
+    content_digest: artifact.content_digest || null,
+    workspace_checked_at: artifact.workspace_checked_at || null,
+    workspace_integrity_available: artifact.workspace_integrity_available === true,
+    workspace_integrity_error: artifact.workspace_integrity_error || null,
     failure_reason: failureReason,
   };
 }
 
 function persistState(worktree, state, summary, extra = {}) {
-  return writeRunState(worktree, {
+  const persisted = writeRunState(worktree, {
     ...state,
     ...extra,
     verification_status: summary.status,
     verification: summary,
   });
+  // Keep the in-memory state returned to callers aligned with the summary that
+  // was just authored. This also keeps lifecycle callers from accidentally
+  // validating a pre-measurement summary if a legacy state normalizer omits
+  // newer optional summary fields during its write.
+  return {
+    ...persisted,
+    verification: {
+      ...(persisted.verification || {}),
+      ...summary,
+    },
+  };
 }
 
 function readBaseline(worktree, state) {
@@ -592,6 +618,24 @@ function runVerificationLifecycleUnlocked({
     }
   }
 
+  // Measure the source worktree immediately before sealing verification
+  // evidence. The completion gate re-measures this identity later, so the
+  // sealed artifact and its durable summary must carry the exact same result.
+  const workspace = inspectWorkspace(root);
+  const workspaceEvidence = {
+    workspace_clean: workspace.available === true && workspace.clean === true,
+    dirty_paths: Array.isArray(workspace.dirty_paths)
+      ? workspace.dirty_paths
+      : [],
+    workspace_digest: workspace.workspace_digest || null,
+    content_digest: workspace.content_digest || null,
+    workspace_checked_at: workspace.checked_at || null,
+    workspace_integrity_available: workspace.available === true,
+    workspace_integrity_error: workspace.error || null,
+  };
+  Object.assign(artifact, workspaceEvidence);
+  if (!workspace.available) ok = false;
+
   const verificationArtifact = sealProviderArtifact(
     {
       schema_version: "1.0",
@@ -603,6 +647,7 @@ function runVerificationLifecycleUnlocked({
       plan_digest: artifact.plan_digest,
       configuration_digest: configDigest,
       timed_out: providerRun?.timed_out === true,
+      ...workspaceEvidence,
     },
     head,
   );
@@ -614,6 +659,12 @@ function runVerificationLifecycleUnlocked({
 
   if (providerRun?.timed_out) {
     return fail("VERIFICATION_TIMED_OUT", "verification timed out", "TIMED_OUT");
+  }
+  if (!workspace.available) {
+    return fail(
+      "WORKSPACE_INTEGRITY_UNAVAILABLE",
+      workspace.error || "unable to inspect the verification worktree",
+    );
   }
   if (!ok) {
     return fail(
