@@ -131,3 +131,36 @@ test("baseline rejects capture after implementation has started", () => {
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
+test("baseline fails closed when persistence crosses a symlink boundary", () => {
+  const root = setupTestRepo();
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), "nexus-baseline-outside-"));
+  try {
+    const initRes = invoke(["run", "init", "--run-id", "test-run-symlink"], {}, root);
+    assert.equal(initRes.status, 0, initRes.stderr);
+
+    const baselineFile = path.join(
+      root,
+      ".opencode",
+      "runs",
+      "test-run-symlink",
+      "baseline.json",
+    );
+    fs.symlinkSync(path.join(outside, "baseline.json"), baselineFile);
+
+    const res = invoke(["baseline", "--run-id", "test-run-symlink"], {}, root);
+    assert.equal(res.status, 2, `${res.stdout}\n${res.stderr}`);
+    assert.equal(res.stdout, "");
+
+    const payload = JSON.parse(res.stderr);
+    assert.equal(payload.ok, false);
+    assert.match(payload.error, /could not be persisted/i);
+    assert.equal(payload.baseline.ok, false);
+    assert.equal(payload.baseline.persist_error, "symlink_component");
+    assert.equal(fs.lstatSync(baselineFile).isSymbolicLink(), true);
+    assert.equal(fs.existsSync(path.join(outside, "baseline.json")), false);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(outside, { recursive: true, force: true });
+  }
+});

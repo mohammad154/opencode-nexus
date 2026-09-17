@@ -332,6 +332,7 @@ export function createVerificationProvider(providerOptions = {}) {
       const run = this.run(ctx);
       const report = {
         schema_version: "1.0",
+        ok: true,
         captured_at: new Date().toISOString(),
         commit: ctx.commit || null,
         run_id: ctx.runId || null,
@@ -360,10 +361,12 @@ export function createVerificationProvider(providerOptions = {}) {
           if (afterMkdir.ok) {
             persistPath = p;
           } else {
-            report.persist_error = `baseline path violates filesystem boundary (${afterMkdir.reason})`;
+            report.ok = false;
+            report.persist_error = afterMkdir.reason || "persistence_failed";
           }
         } else {
-          report.persist_error = `baseline path violates filesystem boundary (${boundary.reason})`;
+          report.ok = false;
+          report.persist_error = boundary.reason || "persistence_failed";
         }
       }
       if (persistPath) report.path = persistPath;

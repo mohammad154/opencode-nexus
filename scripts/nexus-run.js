@@ -739,6 +739,18 @@ function cmdBaseline(flags) {
     runId,
     commit,
   });
+  if (!baseline || baseline.ok !== true || baseline.persist_error) {
+    const persistError = baseline?.persist_error || "persistence_failed";
+    const error = `baseline capture could not be persisted (${persistError})`;
+    recordTrajectory(
+      flags,
+      { command: "baseline", run_id: runId, failed: true },
+      { ok: false, error, baseline },
+      state,
+    );
+    console.error(JSON.stringify({ ok: false, error, baseline }, null, 2));
+    process.exit(2);
+  }
   recordTrajectory(flags, { command: "baseline", run_id: runId }, { ok: true, baseline }, state);
   console.log(JSON.stringify({ ok: true, baseline }, null, 2));
 }

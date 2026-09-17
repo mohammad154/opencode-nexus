@@ -209,6 +209,30 @@ test("verification fails when an executed check fails", () => {
   assert.strictEqual(res.code, undefined);
 });
 
+test("baseline reports persistence failure when its path contains a symlink", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "nexus-baseline-provider-"));
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), "nexus-baseline-provider-outside-"));
+  try {
+    const runDir = path.join(root, ".opencode", "runs", "provider-run");
+    fs.mkdirSync(runDir, { recursive: true });
+    fs.symlinkSync(path.join(outside, "baseline.json"), path.join(runDir, "baseline.json"));
+
+    const baseline = createVerificationProvider().baseline({
+      worktree: root,
+      runId: "provider-run",
+      commit: "commit",
+    });
+
+    assert.equal(baseline.ok, false);
+    assert.equal(baseline.persist_error, "symlink_component");
+    assert.equal(verifySealedArtifact(baseline), true);
+    assert.equal(fs.existsSync(path.join(outside, "baseline.json")), false);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(outside, { recursive: true, force: true });
+  }
+});
+
 test("verification timeouts are configurable and a timed-out step fails closed", () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "nexus-verif-timeout-"));
   const oldTimeout = process.env.NEXUS_VERIFY_TIMEOUT_TEST;
