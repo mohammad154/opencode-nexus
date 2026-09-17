@@ -53,6 +53,7 @@ review; task evidence never replaces that review.
 For changed behavior, inspect edge cases, error paths, affected contracts/callers, and whether tests exercise production behavior (not duplicated test helpers).
 
 Mandatory check categories (each needs status + evidence): `correctness`, `test_quality`, `impact`.
+Allowed check categories are `correctness`, `test_quality`, `impact`, `scope`, `spec_fidelity`, and optional `verification`. Do not invent another category; `verification` is an additional review check and does not replace the three mandatory categories.
 
 Write `.opencode/handoffs/[id]-reviewer.json` (schema_version **1.2**):
 

@@ -5,6 +5,7 @@ import os from "os";
 import path from "path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { verifySealedArtifact } from "../scripts/lib/artifact-seal.js";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const bin = path.join(repoRoot, "bin", "nexus.js");
@@ -56,6 +57,8 @@ test("nexus run baseline captures baseline report for an active run", () => {
     assert.ok(fs.existsSync(baselineFile));
     const saved = JSON.parse(fs.readFileSync(baselineFile, "utf8"));
     assert.equal(saved.schema_version, "1.0");
+    assert.equal(saved.commit, saved.worktree_head);
+    assert.equal(verifySealedArtifact(saved), true);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -90,6 +93,40 @@ test("nexus verify --baseline captures verification baseline", () => {
     assert.equal(payload.ok, true);
     assert.ok(payload.baseline);
     assert.equal(payload.baseline.schema_version, "1.0");
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("baseline rejects a caller-supplied commit that is not current HEAD", () => {
+  const root = setupTestRepo();
+  try {
+    invoke(["run", "init", "--run-id", "test-run-4"], {}, root);
+    const res = invoke(
+      ["baseline", "--run-id", "test-run-4", "--commit", "not-current-head"],
+      {},
+      root,
+    );
+    assert.equal(res.status, 2);
+    assert.match(res.stderr, /--commit must exactly match current Git HEAD/i);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("baseline rejects capture after implementation has started", () => {
+  const root = setupTestRepo();
+  try {
+    invoke(["run", "init", "--run-id", "test-run-5"], {}, root);
+    const stateFile = path.join(root, ".opencode", "runs", "test-run-5", "state.json");
+    const state = JSON.parse(fs.readFileSync(stateFile, "utf8"));
+    state.state = "IMPLEMENTING";
+    state.implementer_commit = "implementation-started";
+    fs.writeFileSync(stateFile, JSON.stringify(state, null, 2));
+
+    const res = invoke(["baseline", "--run-id", "test-run-5"], {}, root);
+    assert.equal(res.status, 2);
+    assert.match(res.stderr, /only before implementation begins/i);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

@@ -16,6 +16,12 @@ function makeRepo() {
   return root;
 }
 
+function git(root, args) {
+  const result = spawnSync("git", args, { cwd: root, encoding: "utf8" });
+  assert.equal(result.status, 0, `${args.join(" ")}\n${result.stderr}`);
+  return String(result.stdout || "").trim();
+}
+
 function invoke(worktree, args) {
   return spawnSync(process.execPath, [runCli, ...args], {
     cwd: worktree,
@@ -86,4 +92,73 @@ test("review-handoff-file preserves the complete reviewer artifact", (t) => {
   });
   assert.deepEqual(evidence.review_handoff, handoff);
   assert.deepEqual(evidence.impact, { risk: "LOW" });
+});
+
+test("can-transition ignores an evidence file that redirects worktree identity", (t) => {
+  const root = makeRepo();
+  const redirected = makeRepo();
+  t.after(() => {
+    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(redirected, { recursive: true, force: true });
+  });
+
+  for (const repo of [root, redirected]) {
+    git(repo, ["config", "user.name", "Nexus Test"]);
+    git(repo, ["config", "user.email", "nexus@example.test"]);
+    fs.writeFileSync(
+      path.join(repo, "app.js"),
+      repo === redirected ? "export const redirected = true;\n" : "export const app = true;\n",
+    );
+    git(repo, ["add", "."]);
+    git(repo, ["commit", "-m", repo === redirected ? "redirected fixture" : "fixture"]);
+  }
+  const rootHead = git(root, ["rev-parse", "HEAD"]);
+  const redirectedHead = git(redirected, ["rev-parse", "HEAD"]);
+  const branch = git(root, ["branch", "--show-current"]);
+
+  const initialized = JSON.parse(invoke(root, ["init", "--run-id", "redirected-run"]).stdout);
+  const statePath = path.join(root, ".opencode", "runs", "redirected-run", "state.json");
+  const state = initialized.state;
+  state.state = "TASK_IMPACT_READY";
+  state.plan_commit = rootHead;
+  state.branch = branch;
+  state.allowed_files = ["app.js"];
+  state.impact = { risk: "LOW", changed_files: ["app.js"] };
+  state.impact_consumed_for_implement = false;
+  fs.writeFileSync(statePath, JSON.stringify(state, null, 2));
+
+  const evidencePath = path.join(root, "redirect-evidence.json");
+  fs.writeFileSync(
+    evidencePath,
+    JSON.stringify({
+      worktree: redirected,
+      branch,
+      current_unit: "unit-1",
+      acceptance_criteria: ["the change works"],
+      allowed_files: ["app.js"],
+      impact: { risk: "LOW", changed_files: ["app.js"] },
+      drift: {
+        schema_version: "1.0",
+        plan_commit: rootHead,
+        current_head: redirectedHead,
+        drift: "NONE",
+        reasons: [],
+      },
+    }),
+  );
+
+  const result = invoke(
+    root,
+    [
+      "can-transition",
+      "--run-id",
+      "redirected-run",
+      "--to",
+      "IMPLEMENTING",
+      "--evidence",
+      evidencePath,
+    ],
+  );
+  assert.equal(result.status, 3, result.stderr + result.stdout);
+  assert.match(result.stdout, /worktree HEAD.*does not match/i);
 });

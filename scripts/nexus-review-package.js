@@ -9,7 +9,7 @@ import {
   buildReviewPackage,
 } from "./lib/review-package.js";
 import {
-  latestRunState,
+  latestActiveRunState,
   readRunState,
   writeRunState,
 } from "./lib/migrate-artifacts.js";
@@ -55,7 +55,7 @@ function main() {
   let runState = null;
   try {
     if (args.runId) runState = readRunState(args.worktree, args.runId);
-    else runState = latestRunState(args.worktree);
+    else runState = latestActiveRunState(args.worktree);
   } catch {
     runState = null;
   }

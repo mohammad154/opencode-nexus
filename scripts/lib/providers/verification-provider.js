@@ -334,8 +334,10 @@ export function createVerificationProvider(providerOptions = {}) {
         schema_version: "1.0",
         captured_at: new Date().toISOString(),
         commit: ctx.commit || null,
+        run_id: ctx.runId || null,
         results: run.results,
       };
+      let persistPath = null;
       if (ctx.runId && ctx.worktree) {
         const p = path.join(
           ctx.worktree,
@@ -356,8 +358,7 @@ export function createVerificationProvider(providerOptions = {}) {
             rejectSymlinks: true,
           });
           if (afterMkdir.ok) {
-            fs.writeFileSync(p, JSON.stringify(report, null, 2) + "\n");
-            report.path = p;
+            persistPath = p;
           } else {
             report.persist_error = `baseline path violates filesystem boundary (${afterMkdir.reason})`;
           }
@@ -365,7 +366,12 @@ export function createVerificationProvider(providerOptions = {}) {
           report.persist_error = `baseline path violates filesystem boundary (${boundary.reason})`;
         }
       }
-      return report;
+      if (persistPath) report.path = persistPath;
+      const sealed = sealProviderArtifact(report, ctx.commit || null);
+      if (persistPath) {
+        fs.writeFileSync(persistPath, JSON.stringify(sealed, null, 2) + "\n");
+      }
+      return sealed;
     },
     compare(baseline, current) {
       return compareBaselines(baseline, current);

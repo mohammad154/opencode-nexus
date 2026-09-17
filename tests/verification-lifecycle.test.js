@@ -414,7 +414,10 @@ test("zero executable checks fail closed and caller-forged verification cannot o
 test("baseline comparison waives only known executed failures, never an unavailable run", () => {
   const repository = makeRepository();
   try {
-    const baseline = { results: [{ id: "test", pass: false }] };
+    const baseline = sealProviderArtifact(
+      { schema_version: "1.0", commit: repository.base, results: [{ id: "test", pass: false }] },
+      repository.base,
+    );
     const knownFailure = taskState("verify-baseline-known", repository, { baseline });
     writeRunState(repository.root, knownFailure);
     const knownProvider = providers({
@@ -452,6 +455,61 @@ test("baseline comparison waives only known executed failures, never an unavaila
     });
     assert.equal(unavailableResult.ok, false);
     assert.equal(unavailableResult.code, "VERIFICATION_UNAVAILABLE");
+  } finally {
+    fs.rmSync(repository.root, { recursive: true, force: true });
+  }
+});
+
+test("baseline from a post-implementation commit is rejected", () => {
+  const repository = makeRepository();
+  try {
+    const baseline = sealProviderArtifact(
+      { schema_version: "1.0", commit: repository.head, results: [{ id: "test", pass: false }] },
+      repository.head,
+    );
+    const state = taskState("verify-baseline-stale", repository, { baseline });
+    writeRunState(repository.root, state);
+    const result = runVerificationLifecycle({
+      worktree: repository.root,
+      state,
+      providers: providers(),
+    });
+    assert.equal(result.ok, false);
+    assert.equal(result.code, "BASELINE_INVALID");
+    assert.match(result.error, /does not match.*anchor/i);
+  } finally {
+    fs.rmSync(repository.root, { recursive: true, force: true });
+  }
+});
+
+test("final post-impact analysis uses immutable run_base_commit", () => {
+  const repository = makeRepository();
+  try {
+    fs.writeFileSync(path.join(repository.root, "src", "final.js"), "export const final = true;\n");
+    git(repository.root, ["add", "src/final.js"]);
+    git(repository.root, ["commit", "-m", "final implementation"]);
+    const finalHead = git(repository.root, ["rev-parse", "HEAD"]);
+    const state = finalState("verify-final-base", repository, {
+      run_base_commit: repository.base,
+      head_commit: repository.head,
+      implementer_commit: finalHead,
+      last_final_review_handoff: { reviewed_commit: finalHead },
+      last_review_handoff: { reviewed_commit: finalHead },
+    });
+    writeRunState(repository.root, state);
+    const bases = [];
+    const finalProviders = providers();
+    finalProviders.impactProvider.analyze = (ctx) => {
+      bases.push(ctx.base);
+      return { ok: true, report: { ok: true, risk: "LOW", related_tests: [] } };
+    };
+    const result = runVerificationLifecycle({
+      worktree: repository.root,
+      state,
+      providers: finalProviders,
+    });
+    assert.equal(result.ok, true, result.error);
+    assert.deepEqual(bases, [repository.base]);
   } finally {
     fs.rmSync(repository.root, { recursive: true, force: true });
   }

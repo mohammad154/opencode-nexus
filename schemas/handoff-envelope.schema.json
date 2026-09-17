@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://opencode-nexus.local/schemas/handoff-envelope.schema.json",
   "title": "HandoffEnvelope",
-  "description": "Shared identity binding for schema_version 1.1 handoffs. Commit/approval values must never be invented by migration.",
+  "description": "Shared identity binding for schema_version 1.1 and 1.2 handoffs. Commit/approval values must never be invented by migration.",
   "type": "object",
   "additionalProperties": true,
   "required": [

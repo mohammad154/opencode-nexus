@@ -22,7 +22,7 @@ import {
   createEmptyRunState,
   writeRunState,
   readRunState,
-  latestRunState,
+  latestActiveRunState,
   inferRunFromContext,
   normalizeAndValidateHandoff,
 } from "./lib/migrate-artifacts.js";
@@ -78,10 +78,24 @@ function worktree() {
   return process.env.NEXUS_WORKTREE || process.cwd();
 }
 
+const BASELINE_CAPTURE_STATES = new Set([
+  "CREATED",
+  "BRAINSTORMING",
+  "WAITING_FOR_USER",
+  "PLANNED",
+  "TASK_IMPACT_READY",
+]);
+
+function baselineCaptureAllowed(state) {
+  if (!state) return true;
+  if (!BASELINE_CAPTURE_STATES.has(state.state)) return false;
+  return !state.implementer_commit && !state.last_implementer_handoff;
+}
+
 function runIdForFlags(flags = {}) {
   if (flags["run-id"]) return String(flags["run-id"]);
   try {
-    return latestRunState(worktree())?.run_id || null;
+    return latestActiveRunState(worktree())?.run_id || null;
   } catch {
     return null;
   }
@@ -237,7 +251,7 @@ function resolveRun(flags) {
     }
     return s;
   }
-  const latest = latestRunState(wt);
+  const latest = latestActiveRunState(wt);
   if (latest) return latest;
   return null;
 }
@@ -414,7 +428,9 @@ function cmdTransition(flags) {
   const evidence = loadEvidence(flags);
   // Worktree binding is useful for digest-bound review reuse and never makes
   // caller-supplied provider artifacts authoritative by itself.
-  evidence.worktree = evidence.worktree || worktree();
+  // The CLI's selected worktree is authoritative. Never let an evidence file
+  // redirect identity checks or state persistence to a different checkout.
+  evidence.worktree = worktree();
   // PLANNED authority is recomputed inside the state-machine transition from
   // the canonical .opencode/plans/PLAN.md. The optional flag remains accepted
   // for CLI compatibility but cannot turn caller-supplied JSON into authority.
@@ -576,6 +592,9 @@ function cmdCan(flags) {
     process.exit(2);
   }
   const evidence = loadEvidence(flags);
+  // Keep the advisory command bound to the checkout selected by the CLI too;
+  // a caller-supplied evidence path must not bypass worktree identity checks.
+  evidence.worktree = worktree();
   const r = canTransition(state, to, evidence);
   console.log(JSON.stringify(r, null, 2));
   if (!r.ok) process.exit(3);
@@ -671,13 +690,49 @@ function cmdBaseline(flags) {
   const wt = worktree();
   const state = resolveRun(flags);
   const runId = state?.run_id || (flags["run-id"] ? String(flags["run-id"]) : null);
+  if (!baselineCaptureAllowed(state)) {
+    console.error(
+      JSON.stringify(
+        {
+          ok: false,
+          error: "baseline capture is allowed only before implementation begins",
+        },
+        null,
+        2,
+      ),
+    );
+    process.exit(2);
+  }
   const headResult = spawnSync("git", ["rev-parse", "HEAD"], {
     cwd: wt,
     encoding: "utf8",
   });
   const worktreeHead =
     headResult.status === 0 ? String(headResult.stdout || "").trim() || null : null;
-  const commit = flags.commit ? String(flags.commit) : worktreeHead;
+  if (state && !worktreeHead) {
+    console.error(
+      JSON.stringify(
+        { ok: false, error: "baseline capture requires a readable current Git HEAD" },
+        null,
+        2,
+      ),
+    );
+    process.exit(2);
+  }
+  if (flags.commit && String(flags.commit) !== worktreeHead) {
+    console.error(
+      JSON.stringify(
+        {
+          ok: false,
+          error: `--commit must exactly match current Git HEAD ${worktreeHead || "(unavailable)"}`,
+        },
+        null,
+        2,
+      ),
+    );
+    process.exit(2);
+  }
+  const commit = worktreeHead;
 
   const baseline = provider.baseline({
     worktree: wt,

@@ -301,7 +301,7 @@ nexus run validate-handoff \
 
 V5 has one fixed workflow—there is no profile selection or direct/no-dispatch path. `nexus classify` is advisory; `nexus run classify --apply` records its evidence but does not advance run state. A stale or uncertain analysis must be revalidated before the affected gate can pass.
 
-Handoffs use **schema_version `1.1`** (shared envelope: `run_id`, `unit_or_task`, `agent`, `base_commit`, `created_at`). Legacy `1.0` / `0.9` handoffs migrate as `legacy_unverified` and cannot satisfy completion gates. Classification artifacts cannot authorize a state transition or bypass a required gate. Impact trust requires provider revalidation — a caller-supplied `trusted: true` label is not enough.
+Implementer handoffs use **schema_version `1.1`** and reviewer handoffs use **schema_version `1.2`** (shared envelope: `run_id`, `unit_or_task`, `agent`, `base_commit`, `created_at`). Planning-advisor handoffs use their dedicated schema. Legacy `1.0` / `0.9` handoffs migrate as `legacy_unverified` and cannot satisfy completion gates. Classification artifacts cannot authorize a state transition or bypass a required gate. Impact trust requires provider revalidation — a caller-supplied `trusted: true` label is not enough.
 
 ---
 

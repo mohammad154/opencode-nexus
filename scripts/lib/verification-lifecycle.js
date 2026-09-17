@@ -111,9 +111,13 @@ function riskFromImpact(report, state) {
 }
 
 function postImpactReport(providers, state, worktree, phase) {
+  const base =
+    phase === "FINAL"
+      ? state.run_base_commit || state.plan_commit || state.head_commit
+      : state.head_commit || state.plan_commit;
   const analyzed = providers?.impactProvider?.analyze?.({
     worktree,
-    base: state.head_commit || state.plan_commit,
+    base,
     change_class: state.change_class || state.classification?.change_class,
     phase: phase === "FINAL" ? "final-post" : "post",
     post_impact: true,
@@ -253,6 +257,46 @@ function persistState(worktree, state, summary, extra = {}) {
 function readBaseline(worktree, state) {
   if (state.baseline && typeof state.baseline === "object") return state.baseline;
   return readJson(path.join(path.dirname(verificationArtifactPath(worktree, state.run_id)), "baseline.json"));
+}
+
+function baselineAnchor(state, phase) {
+  if (phase === "FINAL") {
+    return state.run_base_commit || state.plan_commit || state.head_commit || null;
+  }
+  return state.head_commit || state.plan_commit || null;
+}
+
+function validateBaseline(baseline, state, phase) {
+  if (!baseline) return { ok: true };
+  if (!verifySealedArtifact(baseline)) {
+    return {
+      ok: false,
+      error: "baseline is not a valid sealed provider artifact",
+    };
+  }
+  const commit = typeof baseline.commit === "string" ? baseline.commit.trim() : "";
+  const worktreeHead =
+    typeof baseline.worktree_head === "string" ? baseline.worktree_head.trim() : "";
+  if (!commit || !worktreeHead || commit !== worktreeHead) {
+    return {
+      ok: false,
+      error: "baseline must contain matching commit and worktree_head provenance",
+    };
+  }
+  const expected = baselineAnchor(state, phase);
+  if (!expected) {
+    return {
+      ok: false,
+      error: `baseline has no persisted ${phase.toLowerCase()} anchor commit`,
+    };
+  }
+  if (commit !== expected) {
+    return {
+      ok: false,
+      error: `baseline commit ${commit} does not match the ${phase.toLowerCase()} anchor ${expected}`,
+    };
+  }
+  return { ok: true };
 }
 
 function hasExecutedVerificationCheck(run) {
@@ -438,6 +482,12 @@ function runVerificationLifecycleUnlocked({
     return { ok: false, code, error, state: currentState, artifact };
   };
 
+  const baseline = readBaseline(root, currentState);
+  const baselineValidation = validateBaseline(baseline, currentState, phase);
+  if (!baselineValidation.ok) {
+    return fail("BASELINE_INVALID", baselineValidation.error);
+  }
+
   if (!reusable) {
     onProgress?.({ type: "step_start", index: 1, total: null, step: { id: "post-impact" } });
     artifact.current_step = 1;
@@ -604,7 +654,6 @@ function runVerificationLifecycleUnlocked({
     return fail("VERIFICATION_PROVIDER_ERROR", String(error?.message || error));
   }
 
-  const baseline = readBaseline(root, currentState);
   let baselineComparison = null;
   let ok = providerRun?.ok === true && hasExecutedVerificationCheck(providerRun);
   if (baseline && provider.compare) {

@@ -209,6 +209,92 @@ function currentHead(worktree, suppliedHead = null) {
   }
 }
 
+function currentBranch(worktree) {
+  if (!worktree) return null;
+  try {
+    const result = spawnSync("git", ["branch", "--show-current"], {
+      cwd: worktree,
+      encoding: "utf8",
+    });
+    if (result.status !== 0) return null;
+    return String(result.stdout || "").trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+function dispatchBinding(runState) {
+  const state = runState?.state;
+  if (!["IMPLEMENTING", "REVIEWING", "FINAL_REVIEWING"].includes(state)) {
+    return { head: null, branch: null };
+  }
+
+  let head = null;
+  if (state === "IMPLEMENTING") {
+    head = runState.head_commit || null;
+  } else if (state === "REVIEWING") {
+    head =
+      runState.implementer_commit ||
+      runState.last_implementer_handoff?.commit ||
+      runState.verification?.worktree_head ||
+      null;
+  } else if (state === "FINAL_REVIEWING") {
+    head =
+      runState.implementer_commit ||
+      runState.last_task_review_handoff?.reviewed_commit ||
+      runState.last_review_handoff?.reviewed_commit ||
+      null;
+  }
+  return {
+    head,
+    branch: typeof runState.branch === "string" && runState.branch.trim()
+      ? runState.branch.trim()
+      : null,
+  };
+}
+
+function dispatchBindingMismatch(runState, worktree) {
+  const binding = dispatchBinding(runState);
+  if (!worktree || (!binding.head && !binding.branch)) return null;
+
+  const actualHead = binding.head ? currentHead(worktree) : null;
+  const actualBranch = binding.branch ? currentBranch(worktree) : null;
+  const reasons = [];
+  if (binding.head && !actualHead) {
+    reasons.push(`worktree HEAD is unavailable (expected ${binding.head})`);
+  } else if (binding.head && actualHead !== binding.head) {
+    reasons.push(`worktree HEAD ${actualHead} does not match expected ${binding.head}`);
+  }
+  if (binding.branch && !actualBranch) {
+    reasons.push(`worktree branch is unavailable (expected ${binding.branch})`);
+  } else if (binding.branch && actualBranch !== binding.branch) {
+    reasons.push(`worktree branch ${actualBranch} does not match expected ${binding.branch}`);
+  }
+  return reasons.length > 0
+    ? { ...binding, actualHead, actualBranch, reasons }
+    : null;
+}
+
+function worktreeReconcileAction(runId, state, mismatch) {
+  return {
+    ok: true,
+    run_id: runId,
+    state,
+    action: "reconcile",
+    agent: null,
+    skill: "reconcile",
+    command: `nexus run inspect${runId ? ` --run-id ${runId}` : ""}`,
+    instruction:
+      `Do not dispatch an agent: the persisted run binding does not match the current worktree (${mismatch.reasons.join("; ")}). Reconcile the run/worktree binding and obtain fresh evidence before continuing.`,
+    steps: [
+      "Do not Task-dispatch an implementer or reviewer",
+      `Inspect the run binding with nexus run inspect${runId ? ` --run-id ${runId}` : ""}`,
+      "Confirm the intended worktree HEAD and branch, then refresh the persisted state or use the correct worktree",
+      "Run nexus next again only after the binding is reconciled",
+    ],
+  };
+}
+
 function hasExecutedFailedCheck(artifact) {
   return Array.isArray(artifact?.results) && artifact.results.some((result) =>
     result &&
@@ -377,6 +463,11 @@ function resolveNextActionInternal(runState, opts = {}) {
         "nexus run transition --to BRAINSTORMING",
       ],
     };
+  }
+
+  const bindingMismatch = dispatchBindingMismatch(runState, worktree);
+  if (bindingMismatch) {
+    return worktreeReconcileAction(runId, state, bindingMismatch);
   }
 
   const budget = exhaustedAgentCallBudget(runState);

@@ -108,19 +108,27 @@ function scriptPath(name) {
 function runNodeScript(scriptName, args, { cwd = process.cwd() } = {}) {
   const script = scriptPath(scriptName);
   const child = spawn(process.execPath, [script, ...args], {
-    stdio: "inherit",
+    stdio: ["inherit", "pipe", "pipe"],
     cwd,
     env: {
       ...process.env,
       NEXUS_PKG_ROOT: pkgRoot,
     },
   });
+  child.stdout.on("data", (chunk) => process.stdout.write(chunk));
+  child.stderr.on("data", (chunk) => process.stderr.write(chunk));
   child.on("error", (err) => {
     fail(err.message);
   });
-  child.on("exit", (code, signal) => {
-    if (signal) fail(`Terminated by ${signal}`, 1);
-    process.exit(code ?? 1);
+  child.on("close", (code, signal) => {
+    if (signal) {
+      console.error(`Terminated by ${signal}`);
+      process.exitCode = 1;
+      return;
+    }
+    // Set exitCode instead of calling process.exit so forwarded stdout/stderr
+    // data has time to flush to programmatic CLI consumers.
+    process.exitCode = code ?? 1;
   });
 }
 

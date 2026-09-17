@@ -68,6 +68,11 @@ available and clean, and an executable check actually failed. Timeout,
 unavailable, stale, dirty, and other non-repairable failures remain manual;
 there is no verifier subagent.
 
+Capture a verification baseline only before implementation starts. Nexus seals
+the baseline and binds it to the exact pre-implementation HEAD; a baseline
+captured from a later implementation/review state or with a different commit
+cannot waive verification failures.
+
 ## Impact Engine
 
 ```bash

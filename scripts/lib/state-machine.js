@@ -296,12 +296,30 @@ function assertCompletedVerification(state, ctx, errors, { phase = "TASK" } = {}
 
 function gitRevParse(worktree, rev = "HEAD") {
   if (!worktree) return null;
-  const r = spawnSync("git", ["rev-parse", rev], {
-    cwd: worktree,
-    encoding: "utf8",
-  });
-  if (r.status !== 0) return null;
-  return String(r.stdout || "").trim() || null;
+  try {
+    const r = spawnSync("git", ["rev-parse", rev], {
+      cwd: worktree,
+      encoding: "utf8",
+    });
+    if (r.status !== 0) return null;
+    return String(r.stdout || "").trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+function gitCurrentBranch(worktree) {
+  if (!worktree) return null;
+  try {
+    const r = spawnSync("git", ["branch", "--show-current"], {
+      cwd: worktree,
+      encoding: "utf8",
+    });
+    if (r.status !== 0) return null;
+    return String(r.stdout || "").trim() || null;
+  } catch {
+    return null;
+  }
 }
 
 function gitIsAncestor(worktree, ancestor, descendant) {
@@ -1465,6 +1483,36 @@ export function canTransition(state, to, ctx = {}) {
       }
       if (!drift.current_head && !ctx.current_head) {
         errors.push("drift current_head must be recorded");
+      }
+    }
+
+    // A caller-supplied DriftReport cannot bind an arbitrary commit to a real
+    // worktree. When a worktree is available, verify the exact HEAD and branch
+    // before authorizing implementer dispatch and before persisting head_commit.
+    // The CLI supplies the current worktree in transition evidence. Do not
+    // reinterpret a legacy metadata path on state as a measurable checkout;
+    // direct callers must opt into the identity check with ctx.worktree.
+    const boundWorktree = ctx.worktree || null;
+    const expectedHead = drift?.current_head || ctx.current_head || null;
+    const expectedBranch = ctx.branch || state.branch || null;
+    if (boundWorktree && expectedHead) {
+      const actualHead = gitRevParse(boundWorktree, "HEAD");
+      if (!actualHead) {
+        errors.push("IMPLEMENTING rejected: current worktree HEAD is unavailable");
+      } else if (actualHead !== expectedHead) {
+        errors.push(
+          `IMPLEMENTING rejected: worktree HEAD ${actualHead} does not match expected ${expectedHead}`,
+        );
+      }
+    }
+    if (boundWorktree && expectedBranch) {
+      const actualBranch = gitCurrentBranch(boundWorktree);
+      if (!actualBranch) {
+        errors.push("IMPLEMENTING rejected: current worktree branch is unavailable");
+      } else if (actualBranch !== expectedBranch) {
+        errors.push(
+          `IMPLEMENTING rejected: worktree branch ${actualBranch} does not match assigned branch ${expectedBranch}`,
+        );
       }
     }
   }

@@ -173,6 +173,42 @@ test("IMPLEMENTING freezes run_base_commit and persists acceptance_criteria", ()
   assert.deepEqual(r2.state.acceptance_criteria, ["later"]);
 });
 
+test("IMPLEMENTING rejects a DriftReport whose HEAD is stale for the bound worktree", () => {
+  const { dir, base, task2, task3 } = multiCommitRepo();
+  try {
+    const branch = git(dir, ["branch", "--show-current"]);
+    const state = {
+      ...createEmptyRunState("stale-drift"),
+      state: "TASK_IMPACT_READY",
+      plan_commit: base,
+      branch,
+      impact: { risk: "LOW", changed_files: ["t3.js"] },
+      allowed_files: ["t3.js"],
+      impact_consumed_for_implement: false,
+    };
+    const result = canTransition(state, "IMPLEMENTING", {
+      worktree: dir,
+      branch,
+      current_unit: "unit-1",
+      acceptance_criteria: ["the unit is implemented"],
+      allowed_files: ["t3.js"],
+      impact: { risk: "LOW", changed_files: ["t3.js"] },
+      drift: {
+        schema_version: "1.0",
+        plan_commit: base,
+        current_head: task2,
+        drift: "NONE",
+        reasons: [],
+      },
+    });
+    assert.equal(result.ok, false);
+    assert.match(result.errors.join(" "), /worktree HEAD.*does not match/i);
+    assert.notEqual(task2, task3);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("isApprovalAdmissible requires all persisted acceptance criteria", () => {
   const handoff = goodReviewerHandoff({
     acceptance: [

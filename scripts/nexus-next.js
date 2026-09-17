@@ -12,8 +12,7 @@ import {
   formatNextActionInjection,
 } from "./lib/next-action.js";
 import {
-  latestRunState,
-  listRunIds,
+  latestActiveRunState,
   readRunState,
 } from "./lib/migrate-artifacts.js";
 
@@ -21,33 +20,23 @@ const args = process.argv.slice(2);
 function flag(name) {
   const i = args.indexOf(name);
   if (i === -1) return undefined;
-  return args[i + 1] ?? true;
+  const value = args[i + 1];
+  if (!value || value.startsWith("--")) {
+    throw new Error(`${name} requires a value`);
+  }
+  return value;
 }
 
 const worktree = process.env.NEXUS_WORKTREE || process.cwd();
 const asJson = args.includes("--json");
-const runId = flag("--run-id");
 
 let state = null;
 try {
+  const runId = flag("--run-id");
   if (runId && runId !== true) {
     state = readRunState(worktree, String(runId));
   } else {
-    state = latestRunState(worktree);
-    if (state && ["COMPLETED", "FAILED"].includes(state.state)) {
-      // Prefer a non-terminal run if latest is terminal
-      let best = null;
-      for (const id of listRunIds(worktree)) {
-        try {
-          const s = readRunState(worktree, id);
-          if (!s || ["COMPLETED", "FAILED"].includes(s.state)) continue;
-          if (!best || (s.updated_at || "") > (best.updated_at || "")) best = s;
-        } catch {
-          /* skip malformed entries */
-        }
-      }
-      if (best) state = best;
-    }
+    state = latestActiveRunState(worktree);
   }
 } catch (err) {
   console.error(

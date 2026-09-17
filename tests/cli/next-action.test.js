@@ -97,6 +97,32 @@ test("resolveNextAction maps IMPLEMENTING → dispatch implementer", () => {
   assert.match(text, /REQUIRED_DISPATCH: implementer/);
 });
 
+test("resolveNextAction reconciles a stale IMPLEMENTING worktree binding", () => {
+  const worktree = tempDir("nexus-next-binding-");
+  try {
+    fs.writeFileSync(path.join(worktree, "app.js"), "export const app = true;\n");
+    git(worktree, ["init"]);
+    git(worktree, ["add", "."]);
+    git(worktree, ["commit", "-m", "fixture"]);
+    const branch = git(worktree, ["branch", "--show-current"]);
+    const next = resolveNextAction(
+      {
+        run_id: "stale-binding",
+        state: "IMPLEMENTING",
+        head_commit: "stale-head",
+        branch,
+      },
+      { worktree },
+    );
+    assert.equal(next.action, "reconcile");
+    assert.equal(next.agent, null);
+    assert.equal(next.continuation.mode, "MANUAL");
+    assert.match(next.instruction, /HEAD.*does not match|binding/i);
+  } finally {
+    fs.rmSync(worktree, { recursive: true, force: true });
+  }
+});
+
 test("resolveNextAction attaches centralized restart-safe continuation modes", () => {
   const cases = [
     [{ state: "CREATED" }, { mode: "AUTO", resume_on: null }],
@@ -510,4 +536,60 @@ test("nexus next reads active run state", () => {
   assert.equal(body.next.agent, "reviewer");
   assert.equal(body.next.action, "dispatch_reviewer");
   fs.rmSync(wt, { recursive: true, force: true });
+});
+
+test("nexus next honors the active-run pointer over a newer run", () => {
+  const wt = tempDir("nexus-next-pointer-");
+  try {
+    const runs = path.join(wt, ".opencode", "runs");
+    fs.mkdirSync(path.join(runs, "older"), { recursive: true });
+    fs.mkdirSync(path.join(runs, "newer"), { recursive: true });
+    const state = (run_id, stateName, updated_at) => ({
+      schema_version: "1.0",
+      run_id,
+      state: stateName,
+      workflow: "default",
+      execution_mode: "delegated",
+      transitions: [],
+      updated_at,
+    });
+    fs.writeFileSync(
+      path.join(runs, "older", "state.json"),
+      JSON.stringify(state("older", "REVIEWING", "2026-01-01T00:00:00.000Z")),
+    );
+    fs.writeFileSync(
+      path.join(runs, "newer", "state.json"),
+      JSON.stringify(state("newer", "BRAINSTORMING", "2026-09-18T00:00:00.000Z")),
+    );
+    fs.mkdirSync(path.join(wt, ".opencode"), { recursive: true });
+    fs.writeFileSync(path.join(wt, ".opencode", "active-run"), "older\n");
+
+    const result = spawnSync(process.execPath, [bin, "next", "--json"], {
+      encoding: "utf8",
+      cwd: wt,
+      env: { ...process.env, NEXUS_WORKTREE: wt },
+    });
+    assert.equal(result.status, 0, result.stderr + result.stdout);
+    const body = JSON.parse(result.stdout);
+    assert.equal(body.next.run_id, "older");
+    assert.equal(body.next.action, "dispatch_reviewer");
+  } finally {
+    fs.rmSync(wt, { recursive: true, force: true });
+  }
+});
+
+test("nexus next rejects a missing --run-id value", () => {
+  const wt = tempDir("nexus-next-missing-flag-");
+  try {
+    const result = spawnSync(process.execPath, [bin, "next", "--json", "--run-id"], {
+      encoding: "utf8",
+      cwd: wt,
+      env: { ...process.env, NEXUS_WORKTREE: wt },
+    });
+    assert.equal(result.status, 2);
+    const body = JSON.parse(result.stderr);
+    assert.match(body.error, /--run-id requires a value/);
+  } finally {
+    fs.rmSync(wt, { recursive: true, force: true });
+  }
 });

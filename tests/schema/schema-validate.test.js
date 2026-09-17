@@ -13,6 +13,7 @@ import {
   createEmptyRunState,
   HANDOFF_VERSION,
 } from "../../scripts/lib/migrate-artifacts.js";
+import { goodReviewerHandoff } from "../helpers/gate-fixtures.js";
 
 test("run-state schema accepts createEmptyRunState", () => {
   const state = createEmptyRunState("2026-07-30-auth");
@@ -180,6 +181,35 @@ test("reviewer missing impact gets UNKNOWN defaults and upgrades to 1.2", () => 
   assert.ok(Array.isArray(data.checks));
   const r = validateHandoff("reviewer", data);
   assert.equal(r.ok, true, JSON.stringify(r.errors));
+});
+
+test("reviewer accepts the optional verification check category", () => {
+  const data = goodReviewerHandoff({
+    checks: [
+      {
+        category: "correctness",
+        status: "PASS",
+        evidence: "correctness reviewed",
+      },
+      {
+        category: "test_quality",
+        status: "PASS",
+        evidence: "tests exercise production code",
+      },
+      {
+        category: "impact",
+        status: "PASS",
+        evidence: "callers and dependents reviewed",
+      },
+      {
+        category: "verification",
+        status: "PASS",
+        evidence: "deterministic verification evidence reviewed",
+      },
+    ],
+  });
+  const result = validateHandoff("reviewer", data);
+  assert.equal(result.ok, true, JSON.stringify(result.errors));
 });
 
 test("validator type and required work", () => {
