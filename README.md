@@ -71,6 +71,7 @@ Nexus gives OpenCode a repeatable delivery loop with explicit ownership and evid
 | **Safe implementation** | Production edits only via implementer, with branch, worktree, and handoff context |
 | **Always-on review** | Single `reviewer` on every execution unit; auto fix-loop on REQUEST_CHANGES |
 | **Durable state** | Stores plans, tasks, handoffs, impact reports, and run state so interrupted work can recover |
+| **Runtime integrity** | Freezes scope policy and orchestrator-owned `.opencode` state before implementation; tampering blocks verification |
 
 ### Installed agents
 
@@ -332,8 +333,9 @@ Only the **implementer** writes production code. Nexus uses one fixed V5 workflo
 - `IMPLEMENTING → VERIFYING` and `FINAL_REVIEWING → FINAL_VERIFYING` are fast authorization transitions. They persist `verification_status: PENDING`; they do not execute tests.
 - Run `nexus verify` in either verification state to measure fresh post-impact, discover the risk-based ladder, execute checks, and seal evidence. Only `verification_status: PASSED` authorizes the next review/completion transition. A timeout stays in the same state; use `nexus verify --resume`. An eligible current sealed check failure gets one automatic fresh-impact repair; unavailable, stale, dirty, and timeout evidence remains manual.
 - Pass complete handoffs by file (`--implementer-handoff-file` or `--review-handoff-file`) rather than rebuilding partial JSON in the orchestrator.
+- Before implementation, Nexus snapshots trusted scope policy and orchestrator-owned `.opencode` runtime; unexpected changes block `VERIFYING` with `CONTROL_PLANE_TAMPERED` (handoffs remain writable).
 
-Full policy: [`docs/workflow.md`](docs/workflow.md).
+Full policy: [`docs/workflow.md`](docs/workflow.md). Integrity details: [`docs/architecture.md`](docs/architecture.md#runtime-integrity-control-plane-and-policy-snapshots).
 
 ### Where files land
 
@@ -466,7 +468,8 @@ config/          fixed V5 workflow and model defaults
 scripts/         impact, classify, state machine, plan-check, estimate, cleanup
 schemas/         handoff, impact, and run-state JSON schemas
 bin/nexus.js     npm CLI: install | update | uninstall | doctor
-docs/workflow.md V5 workflow reference
+docs/workflow.md     V5 workflow reference
+docs/releasing.md    maintainer release process (npm + GitHub)
 install.sh       OpenCode installer
 uninstall.sh     matching cleanup
 ```
@@ -477,6 +480,9 @@ uninstall.sh     matching cleanup
 
 - [`.opencode/INSTALL.md`](.opencode/INSTALL.md) — installer behavior and verification
 - [`docs/workflow.md`](docs/workflow.md) — V5 gates, handoffs, and review policy
+- [`docs/architecture.md`](docs/architecture.md) — evidence flow, scope, verification, runtime integrity
+- [`docs/troubleshooting.md`](docs/troubleshooting.md) — common gate failures and recovery
+- [`docs/releasing.md`](docs/releasing.md) — publishing a new `4.x.y` release (maintainers)
 - [`docs/compatibility-v3.md`](docs/compatibility-v3.md) — legacy V3 migration notes
 - [`skills/using-nexus/SKILL.md`](skills/using-nexus/SKILL.md) — how the orchestrator routes skills
 - [OpenCode installation](https://opencode.ai/docs/installation/)

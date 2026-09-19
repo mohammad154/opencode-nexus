@@ -66,6 +66,25 @@ next`: it automatically enters the guarded impact/implementer repair loop once
 when the evidence is eligible; otherwise reconcile the failure manually, then
 run a fresh `nexus verify`.
 
+## VERIFYING is blocked by CONTROL_PLANE_TAMPERED
+
+The transition into `VERIFYING` compares the current orchestrator-owned
+`.opencode` runtime against the snapshot taken when the run entered
+`IMPLEMENTING`. The gate fails when protected paths changed outside the allowed
+handoff area.
+
+1. Inspect transition errors and `nexus run inspect --run-id <id>`.
+2. Check `git status` and recent edits under `.opencode/runs/`,
+   `.opencode/config/`, `.opencode/plans/`, and other protected trees listed in
+   [`architecture.md`](architecture.md#runtime-integrity-control-plane-and-policy-snapshots).
+3. Confirm the implementer only wrote handoffs (and production code in scope);
+   undo accidental edits to run state, config, or plans.
+4. If the snapshot is stale after a legitimate controller recovery, reconcile or
+   re-enter implementation with a fresh pre-impact cycle instead of forcing the
+   transition.
+
+Handoff files under `.opencode/handoffs/` are the deliberate exception.
+
 ## Scope expansion is reported
 
 `SCOPE_EXPANSION_REQUIRED` means Git found a changed path outside the persisted

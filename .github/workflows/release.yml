@@ -4,11 +4,11 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Existing package.json version to publish (for example 4.4.0)"
+        description: "Existing package.json version to publish (for example 4.4.1)"
         required: true
         type: string
       commit:
-        description: "Optional commit SHA whose green checks authorize the release"
+        description: "Optional full commit SHA (40 chars) whose green checks authorize the release"
         required: false
         type: string
 

@@ -34,7 +34,9 @@ the exact primary-agent identity.
 Before implementation, the controller freezes the normalized scope policy and
 an external digest of protected `.opencode` runtime state. A changed control
 plane blocks the transition with `CONTROL_PLANE_TAMPERED`; `.opencode/handoffs`
-is the deliberate implementer-writable runtime exception.
+is the deliberate implementer-writable runtime exception. See
+[`architecture.md`](architecture.md#runtime-integrity-control-plane-and-policy-snapshots)
+for the protected path list and snapshot behavior.
 
 ## Continuous execution and user boundaries
 

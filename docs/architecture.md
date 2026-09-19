@@ -53,6 +53,29 @@ silently widen a unit's allowlist.
 Scope checks use Git-derived files whenever a worktree is available. Handoff
 `files_changed` is descriptive and cannot authorize an extra file.
 
+## Runtime integrity (control plane and policy snapshots)
+
+Agent permission rules are UX; they are not durable evidence. Before
+`IMPLEMENTING`, the controller therefore captures two trusted bindings:
+
+1. **Policy snapshot** — normalized scope policy from
+   `.opencode/config/scope-policy.json` (allowed/ignored patterns and digest).
+   Impact and verification use this frozen policy for the rest of the unit so a
+   candidate cannot widen scope mid-run by editing config.
+2. **Control-plane snapshot** — digests of orchestrator-owned runtime under
+   `.opencode/` (runs, config, impact, reviews, reconcile, cache, plans, tasks,
+   plus selected root files such as `active-run` and `nexus.json`). The
+   snapshot is stored outside the worktree.
+
+Before `VERIFYING`, Nexus verifies the control plane still matches the snapshot.
+Implementer writes under `.opencode/handoffs/` are allowed; any other protected
+mutation blocks the transition with `CONTROL_PLANE_TAMPERED`. Restore the
+expected files, reconcile the run, or start a fresh implementation cycle
+rather than bypassing the gate.
+
+See [`workflow.md`](workflow.md#orchestrator-only-activation) for the operator
+view and [`troubleshooting.md`](troubleshooting.md) for recovery steps.
+
 ## Handoff contract
 
 An implementer handoff is schema `1.1` and must contain:
