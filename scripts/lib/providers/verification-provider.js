@@ -1,6 +1,7 @@
 /**
  * Verification provider — discover + run project checks; agent claims are not evidence.
- * Commands always use spawnSync(command, args, { shell: false }).
+ * Commands use spawnSync(command, args, { shell: false }). Windows .cmd/.bat
+ * shims are executed through cmd.exe so argv stays structured.
  */
 import fs from "fs";
 import path from "path";
@@ -166,6 +167,31 @@ function resolvedSpawnExit(result, failDefault) {
   return failDefault;
 }
 
+function environmentComSpec(env) {
+  if (!env || typeof env !== "object") return "cmd.exe";
+  const key = Object.keys(env).find((candidate) => candidate.toUpperCase() === "COMSPEC");
+  const value = key == null ? undefined : env[key];
+  return value ? String(value) : "cmd.exe";
+}
+
+function quoteWindowsSpawnArg(value) {
+  const text = String(value);
+  if (!/[\s"&|<>^()%!]/.test(text)) return text;
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
+export function buildSpawnInvocation(command, args, { platform = process.platform, env = process.env } = {}) {
+  if (platform !== "win32" || !/\.(cmd|bat)$/i.test(command)) {
+    return { command, args, shell: false };
+  }
+  const scriptLine = [command, ...args].map(quoteWindowsSpawnArg).join(" ");
+  return {
+    command: environmentComSpec(env),
+    args: ["/d", "/s", "/c", scriptLine],
+    shell: false,
+  };
+}
+
 export function runStep(step, worktree, timeoutMs = null, executionOptions = {}) {
   if (!step.command || typeof step.command !== "string") {
     return {
@@ -195,10 +221,12 @@ export function runStep(step, worktree, timeoutMs = null, executionOptions = {})
   const spawn = typeof executionOptions.spawnSync === "function"
     ? executionOptions.spawnSync
     : spawnSync;
-  const r = spawn(command, step.args, {
+  const platform = executionOptions.platform ?? process.platform;
+  const invocation = buildSpawnInvocation(command, step.args, { platform, env });
+  const r = spawn(invocation.command, invocation.args, {
     cwd: worktree,
     encoding: "utf8",
-    shell: false,
+    shell: invocation.shell,
     env,
     ...(Number.isFinite(timeoutMs) && timeoutMs > 0 ? { timeout: timeoutMs } : {}),
   });

@@ -88,7 +88,7 @@ test("resolveExecutable handles Windows-qualified paths through an injected file
   );
 });
 
-test("runStep uses the resolved Windows executable with shell:false", () => {
+test("runStep wraps resolved Windows batch shims through cmd.exe", () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "nexus-run-step-"));
   const bin = path.join(tmp, "bin");
   const commandPath = path.join(bin, "npm.cmd");
@@ -102,6 +102,7 @@ test("runStep uses the resolved Windows executable with shell:false", () => {
       1000,
       {
         ...options,
+        env: { ...options.env, ComSpec: "C:\\Windows\\System32\\cmd.exe" },
         spawnSync(command, args, spawnOptions) {
           invocation = { command, args, spawnOptions };
           return { status: 0, stdout: "ok", stderr: "" };
@@ -110,8 +111,8 @@ test("runStep uses the resolved Windows executable with shell:false", () => {
     );
 
     assert.equal(result.status, 0);
-    assert.equal(invocation.command, commandPath);
-    assert.deepEqual(invocation.args, ["test"]);
+    assert.equal(invocation.command, "C:\\Windows\\System32\\cmd.exe");
+    assert.deepEqual(invocation.args, ["/d", "/s", "/c", `${commandPath} test`]);
     assert.equal(invocation.spawnOptions.shell, false);
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
