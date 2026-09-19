@@ -72,8 +72,9 @@ export function collectGitEvidence(worktree, options = {}) {
   const nameStatus = runGit(worktree, nameStatusArgs);
   const numstat = runGit(worktree, numstatArgs);
   const u0 = runGit(worktree, u0Args);
-  const policy = loadScopePolicy(worktree);
-  const ignoredPatterns = options.ignoredPatterns || policy.ignored_patterns;
+  const policy = options.policy || (options.ignoredPatterns ? null : loadScopePolicy(worktree));
+  const ignoredPatterns =
+    options.ignoredPatterns || options.policy?.ignored_patterns || policy?.ignored_patterns;
 
   const changed_files = [];
   const ignored_files = [];

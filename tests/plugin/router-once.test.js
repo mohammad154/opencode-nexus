@@ -16,7 +16,10 @@ test("router bootstrap is injected once per session across multiple user turns",
   // Turn 1: a single user message. Bootstrap should be injected.
   const output = {
     messages: [
-      { info: { role: "user" }, parts: [{ type: "text", text: "first message" }] },
+      {
+        info: { role: "user", agent: "orchestrator", sessionID: "router-session" },
+        parts: [{ type: "text", text: "first message" }],
+      },
     ],
   };
   await plugin["experimental.chat.messages.transform"]({}, output);
@@ -27,7 +30,7 @@ test("router bootstrap is injected once per session across multiple user turns",
   // the marker. The bootstrap must NOT be injected again into the new message.
   output.messages.push({ info: { role: "assistant" }, parts: [{ type: "text", text: "ok" }] });
   output.messages.push({
-    info: { role: "user" },
+    info: { role: "user", agent: "orchestrator", sessionID: "router-session" },
     parts: [{ type: "text", text: "second message" }],
   });
 

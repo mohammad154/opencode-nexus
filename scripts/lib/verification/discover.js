@@ -234,8 +234,8 @@ function canonicalizeTargetedStep(candidate, target) {
 }
 
 /** Remove invalid targeted steps from caller-supplied or discovered plans. */
-export function filterVerificationPlan(worktree, plan = {}) {
-  const policy = loadScopePolicy(worktree);
+export function filterVerificationPlan(worktree, plan = {}, options = {}) {
+  const policy = options.policy || loadScopePolicy(worktree);
   const steps = [];
   const ignored_targets = Array.isArray(plan.ignored_targets)
     ? [...plan.ignored_targets]
@@ -309,7 +309,7 @@ function relatedTestSteps(ecosystem, targets = []) {
 
 export function discoverVerification(worktree, options = {}) {
   const steps = [];
-  const policy = loadScopePolicy(worktree);
+  const policy = options.policy || loadScopePolicy(worktree);
   const relatedResolution = resolveVerificationTargets(
     worktree,
     options.related_tests || [],
@@ -338,6 +338,7 @@ export function discoverVerification(worktree, options = {}) {
       steps: filterStepsByLadder(steps, options),
       related_tests: relatedResolution.targets,
       ignored_targets: relatedResolution.ignored,
+      policy_digest: policy.policy_digest || null,
     };
   }
 
@@ -367,6 +368,7 @@ export function discoverVerification(worktree, options = {}) {
       ], options),
       related_tests: relatedResolution.targets,
       ignored_targets: relatedResolution.ignored,
+      policy_digest: policy.policy_digest || null,
     };
   }
   if (fs.existsSync(path.join(worktree, "Cargo.toml"))) {
@@ -379,6 +381,7 @@ export function discoverVerification(worktree, options = {}) {
       ], options),
       related_tests: relatedResolution.targets,
       ignored_targets: relatedResolution.ignored,
+      policy_digest: policy.policy_digest || null,
     };
   }
   if (fs.existsSync(path.join(worktree, "go.mod"))) {
@@ -391,6 +394,7 @@ export function discoverVerification(worktree, options = {}) {
       ], options),
       related_tests: relatedResolution.targets,
       ignored_targets: relatedResolution.ignored,
+      policy_digest: policy.policy_digest || null,
     };
   }
 
@@ -401,6 +405,7 @@ export function discoverVerification(worktree, options = {}) {
     ],
     related_tests: relatedResolution.targets,
     ignored_targets: relatedResolution.ignored,
+    policy_digest: policy.policy_digest || null,
   };
 }
 

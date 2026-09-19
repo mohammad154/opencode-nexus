@@ -41,6 +41,11 @@ import { createVerificationProvider } from "./lib/providers/verification-provide
 import { runVerificationLifecycle } from "./lib/verification-lifecycle.js";
 import { assessDrift } from "./lib/drift.js";
 import { assertValidRunId } from "./lib/policy.js";
+import { createPolicySnapshot } from "./lib/policy-snapshot.js";
+import {
+  captureControlPlaneSnapshot,
+  verifyControlPlaneSnapshot,
+} from "./lib/control-plane.js";
 import {
   appendTrajectoryStep,
   readTrajectory,
@@ -431,6 +436,21 @@ function cmdTransition(flags) {
   // The CLI's selected worktree is authoritative. Never let an evidence file
   // redirect identity checks or state persistence to a different checkout.
   evidence.worktree = worktree();
+  if (to === "IMPLEMENTING") {
+    const sourceCommit =
+      evidence.drift?.current_head ||
+      evidence.current_head ||
+      state.head_commit ||
+      null;
+    evidence.require_policy_snapshot = true;
+    evidence.policy_snapshot = createPolicySnapshot(worktree(), {
+      runId: state.run_id,
+      unitOrTask: evidence.current_unit || state.current_unit,
+      baseCommit: state.run_base_commit || state.head_commit || sourceCommit,
+      planCommit: evidence.drift?.plan_commit || state.plan_commit,
+      sourceCommit,
+    });
+  }
   // PLANNED authority is recomputed inside the state-machine transition from
   // the canonical .opencode/plans/PLAN.md. The optional flag remains accepted
   // for CLI compatibility but cannot turn caller-supplied JSON into authority.
@@ -441,6 +461,54 @@ function cmdTransition(flags) {
     executionMode: state.execution_mode || state.classification?.execution_mode,
     units: resolvedRunUnits(to === "PLANNED" ? { ...state, ...evidence } : state),
   });
+
+  if (
+    to === "VERIFYING" &&
+    (state.policy_snapshot_required === true || state.policy_snapshot)
+  ) {
+    const integrity = verifyControlPlaneSnapshot(worktree(), {
+      runId: state.run_id,
+    });
+    if (!integrity.ok) {
+      const blocked = smTransition(
+        state,
+        "BLOCKED",
+        {
+          worktree: worktree(),
+          block_reason: integrity.error || "protected Nexus runtime state changed",
+          block_code: "CONTROL_PLANE_TAMPERED",
+          reason: integrity.error || "protected Nexus runtime state changed",
+          code: "CONTROL_PLANE_TAMPERED",
+        },
+        providers,
+      );
+      if (blocked.ok) writeRunState(worktree(), blocked.state);
+      recordTrajectory(
+        flags,
+        { command: "transition", to, failed: true },
+        {
+          ok: false,
+          code: "CONTROL_PLANE_TAMPERED",
+          error: integrity.error,
+          state: blocked.state || state,
+        },
+        blocked.state || state,
+      );
+      console.error(
+        JSON.stringify(
+          {
+            ok: false,
+            code: "CONTROL_PLANE_TAMPERED",
+            error: integrity.error,
+            state: blocked.state || state,
+          },
+          null,
+          2,
+        ),
+      );
+      process.exit(3);
+    }
+  }
 
   // Provider revalidation happens inside transition(); do not pre-inject
   // untrusted impact objects as authoritative when providers will rebuild.
@@ -480,6 +548,39 @@ function cmdTransition(flags) {
     process.exit(3);
   }
   writeRunState(worktree(), r.state);
+  if (to === "IMPLEMENTING") {
+    const captured = captureControlPlaneSnapshot(worktree(), {
+      runId: r.state.run_id,
+    });
+    if (!captured.ok) {
+      const blocked = smTransition(
+        r.state,
+        "BLOCKED",
+        {
+          worktree: worktree(),
+          block_reason: captured.error || "cannot capture protected Nexus runtime state",
+          block_code: "CONTROL_PLANE_TAMPERED",
+          reason: captured.error || "cannot capture protected Nexus runtime state",
+          code: "CONTROL_PLANE_TAMPERED",
+        },
+        providers,
+      );
+      if (blocked.ok) writeRunState(worktree(), blocked.state);
+      console.error(
+        JSON.stringify(
+          {
+            ok: false,
+            code: "CONTROL_PLANE_TAMPERED",
+            error: captured.error,
+            state: blocked.state || r.state,
+          },
+          null,
+          2,
+        ),
+      );
+      process.exit(3);
+    }
+  }
   recordTrajectory(
     flags,
     { command: "transition", to },

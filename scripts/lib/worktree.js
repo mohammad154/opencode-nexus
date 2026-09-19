@@ -13,6 +13,14 @@ function run(cwd, args) {
   return spawnSync("git", args, { cwd, encoding: "utf8" });
 }
 
+function cleanGitPath(value) {
+  const text = String(value || "").trim();
+  if (text.length >= 2 && text.startsWith('"') && text.endsWith('"')) {
+    return text.slice(1, -1);
+  }
+  return text;
+}
+
 const SAFE_TASK_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const MAX_TASK_ID_LENGTH = 128;
 const MAX_CANONICAL_TASK_ID_LENGTH = 240;
@@ -32,6 +40,12 @@ function normalizePathIdentity(value, platform) {
   }
 
   if (platform !== "win32") return normalized;
+
+  // Git for Windows and Node can disagree about the namespace prefix. Treat
+  // extended-length and UNC spellings as the same canonical identity before
+  // applying the ordinary case/separator rules.
+  normalized = normalized.replace(/^\\\\\?\\UNC\\/i, "\\\\");
+  normalized = normalized.replace(/^\\\\\?\\/i, "");
 
   // Win32 accepts both separators and treats drive letters and path
   // components case-insensitively. path.win32.normalize() handles separator
@@ -64,6 +78,15 @@ export function samePath(left, right, options = {}) {
     normalizedRight !== null &&
     normalizedLeft === normalizedRight
   );
+}
+
+export { normalizePathIdentity };
+
+function resolveCommit(repoRoot, ref) {
+  if (!ref) return null;
+  const result = run(repoRoot, ["rev-parse", "--verify", `${String(ref).trim()}^{commit}`]);
+  if (result.status !== 0) return null;
+  return String(result.stdout || "").trim() || null;
 }
 
 /**
@@ -130,7 +153,7 @@ function registeredWorktreePaths(repoRoot) {
   return String(result.stdout || "")
     .split(/\r?\n/)
     .filter((line) => line.startsWith("worktree "))
-    .map((line) => line.slice("worktree ".length).trim())
+    .map((line) => cleanGitPath(line.slice("worktree ".length)))
     .filter(Boolean);
 }
 
@@ -172,7 +195,7 @@ function existingGitWorktree(repoRoot, dir) {
   let realTop;
   try {
     realDir = fs.realpathSync(dir);
-    realTop = fs.realpathSync(String(top.stdout).trim());
+    realTop = fs.realpathSync(cleanGitPath(top.stdout));
   } catch {
     return {
       ok: false,
@@ -225,9 +248,8 @@ function existingGitWorktree(repoRoot, dir) {
     };
   }
 
-  const head = run(dir, ["rev-parse", "HEAD"]);
-  const headSha = String(head.stdout || "").trim();
-  if (head.status !== 0 || !headSha) {
+  const headSha = resolveCommit(dir, "HEAD");
+  if (!headSha) {
     return {
       ok: false,
       code: "INVALID_WORKTREE",
@@ -252,7 +274,6 @@ export function createTaskWorktree(repoRoot, taskId, { branch, baseCommit } = {}
   if (fs.existsSync(dir)) {
     const existing = existingGitWorktree(repoRoot, dir);
     if (!existing.ok) return existing;
-    const head = run(repoRoot, ["rev-parse", "HEAD"]);
     const status = run(dir, ["status", "--porcelain"]);
     if (status.status !== 0) {
       return {
@@ -269,14 +290,24 @@ export function createTaskWorktree(repoRoot, taskId, { branch, baseCommit } = {}
         path: dir,
       };
     }
-    const headSha = (head.stdout || "").trim();
+    const headSha = resolveCommit(repoRoot, "HEAD");
     const wtSha = existing.head;
     const base = baseCommit ? String(baseCommit).trim() : null;
+    const expectedBase = base ? resolveCommit(repoRoot, base) : null;
 
-    if (base && wtSha && wtSha !== base) {
+    if (base && !expectedBase) {
       return {
         ok: false,
-        error: `worktree HEAD ${wtSha} != expected base ${base}`,
+        code: "INVALID_WORKTREE",
+        error: `cannot resolve expected base ${base}`,
+        path: dir,
+      };
+    }
+
+    if (expectedBase && wtSha && wtSha !== expectedBase) {
+      return {
+        ok: false,
+        error: `worktree HEAD ${wtSha} != expected base ${expectedBase}`,
         path: dir,
       };
     }
@@ -306,7 +337,7 @@ export function createTaskWorktree(repoRoot, taskId, { branch, baseCommit } = {}
     }
     const wtSha = (run(dir, ["rev-parse", "HEAD"]).stdout || "").trim();
     if (baseCommit) {
-      const expected = (run(repoRoot, ["rev-parse", String(baseCommit).trim()]).stdout || "").trim();
+      const expected = resolveCommit(repoRoot, String(baseCommit).trim());
       if (expected && wtSha && wtSha !== expected) {
         run(repoRoot, ["worktree", "remove", "--force", dir]);
         return {

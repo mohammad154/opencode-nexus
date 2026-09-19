@@ -61,6 +61,10 @@ export function createNexusImpactProvider() {
           ctx.files,
         phase: ctx.phase || (ctx.post_impact ? "post" : undefined),
         post_impact: ctx.post_impact === true,
+        policy: ctx.policy,
+        ...(ctx.policy?.ignored_patterns
+          ? { ignoredPatterns: ctx.policy.ignored_patterns }
+          : {}),
       };
 
       let cached = null;

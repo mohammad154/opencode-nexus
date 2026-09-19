@@ -11,6 +11,13 @@ const skillsDir = path.resolve(__dirname, "../../skills");
 
 const BOOTSTRAP_MARKER = "NEXUS_ROUTER_V5";
 const GATE_MARKER = "NEXUS_DELEGATION_GATE";
+const PRIOR_BOOTSTRAP_MARKERS = [
+  "NEXUS_BOOTSTRAP_V1",
+  "NEXUS_BOOTSTRAP_V2",
+  "NEXUS_BOOTSTRAP_V3",
+  "NEXUS_ROUTER_V3",
+  BOOTSTRAP_MARKER,
+];
 const KNOWLEDGE_RELEVANT_STATES = new Set([
   "BRAINSTORMING",
   "WAITING_FOR_USER",
@@ -28,7 +35,7 @@ function buildCompactRouter() {
   return [
     "<EXTREMELY_IMPORTANT>",
     BOOTSTRAP_MARKER,
-    "Nexus V5 installed. Load detailed instructions only with the native skill tool when needed.",
+    "Nexus workflow protocol v5 installed (the npm package remains on its 4.x release line). Load detailed instructions only with the native skill tool when needed.",
     "Route: start/orient → using-nexus; clarify only if ambiguous → brainstorming; always plan → writing-plans; standard/deep → plan-advisor; plan-check → PLANNED; pre-impact → impact-analysis (nexus impact); units → orchestrating; branches → using-feature-branches; finish → finishing-a-development-branch; blocked → reconcile.",
     "Autonomy: after the plan is confirmed, continue safe commands and Task-dispatches in the same turn. Do not ask to continue, test, review, fix, merge, or clean up under the default policy; ask only for plan decisions or critical irreversible/external approval.",
     "Three invariants: (1) brainstorm then PLAN.md for every request (2) fresh pre-impact before every implementer dispatch including REQUEST_CHANGES fix loops (3) every task needs independent reviewer APPROVED.",
@@ -186,12 +193,85 @@ function findLatestUserMessage(messages) {
   return null;
 }
 
+function readDeclaredAgent(value) {
+  return typeof value === "string" ? value : null;
+}
+
+function findExplicitAgent(input) {
+  const candidates = [
+    input?.agent,
+    input?.primaryAgent,
+    input?.message?.agent,
+    input?.message?.info?.agent,
+  ].filter((value) => value !== undefined);
+  if (candidates.length === 0) return null;
+
+  const declared = candidates.map(readDeclaredAgent);
+  if (declared.some((value) => value === null)) return null;
+  return declared.every((value) => value === declared[0]) ? declared[0] : null;
+}
+
+function resolveChatAgent(input, messages) {
+  const latest = findLatestUserMessage(messages);
+  const messageAgent = latest?.info?.agent;
+  if (messageAgent !== undefined) {
+    const declared = readDeclaredAgent(messageAgent);
+    const explicit = findExplicitAgent(input);
+    if (explicit !== null && explicit !== declared) return null;
+    return declared;
+  }
+  return findExplicitAgent(input);
+}
+
+function resolveSessionId(input, messages) {
+  const latest = findLatestUserMessage(messages);
+  return (
+    (typeof input?.sessionID === "string" && input.sessionID) ||
+    (typeof latest?.info?.sessionID === "string" && latest.info.sessionID) ||
+    null
+  );
+}
+
+function resolveCompactionAgent(input, sessionAgents) {
+  const direct = findExplicitAgent(input);
+  const sessionID = typeof input?.sessionID === "string" ? input.sessionID : null;
+  const remembered = sessionID && sessionAgents.has(sessionID)
+    ? sessionAgents.get(sessionID)
+    : undefined;
+  if (direct !== null && remembered !== undefined && direct !== remembered) {
+    return null;
+  }
+  return direct !== null ? direct : (remembered ?? null);
+}
+
 function partHasMarker(part, marker) {
   return (
     part?.type === "text" &&
     typeof part.text === "string" &&
     part.text.includes(marker)
   );
+}
+
+function isNexusOwnedPart(part) {
+  if (part?.type !== "text" || typeof part.text !== "string") return false;
+  const text = part.text.trimStart();
+  const wrapped = (
+    text.startsWith("<EXTREMELY_IMPORTANT>") &&
+    [GATE_MARKER, ...PRIOR_BOOTSTRAP_MARKERS].some((marker) =>
+      text.includes(marker),
+    )
+  );
+  const explicitMarker = [GATE_MARKER, ...PRIOR_BOOTSTRAP_MARKERS].some(
+    (marker) => text === marker || text.startsWith(`${marker}\n`),
+  );
+  return wrapped || explicitMarker;
+}
+
+function sanitizeNexusParts(messages) {
+  for (const message of messages || []) {
+    if (!Array.isArray(message?.parts)) continue;
+    message.parts = message.parts.filter((part) => !isNexusOwnedPart(part));
+  }
 }
 
 function injectTextPart(
@@ -201,13 +281,17 @@ function injectTextPart(
 ) {
   if (!message.parts) message.parts = [];
   if (replace) {
-    const idx = message.parts.findIndex((p) => partHasMarker(p, marker));
+    const idx = message.parts.findIndex(
+      (p) => isNexusOwnedPart(p) && partHasMarker(p, marker),
+    );
     if (idx >= 0) {
       message.parts[idx] = { ...message.parts[idx], type: "text", text };
       return;
     }
   }
-  const already = message.parts.some((p) => partHasMarker(p, marker));
+  const already = message.parts.some(
+    (p) => isNexusOwnedPart(p) && partHasMarker(p, marker),
+  );
   if (already) return;
   const part = { type: "text", text };
   if (position === "end") message.parts.push(part);
@@ -216,6 +300,7 @@ function injectTextPart(
 
 export const NexusPlugin = async ({ worktree }) => {
   const homeDir = os.homedir();
+  const sessionAgents = new Map();
   const configDir =
     process.env.OPENCODE_CONFIG_DIR ||
     path.join(homeDir, ".config", "opencode");
@@ -231,8 +316,21 @@ export const NexusPlugin = async ({ worktree }) => {
       config.nexus.configDir = configDir;
     },
 
-    "experimental.chat.messages.transform": async (_input, output) => {
+    "experimental.chat.messages.transform": async (input, output) => {
       if (!output.messages || output.messages.length === 0) return;
+      const agent = resolveChatAgent(input, output.messages);
+      const sessionID = resolveSessionId(input, output.messages);
+      if (sessionID) sessionAgents.set(sessionID, agent);
+
+      // The plugin is deliberately inert for every agent except the exact
+      // primary agent name "orchestrator". Remove only explicit Nexus-owned
+      // sections when a conversation switches away from that agent; user
+      // authored text remains untouched.
+      if (agent !== "orchestrator") {
+        sanitizeNexusParts(output.messages);
+        return;
+      }
+
       const userMessage = findLatestUserMessage(output.messages);
       if (
         !userMessage ||
@@ -243,22 +341,12 @@ export const NexusPlugin = async ({ worktree }) => {
       }
 
       const bootstrap = getBootstrapText();
-      const priorMarkers = [
-        "NEXUS_BOOTSTRAP_V1",
-        "NEXUS_BOOTSTRAP_V2",
-        "NEXUS_BOOTSTRAP_V3",
-        "NEXUS_ROUTER_V3",
-        "NEXUS_ROUTER_V5",
-      ];
       const sessionHasBootstrap = output.messages.some(
         (message) =>
           Array.isArray(message?.parts) &&
           message.parts.some(
-            (p) =>
-              partHasMarker(p, BOOTSTRAP_MARKER) ||
-              (p?.type === "text" &&
-                typeof p.text === "string" &&
-                priorMarkers.some((m) => p.text.includes(m))),
+            (p) => isNexusOwnedPart(p) &&
+              PRIOR_BOOTSTRAP_MARKERS.some((m) => partHasMarker(p, m)),
           ),
       );
 
@@ -278,7 +366,10 @@ export const NexusPlugin = async ({ worktree }) => {
       }
     },
 
-    "experimental.session.compacting": async (_input, output) => {
+    "experimental.session.compacting": async (input, output) => {
+      if (resolveCompactionAgent(input, sessionAgents) !== "orchestrator") {
+        return;
+      }
       if (!worktree) return;
 
       const activeRun = readRunStateSummary(worktree);

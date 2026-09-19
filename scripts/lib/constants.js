@@ -10,4 +10,9 @@ export const PLANNING_AGENTS = Object.freeze(["plan-advisor"]);
 /** @deprecated V5 has no optional agents; kept empty for install script compat. */
 export const OPTIONAL_AGENTS = Object.freeze([]);
 
+/** Stable workflow protocol identifier; independent from the npm package line. */
+export const NEXUS_WORKFLOW_VERSION = 5;
+export const NEXUS_WORKFLOW_PROTOCOL = `v${NEXUS_WORKFLOW_VERSION}`;
+
+/** @deprecated Use NEXUS_WORKFLOW_PROTOCOL for workflow terminology. */
 export const WORKFLOW_VERSION = "5.0";

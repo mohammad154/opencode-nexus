@@ -1,4 +1,7 @@
-# Nexus V5 workflow
+# Nexus workflow protocol v5
+
+This protocol document applies to the npm package `4.x.y` release line. The
+package version and workflow protocol version are intentionally independent.
 
 For implementation details and operational recovery, see
 [`architecture.md`](architecture.md) and [`troubleshooting.md`](troubleshooting.md).
@@ -10,6 +13,28 @@ Nexus is a **fixed** three-agent execution workflow for OpenCode. The orchestrat
 1. Every request starts with brainstorming and a plan.
 2. Every implementer call requires fresh impact analysis.
 3. Every implementation must be approved by an independent reviewer.
+
+## Orchestrator-only activation
+
+The Nexus plugin resolves the authoritative primary agent from OpenCode
+message metadata and activates only when its exact value is `orchestrator`.
+It does not infer identity from model names, prompts, message content, active
+run files, or marker text. Build, Plan, custom primaries, and the
+`implementer`, `reviewer`, and `plan-advisor` subagents receive no Nexus router,
+delegation gate, dispatch instruction, or compaction context. If the identity
+is missing or ambiguous, the plugin fails closed.
+
+When a conversation switches away from `orchestrator`, the plugin removes only
+explicitly wrapped Nexus-owned injected sections and preserves user-authored
+parts. The current OpenCode plugin configuration API exposes skill search paths
+globally rather than per primary agent, so Nexus skills may remain discoverable
+to other agents; automatic Nexus routing and instructions are still gated by
+the exact primary-agent identity.
+
+Before implementation, the controller freezes the normalized scope policy and
+an external digest of protected `.opencode` runtime state. A changed control
+plane blocks the transition with `CONTROL_PLANE_TAMPERED`; `.opencode/handoffs`
+is the deliberate implementer-writable runtime exception.
 
 ## Continuous execution and user boundaries
 

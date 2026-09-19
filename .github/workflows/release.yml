@@ -1,0 +1,92 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Existing package.json version to publish (for example 4.4.0)"
+        required: true
+        type: string
+      commit:
+        description: "Optional commit SHA whose green checks authorize the release"
+        required: false
+        type: string
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  release:
+    name: Release after required checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Select the commit to release
+        id: target
+        env:
+          REQUESTED_COMMIT: ${{ inputs.commit }}
+          WORKFLOW_SHA: ${{ github.sha }}
+        run: echo "sha=${REQUESTED_COMMIT:-$WORKFLOW_SHA}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.target.outputs.sha }}
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: "22"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Verify package version and required check names
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+          RELEASE_SHA: ${{ steps.target.outputs.sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node -e 'const p=require("./package.json"); if(p.version!==process.env.RELEASE_VERSION) { console.error(`package.json=${p.version}, requested=${process.env.RELEASE_VERSION}`); process.exit(1); }'
+          existing_tag="v${RELEASE_VERSION}"
+          if git rev-parse --verify "refs/tags/${existing_tag}" >/dev/null 2>&1; then
+            echo "tag already exists: ${existing_tag}" >&2
+            exit 1
+          fi
+          check_runs="$(gh api --paginate "repos/${GITHUB_REPOSITORY}/commits/${RELEASE_SHA}/check-runs" --jq '.check_runs[] | @json')"
+          CHECK_RUNS="$check_runs" node <<'NODE'
+          const required = ["CI", "Installer isolation", "Plugin Security Scan"];
+          const runs = String(process.env.CHECK_RUNS || "")
+            .split("\n")
+            .filter(Boolean)
+            .map((line) => JSON.parse(line));
+          const missing = required.filter((name) => {
+            const candidates = runs
+              .filter((run) => run.name === name)
+              .sort((a, b) => Date.parse(a.completed_at || a.started_at || 0) - Date.parse(b.completed_at || b.started_at || 0));
+            const latest = candidates.at(-1);
+            return !latest || latest.status !== "completed" || latest.conclusion !== "success";
+          });
+          if (missing.length) {
+            console.error(`required green checks missing or not successful: ${missing.join(", ")}`);
+            process.exit(1);
+          }
+          NODE
+
+      - name: Re-run package and installer gates
+        run: |
+          npm ci
+          npm test
+          npm run test:install
+
+      - name: Publish package
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --access public
+
+      - name: Tag and create GitHub release
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+          RELEASE_SHA: ${{ steps.target.outputs.sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="v${RELEASE_VERSION}"
+          git tag -a "$tag" "$RELEASE_SHA" -m "Release $tag"
+          git push origin "$tag"
+          gh release create "$tag" --target "$RELEASE_SHA" --generate-notes

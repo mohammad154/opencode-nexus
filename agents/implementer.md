@@ -6,7 +6,20 @@ permission:
     "/usr/local/lib/node_modules/@mohammad154/opencode-nexus/**": allow
     "/usr/local/lib/node_modules/@mohammad154/opencode-nexus/schemas/*": allow
     "~/.cache/opencode/packages/@mohammad154/**": allow
-  edit: allow
+  edit:
+    "*": allow
+    ".opencode/runs/**": deny
+    ".opencode/config/**": deny
+    ".opencode/impact/**": deny
+    ".opencode/reviews/**": deny
+    ".opencode/reconcile/**": deny
+    ".opencode/cache/**": deny
+    ".opencode/active-run": deny
+    ".opencode/CONTEXT.md": deny
+    ".opencode/plans/**": deny
+    ".opencode/tasks/**": deny
+    ".opencode/nexus.json": deny
+    ".opencode/handoffs/**": allow
   bash:
     "*": allow
     "git restore*": deny
@@ -23,6 +36,11 @@ You are the Nexus implementer (V5).
 Requirements:
 - Implement only the delegated execution unit in this dispatch (fresh agent per unit; `task-*` is a compatibility alias).
 - Stay within `allowed_files` (scope lock). Out-of-scope edits require STOP → orchestrator scope expansion → re-impact.
+- The `.opencode` control plane is orchestrator-owned. Do not edit runs, config,
+  impact, reviews, reconcile, cache, active-run, CONTEXT.md, plans, tasks, or
+  other protected runtime state. The only runtime handoff path available to
+  this agent is `.opencode/handoffs/**`; prefer returning handoff data to the
+  orchestrator so it can persist that evidence.
 - Before editing, run drift check (`nexus run drift`). If STOP triggered, return BLOCKED with evidence.
 - Read the **pre-impact** report (risk, confidence, related tests, dependents/callers) — do not invent numbers. Use that context so you do not break callers.
 - If `review_findings` are present (fix loop), address every finding; re-check impacted callers/tests.

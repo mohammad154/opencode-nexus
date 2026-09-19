@@ -3,7 +3,7 @@
  */
 import fs from "fs";
 import path from "path";
-import { isIgnoredPath, loadScopePolicy } from "../path-filter.js";
+import { DEFAULT_IGNORE_PATTERNS, isIgnoredPath, loadScopePolicy } from "../path-filter.js";
 
 function isTestPath(p) {
   const n = p.replace(/\\/g, "/");
@@ -21,12 +21,13 @@ function stem(filePath) {
 
 export function discoverRelatedTests(
   worktree,
-  { changed_files = [], direct_dependents = [], ignoredPatterns } = {},
+  { changed_files = [], direct_dependents = [], ignoredPatterns, policy } = {},
 ) {
   const related = new Set();
   const candidates = [];
-  const policy = loadScopePolicy(worktree);
-  const patterns = ignoredPatterns || policy.ignored_patterns;
+  const loadedPolicy = policy || (ignoredPatterns ? null : loadScopePolicy(worktree));
+  const patterns =
+    ignoredPatterns || loadedPolicy?.ignored_patterns || DEFAULT_IGNORE_PATTERNS;
 
   function walk(dir) {
     let entries;

@@ -1412,6 +1412,13 @@ export function canTransition(state, to, ctx = {}) {
   }
 
   if (to === "IMPLEMENTING") {
+    if (
+      (ctx.require_policy_snapshot === true ||
+        (typeof ctx.worktree === "string" && ctx.worktree.trim())) &&
+      !ctx.policy_snapshot
+    ) {
+      errors.push("IMPLEMENTING requires a pre-implementation policy snapshot");
+    }
     if (!ctx.branch && !state.branch) {
       errors.push("IMPLEMENTING requires assigned branch");
     }
@@ -2119,6 +2126,10 @@ export function transition(state, to, evidence = {}, providers = null) {
     }
   }
   if (to === "IMPLEMENTING") {
+    if (ctx.policy_snapshot) {
+      next.policy_snapshot = ctx.policy_snapshot;
+      next.policy_snapshot_required = true;
+    }
     if (ctx.branch) next.branch = ctx.branch;
     if (ctx.current_unit) next.current_unit = ctx.current_unit;
     if (ctx.drift?.plan_commit) next.plan_commit = ctx.drift.plan_commit;

@@ -42,7 +42,10 @@ test("plugin injects V5 compact router and keeps automatic skill routing", async
 
   const output = {
     messages: [
-      { info: { role: "user" }, parts: [{ type: "text", text: "work" }] },
+      {
+        info: { role: "user", agent: "orchestrator", sessionID: "session-1" },
+        parts: [{ type: "text", text: "work" }],
+      },
     ],
   };
   await plugin["experimental.chat.messages.transform"]({}, output);
@@ -112,7 +115,10 @@ test("compaction omits run summaries without an active run", async () => {
 
   const plugin = await NexusPlugin({ worktree });
   const output = { context: [] };
-  await plugin["experimental.session.compacting"]({}, output);
+  await plugin["experimental.session.compacting"](
+    { agent: "orchestrator", sessionID: "idle-session" },
+    output,
+  );
   assert.deepEqual(output.context, []);
 });
 
@@ -134,7 +140,10 @@ test("compaction adds only compact active-run context and artifact pointers", as
 
   const plugin = await NexusPlugin({ worktree });
   const output = {};
-  await plugin["experimental.session.compacting"]({}, output);
+  await plugin["experimental.session.compacting"](
+    { agent: "orchestrator", sessionID: "active-session" },
+    output,
+  );
   assert.equal(output.context.length, 1);
   assert.match(output.context[0], /Nexus Run State/);
   assert.match(output.context[0], /Active Artifact Pointers/);
@@ -167,7 +176,10 @@ test("compaction omits stale Context.md that conflicts with durable run state", 
 
   const plugin = await NexusPlugin({ worktree });
   const output = {};
-  await plugin["experimental.session.compacting"]({}, output);
+  await plugin["experimental.session.compacting"](
+    { agent: "orchestrator", sessionID: "stale-session" },
+    output,
+  );
 
   assert.equal(output.context.length, 1);
   assert.match(output.context[0], /Nexus Context Status/);
@@ -184,7 +196,7 @@ test("chat transform injects delegation gate when no active run", async () => {
   const output = {
     messages: [
       {
-        info: { role: "user" },
+        info: { role: "user", agent: "orchestrator", sessionID: "gate-session" },
         parts: [{ type: "text", text: "implement feature" }],
       },
     ],
@@ -209,7 +221,10 @@ test("chat transform injects IMPLEMENTING dispatch gate", async () => {
   const plugin = await NexusPlugin({ worktree });
   const output = {
     messages: [
-      { info: { role: "user" }, parts: [{ type: "text", text: "continue" }] },
+      {
+        info: { role: "user", agent: "orchestrator", sessionID: "impl-session" },
+        parts: [{ type: "text", text: "continue" }],
+      },
     ],
   };
   await plugin["experimental.chat.messages.transform"]({}, output);
@@ -239,7 +254,10 @@ test("plugin prefers the active-run pointer over a newer non-terminal run", asyn
   const plugin = await NexusPlugin({ worktree });
   const output = {
     messages: [
-      { info: { role: "user" }, parts: [{ type: "text", text: "continue" }] },
+      {
+        info: { role: "user", agent: "orchestrator", sessionID: "ptr-session" },
+        parts: [{ type: "text", text: "continue" }],
+      },
     ],
   };
   await plugin["experimental.chat.messages.transform"]({}, output);
@@ -259,7 +277,10 @@ test("compaction includes delegation gate for active run", async () => {
   });
   const plugin = await NexusPlugin({ worktree });
   const output = {};
-  await plugin["experimental.session.compacting"]({}, output);
+  await plugin["experimental.session.compacting"](
+    { agent: "orchestrator", sessionID: "compact-gate-session" },
+    output,
+  );
   assert.equal(output.context.length, 1);
   assert.match(output.context[0], /Complete workflow gates/);
   assert.match(output.context[0], /Nexus Next Action/);
@@ -316,6 +337,80 @@ test("agent permissions place catch-all '*' before specific rules", () => {
       );
     }
   }
+});
+
+test("Nexus runtime is inert for non-orchestrator primary agents", async () => {
+  const worktree = tempDir("nexus-plugin-agent-gate-");
+  writeJson(path.join(worktree, ".opencode", "runs", "active", "state.json"), {
+    run_id: "active",
+    state: "IMPLEMENTING",
+    workflow: "default",
+    updated_at: "2026-07-30T12:00:00.000Z",
+  });
+
+  for (const agent of ["Build", "Plan", "custom", "unknown", "implementer", "reviewer", "plan-advisor"]) {
+    const plugin = await NexusPlugin({ worktree });
+    const output = {
+      messages: [
+        {
+          info: { role: "user", agent, sessionID: `session-${agent}` },
+          parts: [{ type: "text", text: "please continue" }],
+        },
+      ],
+    };
+    await plugin["experimental.chat.messages.transform"]({}, output);
+    const text = output.messages.flatMap((message) => message.parts || [])
+      .map((part) => part.text || "")
+      .join("\n");
+    assert.equal(text.includes("NEXUS_ROUTER_V5"), false, agent);
+    assert.equal(text.includes("NEXUS_DELEGATION_GATE"), false, agent);
+
+    const compacted = {};
+    await plugin["experimental.session.compacting"](
+      { sessionID: `session-${agent}` },
+      compacted,
+    );
+    assert.equal(compacted.context, undefined, agent);
+  }
+});
+
+test("switching away from orchestrator removes only Nexus-owned sections", async () => {
+  const worktree = tempDir("nexus-plugin-switch-");
+  const plugin = await NexusPlugin({ worktree });
+  const output = {
+    messages: [
+      {
+        info: { role: "user", agent: "orchestrator", sessionID: "switch-session" },
+        parts: [{ type: "text", text: "first" }],
+      },
+    ],
+  };
+
+  await plugin["experimental.chat.messages.transform"]({}, output);
+  assert.match(output.messages[0].parts.map((part) => part.text || "").join("\n"), /NEXUS_ROUTER_V5/);
+
+  output.messages.push({
+    info: { role: "user", agent: "Build", sessionID: "switch-session" },
+    parts: [
+      { type: "text", text: "I wrote NEXUS_ROUTER_V5 as ordinary text." },
+    ],
+  });
+  await plugin["experimental.chat.messages.transform"]({}, output);
+
+  const afterBuild = output.messages.flatMap((message) => message.parts || []);
+  assert.equal(afterBuild.some((part) => part.text?.includes("NEXUS_DELEGATION_GATE")), false);
+  assert.equal(
+    afterBuild.some((part) => part.text === "I wrote NEXUS_ROUTER_V5 as ordinary text."),
+    true,
+  );
+
+  output.messages.push({
+    info: { role: "user", agent: "orchestrator", sessionID: "switch-session" },
+    parts: [{ type: "text", text: "resume" }],
+  });
+  await plugin["experimental.chat.messages.transform"]({}, output);
+  const resumed = output.messages.at(-1).parts.map((part) => part.text || "").join("\n");
+  assert.match(resumed, /NEXUS_ROUTER_V5/);
 });
 
 test("implementer blocks destructive git cleanup of user work", () => {

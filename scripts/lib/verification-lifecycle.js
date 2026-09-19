@@ -17,6 +17,7 @@ import {
 import { inspectWorkspace } from "./workspace-integrity.js";
 import { runStatePath, writeRunState } from "./migrate-artifacts.js";
 import { requiresTdd } from "./policy.js";
+import { trustedPolicyForState } from "./policy-snapshot.js";
 import { withFileLock } from "./lock.js";
 
 function nowIso() {
@@ -111,6 +112,15 @@ function riskFromImpact(report, state) {
 }
 
 function postImpactReport(providers, state, worktree, phase) {
+  const policy = trustedPolicyForState(state, worktree, {
+    required: state?.policy_snapshot_required === true,
+  });
+  if (!policy) {
+    return {
+      ok: false,
+      error: "trusted pre-implementation policy snapshot is missing or invalid",
+    };
+  }
   const base =
     phase === "FINAL"
       ? state.run_base_commit || state.plan_commit || state.head_commit
@@ -122,6 +132,7 @@ function postImpactReport(providers, state, worktree, phase) {
     phase: phase === "FINAL" ? "final-post" : "post",
     post_impact: true,
     force_recompute: true,
+    policy,
   });
   const report = analyzed?.report || analyzed;
   if (
@@ -141,9 +152,14 @@ function postImpactReport(providers, state, worktree, phase) {
 function discoverPlan(provider, worktree, postImpact, state) {
   const relatedTests = postImpact?.related_tests || state.impact?.related_tests || [];
   const risk = riskFromImpact(postImpact, state);
+  const policy = trustedPolicyForState(state, worktree, {
+    required: state?.policy_snapshot_required === true,
+  });
+  if (!policy) throw new Error("trusted pre-implementation policy snapshot is missing or invalid");
   const options = {
     worktree,
     related_tests: relatedTests,
+    policy,
     ...(risk ? { risk, risk_tier: risk } : {}),
   };
   const plan = provider.discover(options);
@@ -584,6 +600,7 @@ function runVerificationLifecycleUnlocked({
           implementer_commit: handoff.commit || currentState.implementer_commit || head,
           related_tests: planInfo.relatedTests,
           plan: planInfo.plan,
+          policy: planInfo.options.policy,
           timeout_ms: timeouts.fullTest,
         });
       } catch (error) {
@@ -625,6 +642,7 @@ function runVerificationLifecycleUnlocked({
       risk: planInfo.risk,
       risk_tier: planInfo.risk,
       plan: planInfo.plan,
+      policy: planInfo.options.policy,
       reuse_results: reusable ? reusableProviderResults(artifact) : [],
       onProgress(event) {
         const index = providerOffset + event.index;

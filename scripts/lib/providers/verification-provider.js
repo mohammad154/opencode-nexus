@@ -227,7 +227,9 @@ export function createVerificationProvider(providerOptions = {}) {
     run(ctx = {}) {
       const worktree = ctx.worktree || process.cwd();
       const rawPlan = ctx.plan || discoverVerification(worktree, ctx);
-      const plan = filterVerificationPlan(worktree, rawPlan);
+      const plan = filterVerificationPlan(worktree, rawPlan, {
+        policy: ctx.policy,
+      });
       const results = [];
       const timeouts = resolveVerificationTimeouts(worktree, {
         ...providerOptions,
@@ -443,7 +445,9 @@ export function createVerificationProvider(providerOptions = {}) {
         };
       }
 
-      const targetPlan = filterVerificationPlan(worktree, { steps: [step] });
+      const targetPlan = filterVerificationPlan(worktree, { steps: [step] }, {
+        policy: ctx.policy,
+      });
       const targeted = isTargetedVerificationStep(step);
       if (targeted && targetPlan.steps.length === 0) {
         const rejected = targetPlan.ignored_targets[0] || {

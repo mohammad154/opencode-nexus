@@ -33,7 +33,12 @@ single-unit + unchanged review evidence → final verify → finish
 
 **Three invariants:** (1) brainstorm + plan every request (2) fresh impact before every implementer (3) reviewer APPROVED every execution unit.
 
-Package: [`@mohammad154/opencode-nexus`](https://www.npmjs.com/package/@mohammad154/opencode-nexus) · Node 20+ · MIT
+Package: [`@mohammad154/opencode-nexus`](https://www.npmjs.com/package/@mohammad154/opencode-nexus) · package release line 4.x · workflow protocol v5 · Node 20+ · MIT
+
+The package release line and workflow protocol are separate identifiers: a
+`4.x.y` npm package carries the fixed **Nexus workflow protocol v5**. Runtime
+activation is tied to the exact primary OpenCode agent `orchestrator`; Build,
+Plan, custom agents, and subagents remain ordinary OpenCode agents.
 
 > The unscoped name `opencode-nexus` on npm is a **different** project. Always use `@mohammad154/opencode-nexus`.
 

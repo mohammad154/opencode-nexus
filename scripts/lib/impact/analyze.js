@@ -15,10 +15,11 @@ import {
 } from "../path-filter.js";
 
 export function analyzeImpact(worktree, options = {}) {
-  const policy = loadScopePolicy(worktree);
+  const policy = options.policy || loadScopePolicy(worktree);
   let git = collectGitEvidence(worktree, {
     base: options.base || "HEAD",
     ignoredPatterns: policy.ignored_patterns,
+    policy,
   });
   if (!git.ok) {
     return {
@@ -69,6 +70,8 @@ export function analyzeImpact(worktree, options = {}) {
   const index = buildImportIndex(worktree, {
     // Index changed files + a bounded walk for importers
     persistCache: options.persistCache !== false,
+    policy,
+    ignoredPatterns: policy.ignored_patterns,
   });
 
   const changed_symbols = collectChangedSymbols(git, index);
@@ -82,6 +85,7 @@ export function analyzeImpact(worktree, options = {}) {
     changed_files: git.changed_files,
     direct_dependents,
     ignoredPatterns: policy.ignored_patterns,
+    policy,
   });
   const affected_packages = discoverAffectedPackages(worktree, git.changed_files);
 
@@ -170,6 +174,7 @@ export function analyzeImpact(worktree, options = {}) {
     index_stats: index.stats,
     path_filter: {
       version: PATH_FILTER_VERSION,
+      policy_digest: policy.policy_digest || null,
       ignored_patterns: policy.ignored_patterns,
       ignored_files: ignoredFiles,
     },

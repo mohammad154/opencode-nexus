@@ -13,16 +13,17 @@ import {
   pruneCache,
 } from "./symbols.js";
 import {
+  DEFAULT_IGNORE_PATTERNS,
   filterPathEntries,
   isIgnoredPath,
   loadScopePolicy,
   PATH_FILTER_VERSION,
 } from "../path-filter.js";
 
-function walkSourceFiles(root, { maxFiles = 5000, ignoredPatterns } = {}) {
+function walkSourceFiles(root, { maxFiles = 5000, ignoredPatterns, policy } = {}) {
   const out = [];
-  const policy = loadScopePolicy(root);
-  const patterns = ignoredPatterns || policy.ignored_patterns;
+  const patterns =
+    ignoredPatterns || policy?.ignored_patterns || loadScopePolicy(root).ignored_patterns || DEFAULT_IGNORE_PATTERNS;
   const skip = new Set([
     "node_modules",
     ".git",
@@ -104,9 +105,10 @@ function resolveImportPath(fromFile, spec, worktree, options = {}) {
 
 export function buildImportIndex(worktree, options = {}) {
   const cache = loadCache(worktree);
-  const policy = loadScopePolicy(worktree);
-  const ignoredPatterns = options.ignoredPatterns || policy.ignored_patterns;
-  const rawFiles = options.files || walkSourceFiles(worktree, { ignoredPatterns });
+  const policy = options.policy || (options.ignoredPatterns ? null : loadScopePolicy(worktree));
+  const ignoredPatterns =
+    options.ignoredPatterns || options.policy?.ignored_patterns || policy?.ignored_patterns || DEFAULT_IGNORE_PATTERNS;
+  const rawFiles = options.files || walkSourceFiles(worktree, { ignoredPatterns, policy });
   const filtered = filterPathEntries(rawFiles, { ignoredPatterns, worktree });
   const files = [
     ...new Set(

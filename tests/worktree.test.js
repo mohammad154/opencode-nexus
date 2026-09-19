@@ -79,6 +79,14 @@ test("samePath applies injectable Win32 identity rules", () => {
     samePath("C:\\Repo\\foo", "c:\\repo\\foo", { platform: "linux" }),
     false,
   );
+  assert.equal(
+    samePath("\\\\?\\C:\\Repo\\foo\\", "c:/repo/foo", win32),
+    true,
+  );
+  assert.equal(
+    samePath("\\\\?\\UNC\\Server\\Share\\Repo", "\\\\server\\share\\repo", win32),
+    true,
+  );
 });
 
 test("worktree containment remains fail-closed for symlinked task paths", () => {
@@ -192,6 +200,24 @@ test("createTaskWorktree compares trimmed SHA for reused worktrees", () => {
     });
     assert.equal(mismatch.ok, false);
     assert.match(mismatch.error, /!= expected base/);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("createTaskWorktree canonicalizes short commit refs on reuse", () => {
+  const { dir, commit1 } = createTestRepo();
+  try {
+    const first = createTaskWorktree(dir, "task-short", {
+      baseCommit: commit1.slice(0, 8),
+    });
+    assert.equal(first.ok, true, first.error);
+    const second = createTaskWorktree(dir, "task-short", {
+      baseCommit: commit1.slice(0, 8),
+    });
+    assert.equal(second.ok, true, second.error);
+    assert.equal(second.reused, true);
+    assert.equal(second.head, commit1);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

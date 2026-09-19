@@ -3,7 +3,12 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { CANONICAL_AGENTS, OPTIONAL_AGENTS } from "../scripts/lib/constants.js";
+import {
+  CANONICAL_AGENTS,
+  OPTIONAL_AGENTS,
+  NEXUS_WORKFLOW_VERSION,
+  NEXUS_WORKFLOW_PROTOCOL,
+} from "../scripts/lib/constants.js";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -16,6 +21,13 @@ test("CANONICAL_AGENTS contains exactly the 3 V5 agents in order and is frozen",
 test("OPTIONAL_AGENTS is empty in V5 and frozen", () => {
   assert.deepEqual(Array.from(OPTIONAL_AGENTS), []);
   assert.ok(Object.isFrozen(OPTIONAL_AGENTS));
+});
+
+test("workflow protocol version is explicit and separate from package version", () => {
+  const pkg = JSON.parse(fs.readFileSync(path.join(repoRoot, "package.json"), "utf8"));
+  assert.equal(NEXUS_WORKFLOW_VERSION, 5);
+  assert.equal(NEXUS_WORKFLOW_PROTOCOL, "v5");
+  assert.match(pkg.version, /^4\./);
 });
 
 test("all canonical agents have corresponding markdown files in agents/", () => {
