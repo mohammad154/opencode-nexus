@@ -16,9 +16,41 @@ function run(cwd, args) {
 function cleanGitPath(value) {
   const text = String(value || "").trim();
   if (text.length >= 2 && text.startsWith('"') && text.endsWith('"')) {
-    return text.slice(1, -1);
+    return text
+      .slice(1, -1)
+      .replace(/\\"/g, '"')
+      .replace(/\\\\/g, "\\");
   }
   return text;
+}
+
+function canonicalFilesystemPath(target) {
+  if (typeof target !== "string" || !target) return null;
+  try {
+    const resolve =
+      process.platform === "win32" && typeof fs.realpathSync.native === "function"
+        ? fs.realpathSync.native
+        : fs.realpathSync;
+    return resolve(target);
+  } catch {
+    return null;
+  }
+}
+
+function pathsReferToSameLocation(left, right) {
+  if (samePath(left, right)) return true;
+  const canonicalLeft = canonicalFilesystemPath(left);
+  const canonicalRight = canonicalFilesystemPath(right);
+  if (
+    canonicalLeft &&
+    canonicalRight &&
+    samePath(canonicalLeft, canonicalRight)
+  ) {
+    return true;
+  }
+  if (canonicalLeft && samePath(canonicalLeft, right)) return true;
+  if (canonicalRight && samePath(left, canonicalRight)) return true;
+  return false;
 }
 
 const SAFE_TASK_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
@@ -191,12 +223,9 @@ function existingGitWorktree(repoRoot, dir) {
     };
   }
 
-  let realDir;
-  let realTop;
-  try {
-    realDir = fs.realpathSync(dir);
-    realTop = fs.realpathSync(cleanGitPath(top.stdout));
-  } catch {
+  const topLevel = cleanGitPath(top.stdout);
+  const realDir = canonicalFilesystemPath(dir);
+  if (!realDir) {
     return {
       ok: false,
       code: "INVALID_WORKTREE",
@@ -204,7 +233,7 @@ function existingGitWorktree(repoRoot, dir) {
       path: dir,
     };
   }
-  if (!samePath(realDir, realTop)) {
+  if (!pathsReferToSameLocation(realDir, topLevel)) {
     return {
       ok: false,
       code: "INVALID_WORKTREE",
@@ -222,13 +251,9 @@ function existingGitWorktree(repoRoot, dir) {
       path: dir,
     };
   }
-  const registeredHere = registered.some((candidate) => {
-    try {
-      return samePath(fs.realpathSync(candidate), realDir);
-    } catch {
-      return false;
-    }
-  });
+  const registeredHere = registered.some((candidate) =>
+    pathsReferToSameLocation(candidate, realDir),
+  );
   if (!registeredHere) {
     return {
       ok: false,
