@@ -57,6 +57,36 @@ force-discard, destructive migration/data loss, secrets, deployment/external
 side effects, or a material scope/acceptance change. A sealed final review and
 verification authorize `COMPLETED`, not unrelated external side effects.
 
+### `nexus advance`
+
+`nexus advance` executes the deterministic chain from the current state up to the
+next boundary that needs judgement, then returns a prepared dispatch. It replaces
+a sequence of orchestrator round trips (plan-check, pre-impact, drift,
+authorization transitions, `nexus verify`, review package) with one call.
+
+| Property | Behaviour |
+|---|---|
+| Authority | Every state change is executed by `nexus run transition`; every measurement by `nexus impact` / `nexus verify` / `nexus review-package`. Advance owns ordering only. |
+| Allowlist | Only reviewed deterministic steps are executable; an unknown resolver action stops the chain. |
+| Agent output | Consumed only from the canonical handoff path, only when it is bound to the current authorization, and only through `--implementer-handoff-file` / `--review-handoff-file`, so every gate check still runs. |
+| Never | Writes a handoff, invents or edits evidence, dispatches an agent, or retries a rejected gate with different evidence. |
+| Boundaries | `SELF` (brainstorm/plan), `AGENT` (dispatch prepared), `USER` (clarification), `MANUAL` (blocked, reconcile, verification repair, gate rejection), `DONE`. |
+| Bounded | At most `ADVANCE_MAX_STEPS` (12) deterministic steps per call; `--max-steps` lowers it, `--dry-run` executes nothing. |
+| Exit codes | `0` reached a boundary · `2` no usable run state · `3` a gate rejected a step (its errors are reported verbatim). |
+
+Routing after a reviewer verdict is deterministic: `REQUEST_CHANGES` re-enters the
+bounded fix loop with fresh impact; a task `APPROVED` moves to the next unit with
+fresh impact, or to `FINAL_REVIEWING`; a `final` `APPROVED` moves to
+`FINAL_VERIFYING`. Single-unit task-review reuse is *requested* only when
+`nexus run can-transition` — the state machine's own read-only answer — admits it,
+and the mandatory full final review is the fallback. Any other verdict stops the
+chain.
+
+A handoff that is not bound to the current authorization is reported, never
+consumed: `COMMIT_NOT_CURRENT_HEAD`, `BASE_NOT_CURRENT_AUTHORIZATION`,
+`REVIEWED_COMMIT_NOT_CURRENT_HEAD`, `SCOPE_MISMATCH`, `ALREADY_CONSUMED`,
+`PREDATES_CURRENT_STATE`, `NOT_DONE`, `OTHER_RUN`, `UNPARSABLE`, `MISSING`.
+
 ## Lifecycle
 
 ```text
@@ -323,6 +353,9 @@ plan-advisor  (conditional planning-only challenge; not in the execution loop)
 ```bash
 nexus next                 # deterministic next orchestrator action
 nexus next --json
+nexus advance              # run every deterministic step up to the next boundary
+nexus advance --json
+nexus advance --dry-run    # show the next deterministic step, execute nothing
 nexus run inspect --run-id <id>
 nexus estimate --tasks 3
 nexus run transition --to PLANNED --plan-check
@@ -415,7 +448,13 @@ authorize `PLANNED`, `TASK_IMPACT_READY`, `VERIFYING`, `REVIEWING`, or
 reads the target implementation, its tests, its callers, and any applicable
 design/ADR.
 
-`nexus next` (and the plugin’s injected **Nexus Next Action** block) tells the orchestrator what to do now — including `REQUIRED_DISPATCH: implementer|reviewer` when a Task dispatch is mandatory.
+`nexus next` (and the plugin’s injected **Nexus Next Action** block) tells the orchestrator what to do now — including `REQUIRED_DISPATCH: implementer|reviewer` when a Task dispatch is mandatory. `nexus advance` runs that same chain to the next boundary instead of reporting one step at a time.
+
+In `IMPLEMENTING`, `nexus next` distinguishes "still waiting for the implementer"
+from "the implementer already answered": a `DONE` handoff whose commit is the
+current worktree HEAD and whose base is the current authorization yields
+`consume_implementer_handoff`. Any other moved HEAD remains an unexplained
+binding mismatch and still routes to reconcile.
 
 The standalone `nexus plan-check` command is diagnostic. To authorize the
 `PLANNED` transition, use `nexus run transition --to PLANNED --plan-check` so

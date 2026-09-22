@@ -19,6 +19,7 @@ import {
   DEFAULT_MAX_FIX_LOOP_ATTEMPTS,
   DEFAULT_MAX_VERIFICATION_REPAIR_ATTEMPTS,
 } from "./review-protocol.js";
+import { consumableImplementerHandoff } from "./handoff-freshness.js";
 
 /**
  * @typedef {object} NextAction
@@ -309,6 +310,16 @@ function dispatchBindingMismatch(runState, worktree) {
     : null;
 }
 
+/**
+ * A fresh, DONE implementer handoff committed at the current worktree HEAD.
+ * Returned only in IMPLEMENTING: elsewhere the handoff is already consumed.
+ */
+function answeredImplementerHandoff(runState, worktree) {
+  if (runState?.state !== "IMPLEMENTING" || !worktree) return null;
+  const handoff = consumableImplementerHandoff(worktree, runState, currentHead(worktree));
+  return handoff.consumable ? handoff : null;
+}
+
 function worktreeReconcileAction(runId, state, mismatch) {
   return {
     ok: true,
@@ -499,7 +510,12 @@ function resolveNextActionInternal(runState, opts = {}) {
     };
   }
 
-  const bindingMismatch = dispatchBindingMismatch(runState, worktree);
+  // A fresh implementer handoff whose commit is the current worktree HEAD
+  // *explains* the movement: the run is no longer waiting for the agent, it is
+  // waiting for the VERIFYING gate to consume the agent's output. Anything else
+  // that moved HEAD is still an unexplained binding mismatch.
+  const answered = answeredImplementerHandoff(runState, worktree);
+  const bindingMismatch = answered ? null : dispatchBindingMismatch(runState, worktree);
   if (bindingMismatch) {
     return worktreeReconcileAction(runId, state, bindingMismatch);
   }
@@ -656,7 +672,24 @@ function resolveNextActionInternal(runState, opts = {}) {
         ],
       };
 
-    case "IMPLEMENTING":
+    case "IMPLEMENTING": {
+      if (answered) {
+        return {
+          ok: true,
+          run_id: runId,
+          state,
+          action: "consume_implementer_handoff",
+          agent: null,
+          skill: "orchestrating",
+          command: `nexus run transition --to VERIFYING --implementer-handoff-file ${answered.path}`,
+          instruction:
+            "The implementer already answered for this authorization. Consume its handoff at the VERIFYING gate; do not dispatch it again.",
+          steps: [
+            `nexus run transition --to VERIFYING --implementer-handoff-file ${answered.path}`,
+            "nexus verify",
+          ],
+        };
+      }
       return {
         ok: true,
         run_id: runId,
@@ -673,6 +706,7 @@ function resolveNextActionInternal(runState, opts = {}) {
           "Then: nexus run transition --to VERIFYING --json '{\"implementer_handoff\":{...}}'",
         ],
       };
+    }
 
     case "VERIFYING":
       switch (verificationStatus(runState, "TASK")) {

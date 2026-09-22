@@ -61,14 +61,20 @@ need it. The orchestrator owns the final plan and all state transitions.
 This is a continuous controller, not a turn-by-turn consultant. Once the user
 request is understood and the plan is confirmed, keep working in the same turn:
 
-1. Execute each deterministic command the current `nexus next` action requires.
-2. Task-dispatch the required agent immediately, then consume its handoff and
-   re-run `nexus next`.
+1. Run `nexus advance`. It executes every deterministic step the current state
+   allows — plan-check, pre-impact, drift, authorization transitions,
+   `nexus verify`, the review package — and stops at the next boundary that needs
+   judgement, returning the prepared dispatch. Use the individual commands below
+   when you need one specific step, or when advance reports a boundary.
+2. Task-dispatch the agent advance prepared, immediately. Then run `nexus advance`
+   again: it consumes the handoff at the proper gate. Advance never writes a
+   handoff, never dispatches an agent, and never retries a rejected gate.
 3. Continue through verification, reviewer dispatch, `REQUEST_CHANGES` fix
    loops, final verification, `COMPLETED`, and branch finishing without asking
    the user to say “continue”, “test”, “review”, or “fix it”.
 4. Recompute the next action from durable state after every command, handoff,
-   timeout, and transition; never rely on a stale earlier instruction.
+   timeout, and transition; never rely on a stale earlier instruction. When
+   advance stops with `MANUAL`, resolve that reason — do not work around it.
 
 Ask the user only when the current planning decision frontier contains an
 unresolved product/design choice, or immediately before a genuinely critical
@@ -92,7 +98,9 @@ nexus project-init
 nexus project-profile --json   # advisory cached repo recon (commands, CI, guides)
 nexus run init --run-id <id>
 nexus next                 # deterministic next step (also injected every turn)
+nexus advance              # run the deterministic chain to the next boundary
 nexus next --json
+nexus advance --json       # same chain, machine-readable steps + prepared dispatch
 nexus run transition --to PLANNED --plan-check  # diagnostic + persisted gate
 nexus run transition --to BRAINSTORMING
 # if ambiguous:

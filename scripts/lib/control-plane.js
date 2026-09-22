@@ -31,6 +31,20 @@ const PROTECTED_FILES = Object.freeze([
   ".opencode/nexus.json",
 ]);
 
+/**
+ * Append-only telemetry sinks are observability, never gate evidence: no gate
+ * reads them, and the trusted CLI appends to them on every command — including
+ * commands that legitimately run while an implementer dispatch is outstanding.
+ * Everything else under the protected tree (run state, plans, task views,
+ * impact reports, reviews, caches, and any *new* file) stays snapshotted.
+ */
+const TELEMETRY_SINKS = Object.freeze([/^\.opencode\/runs\/[^/]+\/metrics\.jsonl$/]);
+
+export function isTelemetrySink(relativePath) {
+  const normalized = String(relativePath || "").replace(/\\/g, "/");
+  return TELEMETRY_SINKS.some((pattern) => pattern.test(normalized));
+}
+
 function normalizedRoot(worktree) {
   return path.resolve(String(worktree || process.cwd()));
 }
@@ -73,6 +87,7 @@ function isSymlinkReason(reason) {
 
 function inspectEntry(root, file, records) {
   const rel = relative(root, file);
+  if (isTelemetrySink(rel)) return { ok: true };
   const boundary = validateContainedPath(root, file, {
     allowMissing: false,
     rejectSymlinks: true,

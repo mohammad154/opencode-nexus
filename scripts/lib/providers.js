@@ -233,6 +233,11 @@ function sanitizeMetricEvent(event = {}) {
     "agent",
     "identity",
     "kind",
+    // PR7 advance descriptors.
+    "from_state",
+    "to_state",
+    "advance_boundary",
+    "advance_reason",
   ]) {
     const value = safeMetricLabel(input[key], 120);
     if (value) out[key] = value;
@@ -260,6 +265,11 @@ function sanitizeMetricEvent(event = {}) {
     "review_package_generation_ms",
     "reviewer_adversarial_command_count",
     "reviewer_duplicate_command_count",
+    // PR7 advance measurements: deterministic steps and CLI gate invocations
+    // collapsed into one orchestrator round trip.
+    "advance_steps",
+    "advance_commands",
+    "advance_ms",
   ]) {
     const value = numericMetric(input[key]);
     if (value !== null) out[key] = value;
@@ -317,6 +327,9 @@ function addMetricTotals(totals, event) {
     "review_package_generation_ms",
     "reviewer_adversarial_command_count",
     "reviewer_duplicate_command_count",
+    "advance_steps",
+    "advance_commands",
+    "advance_ms",
   ]) {
     // Phase events span other recorded work. Summing both would double count,
     // so phase wall time is aggregated separately in `phase_durations_ms`.
@@ -364,6 +377,9 @@ export function createMetricsTelemetry(options = {}) {
     review_package_generation_ms: 0,
     reviewer_adversarial_command_count: 0,
     reviewer_duplicate_command_count: 0,
+    advance_steps: 0,
+    advance_commands: 0,
+    advance_ms: 0,
   };
   // Phase 0 duplicate-work diagnostics. Keyed by evidence identity, so two
   // executions collide only when Nexus already possessed the answer for the

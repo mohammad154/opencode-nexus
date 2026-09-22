@@ -25,6 +25,7 @@ Commands:
   uninstall      Remove Nexus OpenCode agents and plugin config
   project-init   Bootstrap .opencode/ in the current project (external repos)
   next           Deterministic next orchestrator action (dispatch / transition / skill)
+  advance        Run the deterministic chain to the next agent/user boundary
   run            Workflow state machine (init, classify, transition, status, inspect, ...)
   impact         Nexus Impact Engine (git + AST + affected tests)
   blast          Alias for impact (compatibility)
@@ -47,6 +48,9 @@ Examples:
   nexus run init --run-id demo
   nexus next
   nexus next --json
+  nexus advance
+  nexus advance --json
+  nexus advance --dry-run
   nexus run status
   nexus run inspect
   nexus classify --files 2 --lines 40 --class small-feature-with-tests --focused
@@ -75,6 +79,7 @@ const RUN_HELP = `Usage: nexus run <subcommand> [flags]
 Subcommands:
   init              Create a run (--run-id <id>)
   next              Deterministic next action (alias of nexus next)
+  advance           Run the deterministic chain to the next boundary (alias of nexus advance)
   classify          Classify and optionally apply (--apply)
   transition        Transition state (--to STATE; PLANNED supports --plan-check)
   validate-handoff  Validate a handoff JSON (--role ROLE --file path)
@@ -269,6 +274,10 @@ function cmdRun(args) {
   }
   if (args[0] === "next") {
     cmdNext(args.slice(1));
+    return;
+  }
+  if (args[0] === "advance") {
+    runNodeScript("nexus-advance.js", args.slice(1));
     return;
   }
   runNodeScript("nexus-run.js", args);
@@ -486,6 +495,9 @@ switch (command) {
     break;
   case "next":
     cmdNext(args);
+    break;
+  case "advance":
+    runNodeScript("nexus-advance.js", args);
     break;
   case "run":
     cmdRun(args);

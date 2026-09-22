@@ -204,7 +204,7 @@ test("metrics JSONL records measurements without prompts or raw errors", () => {
   assert.equal(totals.cost_usd, 0.02);
 });
 
-test("PR5/PR6 measurement metrics survive sanitization and aggregate in totals", () => {
+test("PR5/PR6/PR7 measurement metrics survive sanitization and aggregate in totals", () => {
   const worktree = tempDir("nexus-pr5-metrics-");
   const metricsPath = path.join(worktree, "metrics.jsonl");
   const telemetry = createMetricsTelemetry({ worktree, metricsPath });
@@ -258,6 +258,17 @@ test("PR5/PR6 measurement metrics survive sanitization and aggregate in totals",
     review_package_generation_ms: 41,
   });
   telemetry.emit({
+    event: "advance",
+    run_id: "pr5-metrics",
+    from_state: "PLANNED",
+    to_state: "IMPLEMENTING",
+    advance_boundary: "AGENT",
+    advance_reason: "IMPLEMENTER_DISPATCH_REQUIRED",
+    advance_steps: 3,
+    advance_commands: 4,
+    advance_ms: 720,
+  });
+  telemetry.emit({
     event: "review_commands",
     run_id: "pr5-metrics",
     kind: "task",
@@ -267,14 +278,26 @@ test("PR5/PR6 measurement metrics survive sanitization and aggregate in totals",
 
   assert.equal(
     fs.readFileSync(metricsPath, "utf8").trim().split(/\r?\n/).length,
-    5,
+    6,
   );
+  const advanceEvent = fs
+    .readFileSync(metricsPath, "utf8")
+    .trim()
+    .split(/\r?\n/)
+    .map((line) => JSON.parse(line))
+    .find((event) => event.event === "advance");
+  assert.equal(advanceEvent.from_state, "PLANNED");
+  assert.equal(advanceEvent.advance_boundary, "AGENT");
+  assert.equal(advanceEvent.advance_steps, 3);
 
   const totals = telemetry.getTotals();
   assert.equal(totals.review_package_bytes, 6490);
   assert.equal(totals.review_package_generation_ms, 41);
   assert.equal(totals.reviewer_adversarial_command_count, 1);
   assert.equal(totals.reviewer_duplicate_command_count, 0);
+  assert.equal(totals.advance_steps, 3);
+  assert.equal(totals.advance_commands, 4);
+  assert.equal(totals.advance_ms, 720);
   assert.equal(totals.project_profile_cache_hit, 1);
   assert.equal(totals.project_profile_rebuild, 1);
   assert.equal(totals.project_profile_duration_ms, 20);

@@ -124,6 +124,16 @@ same classification is persisted as `last_review_command_policy` in run state, s
 a declared replay of sealed evidence stays visible after the fact even when it
 was admissible (a probe that contradicts sealed evidence).
 
+### Advance telemetry
+
+| Event | Fields |
+|---|---|
+| `advance` | `from_state`, `to_state`, `advance_steps`, `advance_commands`, `advance_ms`, `advance_boundary`, `advance_reason` |
+
+`advance_steps` counts deterministic steps the chain executed and
+`advance_commands` the underlying gate invocations, so the collapsed orchestrator
+round trips are measured rather than assumed.
+
 ### Planning telemetry
 
 When a run is initialized, measurements land in
@@ -198,6 +208,12 @@ Implementer writes under `.opencode/handoffs/` are allowed; any other protected
 mutation blocks the transition with `CONTROL_PLANE_TAMPERED`. Restore the
 expected files, reconcile the run, or start a fresh implementation cycle
 rather than bypassing the gate.
+
+The append-only telemetry sink `.opencode/runs/<run-id>/metrics.jsonl` is outside
+the snapshot: no gate reads it, and the trusted CLI appends to it on every
+command — including commands that legitimately run while an implementer dispatch
+is outstanding. Everything else under the protected tree, including any *new*
+file beside it, is still snapshotted and still blocks `VERIFYING`.
 
 See [`workflow.md`](workflow.md#orchestrator-only-activation) for the operator
 view and [`troubleshooting.md`](troubleshooting.md) for recovery steps.

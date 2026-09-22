@@ -55,23 +55,20 @@ function main() {
   const outPath =
     args.outPath ||
     path.join(args.worktree, ".opencode", "impact", "latest.json");
-  if (!args.outPath) {
+  // Containment is checked for every destination, including a caller-supplied
+  // --out: the writer must never be able to place an artifact outside the
+  // worktree, whoever asked for it.
+  const assertContained = () => {
     const root = path.resolve(args.worktree);
-    const boundary = validateContainedPath(root, outPath, {
+    const boundary = validateContainedPath(root, path.resolve(root, outPath), {
       allowMissing: true,
       rejectSymlinks: true,
     });
     if (!boundary.ok) throw boundaryError("impact artifact path", boundary);
-  }
+  };
+  assertContained();
   fs.mkdirSync(path.dirname(outPath), { recursive: true });
-  if (!args.outPath) {
-    const root = path.resolve(args.worktree);
-    const boundary = validateContainedPath(root, outPath, {
-      allowMissing: true,
-      rejectSymlinks: true,
-    });
-    if (!boundary.ok) throw boundaryError("impact artifact path", boundary);
-  }
+  assertContained();
   fs.writeFileSync(outPath, text + "\n");
   if (args.json || true) {
     process.stdout.write(text + "\n");

@@ -280,6 +280,9 @@ Initialize a run, optionally inspect advisory classification evidence, and estim
 ```bash
 nexus project-init
 nexus run init --run-id demo
+nexus advance                           # run the deterministic chain to the next boundary
+nexus advance --json                    # steps + prepared agent dispatch
+nexus advance --dry-run                 # show the next deterministic step only
 nexus classify --files 2 --lines 40 --class small-feature-with-tests --focused
 nexus estimate --tasks 3
 nexus project-profile --json            # advisory cached repo recon
@@ -335,6 +338,7 @@ Only the **implementer** writes production code. Nexus uses one fixed V5 workflo
 - `IMPLEMENTING → VERIFYING` and `FINAL_REVIEWING → FINAL_VERIFYING` are fast authorization transitions. They persist `verification_status: PENDING`; they do not execute tests.
 - Run `nexus verify` in either verification state to measure fresh post-impact, discover the risk-based ladder, execute checks, and seal evidence. Only `verification_status: PASSED` authorizes the next review/completion transition. A timeout stays in the same state; use `nexus verify --resume`. An eligible current sealed check failure gets one automatic fresh-impact repair; unavailable, stale, dirty, and timeout evidence remains manual.
 - Pass complete handoffs by file (`--implementer-handoff-file` or `--review-handoff-file`) rather than rebuilding partial JSON in the orchestrator.
+- `nexus advance` runs every deterministic step the current state allows — plan-check, pre-impact, drift, the authorization transitions, `nexus verify`, the review package — then stops at the next boundary and returns the prepared agent dispatch. It executes state changes only through the same gates, consumes an agent handoff only when it is bound to the current authorization, and never writes a handoff, dispatches an agent, or retries a rejected gate.
 - Before implementation, Nexus snapshots trusted scope policy and orchestrator-owned `.opencode` runtime; unexpected changes block `VERIFYING` with `CONTROL_PLANE_TAMPERED` (handoffs remain writable).
 
 Full policy: [`docs/workflow.md`](docs/workflow.md). Integrity details: [`docs/architecture.md`](docs/architecture.md#runtime-integrity-control-plane-and-policy-snapshots).

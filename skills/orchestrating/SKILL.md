@@ -86,6 +86,23 @@ CREATED → BRAINSTORMING ↔ WAITING_FOR_USER → PLANNED
        └── APPROVED → next unit TASK_IMPACT_READY | FINAL_REVIEWING → FINAL_VERIFYING → COMPLETED
 ```
 
+One command runs the deterministic chain for you. `nexus advance` executes every
+scripted step the current state allows — plan-check, pre-impact, drift, the
+authorization transitions, `nexus verify`, the review package — then stops at the
+next boundary that needs judgement and returns the prepared dispatch:
+
+```bash
+nexus advance            # human summary
+nexus advance --json     # machine-readable steps + prepared dispatch
+nexus advance --dry-run  # show the next deterministic step, run nothing
+```
+
+It stops (never guesses) at: your own brainstorm/plan work, an agent dispatch, a
+user question, any `BLOCKED`/reconcile/verification-repair path, and any gate
+rejection — the gate's reason is reported verbatim and advance never retries with
+different evidence. Everything below is the same chain spelled out; use it when
+you need a single step or when advance reports a boundary you must resolve.
+
 ```bash
 nexus run init --run-id <id>
 nexus run transition --to BRAINSTORMING
@@ -124,10 +141,10 @@ task verification `PASSED`; `COMPLETED` requires sealed final verification
 ## Delegation gate
 
 1. Missing `.opencode/` → `nexus project-init` then `nexus run init`.
-2. Before `IMPLEMENTING` → complete brainstorm → plan → **pre-impact**. Do not edit production files.
+2. Before `IMPLEMENTING` → complete brainstorm → plan → **pre-impact**. Do not edit production files. `nexus advance` performs the deterministic part of this and hands back the prepared implementer dispatch; it never writes production code, handoffs, or verdicts.
 3. At `IMPLEMENTING` → only dispatch **implementer** via Task tool.
 4. In `VERIFYING` / `FINAL_VERIFYING` → follow `nexus next`: run deterministic `nexus verify`, resume a timeout with `nexus verify --resume`, and for one current sealed executed-check failure run fresh impact and re-enter `TASK_IMPACT_READY` once. Non-repairable failures remain manual; never dispatch a verifier subagent.
-5. After `VERIFYING/PASSED → REVIEWING` → build the package (`nexus review-package --scope task|final`) and dispatch **reviewer** (see [`reviewer-prompt.md`](reviewer-prompt.md)). The package is a selection; the reviewer consumes sealed verification instead of re-running it and declares any probe in `adversarial_checks` with a hypothesis, command, and reason.
+5. After `VERIFYING/PASSED → REVIEWING` → build the package (`nexus advance`, or `nexus review-package --scope task|final`) and dispatch **reviewer** (see [`reviewer-prompt.md`](reviewer-prompt.md)). The package is a selection; the reviewer consumes sealed verification instead of re-running it and declares any probe in `adversarial_checks` with a hypothesis, command, and reason.
 5. On verification failure, let `nexus next` choose the guarded automatic repair or manual reconciliation. On `REQUEST_CHANGES` → extract findings → fresh pre-impact → implementer → verify → reviewer. Do not ask the user to "fix review issues".
 
 ## Next action (deterministic)
