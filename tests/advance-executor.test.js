@@ -27,6 +27,11 @@ after(() => {
   for (const root of roots) fs.rmSync(root, { recursive: true, force: true });
 });
 
+/** CLI command strings use platform path separators on Windows. */
+function posixCmd(cmd) {
+  return cmd.replaceAll("\\", "/");
+}
+
 /** A worktree with persisted run state, a plan, and one commit. */
 function fixture(stateOverrides = {}) {
   // stateOverrides may be a function of the created HEAD commit.
@@ -189,7 +194,7 @@ test("pre_impact scopes the impact run to the unit and passes it to the gate", (
   assert.match(impactCall, /--targets src\/one\.js/);
   const transition = calls.find((c) => c.startsWith("run transition"));
   assert.match(transition, /--to TASK_IMPACT_READY/);
-  assert.match(transition, /--impact \.opencode\/impact\/pre-unit-1\.json/);
+  assert.match(posixCmd(transition), /--impact \.opencode\/impact\/pre-unit-1\.json/);
   assert.match(transition, /"current_unit":"unit-1"/);
 });
 
@@ -329,12 +334,15 @@ test("the next-unit route runs fresh impact before re-authorizing the loop", () 
   // Fresh impact for the *next* unit, never a reuse of the previous report.
   const impact = calls.find((c) => c.startsWith("impact"));
   assert.match(impact, /--targets src\/two\.js/);
-  assert.match(impact, /--out \.opencode\/impact\/pre-unit-2\.json/);
+  assert.match(posixCmd(impact), /--out \.opencode\/impact\/pre-unit-2\.json/);
   const transition = calls.find((c) => c.includes("--to TASK_IMPACT_READY"));
-  assert.match(transition, /--review-handoff-file \.opencode\/handoffs\/pr7-reviewer\.json/);
+  assert.match(
+    posixCmd(transition),
+    /--review-handoff-file \.opencode\/handoffs\/pr7-reviewer\.json/,
+  );
   assert.match(transition, /"next_task":true/);
   assert.match(transition, /"current_unit":"unit-2"/);
-  assert.match(transition, /--impact \.opencode\/impact\/pre-unit-2\.json/);
+  assert.match(posixCmd(transition), /--impact \.opencode\/impact\/pre-unit-2\.json/);
   // No reuse shortcut is ever requested while units remain.
   assert.equal(calls.some((c) => c.includes("reuse_final_review")), false);
 });

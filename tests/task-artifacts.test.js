@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   GENERATED_HEADER_MARKER,
   TASK_ARTIFACT_VERSION,
@@ -243,7 +244,7 @@ test("materialization emits PR5 volume telemetry", () => {
 
 test("generated views are not gate evidence: no gate module imports them", () => {
   const repoRoot = path.resolve(
-    path.dirname(new URL(import.meta.url).pathname),
+    path.dirname(fileURLToPath(import.meta.url)),
     "..",
   );
   for (const relative of [
