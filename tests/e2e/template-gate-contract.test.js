@@ -32,7 +32,8 @@ function handoffFromImplementerTemplate({
 } = {}) {
   const prompt = read("skills/orchestrating/implementer-prompt.md");
   assert.match(prompt, /schema_version: "1\.1"/);
-  assert.match(prompt, /verification_gates/);
+  assert.match(prompt, /development_checks/);
+  assert.match(prompt, /verification_gates/); // documented compatibility alias
   assert.match(prompt, /drift_check/);
   assert.match(prompt, /Do NOT set verification_exempt/);
   assert.equal(prompt.includes("verification_exempt"), true); // mentioned as forbidden
@@ -49,11 +50,13 @@ function handoffFromImplementerTemplate({
     commit,
     files_changed: ["src/example.js"],
     allowed_files: ["src/example.js"],
-    tests: ["npm test"],
+    tests: ["node --test tests/example.test.js"],
     tasks_completed: [unit],
     notes_for_reviewer: "from template contract",
     scope_extras: [],
-    verification_gates: [{ id: "unit-tests", cmd: "npm test", pass: true }],
+    development_checks: [
+      { id: "regression-test", cmd: "node --test tests/example.test.js", pass: true },
+    ],
     drift_check: { plan_commit: base, current_head: commit, pass: true },
     blast: { risk: "LOW", verified: true, callers_checked: [] },
   };

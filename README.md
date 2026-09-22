@@ -19,7 +19,7 @@ you describe the work
         ↓
 orchestrator brainstorms → plans
         ↓
-(standard/deep? plan-advisor → plan-check)
+(advisor required? plan-advisor → plan-check)
         ↓
 (for each execution unit) pre-impact → implementer → post-impact + verify → reviewer
         ↓
@@ -82,7 +82,7 @@ After install, OpenCode has three canonical execution agents plus one planning-o
 | `orchestrator` | Owns the fixed workflow, plan, and execution-unit loop |
 | `implementer` | Implements one execution unit, running targeted checks after its internal steps |
 | `reviewer` | Reviews each verified execution unit, then the whole branch for multi-unit integration |
-| `plan-advisor` | Conditional read-only challenge for standard/deep plans; never executes code |
+| `plan-advisor` | Conditional read-only challenge when the persisted planning decision requires it; never executes code |
 
 Nexus also installs a plugin and model config, with the **Nexus Impact Engine** as the primary canonical evidence provider.
 
@@ -253,7 +253,7 @@ On Windows, set `OPENCODE_CONFIG_DIR` if your OpenCode config is not under `~/.c
 
 ### V4 migration
 
-V5 installs only `orchestrator`, `implementer`, and `reviewer` as execution agents. It also ships the conditional, planning-only `plan-advisor`; this specialist is used only for standard/deep planning and is never part of the execution loop. Every `nexus install` update automatically removes retired V4 agent configuration and files, including `blast-analyzer`, split reviewers, and `unified-reviewer`. Nexus Impact Engine (`nexus impact`) supplies the git, AST, and affected-test evidence those agents previously covered.
+V5 installs only `orchestrator`, `implementer`, and `reviewer` as execution agents. It also ships the conditional, planning-only `plan-advisor`; this specialist is used only during planning, when the deterministic planning decision requires an independent challenge, and is never part of the execution loop. Every `nexus install` update automatically removes retired V4 agent configuration and files, including `blast-analyzer`, split reviewers, and `unified-reviewer`. Nexus Impact Engine (`nexus impact`) supplies the git, AST, and affected-test evidence those agents previously covered.
 
 `--prune-optional-agents` remains available for migration scripts, but is normally unnecessary because pruning is automatic:
 
@@ -322,7 +322,7 @@ request → brainstorm → plan advisor? → plan-check → (per unit) pre-impac
 Only the **implementer** writes production code. Nexus uses one fixed V5 workflow:
 
 - Every implementer dispatch requires fresh pre-impact evidence.
-- Standard/deep plans may use one independent `plan-advisor` call before synthesis; compact plans do not.
+- Planning depth and the independent planning challenge are separate decisions. Nexus derives both from reported evidence: a `plan-advisor` call is required for any safety signal (public contract, security boundary, migration, destructive change, architectural choice, multi-subsystem work, HIGH/CRITICAL/UNKNOWN impact), for deep planning, for declared uncertainty, and whenever the evidence is too thin to judge — so a clear `standard` plan can legitimately spend zero advisor calls. The decision is persisted with reason codes; compact plans never spend one.
 - `nexus run transition --to PLANNED --plan-check` runs the deterministic execution-unit DAG, acceptance/verification, decomposition-warning, and call-estimate gate and persists its passing report; standalone `nexus plan-check` is diagnostic.
 - Every execution unit states `user_outcome`, `independently_shippable`, `review_boundary`, and `estimated_lines`; implementation steps remain inside the unit.
 - The implementer runs targeted checks after internal steps. Nexus does not persist or authorize each step as a separate verification boundary: it runs deterministic `nexus verify` for the completed unit before dispatching one task reviewer.

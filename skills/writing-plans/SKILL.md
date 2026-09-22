@@ -199,6 +199,9 @@ Label confidence honestly:
 - Give every unit the four required fields above. Use `review_boundary: NONE` when there is no independent boundary; otherwise use one of the seven boundary values and explain it.
 - Merge dependent units by default when they cannot ship independently and their combined scope fits the configured reviewer-audit limits, unless a named boundary justifies separation. Do not turn a step, test, type, or setup task into a unit on its own.
 - For every plan, include `## Execution Unit Justification` with reasons why fewer and more units are not appropriate.
+- Record the planning evidence Nexus needs to decide depth and whether an independent challenge is required: `Planning mode`, unit count, whether the work is one cohesive unit, whether the implementation pattern is already established in this repo, and any semantic signal (public contract, security boundary, migration, destructive change, architectural choice, multiple subsystems, unresolved decision). State it as evidence, not as a conclusion about the advisor.
+- A plan with an unresolved product or design decision is not ready: either resolve it (`WAITING_FOR_USER`) or state it so the plan-advisor challenge is triggered. Do not bury it in prose.
+- Never claim a cohesive unit or an established pattern you have not verified in the repository. Those claims can lower planning depth, so they need the same evidence standard as everything else in the plan.
 - Run `nexus plan-check --json` before transitioning to `PLANNED`; fix errors and add a disposition for every actionable warning.
 - For `KEEP_SEPARATE`, use one of the seven `reason_code` values above plus a concrete explanation. For `MERGED`, revise the plan and rerun `nexus plan-check` until no merge-candidate warning remains for those units; remove stale dispositions.
 - Prefer minimal diffs and existing patterns — cite an exemplar file per task.

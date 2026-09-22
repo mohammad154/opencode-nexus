@@ -35,16 +35,33 @@ The execution roster remains three agents: orchestrator, implementer, reviewer.
 `plan-advisor` is a conditional planning-only specialist and is never dispatched
 in the implementation/review loop.
 
-Planning depth is adaptive:
+Planning depth and independent planning challenge are two separate decisions.
 
-- `compact`: tiny, low-risk changes; write the plan without an advisor.
-- `standard`: ordinary feature; dispatch `plan-advisor` once with a Problem Brief.
-- `deep`: migration/refactor/security/public-contract work; dispatch it once,
-  and permit a second call only for a documented `CRITICAL_DISAGREEMENT`.
+Depth:
+
+- `compact`: one cohesive unit, established pattern, known non-HIGH impact, small
+  review surface, no semantic signal. Size is a signal, not the rule.
+- `standard`: ordinary feature.
+- `deep`: migration, public contract, security boundary, destructive change, or
+  HIGH/CRITICAL/UNKNOWN impact.
+
+Challenge: Nexus derives `plan_advisor_decision` from the reported evidence. It
+is **required** for any hard safety signal (public contract, security boundary,
+migration, destructive change, architectural choice, multiple subsystems,
+HIGH/CRITICAL/UNKNOWN impact), for deep planning, for declared uncertainty, and
+whenever the evidence is too thin to judge. It is **not required** for a clear,
+cohesive, known-pattern task — so a `standard` plan with zero advisor calls is
+normal, not a skipped step.
+
+Report evidence, not conclusions: `change_class`, `unit_count`, `cohesive_unit`,
+`known_pattern`, `risk`, plus any of `decomposition_uncertain`,
+`planning_uncertainty`, or `open_questions`. You can raise the requirement; you
+cannot clear a deterministic trigger, and declaring `compact` over a
+disqualifying signal is rejected at `PLANNED`. `nexus next` routes the dispatch.
 
 If the advisor cannot start because its model is missing, stop and fix
-`plan-advisor.model` in OpenCode config. Do not forge advisor evidence and do
-not silently downgrade to `compact` unless the change really is tiny.
+`plan-advisor.model` in OpenCode config. Do not forge advisor evidence and do not
+claim cohesion or a known pattern you have not established.
 
 Before `PLANNED`, run `nexus plan-check --json`. It is deterministic and checks
 the execution-unit DAG, acceptance and verification ownership, scope overlap,
@@ -72,8 +89,9 @@ CREATED → BRAINSTORMING ↔ WAITING_FOR_USER → PLANNED
 ```bash
 nexus run init --run-id <id>
 nexus run transition --to BRAINSTORMING
-# choose planning mode; standard/deep gets one independent advisor call:
-nexus run transition --to BRAINSTORMING --json '{"planning_mode":"standard"}'
+# report planning depth and evidence; Nexus decides if an advisor call is required:
+nexus run transition --to BRAINSTORMING --json '{"planning_mode":"standard","unit_count":1,"cohesive_unit":true,"known_pattern":true,"risk":"LOW"}'
+nexus next   # dispatch_plan_advisor only when the persisted decision requires it
 # writing-plans creates PLAN.md, then the deterministic check runs first:
 nexus plan-check --json
 nexus run transition --to PLANNED

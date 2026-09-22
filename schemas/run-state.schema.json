@@ -37,6 +37,19 @@
     "plan_advisor_calls": { "type": "integer", "minimum": 0 },
     "plan_advisor": { "type": ["object", "null"], "additionalProperties": true },
     "plan_advisor_handoff": { "type": ["object", "null"], "additionalProperties": true },
+    "plan_advisor_decision": {
+      "type": ["object", "null"],
+      "properties": {
+        "required": { "type": "boolean" },
+        "reason_codes": { "type": "array", "items": { "type": "string" } },
+        "signals": { "type": "array", "items": { "type": "string" } },
+        "planning_mode": { "type": ["string", "null"], "enum": ["compact", "standard", "deep", null] },
+        "precedence": { "type": ["string", "null"] },
+        "version": { "type": ["string", "null"] }
+      },
+      "required": ["required", "reason_codes"],
+      "additionalProperties": true
+    },
     "plan_check": { "type": ["object", "null"], "additionalProperties": true },
     "execution_units": { "type": ["array", "null"], "items": { "type": "object", "additionalProperties": true } },
     "units": { "type": ["array", "null"], "items": { "type": "object", "additionalProperties": true } },

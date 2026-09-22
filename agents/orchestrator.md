@@ -97,10 +97,12 @@ nexus run transition --to BRAINSTORMING
 # if ambiguous:
 nexus run transition --to WAITING_FOR_USER --json '{"question":"..."}'
 nexus run transition --to BRAINSTORMING
-# Choose compact|standard|deep. For standard/deep, dispatch plan-advisor with
-# a Problem Brief, then synthesize PLAN.md and run the deterministic linter.
-nexus run transition --to BRAINSTORMING --json '{"planning_mode":"standard"}'
-nexus run transition --to PLANNED --plan-check --json '{"planning_mode":"standard","plan_advisor":{...},"plan_exists":true}'
+# Choose depth compact|standard|deep and report planning evidence. Nexus derives
+# whether an independent plan-advisor challenge is required; dispatch it only when
+# the decision (or `nexus next`) says so, then synthesize PLAN.md and run the linter.
+nexus run transition --to BRAINSTORMING --json '{"planning_mode":"standard","unit_count":1,"cohesive_unit":true,"known_pattern":true,"risk":"LOW"}'
+nexus run transition --to PLANNED --plan-check --json '{"planning_mode":"standard","plan_exists":true}'
+# Add "plan_advisor":{...} when the persisted decision requires the challenge.
 # The --plan-check transition runs the linter against the current PLAN.md and
 # persists the passing report; a standalone nexus plan-check is diagnostic only.
 nexus impact --json --targets <files>
@@ -138,18 +140,48 @@ scope fits reviewer-audit limits and no named boundary justifies a split. An
 implementation step, test, type, or setup task is not an execution unit by
 itself.
 
-Planning modes:
+Planning modes describe *depth*. Whether an independent planning challenge is
+needed is a separate decision Nexus derives deterministically — a clear
+`standard` unit can legitimately run with no advisor call at all.
 
-- `compact`: tiny, low-risk, usually one-file changes; no advisor call.
-- `standard`: ordinary features; one plan-advisor call before synthesis.
-- `deep`: migrations, refactors, public contracts, security, or broad changes;
-  one advisor call, with a second call only for a documented critical
-  disagreement.
+- `compact`: one cohesive execution unit, established implementation pattern,
+  impact known and not HIGH/CRITICAL, small review surface, and no semantic
+  signal (public contract, security boundary, migration, destructive change,
+  architectural choice, multiple subsystems, unresolved decision). Size is a
+  signal, not the rule: three files and eighty cohesive lines can be compact,
+  while fifteen lines of authentication behavior cannot. No advisor call.
+- `standard`: ordinary features. Advisor call only when the decision requires it.
+- `deep`: migrations, public contracts, security boundaries, destructive
+  changes, or HIGH/CRITICAL/UNKNOWN impact; one advisor call, with a second call
+  only for a documented critical disagreement.
+
+Report planning evidence instead of asserting the outcome. Nexus derives the
+decision from the change class, hard triggers, declared semantic signals,
+cohesion, pattern familiarity, unit count, size, and measured risk:
+
+```bash
+nexus run transition --to BRAINSTORMING --json '{
+  "planning_mode":"standard",
+  "change_class":"small-feature-with-tests",
+  "unit_count":1,
+  "cohesive_unit":true,
+  "known_pattern":true,
+  "risk":"LOW"
+}'
+```
+
+The persisted `plan_advisor_decision` records `required` and `reason_codes`, so a
+zero-advisor plan is explainable rather than looking like a skipped step. You may
+declare uncertainty (`decomposition_uncertain`, `planning_uncertainty`,
+`open_questions`) to *raise* the requirement; you cannot declare
+`required: false` to clear a deterministic trigger, and an explicit `compact`
+claim is rejected when a signal disqualifies it. Run `nexus next` when unsure —
+it routes the advisor dispatch from the persisted decision.
 
 If `plan-advisor` fails to start (`Model not found`), do not invent a handoff.
 Set `.agent["plan-advisor"].model` in `opencode.json` or `nexus.models.json` to
-a model you actually have, then retry. Use `compact` only when the work is
-genuinely tiny — not as a workaround for a missing model.
+a model you actually have, then retry. Never downgrade planning depth or claim
+cohesion you have not established in order to work around a missing model.
 
 Use `nexus run transition --to PLANNED --plan-check` before entering `PLANNED`.
 It checks the dependency DAG,

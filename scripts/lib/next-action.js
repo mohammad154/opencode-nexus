@@ -7,7 +7,11 @@
 import fs from "fs";
 import path from "path";
 import { spawnSync } from "node:child_process";
-import { planningModeFromEvidence } from "./planning.js";
+import {
+  normalizePlanAdvisorDecision,
+  planAdvisorDecision,
+  planningModeFromEvidence,
+} from "./planning.js";
 import { getAgentCallBudget } from "./providers.js";
 import { validateContainedPath } from "./filesystem-boundary.js";
 import { verifySealedArtifact } from "./artifact-seal.js";
@@ -78,6 +82,36 @@ function stateRunPlanningMode(runState) {
         classification.estimatedLines,
     }) || ""
   );
+}
+
+/**
+ * Whether this run still owes an independent planning challenge.
+ * Uses the persisted decision when one exists; otherwise re-derives it from the
+ * same evidence, so routing never depends on an agent's judgement.
+ *
+ * A run with no planning evidence at all keeps the workflow's long-standing
+ * compact default: there is nothing to escalate on yet, and the PLANNED gate
+ * re-decides once classification or a plan exists.
+ */
+function runAdvisorRequired(runState) {
+  const persisted = normalizePlanAdvisorDecision(runState?.plan_advisor_decision);
+  if (persisted) return persisted.required;
+  const mode = stateRunPlanningMode(runState);
+  if (!mode) return false;
+  const classification = runState?.classification || {};
+  return planAdvisorDecision({
+    ...classification,
+    ...runState,
+    planning_mode: mode,
+    change_class:
+      runState?.change_class || classification.change_class || classification.changeClass,
+    files_changed:
+      runState?.files_changed || classification.files_changed || classification.filesChanged,
+    estimated_lines:
+      runState?.estimated_lines ||
+      classification.estimated_lines ||
+      classification.estimatedLines,
+  }).required;
 }
 
 function exhaustedAgentCallBudget(runState) {
@@ -497,8 +531,7 @@ function resolveNextActionInternal(runState, opts = {}) {
 
     case "BRAINSTORMING":
       if (
-        (stateRunPlanningMode(runState) === "standard" ||
-          stateRunPlanningMode(runState) === "deep") &&
+        runAdvisorRequired(runState) &&
         !runState.plan_advisor &&
         !runState.plan_advisor_handoff
       ) {

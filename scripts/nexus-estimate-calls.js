@@ -47,11 +47,29 @@ const planningMode = normalizePlanningMode(
 const advisorCalls = hasFlag("--advisor")
   ? Math.max(1, parseInt(flag("--advisor-calls", "1"), 10) || 1)
   : undefined;
+// A persisted plan_advisor_decision is authoritative: `--no-advisor` alone is a
+// claim, while `--advisor-decision <file|json>` is recorded evidence.
+let advisorDecision = null;
+const advisorDecisionInput = flag("--advisor-decision");
+if (advisorDecisionInput) {
+  const asPath = path.resolve(advisorDecisionInput);
+  const raw = fs.existsSync(asPath)
+    ? fs.readFileSync(asPath, "utf8")
+    : advisorDecisionInput;
+  try {
+    const parsed = JSON.parse(raw);
+    advisorDecision = parsed?.plan_advisor_decision ?? parsed;
+  } catch {
+    console.error("--advisor-decision must be valid JSON or a path to a JSON file");
+    process.exit(2);
+  }
+}
 const estimate = estimateAgentCalls({
   units,
   fixLoops,
   planningMode,
   advisorCalls,
+  advisorDecision,
   criticalDisagreement: hasFlag("--critical-disagreement"),
   singleUnitFinalReviewReuse: hasFlag("--reuse-single-final"),
 });
@@ -66,12 +84,14 @@ const out = {
   planning_mode: estimate.planning_mode,
   fix_loops_assumed: fixLoops,
   plan_advisor_calls: estimate.plan_advisor_calls,
+  plan_advisor_decision: estimate.plan_advisor_decision,
   calls: estimate.calls,
   formula: estimate.formula,
   notes: [
     "V5 has no fast/balanced/strict profile matrix.",
     "Execution-unit count, not implementation-step count, drives implementer and reviewer calls.",
-    "Plan Advisor is planning-only and normally adds at most one call for standard/deep planning.",
+    "Plan Advisor is uncertainty-triggered: the persisted plan_advisor_decision decides, not the planning mode.",
+    "Without a recorded decision the estimate stays conservative and reserves one advisor call for non-compact planning.",
     "Every implementer dispatch requires fresh pre-impact (script, not an agent call).",
     "Generate review packages with: nexus review-package --scope task|final",
   ],

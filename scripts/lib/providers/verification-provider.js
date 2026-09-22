@@ -15,6 +15,11 @@ import {
 } from "../verification/discover.js";
 import { compareBaselines } from "../verification/compare.js";
 import { sealProviderArtifact, sha256Digest } from "../artifact-seal.js";
+import {
+  isReusableVerificationResult,
+  stepArgv,
+  stepIdentity,
+} from "../evidence-identity.js";
 import { validateContainedPath } from "../filesystem-boundary.js";
 import { resolveExecutable } from "../resolve-executable.js";
 
@@ -237,6 +242,35 @@ export function runStep(step, worktree, timeoutMs = null, executionOptions = {})
   };
 }
 
+/**
+ * Resolve a reusable recorded result for `step`, or null.
+ *
+ * Identity-bearing candidates must match the step's evidence identity exactly.
+ * Candidates recorded before identities existed are accepted only on an exact
+ * step id *and* identical argv, so a renamed or re-argued command never reuses
+ * an unrelated result. Failures, timeouts, and unavailable results are never
+ * reusable: reuse may reduce computation, never required evidence.
+ */
+function resolveReusableResult(step, candidates, identity) {
+  const argv = stepArgv(step);
+  if (!argv) return null;
+  for (const candidate of candidates) {
+    if (!candidate || candidate.pass !== true) continue;
+    if (candidate.status === "UNAVAILABLE" || candidate.status === "SKIPPED") continue;
+    if (candidate.timed_out === true) continue;
+    if (typeof candidate.identity === "string" && candidate.identity) {
+      if (!identity) continue;
+      if (isReusableVerificationResult(candidate, { identity, argv })) return candidate;
+      continue;
+    }
+    if (candidate.id !== step.id) continue;
+    if (!Array.isArray(candidate.argv) || candidate.argv.length !== argv.length) continue;
+    if (!candidate.argv.every((entry, index) => entry === argv[index])) continue;
+    return candidate;
+  }
+  return null;
+}
+
 export function createVerificationProvider(providerOptions = {}) {
   return {
     mode: "nexus-verification",
@@ -263,15 +297,16 @@ export function createVerificationProvider(providerOptions = {}) {
         ...providerOptions,
         ...ctx,
       });
-      const reusable = new Map(
-        (ctx.reuse_results || ctx.reuseResults || [])
-          .filter((result) => result?.id && result.pass === true)
-          .map((result) => [result.id, result]),
+      const reuseCandidates = (ctx.reuse_results || ctx.reuseResults || []).filter(
+        (result) => result?.pass === true,
       );
+      const identityContext =
+        ctx.identity_context || ctx.identityContext || null;
       const onProgress = typeof ctx.onProgress === "function" ? ctx.onProgress : null;
       const totalSteps = (plan.steps || []).length;
       let timedOut = false;
       let executedStepCount = 0;
+      let reusedStepCount = 0;
       for (const skipped of plan.ignored_targets || []) {
         results.push({
           id: `skipped:${skipped.path}`,
@@ -296,19 +331,23 @@ export function createVerificationProvider(providerOptions = {}) {
           onProgress?.({ type: "complete", index: index + 1, total: totalSteps, step, result });
           continue;
         }
-        const cached = reusable.get(step.id);
+        const identity = identityContext ? stepIdentity(identityContext, step) : null;
+        const cached = resolveReusableResult(step, reuseCandidates, identity);
         if (cached) {
           const result = {
             ...cached,
             id: step.id,
             command: formatCommand(step),
-            argv: [step.command, ...(step.args || [])],
+            argv: stepArgv(step),
+            identity: identity || cached.identity || null,
             pass: true,
             status: "REUSED",
             reused: true,
+            reuse_source: cached.reuse_source || cached.source || "sealed_evidence",
           };
           results.push(result);
           executedStepCount += 1;
+          reusedStepCount += 1;
           onProgress?.({ type: "reuse", index: index + 1, total: totalSteps, step, result });
           continue;
         }
@@ -321,6 +360,7 @@ export function createVerificationProvider(providerOptions = {}) {
           id: step.id,
           command: formatCommand(step),
           argv: [step.command, ...(step.args || [])],
+          identity,
           exit_code: r.status,
           pass: r.status === 0 && !r.timed_out && !spawnFailed,
           status: r.timed_out ? "TIMED_OUT" : r.status === 0 && !spawnFailed ? "PASSED" : "FAILED",
@@ -354,6 +394,8 @@ export function createVerificationProvider(providerOptions = {}) {
         plan,
         timed_out: timedOut,
         executed_steps: executedStepCount,
+        reused_steps: reusedStepCount,
+        ran_steps: executedStepCount - reusedStepCount,
         total_steps: totalSteps,
         timeouts,
       };

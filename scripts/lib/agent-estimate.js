@@ -1,4 +1,5 @@
 import {
+  normalizePlanAdvisorDecision,
   normalizePlanningMode,
   planAdvisorCallCount,
 } from "./planning.js";
@@ -12,6 +13,11 @@ import {
  * final reviewer
  * and always includes the final reviewer unless an explicitly eligible
  * single-unit reuse is requested.
+ *
+ * The advisor allowance follows the persisted `plan_advisor_decision` when one
+ * exists, not the planning mode: planning depth and independent planning
+ * challenge are separate variables. With no decision the mode-only fallback
+ * stays conservative.
  */
 export function agentCostModel({
   units = 1,
@@ -19,6 +25,7 @@ export function agentCostModel({
   fixLoops = 0,
   planningMode = "compact",
   advisorCalls,
+  advisorDecision = null,
   criticalDisagreement = false,
   singleUnitFinalReviewReuse = false,
 } = {}) {
@@ -26,9 +33,10 @@ export function agentCostModel({
   const count = Math.max(1, Math.floor(Number(rawUnits) || 1));
   const fixes = Math.max(0, Math.floor(Number(fixLoops) || 0));
   const mode = normalizePlanningMode(planningMode, "compact");
+  const decision = normalizePlanAdvisorDecision(advisorDecision);
   const planAdvisor = Number.isFinite(Number(advisorCalls))
     ? Math.max(0, Math.floor(Number(advisorCalls)))
-    : planAdvisorCallCount(mode, { criticalDisagreement });
+    : planAdvisorCallCount(mode, { criticalDisagreement, decision });
   const implementer = count + fixes;
   const taskReviewer = count + fixes;
   const finalReviewer =
@@ -41,6 +49,7 @@ export function agentCostModel({
     tasks: count,
     planning_mode: mode,
     plan_advisor_calls: planAdvisor,
+    plan_advisor_decision: decision,
     fix_loops: fixes,
     single_unit_final_review_reuse:
       Boolean(singleUnitFinalReviewReuse && count === 1),
@@ -68,6 +77,7 @@ export function estimateAgentCalls({
   fixLoops = 0,
   planningMode = "compact",
   advisorCalls,
+  advisorDecision = null,
   criticalDisagreement = false,
   singleUnitFinalReviewReuse = false,
 } = {}) {
@@ -77,6 +87,7 @@ export function estimateAgentCalls({
     fixLoops,
     planningMode,
     advisorCalls,
+    advisorDecision,
     criticalDisagreement,
     singleUnitFinalReviewReuse,
   });
@@ -86,11 +97,12 @@ export function estimateAgentCalls({
     tasks: model.tasks,
     planning_mode: model.planning_mode,
     plan_advisor_calls: model.plan_advisor_calls,
+    plan_advisor_decision: model.plan_advisor_decision,
     single_unit_final_review_reuse: model.single_unit_final_review_reuse,
     calls: {
       ...model.calls,
     },
     formula:
-      "plan_advisor? + units*(implementer + task reviewer) + final reviewer + fix_loops*(implementer + reviewer)",
+      "plan_advisor(decision) + units*(implementer + task reviewer) + final reviewer + fix_loops*(implementer + reviewer)",
   };
 }

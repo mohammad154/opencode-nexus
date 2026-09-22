@@ -14,17 +14,51 @@
 Never delete a cache to hide an unexpected result. Rebuild it and inspect the
 reported invalidation reason.
 
+## PLANNED is blocked by the plan-advisor decision
+
+Two distinct errors come from the deterministic planning decision.
+
+`plan-advisor is required before PLANNED (<reason codes>)` means a hard safety
+signal, deep planning, declared uncertainty, or insufficient evidence made an
+independent challenge mandatory. The reason codes name what triggered it. Either
+dispatch `plan-advisor` once and pass its handoff, or change the evidence if the
+classification was wrong — do not fabricate an advisor handoff.
+
+`compact planning is not admissible for this change: <signals>` means the run
+declared `planning_mode: compact` while a deterministic signal (for example
+`SECURITY_BOUNDARY`) disqualifies compact planning. Raise the depth to `standard`
+or `deep`; compact cannot be used to avoid the challenge.
+
+If the decision is stricter than you expect, inspect the persisted record:
+
+```bash
+nexus run inspect --run-id <id>   # plan_advisor_decision.reason_codes
+```
+
+`INSUFFICIENT_PLANNING_EVIDENCE` is not a bug: with no cohesion or pattern
+evidence Nexus cannot prove the challenge is unnecessary, so it reserves the
+call. Report `unit_count`, `cohesive_unit`, `known_pattern`, and `risk` to get the
+zero-advisor path.
+
 ## VERIFYING is blocked by a handoff
 
 Look for `implementer handoff invalid` in the transition errors. Common causes
-are missing `files_changed`, `tests`, `verification_gates`, `drift_check`, or
+are missing `files_changed`, `tests`, `development_checks` (or the legacy
+`verification_gates` alias), `drift_check`, or
 `impact.verified`/`blast.verified`. Also check that:
 
 - `status` is `DONE` or `DONE_WITH_CONCERNS`;
-- every `verification_gates[*].pass` is `true`;
+- at least one implementation check is reported and every reported check has
+  `pass: true`;
 - object-form `tests.passed` is `true`;
 - `base_commit`, `commit`, `run_id`, and `unit_or_task` bind to the run; and
 - `drift_check.pass` is `true`.
+
+`development_checks` records the checks the implementer ran for development
+feedback. It is not authoritative verification: the implementer is not expected
+to pre-run the full test suite, repository lint, whole-project typecheck, or
+build. `nexus verify` owns those and must return `PASSED` before a reviewer is
+dispatched.
 
 The preflight gate runs before post-impact and test providers. Fix the handoff
 or explicitly block the run. After the fast transition succeeds, run
@@ -46,6 +80,13 @@ Passed steps are reused only if the verification artifact digest, current
 HEAD, plan digest, and timeout/configuration digest all still match. If HEAD
 changed, Nexus refuses to verify it under the old handoff; restore the expected
 commit or start the normal repair workflow rather than reusing evidence.
+
+Final verification can also reuse a task result, but only when the full evidence
+identity is unchanged: HEAD, workspace content digest, argv, timeout
+configuration, scope policy, dependency lockfiles, and toolchain. Any difference
+re-executes the check. A failed, timed-out, or unavailable result is never
+reused. `reused_steps` and `ran_steps` in the sealed artifact show what actually
+executed.
 
 Project-level timeout defaults live in `.opencode/config/workflow.json` under
 `verificationTimeouts`; environment overrides include

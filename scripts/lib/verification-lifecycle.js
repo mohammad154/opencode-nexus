@@ -15,6 +15,10 @@ import {
   verifySealedArtifact,
 } from "./artifact-seal.js";
 import { inspectWorkspace } from "./workspace-integrity.js";
+import {
+  stepIdentity,
+  verificationIdentityContext,
+} from "./evidence-identity.js";
 import { runStatePath, writeRunState } from "./migrate-artifacts.js";
 import { requiresTdd } from "./policy.js";
 import { trustedPolicyForState } from "./policy-snapshot.js";
@@ -100,6 +104,80 @@ function configurationDigest(phase, timeouts) {
   return sha256Digest(stableStringify({ phase, timeouts }));
 }
 
+/**
+ * Configuration identity of a single executable check.
+ *
+ * Deliberately phase-free: the same command, at the same HEAD, over the same
+ * workspace, with the same timeouts is the same measurement whether it was
+ * first run for TASK or FINAL verification. `configurationDigest` stays
+ * phase-scoped because it identifies the *artifact*, not a command.
+ */
+function stepConfigurationDigest(timeouts) {
+  return sha256Digest(stableStringify({ timeouts }));
+}
+
+/**
+ * Task-phase results that may substitute for final-phase checks.
+ *
+ * Requires a sealed, intact, passing TASK artifact at the current HEAD. Every
+ * candidate still has to match the final step's full evidence identity inside
+ * the provider, so this only widens the candidate pool — it never relaxes the
+ * reuse rule.
+ */
+function crossPhaseReuseCandidates(state, { phase, head }) {
+  if (phase !== "FINAL") return [];
+  const sealed = state?.provider_verification;
+  if (!verifySealedArtifact(sealed)) return [];
+  if (sealed.ok !== true) return [];
+  if (!head || sealed.worktree_head !== head) return [];
+  return (sealed.results || [])
+    .filter(
+      (result) =>
+        result?.pass === true &&
+        typeof result.identity === "string" &&
+        result.identity.length > 0,
+    )
+    .map((result) => ({ ...result, reuse_source: "task_verification" }));
+}
+
+/**
+ * Turn a sealed, passing TDD artifact into a reuse candidate for the identical
+ * verification step.
+ *
+ * Only admissible when the green command ran in this worktree at the current
+ * HEAD and the workspace did not change across the red/green measurement, so
+ * the recorded result provably belongs to `identityContext`.
+ */
+function tddGreenReuseCandidate(tddEvidence, { identityContext, head, workspaceStable }) {
+  if (!identityContext || workspaceStable !== true) return [];
+  if (!verifySealedArtifact(tddEvidence)) return [];
+  if (tddEvidence.ok !== true || tddEvidence.timed_out === true) return [];
+  if (tddEvidence.green?.exit_code !== 0) return [];
+  if (!head || tddEvidence.worktree_head !== head) return [];
+  const argv = Array.isArray(tddEvidence.command) ? tddEvidence.command : null;
+  if (!argv || argv.length === 0 || argv.some((entry) => typeof entry !== "string")) {
+    return [];
+  }
+  const identity = stepIdentity(identityContext, {
+    command: argv[0],
+    args: argv.slice(1),
+  });
+  if (!identity) return [];
+  return [
+    {
+      id: tddEvidence.test_id || "test",
+      command: argv.join(" "),
+      argv,
+      identity,
+      pass: true,
+      status: "PASSED",
+      exit_code: 0,
+      reuse_source: "tdd_green",
+      output_digest: tddEvidence.green.output_digest || null,
+    },
+  ];
+}
+
 function riskFromImpact(report, state) {
   return (
     report?.risk ||
@@ -109,6 +187,45 @@ function riskFromImpact(report, state) {
     state?.classification?.risk ||
     null
   );
+}
+
+/**
+ * Phase 0 diagnostics. A second *execution* of the same evidence identity is
+ * duplicate work; a reuse is not. Recording is best-effort and never affects
+ * authorization.
+ */
+function recordVerificationCommandMetric(providers, state, result) {
+  const telemetry = providers?.telemetry;
+  if (typeof telemetry?.recordVerificationCommand !== "function") return;
+  const reused = result?.status === "REUSED";
+  try {
+    telemetry.recordVerificationCommand({
+      run_id: state?.run_id,
+      step: result?.id,
+      command: result?.command,
+      identity: result?.identity || null,
+      status: result?.status,
+      reused,
+      ...(reused ? {} : { duration_ms: result?.duration_ms }),
+    });
+  } catch {
+    // Diagnostics must never break measurement.
+  }
+}
+
+function recordImpactMetric(providers, state, { phase, analyzed }) {
+  const telemetry = providers?.telemetry;
+  if (typeof telemetry?.recordImpactAnalysis !== "function") return;
+  try {
+    telemetry.recordImpactAnalysis({
+      run_id: state?.run_id,
+      phase,
+      identity: analyzed?.identity || analyzed?.report?.impact_identity || null,
+      cache_hit: analyzed?.cache_hit === true,
+    });
+  } catch {
+    // Diagnostics must never break measurement.
+  }
 }
 
 function postImpactReport(providers, state, worktree, phase) {
@@ -133,6 +250,10 @@ function postImpactReport(providers, state, worktree, phase) {
     post_impact: true,
     force_recompute: true,
     policy,
+  });
+  recordImpactMetric(providers, state, {
+    phase: phase === "FINAL" ? "final-post" : "post",
+    analyzed,
   });
   const report = analyzed?.report || analyzed;
   if (
@@ -578,6 +699,11 @@ function runVerificationLifecycleUnlocked({
     verifySealedArtifact(artifact.tdd_evidence) &&
     artifact.tdd_evidence.ok === true &&
     artifact.tdd_evidence.worktree_head === head;
+  // Measure the source state before the red/green runs. Green evidence may only
+  // stand in for a provider step when the workspace is unchanged across TDD, so
+  // the recorded result provably belongs to this run's identity.
+  const workspaceBeforeTdd =
+    needsTdd && !priorTdd ? inspectWorkspace(root) : null;
   if (needsTdd) {
     if (priorTdd) {
       tddEvidence = artifact.tdd_evidence;
@@ -634,6 +760,41 @@ function runVerificationLifecycleUnlocked({
   }
 
   const providerOffset = needsTdd ? 2 : 1;
+
+  // One workspace measurement immediately before the checks execute. It gives
+  // every step in this run a single, shared identity basis: the results sealed
+  // here can then be reused by a later phase, and results sealed by an earlier
+  // phase can be matched against these steps. The post-run measurement below
+  // remains the authoritative sealed evidence for the completion gate.
+  const runWorkspace = inspectWorkspace(root);
+  const identityContext =
+    runWorkspace.available === true && runWorkspace.workspace_digest
+      ? verificationIdentityContext({
+          head,
+          workspaceDigest: runWorkspace.workspace_digest,
+          configDigest: stepConfigurationDigest(timeouts),
+          policyDigest: planInfo.options.policy?.policy_digest || null,
+          worktree: root,
+        })
+      : null;
+  const tddWorkspaceStable =
+    workspaceBeforeTdd === null
+      ? null
+      : workspaceBeforeTdd.available === true &&
+        runWorkspace.available === true &&
+        workspaceBeforeTdd.workspace_digest === runWorkspace.workspace_digest;
+  const reuseResults = [
+    ...(reusable ? reusableProviderResults(artifact) : []),
+    ...crossPhaseReuseCandidates(currentState, { phase, head }),
+    ...(needsTdd && !priorTdd
+      ? tddGreenReuseCandidate(tddEvidence, {
+          identityContext,
+          head,
+          workspaceStable: tddWorkspaceStable,
+        })
+      : []),
+  ];
+
   let providerRun;
   try {
     providerRun = provider.run({
@@ -643,7 +804,8 @@ function runVerificationLifecycleUnlocked({
       risk_tier: planInfo.risk,
       plan: planInfo.plan,
       policy: planInfo.options.policy,
-      reuse_results: reusable ? reusableProviderResults(artifact) : [],
+      identity_context: identityContext,
+      reuse_results: reuseResults,
       onProgress(event) {
         const index = providerOffset + event.index;
         if (event.type === "start") {
@@ -659,6 +821,7 @@ function runVerificationLifecycleUnlocked({
         replaceStep(artifact, result);
         artifact.current_step = index;
         update();
+        recordVerificationCommandMetric(activeProviders, currentState, result);
         onProgress?.({
           type: event.type === "reuse" ? "step_reused" : "step_complete",
           index,
@@ -713,6 +876,13 @@ function runVerificationLifecycleUnlocked({
       baseline_comparison: baselineComparison,
       plan_digest: artifact.plan_digest,
       configuration_digest: configDigest,
+      // Evidence identity of this run's executable checks. Reuse of any result
+      // requires an exact identity match, so recording the basis keeps the
+      // decision auditable after the fact.
+      step_configuration_digest: stepConfigurationDigest(timeouts),
+      identity_workspace_digest: runWorkspace.workspace_digest || null,
+      reused_steps: providerRun?.reused_steps ?? 0,
+      ran_steps: providerRun?.ran_steps ?? providerRun?.executed_steps ?? 0,
       timed_out: providerRun?.timed_out === true,
       ...workspaceEvidence,
     },

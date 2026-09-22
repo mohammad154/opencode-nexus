@@ -5,7 +5,7 @@
 import fs from "fs";
 import path from "path";
 import { spawnSync } from "node:child_process";
-import { verificationLadder } from "./compare.js";
+import { fullSuiteForcingReasons, verificationLadder } from "./compare.js";
 import {
   isIgnoredPath,
   loadScopePolicy,
@@ -261,18 +261,86 @@ function step(id, command, args, kind, extra = {}) {
   return { id, command, args: [...args], kind, ...extra };
 }
 
-function filterStepsByLadder(steps, options = {}) {
+function isRelatedTestStep(candidate) {
+  return (
+    candidate?.kind === "targeted-test" ||
+    Boolean(candidate?.id && String(candidate.id).startsWith("related:"))
+  );
+}
+
+function isExecutableStep(candidate) {
+  return candidate?.status !== "UNAVAILABLE" && Boolean(candidate?.command);
+}
+
+/**
+ * Resolve which ladder levels actually apply to a discovered step list.
+ *
+ * A ladder level is required when it is in `levels`. A `fallback_levels` entry
+ * becomes required only when the ladder has no executable targeted evidence —
+ * or when an explicit forcing condition applies. This is the fail-closed half
+ * of the LOW ladder: dropping `full_tests` from the defaults must never leave a
+ * project with zero executable checks.
+ */
+export function resolveLadderLevels(steps, options = {}) {
   const risk = options.risk || options.risk_tier;
-  if (!risk) return steps;
   const ladder = verificationLadder(risk);
   const levels = new Set(ladder.levels || []);
+  const forcing = fullSuiteForcingReasons({
+    ...options,
+    risk: risk || options.risk,
+    require_full: ladder.require_full === true || options.force_full_tests === true,
+  });
+  const hasTargetedEvidence = (Array.isArray(steps) ? steps : []).some(
+    (candidate) => isRelatedTestStep(candidate) && isExecutableStep(candidate),
+  );
+  const fallbackReasons = [];
+  if (!hasTargetedEvidence) fallbackReasons.push("no_targeted_evidence");
+  const applyFallback = fallbackReasons.length > 0 || forcing.length > 0;
+  if (applyFallback) {
+    for (const level of ladder.fallback_levels || []) levels.add(level);
+  }
+  if (forcing.length > 0) levels.add("full_tests");
+  return {
+    ladder,
+    levels,
+    require_full: ladder.require_full === true || forcing.length > 0,
+    forcing_reasons: forcing,
+    fallback_reasons: applyFallback ? [...fallbackReasons, ...forcing] : [],
+    targeted_evidence: hasTargetedEvidence,
+  };
+}
 
-  return steps.filter((s) => {
-    if (s.kind === "targeted-test" || (s.id && s.id.startsWith("related:"))) {
+/**
+ * Apply the ladder and return both the surviving steps and the decision that
+ * produced them. `ladder.skipped_full_tests` with an empty `forcing_reasons`
+ * and `targeted_evidence: true` is the auditable record that the full suite was
+ * deliberately not repeated, rather than silently lost.
+ */
+export function applyLadder(steps, options = {}) {
+  const risk = options.risk || options.risk_tier;
+  if (!risk) {
+    return {
+      steps,
+      ladder: {
+        risk: null,
+        levels: null,
+        require_full: null,
+        forcing_reasons: [],
+        fallback_reasons: [],
+        targeted_evidence: null,
+        skipped_full_tests: false,
+      },
+    };
+  }
+  const resolved = resolveLadderLevels(steps, options);
+  const { levels, require_full: requireFull } = resolved;
+
+  const filtered = steps.filter((s) => {
+    if (isRelatedTestStep(s)) {
       return levels.has("related_tests");
     }
     if (s.kind === "test" || s.id === "test") {
-      return levels.has("full_tests") || ladder.require_full === true;
+      return levels.has("full_tests") || requireFull === true;
     }
     if (s.kind === "lint" || s.id === "lint" || s.id === "vet") {
       return levels.has("lint");
@@ -285,6 +353,21 @@ function filterStepsByLadder(steps, options = {}) {
     }
     return true;
   });
+
+  const offeredFullSuite = steps.some((s) => s.kind === "test" || s.id === "test");
+  const keptFullSuite = filtered.some((s) => s.kind === "test" || s.id === "test");
+  return {
+    steps: filtered,
+    ladder: {
+      risk: String(risk).toUpperCase(),
+      levels: [...levels].sort(),
+      require_full: requireFull,
+      forcing_reasons: resolved.forcing_reasons,
+      fallback_reasons: resolved.fallback_reasons,
+      targeted_evidence: resolved.targeted_evidence,
+      skipped_full_tests: offeredFullSuite && !keptFullSuite,
+    },
+  };
 }
 
 function relatedTestSteps(ecosystem, targets = []) {
@@ -315,6 +398,17 @@ export function discoverVerification(worktree, options = {}) {
     options.related_tests || [],
     { policy },
   );
+  const finish = (ecosystem, candidateSteps) => {
+    const applied = applyLadder(candidateSteps, options);
+    return {
+      ecosystem,
+      steps: applied.steps,
+      ladder: applied.ladder,
+      related_tests: relatedResolution.targets,
+      ignored_targets: relatedResolution.ignored,
+      policy_digest: policy.policy_digest || null,
+    };
+  };
   const pkgPath = path.join(worktree, "package.json");
   if (fs.existsSync(pkgPath)) {
     let pkg = {};
@@ -333,69 +427,45 @@ export function discoverVerification(worktree, options = {}) {
       steps.push(step("build", "npm", ["run", "build"], "build"));
     }
     steps.push(...relatedTestSteps("node", relatedResolution.targets));
-    return {
-      ecosystem: "node",
-      steps: filterStepsByLadder(steps, options),
-      related_tests: relatedResolution.targets,
-      ignored_targets: relatedResolution.ignored,
-      policy_digest: policy.policy_digest || null,
-    };
+    return finish("node", steps);
   }
 
   if (
     fs.existsSync(path.join(worktree, "pyproject.toml")) ||
     fs.existsSync(path.join(worktree, "pytest.ini"))
   ) {
-    return {
-      ecosystem: "python",
-      steps: filterStepsByLadder([
-        step("test", "pytest", [], "test"),
-        step(
-          "lint",
-          "ruff",
-          ["check", "."],
-          "lint",
-          hasCmd("ruff") ? {} : { status: "UNAVAILABLE" },
-        ),
-        step(
-          "typecheck",
-          "mypy",
-          ["."],
-          "typecheck",
-          hasCmd("mypy") ? {} : { status: "UNAVAILABLE" },
-        ),
-        ...relatedTestSteps("python", relatedResolution.targets),
-      ], options),
-      related_tests: relatedResolution.targets,
-      ignored_targets: relatedResolution.ignored,
-      policy_digest: policy.policy_digest || null,
-    };
+    return finish("python", [
+      step("test", "pytest", [], "test"),
+      step(
+        "lint",
+        "ruff",
+        ["check", "."],
+        "lint",
+        hasCmd("ruff") ? {} : { status: "UNAVAILABLE" },
+      ),
+      step(
+        "typecheck",
+        "mypy",
+        ["."],
+        "typecheck",
+        hasCmd("mypy") ? {} : { status: "UNAVAILABLE" },
+      ),
+      ...relatedTestSteps("python", relatedResolution.targets),
+    ]);
   }
   if (fs.existsSync(path.join(worktree, "Cargo.toml"))) {
-    return {
-      ecosystem: "rust",
-      steps: filterStepsByLadder([
-        step("test", "cargo", ["test"], "test"),
-        step("check", "cargo", ["check"], "typecheck"),
-        ...relatedTestSteps("rust", relatedResolution.targets),
-      ], options),
-      related_tests: relatedResolution.targets,
-      ignored_targets: relatedResolution.ignored,
-      policy_digest: policy.policy_digest || null,
-    };
+    return finish("rust", [
+      step("test", "cargo", ["test"], "test"),
+      step("check", "cargo", ["check"], "typecheck"),
+      ...relatedTestSteps("rust", relatedResolution.targets),
+    ]);
   }
   if (fs.existsSync(path.join(worktree, "go.mod"))) {
-    return {
-      ecosystem: "go",
-      steps: filterStepsByLadder([
-        step("test", "go", ["test", "./..."], "test"),
-        step("vet", "go", ["vet", "./..."], "lint"),
-        ...relatedTestSteps("go", relatedResolution.targets),
-      ], options),
-      related_tests: relatedResolution.targets,
-      ignored_targets: relatedResolution.ignored,
-      policy_digest: policy.policy_digest || null,
-    };
+    return finish("go", [
+      step("test", "go", ["test", "./..."], "test"),
+      step("vet", "go", ["vet", "./..."], "lint"),
+      ...relatedTestSteps("go", relatedResolution.targets),
+    ]);
   }
 
   return {
@@ -403,6 +473,15 @@ export function discoverVerification(worktree, options = {}) {
     steps: [
       step("noop", "true", [], "generic", { status: "UNAVAILABLE" }),
     ],
+    ladder: {
+      risk: null,
+      levels: null,
+      require_full: null,
+      forcing_reasons: [],
+      fallback_reasons: [],
+      targeted_evidence: null,
+      skipped_full_tests: false,
+    },
     related_tests: relatedResolution.targets,
     ignored_targets: relatedResolution.ignored,
     policy_digest: policy.policy_digest || null,

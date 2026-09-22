@@ -6,7 +6,7 @@ package version and workflow protocol version are intentionally independent.
 For implementation details and operational recovery, see
 [`architecture.md`](architecture.md) and [`troubleshooting.md`](troubleshooting.md).
 
-Nexus is a **fixed** three-agent execution workflow for OpenCode. The orchestrator coordinates; the implementer codes; the reviewer stays read-only; **scripts own measurement and gates**. A conditional `plan-advisor` may challenge standard/deep plans, but it is planning-only and never enters the execution loop.
+Nexus is a **fixed** three-agent execution workflow for OpenCode. The orchestrator coordinates; the implementer codes; the reviewer stays read-only; **scripts own measurement and gates**. A conditional `plan-advisor` may challenge a plan when the deterministic planning decision requires it, but it is planning-only and never enters the execution loop.
 
 ## Three invariants
 
@@ -65,6 +65,72 @@ request → brainstorm → (optional plan-advisor) → plan → plan-check → (
 
 Durable state: `.opencode/runs/<run-id>/state.json`
 
+## Planning depth and the planning challenge
+
+These are two separate decisions, both derived deterministically in
+`scripts/lib/planning.js` from reported evidence.
+
+**Depth** (`planning_mode`) follows semantic risk first and size second:
+
+| Mode | When |
+|---|---|
+| `compact` | one cohesive unit, established implementation pattern, impact known and not HIGH/CRITICAL, review surface within 5 files / 150 lines, and no semantic signal |
+| `standard` | ordinary features; also any architectural choice, multi-subsystem change, or unresolved decision |
+| `deep` | public contract, security boundary, migration, destructive change, HIGH/CRITICAL/UNKNOWN impact, or >8 files / >400 lines / >5 units |
+
+The semantic signals are `PUBLIC_CONTRACT`, `SECURITY_BOUNDARY`, `MIGRATION`,
+`DESTRUCTIVE_CHANGE`, `ARCHITECTURAL_CHOICE`, `MULTI_SUBSYSTEM`,
+`UNRESOLVED_DECISION`, `HIGH_IMPACT`, and `UNKNOWN_IMPACT`. Size alone no longer
+decides: three files and eighty cohesive lines can be compact, while fifteen
+lines of authentication behavior cannot. Compact requires *positive* evidence of
+cohesion and a known pattern — an unclassified change is planned as `standard`.
+
+**Challenge** (`plan_advisor_decision`) is independent of depth:
+
+```text
+hard safety signal        → REQUIRED
+deep planning             → REQUIRED
+explicit uncertainty      → REQUIRED
+evidence too thin to judge→ REQUIRED   (fail closed)
+clear cohesive task       → NOT REQUIRED
+```
+
+So `planning_mode: standard` with `plan_advisor_required: false` is a normal,
+explainable outcome. The decision is persisted with `reason_codes`:
+
+```json
+{
+  "plan_advisor_decision": {
+    "required": false,
+    "reason_codes": [
+      "SINGLE_COHESIVE_UNIT",
+      "KNOWN_IMPLEMENTATION_PATTERN",
+      "NO_ARCHITECTURAL_CHOICE",
+      "IMPACT_NOT_HIGH",
+      "NO_HARD_TRIGGER",
+      "NO_EXPLICIT_UNCERTAINTY"
+    ]
+  }
+}
+```
+
+Guardrails:
+
+- The orchestrator reports evidence; Nexus derives the decision. A caller claim
+  can only *raise* `required`, never clear a deterministic trigger.
+- An explicit `compact` claim is rejected at `PLANNED` when a semantic signal
+  disqualifies compact planning, so depth cannot be used to dodge the challenge.
+- `BRAINSTORMING → PLANNED` fails closed when the decision requires a challenge
+  and no independent advisor handoff exists. It does **not** demand a fabricated
+  advisor artifact when the challenge is not required.
+- A decision without an explicit boolean `required` and at least one reason code
+  is discarded, and the conservative mode-only fallback applies.
+- Deep planning keeps one mandatory advisor call; the second call remains limited
+  to a documented `CRITICAL_DISAGREEMENT`.
+- The agent-call estimator and the runtime budget both read the persisted
+  decision, so the allowance matches what the workflow will actually spend.
+
+
 States: `CREATED` → `BRAINSTORMING` ↔ `WAITING_FOR_USER` → `PLANNED` → `TASK_IMPACT_READY` → `IMPLEMENTING` → `VERIFYING` → `REVIEWING` → (`TASK_IMPACT_READY` on REQUEST_CHANGES / eligible failed verification / next unit) → `FINAL_REVIEWING` → `FINAL_VERIFYING` → `COMPLETED`
 
 ```text
@@ -85,6 +151,36 @@ The two transitions into verification states are fast and persist only the
 handoff binding plus `verification_status: PENDING`. `nexus verify` owns fresh
 post-impact, plan discovery, checks, timeouts, progress, and sealed evidence;
 it does not transition to `REVIEWING` or `COMPLETED` itself.
+
+`nexus verify` is the **single authoritative owner** of the required ladder
+(tests, lint, typecheck, build, post-impact, workspace integrity, sealed
+evidence). The implementer runs only development-feedback checks — the new
+regression test, a targeted unit test, a quick compile or focused type check,
+TDD red/green — and reports them as `development_checks` (the legacy
+`verification_gates` field remains an accepted alias with the same meaning).
+Those reports are never authorization; `VERIFYING → REVIEWING` still requires a
+sealed `PASSED` provider artifact.
+
+### Evidence reuse
+
+An expensive check is re-executed unless Nexus can prove it already measured the
+same *evidence identity*: HEAD, workspace content digest, argv, timeout
+configuration, scope policy, dependency lockfiles, and toolchain. Under that
+rule:
+
+- `FINAL_VERIFYING` reuses identity-matched `PASSED` task results and executes
+  only the checks the final requirement adds.
+- A sealed, passing TDD green run satisfies an identical verification step when
+  the workspace did not change across the red/green measurement.
+- A repeated `TASK_IMPACT_READY` at an unchanged impact identity reuses the
+  sealed analysis instead of recomputing it.
+
+Reuse never weakens a gate. Failures, timeouts, unavailable and skipped results
+always re-execute; a broken seal, an `UNKNOWN` analysis, or any unmeasurable
+identity component falls back to recomputation. Reuse candidates come only from
+evidence this engine sealed into orchestrator-owned run state — a cache file or
+caller-supplied report is forgeable and authorizes nothing. See
+[`docs/architecture.md`](architecture.md#evidence-identity-and-reuse).
 
 Use `nexus next` for the exact action. In particular, `PENDING` means
 `nexus verify`, `RUNNING`/`TIMED_OUT` mean `nexus verify --resume`, and `PASSED`
@@ -111,11 +207,19 @@ Pre-impact before every implementer (including fix loops). `nexus verify` runs
 fresh post-impact while the run remains in `VERIFYING` or `FINAL_VERIFYING`.
 
 An execution unit may contain several implementation steps. The implementer
-runs each step's targeted check as work progresses, then completes the unit's
-declared verification gates. These checks are implementer practice, not separate
-Nexus verification states: Nexus does not persist or authorize each internal
-step independently. After the complete unit, deterministic `nexus verify` must
-pass before its one task reviewer is dispatched.
+runs each step's targeted check as work progresses. These checks are implementer
+development feedback, not separate Nexus verification states: Nexus does not
+persist or authorize each internal step independently, and the implementer is
+not expected to pre-run the unit's full authoritative ladder. After the complete
+unit, deterministic `nexus verify` must pass before its one task reviewer is
+dispatched.
+
+Verification intensity follows impact risk. LOW runs the related tests plus lint
+and does not additionally run the whole suite over the same code; the full suite
+is still required when there is no executable targeted evidence, or on low
+confidence, unknown impact, incomplete analysis, a public contract change, scope
+escalation, a baseline requirement, or explicit project policy. MEDIUM, HIGH,
+and CRITICAL remain conservative and always include the full suite.
 
 ## Review
 

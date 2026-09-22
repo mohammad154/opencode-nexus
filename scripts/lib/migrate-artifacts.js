@@ -208,7 +208,21 @@ export function normalizeHandoff(role, raw) {
       data.tests = data.tests ? [].concat(data.tests) : [];
     if (!Array.isArray(data.tasks_completed)) data.tasks_completed = [];
     if (!Array.isArray(data.scope_extras)) data.scope_extras = [];
-    if (!Array.isArray(data.verification_gates)) data.verification_gates = [];
+    // Both fields mean "checks attempted during implementation". Normalize the
+    // shape only; never synthesize a passing check that was not reported.
+    if (
+      !Array.isArray(data.development_checks) &&
+      Object.prototype.hasOwnProperty.call(data, "development_checks")
+    ) {
+      data.development_checks = [];
+    }
+    if (!Array.isArray(data.verification_gates)) {
+      if (Array.isArray(data.development_checks)) {
+        delete data.verification_gates;
+      } else {
+        data.verification_gates = [];
+      }
+    }
     if (!data.drift_check || typeof data.drift_check !== "object") {
       data.drift_check = {
         plan_commit: data.plan_commit ?? null,
@@ -298,7 +312,6 @@ function rawImplementerContractErrors(raw) {
     "commit",
     "files_changed",
     "tests",
-    "verification_gates",
     "drift_check",
   ];
   for (const key of required) {
@@ -308,6 +321,18 @@ function rawImplementerContractErrors(raw) {
         message: `required current implementer handoff property missing: ${key}`,
       });
     }
+  }
+  // `development_checks` is the current field; `verification_gates` remains an
+  // accepted alias. One of them must be present, and neither is authoritative.
+  if (
+    !Object.prototype.hasOwnProperty.call(raw, "development_checks") &&
+    !Object.prototype.hasOwnProperty.call(raw, "verification_gates")
+  ) {
+    errors.push({
+      path: "$.development_checks",
+      message:
+        "required current implementer handoff property missing: development_checks (or verification_gates)",
+    });
   }
   if (
     !Object.prototype.hasOwnProperty.call(raw, "unit_or_task") &&
@@ -373,6 +398,7 @@ export function createEmptyRunState(runId, overrides = {}) {
     plan_advisor_calls: 0,
     plan_advisor: null,
     plan_advisor_handoff: null,
+    plan_advisor_decision: null,
     plan_check: null,
     execution_units: null,
     units: null,

@@ -24,7 +24,10 @@ You are implementing: [TASK_ID] [TITLE]
 
 ## Instructions
 1. Implement ONLY this task in this dispatch
-2. Run verification gates; do not claim pass without commands
+2. Run the checks that give useful development feedback (new regression test,
+   targeted unit test, quick compile/type check). Do NOT re-run the full test
+   suite, repository lint, whole-project typecheck, or build to pre-confirm the
+   gate — `nexus verify` owns those. Never claim pass without commands.
 3. Write handoff: .opencode/handoffs/[id]-implementer.json
 ```
 
@@ -34,7 +37,9 @@ Write JSON including ALL of:
 - run_id, unit_or_task, agent: "implementer", base_commit (pre-implementation HEAD), created_at (ISO)
 - status, commit (new implementation commit — must differ from base_commit when commits were made)
 - files_changed[], tests[], tasks_completed[] (batch), notes_for_reviewer, scope_extras[]
-- verification_gates: [{ id, cmd, pass: true }] — non-empty unless run verification_policy.exempt
+- development_checks: [{ id, cmd, pass: true }] — the checks you ran for
+  development feedback; non-empty unless run verification_policy.exempt.
+  Not authoritative verification. (`verification_gates` is an accepted alias.)
 - drift_check: { plan_commit, current_head, pass: true }
 - impact: { risk, verified: true, artifact_digest? } (legacy `blast.verified` is accepted)
 
@@ -51,8 +56,10 @@ Canonical minimum handoff shape:
   "status": "DONE",
   "commit": "<implementation-commit>",
   "files_changed": ["src/example.js"],
-  "tests": { "passed": true, "commands": ["npm test"] },
-  "verification_gates": [{ "id": "unit-tests", "cmd": "npm test", "pass": true }],
+  "tests": { "passed": true, "commands": ["node --test tests/example.test.js"] },
+  "development_checks": [
+    { "id": "regression-test", "cmd": "node --test tests/example.test.js", "pass": true }
+  ],
   "drift_check": { "plan_commit": "<plan-commit>", "current_head": "<implementation-commit>", "pass": true },
   "impact": { "risk": "LOW", "verified": true }
 }

@@ -22,7 +22,7 @@ Planning-only role:
 
 | Role | Canonical key | When |
 |---|---|---|
-| Plan Advisor | `plan-advisor` | Once for standard/deep planning; never during execution |
+| Plan Advisor | `plan-advisor` | Once when the persisted `plan_advisor_decision` requires it; never during execution |
 
 Deterministic ops (do **not** dispatch an agent):
 

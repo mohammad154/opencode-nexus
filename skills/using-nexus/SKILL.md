@@ -22,9 +22,11 @@ Announce: "Using brainstorming to clarify requirements. (V5: fixed pipeline + Im
 2. Every implementer call requires fresh impact analysis.
 3. Every implementation must be approved by an independent reviewer.
 
-`plan-advisor` is a planning-only specialist, not a fourth execution agent. Use
-it once for standard/deep plans when decomposition or architecture uncertainty
-justifies the call; compact plans may omit it.
+`plan-advisor` is a planning-only specialist, not a fourth execution agent. Nexus
+derives whether it is required from planning evidence: any safety signal, deep
+planning, declared uncertainty, or evidence too thin to judge requires it, while
+a clear cohesive task — including a `standard` one — does not. Check
+`nexus next`; do not decide by planning mode alone.
 
 ## Skill Router
 
@@ -32,7 +34,7 @@ justifies the call; compact plans may omit it.
 |-----------|---------------|
 | New request / unclear scope | `brainstorming` |
 | Need a plan file | `writing-plans` |
-| Challenge a standard/deep plan | `plan-advisor` (one read-only call) |
+| Challenge a plan when `plan_advisor_decision.required` | `plan-advisor` (one read-only call) |
 | Lint a plan before PLANNED | `nexus plan-check --json` |
 | Need impact / affected tests | `impact-analysis` — run `nexus impact --json` |
 | Plan exists, start implementation | `orchestrating` |

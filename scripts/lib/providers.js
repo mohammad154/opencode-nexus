@@ -56,6 +56,8 @@ export function getAgentCallBudget(options = {}) {
   const planningAdvisorCalls = hasExplicitAdvisorCalls
     ? Math.max(0, Math.floor(Number(rawAdvisorCalls) || 0))
     : undefined;
+  const advisorDecision =
+    options.planAdvisorDecision ?? options.plan_advisor_decision ?? null;
   // Keep the runtime ceiling on the same canonical model used by
   // scripts/nexus-estimate-calls.js. Reuse is an explicit execution choice;
   // the initial run budget conservatively includes the final reviewer and
@@ -63,6 +65,7 @@ export function getAgentCallBudget(options = {}) {
   const cost = agentCostModel({
     units,
     planningMode: options.planningMode || "compact",
+    advisorDecision,
     ...(hasExplicitAdvisorCalls ? { advisorCalls: planningAdvisorCalls } : {}),
   });
   const derivedMax = cost.calls.budget_ceiling;
@@ -87,6 +90,11 @@ export function getAgentCallBudget(options = {}) {
   // allowance only when a planning advisor was actually charged.
   if (cost.plan_advisor_calls > 0) {
     budget.planning_advisor_calls = cost.plan_advisor_calls;
+  }
+  // Record why the allowance is what it is, so a zero-advisor budget is
+  // explainable after the fact rather than looking like a missing call.
+  if (cost.plan_advisor_decision) {
+    budget.plan_advisor_decision = cost.plan_advisor_decision;
   }
   return budget;
 }
@@ -129,11 +137,33 @@ function providerResultMetadata(metadata, cacheHit = undefined) {
 }
 
 export function createNoopTelemetry() {
+  const disabled = { recorded: false, reason: "telemetry disabled" };
   return {
     mode: "noop",
     supported: false,
     emit() {
-      return { recorded: false, reason: "telemetry disabled" };
+      return { ...disabled };
+    },
+    recordVerificationCommand() {
+      return { ...disabled, duplicate: false, executions: 0, reuses: 0 };
+    },
+    recordImpactAnalysis() {
+      return { ...disabled, duplicate: false, executions: 0, reuses: 0 };
+    },
+    recordPhase() {
+      return { ...disabled };
+    },
+    getDuplicateWork() {
+      return {
+        duplicate_commands: 0,
+        duplicate_impact_queries: 0,
+        verification_commands: 0,
+        verification_reuse_count: 0,
+        impact_calls: 0,
+        impact_cache_hits: 0,
+        commands: [],
+        impact_queries: [],
+      };
     },
   };
 }
@@ -192,17 +222,40 @@ function sanitizeMetricEvent(event = {}) {
   const runId = safeMetricRunId(input.run_id || input.runId);
   if (runId) out.run_id = runId;
 
-  for (const key of ["step", "provider", "from", "to", "profile", "status"]) {
+  for (const key of [
+    "step",
+    "provider",
+    "from",
+    "to",
+    "profile",
+    "status",
+    "phase",
+    "agent",
+    "identity",
+    "kind",
+  ]) {
     const value = safeMetricLabel(input[key], 120);
     if (value) out[key] = value;
   }
 
-  for (const key of ["duration_ms", "call_count", "cache_hits", "failures"]) {
+  for (const key of [
+    "duration_ms",
+    "call_count",
+    "cache_hits",
+    "failures",
+    "executions",
+    "reuse_count",
+    "duplicate_commands",
+    "duplicate_impact_queries",
+    "bytes",
+  ]) {
     const value = numericMetric(input[key]);
     if (value !== null) out[key] = value;
   }
 
   if (typeof input.cache_hit === "boolean") out.cache_hit = input.cache_hit;
+  if (typeof input.duplicate === "boolean") out.duplicate = input.duplicate;
+  if (typeof input.reused === "boolean") out.reused = input.reused;
 
   const failureCode = safeMetricLabel(input.failure_code || input.error_code, 120);
   if (failureCode) out.failure_code = failureCode;
@@ -235,7 +288,16 @@ function metricsPathFor({ worktree, runId, metricsPath }) {
 }
 
 function addMetricTotals(totals, event) {
-  for (const key of ["duration_ms", "call_count", "cache_hits", "failures"]) {
+  for (const key of [
+    "duration_ms",
+    "call_count",
+    "cache_hits",
+    "failures",
+    "reuse_count",
+  ]) {
+    // Phase events span other recorded work. Summing both would double count,
+    // so phase wall time is aggregated separately in `phase_durations_ms`.
+    if (key === "duration_ms" && event.event === "phase") continue;
     if (finiteNonNegative(event[key])) totals[key] += event[key];
   }
   if (event.tokens) {
@@ -268,7 +330,63 @@ export function createMetricsTelemetry(options = {}) {
     call_count: 0,
     cache_hits: 0,
     failures: 0,
+    reuse_count: 0,
   };
+  // Phase 0 duplicate-work diagnostics. Keyed by evidence identity, so two
+  // executions collide only when Nexus already possessed the answer for the
+  // exact same code/config/workspace identity.
+  const commandLedger = new Map();
+  const impactLedger = new Map();
+  const phaseDurations = new Map();
+  const agentCalls = new Map();
+
+  function ledgerEntry(ledger, identity, label) {
+    const key = identity || `unidentified:${label || "unknown"}`;
+    const existing = ledger.get(key);
+    if (existing) return existing;
+    const created = {
+      identity: identity || null,
+      label: label || null,
+      executions: 0,
+      reuses: 0,
+      duplicates: 0,
+    };
+    ledger.set(key, created);
+    return created;
+  }
+
+  function ledgerTotals(ledger) {
+    let executions = 0;
+    let reuses = 0;
+    let duplicates = 0;
+    for (const entry of ledger.values()) {
+      executions += entry.executions;
+      reuses += entry.reuses;
+      duplicates += entry.duplicates;
+    }
+    return { executions, reuses, duplicates };
+  }
+
+  function ledgerRows(ledger) {
+    return [...ledger.values()]
+      .map((entry) => ({ ...entry }))
+      .sort((left, right) => right.executions - left.executions);
+  }
+
+  function duplicateWorkReport() {
+    const commands = ledgerTotals(commandLedger);
+    const impact = ledgerTotals(impactLedger);
+    return {
+      duplicate_commands: commands.duplicates,
+      duplicate_impact_queries: impact.duplicates,
+      verification_commands: commands.executions,
+      verification_reuse_count: commands.reuses,
+      impact_calls: impact.executions,
+      impact_cache_hits: impact.reuses,
+      commands: ledgerRows(commandLedger),
+      impact_queries: ledgerRows(impactLedger),
+    };
+  }
 
   function emit(rawEvent = {}) {
     const event = sanitizeMetricEvent(rawEvent);
@@ -341,6 +459,9 @@ export function createMetricsTelemetry(options = {}) {
         };
       }
       acceptedCalls += requestedCalls;
+      const agentLabel =
+        safeMetricLabel(data.agent, 120) || safeMetricLabel(data.provider, 120) || "unknown";
+      agentCalls.set(agentLabel, (agentCalls.get(agentLabel) || 0) + requestedCalls);
       const result = emit({
         ...data,
         event: "agent_call",
@@ -363,12 +484,116 @@ export function createMetricsTelemetry(options = {}) {
         cache_hits: data.cache_hits ?? 1,
       });
     },
+    /**
+     * Record one executed or reused verification command.
+     *
+     * `identity` must be an evidence identity (see evidence-identity.js). A
+     * second *execution* of the same identity is duplicate work; a reuse is
+     * not. An absent identity is never treated as a match: it is bucketed
+     * under the command label and reported as unidentified.
+     */
+    recordVerificationCommand(data = {}) {
+      const identity = safeMetricLabel(data.identity, 120);
+      const label = safeMetricLabel(data.command || data.step, 120);
+      const entry = ledgerEntry(commandLedger, identity, label);
+      const reused = data.reused === true;
+      let duplicate = false;
+      if (reused) {
+        entry.reuses += 1;
+      } else {
+        duplicate = Boolean(identity) && entry.executions > 0;
+        entry.executions += 1;
+        if (duplicate) entry.duplicates += 1;
+      }
+      return {
+        ...emit({
+          ...data,
+          event: "verification_command",
+          identity,
+          reused,
+          duplicate,
+          executions: entry.executions,
+          ...(reused ? { reuse_count: 1 } : {}),
+        }),
+        duplicate,
+        executions: entry.executions,
+        reuses: entry.reuses,
+      };
+    },
+    /**
+     * Record one impact analysis. A repeated analysis for the same HEAD, target
+     * set, policy, and workspace identity is duplicate work.
+     */
+    recordImpactAnalysis(data = {}) {
+      const identity = safeMetricLabel(data.identity, 120);
+      const label = safeMetricLabel(data.phase || data.step, 120);
+      const entry = ledgerEntry(impactLedger, identity, label);
+      const cacheHit = data.cache_hit === true;
+      let duplicate = false;
+      if (cacheHit) {
+        entry.reuses += 1;
+      } else {
+        duplicate = Boolean(identity) && entry.executions > 0;
+        entry.executions += 1;
+        if (duplicate) entry.duplicates += 1;
+      }
+      return {
+        ...emit({
+          ...data,
+          event: "impact_analysis",
+          identity,
+          cache_hit: cacheHit,
+          duplicate,
+          executions: entry.executions,
+          ...(cacheHit ? { cache_hits: 1 } : {}),
+        }),
+        duplicate,
+        executions: entry.executions,
+        reuses: entry.reuses,
+      };
+    },
+    /** Record wall time for a named workflow phase (brainstorm, planning, ...). */
+    recordPhase(data = {}) {
+      const phase = safeMetricLabel(data.phase || data.step, 120);
+      let duration = numericMetric(data.duration_ms ?? data.durationMs);
+      if (duration === null && data.started_at && data.ended_at) {
+        const started = Date.parse(data.started_at);
+        const ended = Date.parse(data.ended_at);
+        if (Number.isFinite(started) && Number.isFinite(ended) && ended >= started) {
+          duration = ended - started;
+        }
+      }
+      if (phase && duration !== null) {
+        phaseDurations.set(phase, (phaseDurations.get(phase) || 0) + duration);
+      }
+      return emit({
+        ...data,
+        event: "phase",
+        phase,
+        duration_ms: duration ?? undefined,
+      });
+    },
     recordFailure(data = {}) {
       return emit({
         ...data,
         event: "failure",
         failures: data.failures ?? 1,
       });
+    },
+    /** Duplicate-work diagnostics. Visibility first; optimization is separate. */
+    getDuplicateWork() {
+      return duplicateWorkReport();
+    },
+    /** Aggregated runtime dimensions for baseline/regression fixtures. */
+    getRuntimeSummary() {
+      return {
+        ...duplicateWorkReport(),
+        phase_durations_ms: Object.fromEntries([...phaseDurations.entries()].sort()),
+        agent_calls: Object.fromEntries([...agentCalls.entries()].sort()),
+        agent_call_count: [...agentCalls.values()].reduce((sum, n) => sum + n, 0),
+        step_duration_ms: totals.duration_ms,
+        failures: totals.failures,
+      };
     },
     getEvents() {
       return events.map((event) => ({ ...event, tokens: event.tokens && { ...event.tokens } }));

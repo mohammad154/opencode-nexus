@@ -32,6 +32,9 @@ import {
   normalizePlanningMode,
   planningModeFromEvidence,
   planAdvisorCallCount,
+  planAdvisorDecision,
+  normalizePlanAdvisorDecision,
+  compactEligibility,
   validatePlanAdvisorModelDiversity,
 } from "./planning.js";
 import { checkPlanFile } from "./plan-check.js";
@@ -538,12 +541,16 @@ function planAdvisorEvidence(ctx = {}, state = {}) {
   );
 }
 
-function planningModeFromContext(ctx = {}, state = {}) {
+/**
+ * Collect the planning evidence the deterministic helpers need, from the
+ * classification artifact, run state, and transition context.
+ */
+function planningEvidence(ctx = {}, state = {}) {
   const classification = {
     ...(state.classification || {}),
     ...(ctx.classification || {}),
   };
-  return planningModeFromEvidence({
+  return {
     ...classification,
     ...state,
     ...ctx,
@@ -567,7 +574,44 @@ function planningModeFromContext(ctx = {}, state = {}) {
       ctx.changeClass ||
       classification.change_class ||
       state.change_class,
-  });
+  };
+}
+
+function planningModeFromContext(ctx = {}, state = {}) {
+  return planningModeFromEvidence(planningEvidence(ctx, state));
+}
+
+/**
+ * Derive the plan-advisor decision from persisted evidence.
+ *
+ * A caller-supplied `plan_advisor_decision` is never trusted on its own: the
+ * deterministic derivation runs first, and a caller claim can only *raise*
+ * `required`, never clear it. This is what stops an orchestrator from inventing
+ * `required: false` to skip an independent challenge.
+ *
+ * A decision already stored in run state is re-derived rather than reused, so a
+ * decision made from thinner earlier evidence cannot outlive that evidence.
+ */
+function resolvePlanAdvisorDecision(ctx = {}, state = {}, planningMode = null) {
+  const evidence = planningEvidence(ctx, state);
+  evidence.planning_mode =
+    planningMode ||
+    planningModeFromContext(ctx, state) ||
+    normalizePlanningMode(state.planning_mode, "compact");
+  const derived = planAdvisorDecision(evidence);
+  const claimed = normalizePlanAdvisorDecision(
+    ctx.plan_advisor_decision ?? ctx.planAdvisorDecision,
+  );
+  if (derived.required || !claimed) return derived;
+  if (claimed.required) {
+    return {
+      ...derived,
+      required: true,
+      reason_codes: ["CALLER_DECLARED_UNCERTAINTY", ...claimed.reason_codes],
+      precedence: "caller_declared_uncertainty",
+    };
+  }
+  return derived;
 }
 
 function canonicalPlanPath(worktree) {
@@ -947,6 +991,25 @@ function verificationPolicyExempt(state) {
   return policy && policy.exempt === true;
 }
 
+/**
+ * Collect the checks an implementer reports having run during implementation.
+ *
+ * `development_checks` is the current field; `verification_gates` remains
+ * accepted for compatibility. Both mean the same thing: *checks attempted
+ * during implementation*. Neither is authoritative verification evidence —
+ * `nexus verify` is the single authoritative owner of the required ladder, and
+ * VERIFYING → REVIEWING still requires its sealed PASSED artifact.
+ */
+function implementationChecks(data) {
+  const development = Array.isArray(data?.development_checks)
+    ? data.development_checks
+    : [];
+  const legacy = Array.isArray(data?.verification_gates)
+    ? data.verification_gates
+    : [];
+  return [...development, ...legacy];
+}
+
 function assertVerificationGates(data, state, errors, ctx = {}) {
   if (data.legacy_unverified === true) {
     errors.push("implementer handoff is legacy_unverified");
@@ -955,14 +1018,17 @@ function assertVerificationGates(data, state, errors, ctx = {}) {
   const exempt = verificationPolicyExempt(state);
 
   if (!exempt) {
-    if (!Array.isArray(data.verification_gates) || data.verification_gates.length === 0) {
-      errors.push("VERIFYING requires non-empty verification_gates");
-    } else {
-      const failedGate = data.verification_gates.find(
-        (gate) => !gate || typeof gate !== "object" || gate.pass !== true,
+    const checks = implementationChecks(data);
+    if (checks.length === 0) {
+      errors.push(
+        "VERIFYING requires non-empty development_checks (or legacy verification_gates)",
       );
-      if (failedGate) {
-        errors.push("all verification_gates must have pass: true");
+    } else {
+      const failedCheck = checks.find(
+        (check) => !check || typeof check !== "object" || check.pass !== true,
+      );
+      if (failedCheck) {
+        errors.push("all implementation checks must have pass: true");
       }
     }
     if (data.tests && !Array.isArray(data.tests) && data.tests.passed !== true) {
@@ -996,14 +1062,63 @@ function assertVerificationGates(data, state, errors, ctx = {}) {
   }
 
   // Provider execution, post-impact, and TDD measurement deliberately happen
-  // after the fast state transition via `nexus verify`. Their sealed evidence
-  // is consumed only by the later VERIFYING → REVIEWING authorization gate.
+  // after the fast state transition via `nexus verify`, which is the single
+  // authoritative owner of the required tests, lint, typecheck, and build
+  // ladder. The implementer's reported checks are development feedback only.
+  // Sealed provider evidence is consumed by the later VERIFYING → REVIEWING
+  // authorization gate.
 }
 
 
 /**
+ * Decide whether a previously sealed impact analysis is still valid.
+ *
+ * The only admissible source is `state.impact` — an artifact this state machine
+ * sealed into orchestrator-owned run state, which control-plane integrity
+ * protects. A caller-supplied report, an inline sealed artifact, or a cache file
+ * is forgeable (anyone who can write JSON can compute the same digests) and is
+ * never reusable.
+ *
+ * "Fresh" means valid for the current identity, not recomputed. Any change to
+ * HEAD, workspace content, target set, base, phase, change class, scope policy,
+ * or analyzer version yields a different identity and forces recomputation.
+ */
+function reusableStateImpact(state, identity, ctx = {}, head = null) {
+  if (ctx.force_recompute === true) return null;
+  if (typeof identity !== "string" || identity.length === 0) return null;
+  const prior = state?.impact;
+  if (!prior || typeof prior !== "object") return null;
+  if (!verifySealedArtifact(prior)) return null;
+  if (prior.ok === false) return null;
+  if (prior.impact_identity !== identity) return null;
+  if (!head || prior.worktree_head !== head) return null;
+  // Optimization may reduce computation, never required evidence: an UNKNOWN or
+  // untrusted prior analysis must not be recycled into a trusted gate input.
+  if (prior.risk === "UNKNOWN") return null;
+  return prior;
+}
+
+function graphEvidenceFor(report, head) {
+  return sealImpactArtifact(
+    {
+      ok: report.ok !== false,
+      trusted: report.trusted === true,
+      quality: report.analysis_quality || "PRECISE",
+      stale: false,
+      fresh: true,
+      freshness: report.graph_freshness || { valid: true },
+      confidence: report.confidence ?? 0,
+      graph_provider: report.provider || "nexus-impact",
+    },
+    head,
+  );
+}
+
+/**
  * Revalidate impact via providers. Caller-supplied trusted labels are ignored.
- * Digests never establish authenticity — always recompute at safety gates.
+ * Digests never establish authenticity — a report is either recomputed now, or
+ * reused only because this state machine already sealed it for the exact same
+ * measured identity (see `reusableStateImpact`).
  */
 export function revalidateTransitionEvidence(to, ctx, providers, state = {}) {
   const worktree = ctx.worktree || state.worktree || process.cwd();
@@ -1013,7 +1128,7 @@ export function revalidateTransitionEvidence(to, ctx, providers, state = {}) {
 
   if (to === "TASK_IMPACT_READY" || to === "IMPACT_READY") {
     if (providers?.impactProvider?.analyze) {
-      const analyzed = providers.impactProvider.analyze({
+      const analyzeCtx = {
         worktree,
         reportPath: ctx.impact_path || ctx["impact-path"] || ctx.blast_path,
         base: ctx.base,
@@ -1026,6 +1141,30 @@ export function revalidateTransitionEvidence(to, ctx, providers, state = {}) {
           ctx.planned_targets || ctx.targets || ctx.allowed_files || ctx.files,
         // Never pass sealed inline report — digests are not provenance.
         files: ctx.files || ctx.changed_files,
+        policy: ctx.policy,
+      };
+      const identity =
+        typeof providers.impactProvider.computeIdentity === "function"
+          ? providers.impactProvider.computeIdentity({
+              ...analyzeCtx,
+              worktree_head: head,
+            })
+          : null;
+      const reused = reusableStateImpact(state, identity, ctx, head);
+      if (reused) {
+        next.impact = reused;
+        next.blast = reused;
+        next.graph = graphEvidenceFor(reused, head);
+        next.impact_reused = true;
+        next.impact_identity = identity;
+        if (isAcceptablePreImpact(reused)) {
+          next.require_post_impact = true;
+        }
+        return { ctx: next, errors };
+      }
+      const analyzed = providers.impactProvider.analyze({
+        ...analyzeCtx,
+        impact_identity: identity,
         force_recompute: true,
       });
       const report = analyzed?.report || analyzed;
@@ -1033,21 +1172,14 @@ export function revalidateTransitionEvidence(to, ctx, providers, state = {}) {
         const nextReport = { ...report };
         if (nextReport.confidence == null) nextReport.confidence = 0.85;
         if (!nextReport.schema_version) nextReport.schema_version = "1.0";
+        if (nextReport.impact_identity == null && identity) {
+          nextReport.impact_identity = identity;
+        }
         next.impact = sealImpactArtifact(nextReport, head);
         next.blast = next.impact;
-        next.graph = sealImpactArtifact(
-          {
-            ok: nextReport.ok !== false,
-            trusted: nextReport.trusted === true,
-            quality: nextReport.analysis_quality || "PRECISE",
-            stale: false,
-            fresh: true,
-            freshness: nextReport.graph_freshness || { valid: true },
-            confidence: nextReport.confidence ?? 0,
-            graph_provider: nextReport.provider || "nexus-impact",
-          },
-          head,
-        );
+        next.graph = graphEvidenceFor(nextReport, head);
+        next.impact_reused = false;
+        next.impact_identity = nextReport.impact_identity || null;
         if (isAcceptablePreImpact(nextReport)) {
           next.require_post_impact = true;
         }
@@ -1207,23 +1339,47 @@ export function canTransition(state, to, ctx = {}) {
       planningModeFromContext(planCtx, state) ||
       normalizePlanningMode(state.planning_mode, "compact");
     const advisor = planAdvisorEvidence(planCtx, state);
-    if (planningMode !== "compact" && !advisor) {
+    const decision = resolvePlanAdvisorDecision(planCtx, state, planningMode);
+    // An explicit compact claim cannot be used to dodge the challenge: if a
+    // deterministic signal disqualifies compact planning, the mode itself is
+    // invalid evidence.
+    if (planningMode === "compact") {
+      const compact = compactEligibility({
+        ...planningEvidence(planCtx, state),
+        planning_mode: undefined,
+        planningMode: undefined,
+      });
+      if (compact.blocking_signals.length > 0) {
+        errors.push(
+          `compact planning is not admissible for this change: ${compact.blocking_signals.join(", ")}`,
+        );
+      }
+    }
+    if (decision.required && !advisor) {
       errors.push(
-        `planning mode ${planningMode} requires one independent plan-advisor handoff before PLANNED`,
+        `plan-advisor is required before PLANNED (${decision.reason_codes.join(", ")}); one independent plan-advisor handoff is missing`,
       );
     }
     const advisorCalls = planAdvisorCallsFromContext(planCtx, state);
-    const allowedAdvisorCalls = planAdvisorCallCount(planningMode, {
+    const requiredAdvisorCalls = planAdvisorCallCount(planningMode, {
       criticalDisagreement: hasCriticalPlanDisagreement(planCtx, advisor),
+      decision,
     });
+    // A challenge that is not required is still permitted: the advisor is
+    // read-only, and voluntary caution must not become a gate failure. Compact
+    // planning keeps its existing zero-call invariant.
+    const allowedAdvisorCalls =
+      decision.required || planningMode === "compact"
+        ? requiredAdvisorCalls
+        : Math.max(requiredAdvisorCalls, 1);
     if (advisorCalls > allowedAdvisorCalls) {
       errors.push(
         `planning mode ${planningMode} permits ${allowedAdvisorCalls} plan-advisor call(s); got ${advisorCalls}`,
       );
     }
-    if (planningMode !== "compact" && advisorCalls < 1) {
+    if (decision.required && advisorCalls < 1) {
       errors.push(
-        `planning mode ${planningMode} requires at least one completed plan-advisor call`,
+        `plan-advisor is required before PLANNED (${decision.reason_codes.join(", ")}); no completed plan-advisor call was recorded`,
       );
     }
     if (planningMode === "compact" && advisorCalls > 0) {
@@ -2017,6 +2173,9 @@ export function transition(state, to, evidence = {}, providers = null) {
       next.plan_advisor = advisor;
       next.plan_advisor_handoff = advisor;
     }
+    // Decide the planning challenge as soon as brainstorm evidence exists, so
+    // `nexus next` can route without an LLM judgement call.
+    next.plan_advisor_decision = resolvePlanAdvisorDecision(ctx, state, planningMode);
     if (ctx.question || ctx.user_question) {
       next.last_user_question = ctx.question || ctx.user_question;
     }
@@ -2050,7 +2209,12 @@ export function transition(state, to, evidence = {}, providers = null) {
       next.plan_advisor = advisor;
       next.plan_advisor_handoff = advisor;
       next.plan_advisor_calls = planAdvisorCallsFromContext(ctx, state);
+    } else {
+      next.plan_advisor_calls = planAdvisorCallsFromContext(ctx, state);
     }
+    // Persist the deterministic decision so a zero-advisor plan can be
+    // explained later instead of looking like a skipped step.
+    next.plan_advisor_decision = resolvePlanAdvisorDecision(ctx, state, planningMode);
     if (ctx.plan_check != null) next.plan_check = ctx.plan_check;
     if (ctx.change_class) next.change_class = ctx.change_class;
     if (ctx.tdd_required === true) next.tdd_required = true;

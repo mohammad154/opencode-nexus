@@ -3,12 +3,20 @@
  *
  * Sealed digests are integrity/audit markers only — never authenticity.
  * Safety-critical callers must always recompute via analyzeImpact.
+ *
+ * This provider never decides to reuse evidence. It computes and publishes an
+ * `impact_identity` so a trusted owner of run state (the state machine) can tell
+ * whether an analysis it previously sealed is still valid for the current
+ * identity. A cache file or caller-supplied report is forgeable and must never
+ * authorize anything.
  */
 import fs from "fs";
 import path from "path";
 import { spawnSync } from "node:child_process";
 import { analyzeImpact } from "../impact/analyze.js";
 import { validateContainedPath } from "../filesystem-boundary.js";
+import { inspectWorkspace } from "../workspace-integrity.js";
+import { IMPACT_ANALYZER_VERSION, impactIdentity } from "../evidence-identity.js";
 
 function gitHead(worktree) {
   const r = spawnSync("git", ["rev-parse", "HEAD"], {
@@ -17,6 +25,37 @@ function gitHead(worktree) {
   });
   if (r.status !== 0) return null;
   return String(r.stdout || "").trim() || null;
+}
+
+function identityPhase(ctx = {}) {
+  if (ctx.phase) return String(ctx.phase);
+  return ctx.post_impact === true ? "post" : "pre";
+}
+
+/**
+ * Identity of the analysis `ctx` describes.
+ *
+ * Impact reads the working tree, not just the commit, so HEAD alone is not a
+ * sufficient identity: the workspace digest is required. Returns null when the
+ * identity cannot be measured, which forces recomputation.
+ */
+export function computeImpactIdentity(ctx = {}) {
+  const worktree = ctx.worktree || process.cwd();
+  const head = ctx.worktree_head || gitHead(worktree);
+  if (!head) return null;
+  const workspace = ctx.workspace || inspectWorkspace(worktree);
+  if (workspace?.available !== true || !workspace.workspace_digest) return null;
+  return impactIdentity({
+    analyzer_version: IMPACT_ANALYZER_VERSION,
+    head,
+    workspace_digest: workspace.workspace_digest,
+    base: ctx.base || "HEAD",
+    phase: identityPhase(ctx),
+    change_class: ctx.change_class || ctx.changeClass,
+    targets:
+      ctx.planned_targets || ctx.targets || ctx.allowed_files || ctx.files,
+    policy_digest: ctx.policy?.policy_digest || null,
+  });
 }
 
 /**
@@ -45,9 +84,16 @@ export function createNexusImpactProvider() {
     supported: true,
     capability: "impact-analysis",
     quality: "nexus-impact",
+    computeIdentity(ctx = {}) {
+      return computeImpactIdentity(ctx);
+    },
     analyze(ctx = {}) {
       const worktree = ctx.worktree || process.cwd();
       const head = gitHead(worktree);
+      const identity =
+        ctx.impact_identity ||
+        ctx.identity ||
+        computeImpactIdentity({ ...ctx, worktree, worktree_head: head });
 
       // Never trust caller-supplied sealed reports as provenance.
       // Always recompute; digests are audit-only after sealing by the state machine.
@@ -78,6 +124,10 @@ export function createNexusImpactProvider() {
 
       const fresh = analyzeImpact(worktree, analyzeOpts);
       const report = mergeCacheHint(cached, fresh, head);
+      // The identity is recorded after the merge so a cache hint can never
+      // supply or overwrite it.
+      report.impact_identity = identity || null;
+      report.impact_analyzer_version = IMPACT_ANALYZER_VERSION;
       const outPath =
         ctx.outPath || path.join(worktree, ".opencode", "impact", "latest.json");
       try {
@@ -107,6 +157,7 @@ export function createNexusImpactProvider() {
         ok: !!report.ok,
         report,
         path: outPath,
+        identity: identity || null,
         cache_hit: false,
         recomputed: true,
       };

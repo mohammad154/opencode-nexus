@@ -290,7 +290,8 @@ test("discoverVerification filters steps based on risk ladder", () => {
     );
     fs.writeFileSync(path.join(tmp, "test.js"), "// test");
 
-    // LOW risk: related_tests, lint, full_tests safety net (no typecheck/build)
+    // LOW risk with executable targeted evidence: related tests + lint only.
+    // The full suite is not repeated over the same code.
     const lowPlan = discoverVerification(tmp, {
       risk: "LOW",
       related_tests: ["test.js"],
@@ -298,9 +299,49 @@ test("discoverVerification filters steps based on risk ladder", () => {
     const lowIds = lowPlan.steps.map((s) => s.id);
     assert.ok(lowIds.includes("lint"));
     assert.ok(lowIds.includes("related:test.js"));
-    assert.ok(lowIds.includes("test"), "LOW keeps full_tests as safety net");
+    assert.ok(
+      !lowIds.includes("test"),
+      "LOW with targeted evidence does not also run the full suite",
+    );
     assert.ok(!lowIds.includes("typecheck"));
     assert.ok(!lowIds.includes("build"));
+    assert.equal(lowPlan.ladder.targeted_evidence, true);
+    assert.equal(lowPlan.ladder.skipped_full_tests, true);
+    assert.deepEqual(lowPlan.ladder.forcing_reasons, []);
+
+    // LOW risk without targeted evidence falls back to the full suite so a
+    // project defining only `npm test` still gets real verification.
+    const lowFallback = discoverVerification(tmp, {
+      risk: "LOW",
+      related_tests: [],
+    });
+    const lowFallbackIds = lowFallback.steps.map((s) => s.id);
+    assert.ok(
+      lowFallbackIds.includes("test"),
+      "LOW without targeted evidence falls back to the full suite",
+    );
+    assert.deepEqual(lowFallback.ladder.fallback_reasons, ["no_targeted_evidence"]);
+
+    // Explicit forcing conditions still require the full suite at LOW.
+    for (const [label, forcing] of [
+      ["low confidence", { confidence: 0.4 }],
+      ["public contract", { public_contract: true }],
+      ["scope escalation", { scope_escalated: true }],
+      ["baseline requirement", { baseline_required: true }],
+      ["explicit policy", { force_full_tests: true }],
+      ["incomplete analysis", { analysis_complete: false }],
+    ]) {
+      const forced = discoverVerification(tmp, {
+        risk: "LOW",
+        related_tests: ["test.js"],
+        ...forcing,
+      });
+      assert.ok(
+        forced.steps.map((s) => s.id).includes("test"),
+        `LOW still runs the full suite for ${label}`,
+      );
+      assert.ok(forced.ladder.forcing_reasons.length > 0);
+    }
 
     // MEDIUM risk: related_tests, lint, typecheck, full_tests (no build)
     const medPlan = discoverVerification(tmp, {

@@ -41,6 +41,78 @@ Reports expose `ignored_files`, `index_stats.cache_invalidated`, and the path
 filter version so an operator can distinguish a measured exclusion from a
 missing source file.
 
+## Evidence identity and reuse
+
+An expensive measurement is repeated only when Nexus cannot prove it already
+holds the answer for the same inputs. "Fresh" therefore means *valid for the
+current identity*, not *recomputed*.
+
+`scripts/lib/evidence-identity.js` defines the canonical identities:
+
+| Identity | Components |
+|---|---|
+| Verification result | HEAD, workspace digest, argv, timeout/config digest, scope-policy digest, dependency digest, toolchain fingerprint |
+| Impact analysis | analyzer version, HEAD, workspace digest, base, phase, change class, target-set digest, scope-policy digest |
+| Project profile | digests of the declared recon sources |
+
+Rules that keep reuse safe:
+
+- A missing or unmeasurable component yields a `null` identity, and a `null`
+  identity never matches. Reuse then falls back to recomputation.
+- The workspace digest is required, not optional: impact and tests read the
+  working tree, so HEAD alone is not a sufficient identity.
+- Only a `PASSED` result is reusable. Failures, timeouts, unavailable, and
+  skipped results always re-execute — reuse can reduce computation, never
+  required evidence.
+- Reuse candidates come from evidence this engine sealed into orchestrator-owned
+  run state. A cache file or caller-supplied report is forgeable (anyone who can
+  write JSON can recompute the same digest) and never authorizes anything.
+- An `UNKNOWN` or untrusted prior analysis is never recycled into a trusted gate
+  input.
+
+Where reuse applies today:
+
+- **Resume** — `nexus verify --resume` reuses completed steps of the same phase.
+- **Task → final** — `FINAL_VERIFYING` reuses identity-matched `PASSED` task
+  results and executes only the checks the final requirement adds.
+- **TDD green** — a sealed, passing green run satisfies an identical verification
+  step, provided the workspace did not change across the red/green measurement.
+- **Pre-impact** — a repeated `TASK_IMPACT_READY` at an unchanged impact identity
+  reuses the sealed analysis instead of recomputing it.
+
+Each sealed verification artifact records `step_configuration_digest`,
+`identity_workspace_digest`, `reused_steps`, and `ran_steps` so a reuse decision
+stays auditable after the fact.
+
+## Verification ownership
+
+`nexus verify` is the single authoritative owner of the required ladder: tests,
+lint, typecheck, build, post-impact, workspace integrity, and sealed evidence.
+
+The implementer runs only checks that give useful development feedback — the new
+regression test, a targeted unit test, a quick compile or focused type check, and
+TDD red/green — and reports them as `development_checks` (`verification_gates`
+remains an accepted alias). Those reports are development evidence, never
+authorization: `VERIFYING → REVIEWING` still requires a sealed `PASSED` provider
+artifact. Removing the expectation that the implementer pre-runs the full ladder
+removes a duplicate measurement of the same code, not a gate.
+
+### Risk ladder
+
+| Risk | Required | Fallback |
+|---|---|---|
+| LOW | related tests, lint | full suite when no executable targeted evidence exists |
+| MEDIUM | related tests, lint, typecheck, full suite | — |
+| HIGH | + build, full suite required | — |
+| CRITICAL | + optional mutation, dual review | — |
+
+LOW deliberately does not run related tests *and* the whole suite over the same
+code. The full suite is still forced when any of these hold: low impact
+confidence, unknown impact, incomplete analysis, a public contract change, scope
+escalation, a baseline requirement, or explicit project policy. The discovered
+plan records the decision in `ladder.forcing_reasons` / `ladder.fallback_reasons`,
+so a skipped full suite is always explainable.
+
 ## Scope boundaries
 
 The project policy is `.opencode/config/scope-policy.json`; project bootstrap
@@ -83,15 +155,17 @@ An implementer handoff is schema `1.1` and must contain:
 - `run_id`, `unit_or_task` (or the compatibility input alias `unit`),
   `agent`, `base_commit`, and `created_at`;
 - `status`, `commit`, `files_changed`, and `tests`;
-- a non-empty `verification_gates` array whose entries have `id` and `pass`;
+- a non-empty `development_checks` array whose entries have `id` and `pass` (the
+  legacy `verification_gates` field is accepted with the same meaning);
 - `drift_check` with an explicit `pass` value; and
 - measured impact evidence: `impact.verified` or the legacy-compatible
   `blast.verified` field.
 
 `tests` may be an array of command records or an object such as
-`{"passed": true, "commands": ["npm test"]}`. For a non-exempt run, all
-verification gates must pass and an object-form `tests` value must set
-`passed: true`.
+`{"passed": true, "commands": ["npm test"]}`. For a non-exempt run, every
+reported implementation check must pass and an object-form `tests` value must set
+`passed: true`. These reports describe what the implementer ran; they do not
+authorize the transition on their own — sealed provider evidence does.
 
 Nexus validates this contract before entering `VERIFYING`. A malformed handoff
 leaves the run in its current state and no post-impact or verification provider

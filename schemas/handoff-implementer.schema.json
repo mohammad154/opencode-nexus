@@ -4,7 +4,27 @@
   "title": "ImplementerHandoff",
   "type": "object",
   "additionalProperties": true,
-  "allOf": [{ "$ref": "handoff-envelope.schema.json" }],
+  "allOf": [
+    { "$ref": "handoff-envelope.schema.json" },
+    {
+      "anyOf": [
+        {
+          "type": "object",
+          "required": ["development_checks"],
+          "properties": {
+            "development_checks": { "type": "array" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["verification_gates"],
+          "properties": {
+            "verification_gates": { "type": "array" }
+          }
+        }
+      ]
+    }
+  ],
   "required": [
     "schema_version",
     "run_id",
@@ -15,7 +35,6 @@
     "commit",
     "files_changed",
     "tests",
-    "verification_gates",
     "drift_check"
   ],
   "anyOf": [
@@ -129,7 +148,24 @@
     "tasks_completed": { "type": "array", "items": { "type": "string" } },
     "notes_for_reviewer": { "type": "string" },
     "scope_extras": { "type": "array", "items": { "type": "string" } },
+    "development_checks": {
+      "description": "Checks the implementer ran for development feedback. Not authoritative verification evidence: `nexus verify` owns the required ladder.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["id", "pass"],
+        "properties": {
+          "id": { "type": "string" },
+          "cmd": { "type": "string" },
+          "expected": {},
+          "actual": {},
+          "pass": { "type": "boolean" }
+        }
+      }
+    },
     "verification_gates": {
+      "description": "Compatibility alias for development_checks: checks attempted during implementation. Not authoritative verification evidence.",
       "type": "array",
       "items": {
         "type": "object",

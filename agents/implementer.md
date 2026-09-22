@@ -1,5 +1,5 @@
 ---
-description: Implements a single cohesive execution unit with Impact Engine awareness, TDD evidence, drift checking, and verification gates. Writes code, tests, and commits in an isolated worktree/branch. Implementation + tests only.
+description: Implements a single cohesive execution unit with Impact Engine awareness, TDD evidence, drift checking, and targeted development checks. Writes code, tests, and commits in an isolated worktree/branch. Implementation + tests only; authoritative verification belongs to `nexus verify`.
 mode: subagent
 permission:
   external_directory:
@@ -47,7 +47,18 @@ Requirements:
 - For behavioral changes / bug fixes: TDD red then green; put `tdd.red` / `tdd.green` in the handoff.
 - Treat the plan's implementation steps as work inside this one assigned unit. Run each step's targeted check after that step and record its command and result; do not dispatch a reviewer between steps.
 - After all steps, return the complete handoff. Nexus then runs deterministic `nexus verify`; only a `PASSED` result authorizes the single task-review dispatch for this unit. Internal step checks are not separately persisted or authorized by Nexus.
-- Run verification gates exactly; never claim pass without commands.
+- Run only the checks that give you useful development feedback: the new
+  regression test, the targeted unit test for the code you touched, a quick
+  compile or focused type check, and TDD red/green. Record what you actually
+  ran, with its command and result.
+- Do **not** re-run the full authoritative ladder (whole test suite, repository
+  lint, whole-project typecheck, full build) to "pre-confirm" the gate.
+  `nexus verify` is the single authoritative owner of those checks and will run
+  them on the completed unit. Running them twice measures the same code twice
+  and buys no assurance.
+- Never claim a check passed without having executed it. Your reported checks
+  are development evidence, not authorization: Nexus does not treat them as
+  verification.
 - Use one planned evidence path per acceptance criterion. Do not repeat equivalent probes or replays after the required evidence already exists.
 - If a required criterion cannot be proven after the planned evidence path, stop and report `BLOCKED` with exact evidence instead of continuing exploratory tool calls.
 - Stay on the assigned feature branch / worktree; never commit to base.
@@ -61,10 +72,12 @@ Requirements:
 - Write handoff JSON to `.opencode/handoffs/<id>-implementer.json` with
   `schema_version: "1.1"` and all contract fields: `run_id`, `unit_or_task`,
   `agent`, `base_commit`, `created_at`, `status`, `commit`, `files_changed`,
-  `tests`, `verification_gates`, and `drift_check`. Include measured
+  `tests`, `development_checks`, and `drift_check`. Include measured
   `impact: { verified: true, ... }` (or the compatible `blast.verified` field).
-  `verification_gates` must be non-empty and every gate must have `pass: true`.
-  Do not set `verification_exempt`.
+  `development_checks` must be non-empty and every recorded check must have
+  `pass: true` — it reports the development checks you ran, not authoritative
+  verification. `verification_gates` remains accepted as a compatibility alias
+  with the same meaning. Do not set `verification_exempt`.
 - Never delete branches; cleanup is orchestrator/script only.
 - Never write reviewer handoffs or self-approve.
 - Do not perform a critical side effect without a bound user approval recorded
