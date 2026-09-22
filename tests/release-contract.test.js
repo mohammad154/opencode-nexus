@@ -11,6 +11,7 @@ test("CI keeps the full OS and Node matrix plus installer aggregator", () => {
     assert.match(ci, new RegExp(os.replaceAll("-", "\\-")));
   }
   for (const node of ['"20"', '"22"', '"lts/*"']) assert.match(ci, new RegExp(node.replace("*", "\\*")));
+  assert.match(ci, /node bin\/nexus\.js eval reviewer --json/);
   assert.match(ci, /name: Installer isolation/);
   assert.match(ci, /name: CI/);
   assert.match(ci, /needs: \[test, install\]/);
@@ -25,6 +26,8 @@ test("manual release is downstream of green CI, installer, and security checks",
   assert.match(release, /conclusion !== "success"/);
   assert.match(release, /npm test/);
   assert.match(release, /npm run test:install/);
+  // PR6: reviewer quality is a release gate, not a manual spot check.
+  assert.match(release, /node bin\/nexus\.js eval reviewer --json/);
   assert.match(release, /npm publish --access public/);
   assert.match(release, /git tag -a/);
   assert.match(release, /gh release create/);

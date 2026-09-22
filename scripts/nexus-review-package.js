@@ -13,6 +13,7 @@ import {
   readRunState,
   writeRunState,
 } from "./lib/migrate-artifacts.js";
+import { createMetricsTelemetry } from "./lib/providers.js";
 
 function parseArgs(argv) {
   const out = {
@@ -60,12 +61,16 @@ function main() {
     runState = null;
   }
 
+  // Package size and generation time are measured, not assumed: PR6 trades
+  // briefing volume for reviewer latency, so both stay observable.
+  const telemetry = createMetricsTelemetry({ worktree: args.worktree });
   const meta = buildReviewPackage(args.worktree, {
     scope: args.scope,
     runState: runState || { run_id: args.runId || "adhoc" },
     baseCommit: args.base || undefined,
     headCommit: args.head || undefined,
     outDir: args.outDir || undefined,
+    telemetry,
   });
 
   // Persist the package pointer through the same locked/CAS state writer as

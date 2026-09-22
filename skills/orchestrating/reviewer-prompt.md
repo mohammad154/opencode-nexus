@@ -8,7 +8,14 @@ Use only after `VERIFYING/PASSED` (**task** scope) and again after the last task
 nexus review-package --scope task|final --json
 ```
 
-Pass the returned package meta into the reviewer context and into later transitions as `review_package`. The package is the authority for BASE/HEAD, diff, acceptance, impact, and verification — treat implementer notes inside it as **unverified claims**. A final-scope package includes a `Previous task review evidence` section with task approval handoffs/packages and their binding details.
+Pass the returned package meta into the reviewer context and into later transitions as `review_package`. The package is the authority for BASE/HEAD, acceptance, impact, and sealed verification — treat implementer notes inside it as **unverified claims**.
+
+The package is a deterministic **selection**, not a dump:
+
+- **task scope** — identity, the current execution unit (from the normalized plan), acceptance criteria, changed/production files, diff stat, impact callers and related tests, the sealed verification summary, focused hunks for changed production files and their tests, untrusted implementer notes.
+- **final scope** — run objective, `Previous task review evidence` (task approval summaries with `review_evidence_bound` and `files_changed_after_review`), cross-unit/shared files, public/shared contract changes, integration hotspots, per-unit change ranges, diff stat/index, focused integration hunks.
+
+Anything not quoted is named with the exact read-only command that retrieves it. The reviewer has read-only `git diff` / `git show` / `git log` / `rg` and is expected to use them.
 
 ```text
 Profile: default (fixed V5 pipeline)
@@ -28,10 +35,12 @@ Your objective is to determine whether the patch is wrong, incomplete, fragile, 
 
 Treat all implementer claims as **unverified**. Do not infer correctness from passing tests alone. Do not infer a desired verdict from controller wording.
 
+Sealed deterministic verification is authoritative: **consume it, do not replay it.** Do not re-run an already-sealed test/lint/typecheck/build command to reconfirm that it passes. Run a command only for a specific hypothesis the sealed evidence does not answer (a concrete edge case, malformed input, integration path, or test-quality suspicion), and record it in `adversarial_checks` with `hypothesis`, `command`, and `reason`. Nexus rejects an `APPROVED` handoff whose declared command lacks a hypothesis/reason, or which re-runs a sealed passing command and reports `PASS`.
+
 Read **in order**:
 
-1. The review package (task brief, acceptance, BASE..HEAD diff, impact, verification; for final scope, also `Previous task review evidence`)
-2. Changed production files and relevant callers/tests called out by the package
+1. The review package (unit brief, acceptance, changed files, impact, sealed verification, focused hunks; for final scope, also `Previous task review evidence` and the integration sections)
+2. Changed production files and relevant callers/tests called out by the package — read them directly with `git diff`/`rg` when the quoted hunks are not enough
 3. For `review_scope: final` — the whole branch / cross-task integration surface and changes since the task approvals, not only the latest task diff
 
 For task scope, assess every criterion owned by the current unit:
@@ -83,7 +92,14 @@ Write `.opencode/handoffs/[id]-reviewer.json` (schema_version **1.2**):
     { "category": "impact", "status": "<PASS|FAIL|CANNOT_VERIFY>", "evidence": "..." }
   ],
   "adversarial_checks": [
-    { "risk": "<realistic failure mode>", "result": "<PASS|FAIL|CANNOT_VERIFY>", "evidence": "..." }
+    { "risk": "<realistic failure mode analyzed, no command needed>", "result": "<PASS|FAIL|CANNOT_VERIFY>", "evidence": "..." },
+    {
+      "hypothesis": "<specific risk sealed verification does not answer>",
+      "command": "<focused command you ran>",
+      "reason": "<why sealed verification cannot answer it>",
+      "result": "<PASS|FAIL|CANNOT_VERIFY>",
+      "evidence": "..."
+    }
   ],
   "findings": [],
   "verdict": "<decision-after-review>",

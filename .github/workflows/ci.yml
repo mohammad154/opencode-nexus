@@ -27,6 +27,9 @@ jobs:
       - name: Tests
         run: npm test
         shell: bash
+      - name: Reviewer quality eval
+        run: node bin/nexus.js eval reviewer --json
+        shell: bash
 
   install:
     name: Installer isolation

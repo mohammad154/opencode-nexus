@@ -327,7 +327,8 @@ Only the **implementer** writes production code. Nexus uses one fixed V5 workflo
 - `nexus run transition --to PLANNED --plan-check` runs the deterministic execution-unit DAG, acceptance/verification, decomposition-warning, and call-estimate gate and persists its passing report; standalone `nexus plan-check` is diagnostic.
 - Every execution unit states `user_outcome`, `independently_shippable`, `review_boundary`, and `estimated_lines`; implementation steps remain inside the unit.
 - The implementer runs targeted checks after internal steps. Nexus does not persist or authorize each step as a separate verification boundary: it runs deterministic `nexus verify` for the completed unit before dispatching one task reviewer.
-- Every task receives a task-scoped review package and reviewer after verification.
+- Every task receives a task-scoped review package and reviewer after verification. A review package is a deterministic *selection* (unit brief, acceptance, changed/production files, impact callers, sealed verification summary, focused hunks) and names the read-only command for anything it omits; the reviewer keeps full read-only git access.
+- The reviewer **consumes** sealed deterministic verification instead of replaying it. It may still run a focused probe for a specific hypothesis the sealed evidence does not answer, declared in `adversarial_checks` with `hypothesis`, `command`, and `reason`. An `APPROVED` handoff that re-runs a sealed passing command and reports `PASS`, or declares a command without a hypothesis and reason, is rejected.
 - A reviewer `REQUEST_CHANGES` is capped at three remediation attempts per execution unit; exhaustion or an agent-call-budget limit becomes `BLOCKED`, not another subagent dispatch.
 - After the final task, a final review package and reviewer examine the whole branch and its multi-unit integration before final verification. The package includes `Previous task review evidence`; the final reviewer can reuse a task result only when `review_evidence_bound: true`, `files_changed_after_review` is available, and the criterion's owning files are absent from that list, then focus on integration and later changes. This never skips the final or task review. A single-unit run may reuse its task review only with the explicit digest/HEAD-bound gate.
 - Impact risk controls verification-ladder intensity; it does not select a workflow profile or change the review roster.
@@ -441,6 +442,12 @@ npm run test:install
 ```
 
 `npm test` runs the Node test suites. `npm run test:install` runs installer isolation, retired-agent cleanup, and uninstall lifecycle checks. There are no separate build, lint, or typecheck scripts.
+
+Reviewer quality has its own deterministic gate (also run in CI and before release):
+
+```bash
+nexus eval reviewer --json
+```
 
 Extra installer checks:
 

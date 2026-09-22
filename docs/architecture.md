@@ -112,6 +112,18 @@ Repository recon (`nexus project-profile`) is cached under `.opencode/cache/`,
 which the control-plane snapshot already protects. The cache is written during
 planning, before the implementation freeze.
 
+### Review telemetry
+
+| Event | Fields |
+|---|---|
+| `review_package` | `review_package_bytes`, `review_package_generation_ms` (per scope) |
+| `review_commands` | `reviewer_adversarial_command_count`, `reviewer_duplicate_command_count` |
+
+`review_commands` is emitted whenever a reviewer handoff is accepted, and the
+same classification is persisted as `last_review_command_policy` in run state, so
+a declared replay of sealed evidence stays visible after the fact even when it
+was admissible (a probe that contradicts sealed evidence).
+
 ### Planning telemetry
 
 When a run is initialized, measurements land in

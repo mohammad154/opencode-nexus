@@ -9,6 +9,21 @@ import { createHash } from "node:crypto";
 
 import { isLikelyProductionPath } from "./review-protocol.js";
 import { validateContainedPath } from "./filesystem-boundary.js";
+import { normalizePlan } from "./plan-check.js";
+
+/**
+ * Selection budgets (PR6.B/C).
+ *
+ * The package is a *selection*, not a dump. Lowering a diff ceiling alone would
+ * truncate arbitrary evidence at an arbitrary byte; instead each section has a
+ * purpose, files are ordered by review value (production → tests → other), and
+ * every omission names the exact read-only command that retrieves the rest.
+ */
+export const REVIEW_SELECTION_VERSION = "nexus-review-selection/1";
+const DEFAULT_TASK_HUNK_BYTES = 60_000;
+const DEFAULT_FINAL_HUNK_BYTES = 60_000;
+const DEFAULT_PER_FILE_HUNK_BYTES = 12_000;
+const DEFAULT_DIFF_STAT_BYTES = 12_000;
 
 function runGit(worktree, args) {
   try {
@@ -34,6 +49,133 @@ function revParse(worktree, rev) {
   return r.ok ? r.stdout.trim() : null;
 }
 
+function clamp(text, max, label = "output") {
+  const value = String(text ?? "");
+  if (value.length <= max) return value;
+  return `${value.slice(0, max)}\n…[${label} truncated: ${value.length - max} more chars]…\n`;
+}
+
+function isTestPath(file) {
+  const f = String(file || "").replace(/\\/g, "/");
+  return (
+    /(^|\/)(tests?|__tests__|spec)(\/|$)/i.test(f) ||
+    /\.(test|spec)\.[a-z0-9]+$/i.test(f)
+  );
+}
+
+/**
+ * Files whose change can break a consumer outside the unit: entry points,
+ * published surfaces, schemas, routes, migrations, and dependency manifests.
+ */
+export function isSharedContractPath(file) {
+  const f = String(file || "").replace(/\\/g, "/");
+  if (!f || f.startsWith(".opencode/")) return false;
+  return (
+    /(^|\/)(index|main|api|server|app|router|routes|schema|schemas|types|contracts?|public)([./]|$)/i.test(f) ||
+    /\.(proto|graphql|sql)$/i.test(f) ||
+    /(^|\/)migrations?(\/|$)/i.test(f) ||
+    /(^|\/)(package\.json|package-lock\.json|pnpm-lock\.yaml|yarn\.lock|pyproject\.toml|go\.mod|Cargo\.toml|composer\.json)$/i.test(f) ||
+    /(^|\/)openapi[^/]*$/i.test(f)
+  );
+}
+
+/** Review-ordered file list: production first, then tests, then the remainder. */
+function reviewOrderedFiles(files) {
+  const unique = [...new Set((files || []).filter(Boolean))];
+  const production = unique.filter(
+    (file) => isLikelyProductionPath(file) && !isTestPath(file),
+  );
+  const tests = unique.filter((file) => isTestPath(file));
+  const rest = unique.filter(
+    (file) => !production.includes(file) && !tests.includes(file),
+  );
+  return { production, tests, rest, ordered: [...production, ...tests, ...rest] };
+}
+
+/**
+ * Split one `git diff` output into per-file bodies, keyed by the post-image
+ * path (falling back to the pre-image path for deletions).
+ */
+function splitDiffByFile(result) {
+  const byFile = new Map();
+  if (!result?.ok) return { ok: false, byFile };
+  const text = String(result.stdout || "");
+  const matches = [...text.matchAll(/^diff --git a\/(.+?) b\/(.+)$/gm)];
+  for (const [index, match] of matches.entries()) {
+    const start = match.index;
+    const end = index + 1 < matches.length ? matches[index + 1].index : text.length;
+    const body = text.slice(start, end);
+    const key = match[2] === "/dev/null" ? match[1] : match[2];
+    byFile.set(key, (byFile.get(key) || "") + body);
+  }
+  return { ok: true, byFile };
+}
+
+/**
+ * Per-file diff hunks under an explicit budget.
+ *
+ * Every file is either included (possibly clipped with its own retrieval
+ * command) or listed as omitted with the command that shows it. Nothing is
+ * silently dropped.
+ */
+function selectFocusedHunks(worktree, base, head, files, options = {}) {
+  const budget = Number(options.maxBytes) > 0 ? Number(options.maxBytes) : DEFAULT_TASK_HUNK_BYTES;
+  const perFile =
+    Number(options.maxPerFileBytes) > 0
+      ? Number(options.maxPerFileBytes)
+      : DEFAULT_PER_FILE_HUNK_BYTES;
+  const sections = [];
+  const included = [];
+  const omitted = [];
+  const clipped = [];
+  let used = 0;
+  // One git invocation for the whole selection, then split per file: the
+  // selection stays per-file while reviewer-dispatch latency stays flat.
+  const perFileDiffs = splitDiffByFile(
+    files.length > 0
+      ? runGit(worktree, ["diff", "--find-renames", base, head, "--", ...files])
+      : { ok: true, stdout: "" },
+  );
+  for (const file of files) {
+    const diff = perFileDiffs;
+    if (!diff.ok) {
+      omitted.push({ file, reason: "DIFF_UNAVAILABLE" });
+      continue;
+    }
+    const text = (diff.byFile.get(file) || "").trimEnd();
+    if (!text) {
+      omitted.push({ file, reason: "EMPTY_DIFF" });
+      continue;
+    }
+    if (used >= budget) {
+      omitted.push({ file, reason: "SELECTION_BUDGET" });
+      continue;
+    }
+    const remaining = budget - used;
+    const notice = `\n…[${file} hunks clipped; read the rest with: git diff ${base} ${head} -- ${file}]…`;
+    const allowance = Math.min(perFile, remaining);
+    // The clipping notice is part of the output, so it is charged to the budget:
+    // `hunk_bytes` never exceeds `hunk_budget_bytes`.
+    const clippedAllowance = Math.max(0, allowance - notice.length);
+    const body =
+      text.length <= allowance
+        ? text
+        : `${text.slice(0, clippedAllowance)}${notice}`;
+    if (text.length > allowance) clipped.push({ file, bytes: text.length });
+    sections.push(["```diff", body, "```"].join("\n"));
+    included.push(file);
+    used += body.length;
+  }
+  return {
+    text: sections.join("\n\n"),
+    bytes: used,
+    included,
+    omitted,
+    clipped,
+    budget,
+  };
+}
+
 function safeRead(filePath, max = 80_000) {
   if (!filePath || !fs.existsSync(filePath)) return null;
   const text = fs.readFileSync(filePath, "utf8");
@@ -41,28 +183,146 @@ function safeRead(filePath, max = 80_000) {
   return `${text.slice(0, max)}\n\n…[truncated ${text.length - max} chars]…\n`;
 }
 
-function summarizeImpact(impact) {
-  if (!impact || typeof impact !== "object") return "_No impact report attached._";
+/**
+ * The execution unit under review, derived from the normalized plan instead of a
+ * blind PLAN.md excerpt. Reuses the canonical plan parser — no second parser.
+ */
+function currentUnitFromPlan(planPath, unitId) {
+  let text;
+  try {
+    text = fs.readFileSync(planPath, "utf8");
+  } catch {
+    return null;
+  }
+  const plan = normalizePlan(text);
+  const units = Array.isArray(plan.execution_units) ? plan.execution_units : [];
+  const unit =
+    units.find((candidate) => candidate.id === unitId) ||
+    units.find((candidate) => String(candidate.title || "") === String(unitId)) ||
+    (units.length === 1 ? units[0] : null);
+  return {
+    plan_goal: plan.goal || null,
+    plan_non_goals: Array.isArray(plan.non_goals) ? plan.non_goals : [],
+    plan_commit: plan.plan_commit || null,
+    planning_mode: plan.planning_mode || null,
+    unit_count: units.length,
+    unit: unit
+      ? {
+          id: unit.id,
+          title: unit.title || null,
+          user_outcome: unit.user_outcome || null,
+          review_boundary: unit.review_boundary || null,
+          estimated_lines: unit.estimated_lines ?? null,
+          independently_shippable: unit.independently_shippable ?? null,
+          allowed_files: Array.isArray(unit.allowed_files) ? unit.allowed_files : [],
+          evidence: Array.isArray(unit.evidence) ? unit.evidence : [],
+          acceptance_criteria: Array.isArray(unit.acceptance_criteria)
+            ? unit.acceptance_criteria
+            : [],
+          verification_gates: Array.isArray(unit.verification_gates)
+            ? unit.verification_gates
+            : [],
+          stop_conditions: Array.isArray(unit.stop_conditions) ? unit.stop_conditions : [],
+        }
+      : null,
+  };
+}
+
+/** Sealed deterministic commands the reviewer must consume rather than replay. */
+export function sealedCommandsFromVerification(verification) {
+  const results = Array.isArray(verification?.results) ? verification.results : [];
+  return results
+    .filter((step) => step && (step.command || (step.argv || []).length > 0))
+    .map((step) => ({
+      id: step.id || null,
+      command:
+        typeof step.command === "string" && step.command.trim()
+          ? step.command.trim()
+          : (step.argv || []).join(" "),
+      argv: Array.isArray(step.argv) ? step.argv : null,
+      pass: step.pass === true,
+      status: step.status || (step.pass === true ? "PASSED" : null),
+      duration_ms: Number.isFinite(step.duration_ms) ? step.duration_ms : null,
+      reused: step.reused === true,
+      identity: typeof step.identity === "string" ? step.identity : null,
+    }));
+}
+
+function impactSelection(impact, changedFiles) {
+  if (!impact || typeof impact !== "object") return null;
+  const changed = new Set(changedFiles || []);
+  const dependents = [];
+  const raw = impact.direct_dependents;
+  if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+    for (const [file, list] of Object.entries(raw)) {
+      if (changed.size > 0 && !changed.has(file)) continue;
+      const callers = [...new Set((Array.isArray(list) ? list : []).map(String))];
+      if (callers.length > 0) dependents.push({ file, callers });
+    }
+  } else if (Array.isArray(raw)) {
+    dependents.push({ file: "(aggregate)", callers: raw.map(String) });
+  }
+  const relatedTests = [...new Set((impact.related_tests || []).map(String))];
+  return {
+    risk: impact.risk || impact.level || "UNKNOWN",
+    ok: impact.ok,
+    confidence: impact.confidence ?? null,
+    changed_file_count: (impact.changed_files || []).length,
+    dependents,
+    related_tests: relatedTests,
+  };
+}
+
+function summarizeImpactSelection(selection) {
+  if (!selection) return "_No impact report attached._";
   const lines = [
-    `- risk: ${impact.risk || impact.level || "UNKNOWN"}`,
-    `- ok: ${impact.ok}`,
-    `- confidence: ${impact.confidence ?? "n/a"}`,
-    `- changed_files: ${(impact.changed_files || []).join(", ") || "(none)"}`,
-    `- direct_dependents: ${JSON.stringify(impact.direct_dependents || []).slice(0, 2000)}`,
-    `- related_tests: ${JSON.stringify(impact.related_tests || []).slice(0, 2000)}`,
+    `- risk: ${selection.risk}`,
+    `- ok: ${selection.ok}`,
+    `- confidence: ${selection.confidence ?? "n/a"}`,
+    `- impact changed_files: ${selection.changed_file_count}`,
   ];
+  if (selection.dependents.length > 0) {
+    lines.push("- callers of changed files (review for regressions):");
+    for (const entry of selection.dependents.slice(0, 20)) {
+      lines.push(
+        `  - ${entry.file} ← ${entry.callers.slice(0, 8).join(", ")}${entry.callers.length > 8 ? `, +${entry.callers.length - 8} more` : ""}`,
+      );
+    }
+  } else {
+    lines.push("- callers of changed files: none reported");
+  }
+  lines.push(
+    `- related tests: ${selection.related_tests.slice(0, 20).join(", ") || "none reported"}`,
+  );
   return lines.join("\n");
 }
 
-function summarizeVerification(v) {
-  if (!v || typeof v !== "object") return "_No verification report attached._";
-  const results = Array.isArray(v.results) ? v.results : [];
-  const lines = [`- ok: ${v.ok}`, `- results: ${results.length}`];
-  for (const step of results.slice(0, 30)) {
+/**
+ * Sealed verification summary. This is the authoritative deterministic evidence:
+ * the reviewer consumes it and must not re-run a passing command to reconfirm.
+ */
+function summarizeSealedVerification(verification, sealedCommands) {
+  if (!verification || typeof verification !== "object") {
+    return "_No sealed verification report attached._";
+  }
+  const lines = [
+    `- sealed ok: ${verification.ok}`,
+    `- steps: ${sealedCommands.length}`,
+    "- commands already proven at this identity (do not re-run to reconfirm):",
+  ];
+  for (const step of sealedCommands.slice(0, 30)) {
     lines.push(
-      `  - ${step.id || step.command}: exit=${step.exit_code} pass=${step.pass}`,
+      `  - \`${step.command}\` → ${step.status || (step.pass ? "PASSED" : "UNKNOWN")}${
+        step.duration_ms != null ? ` (${step.duration_ms} ms)` : ""
+      }${step.reused ? " [reused sealed result]" : ""}`,
     );
   }
+  if (sealedCommands.length > 30) {
+    lines.push(`  - …${sealedCommands.length - 30} more sealed steps`);
+  }
+  lines.push(
+    "- run a command only for a specific new hypothesis these checks do not answer, and record it in `adversarial_checks` with `hypothesis`, `command`, and `reason`.",
+  );
   return lines.join("\n");
 }
 
@@ -80,6 +340,80 @@ function filesChangedBetween(worktree, base, head) {
     .split(/\r?\n/)
     .map((file) => file.trim())
     .filter(Boolean);
+}
+
+/**
+ * Per-unit change ranges across the run, so the final reviewer can see *which
+ * unit* produced a file and where units overlap. Ranges are derived from the
+ * recorded reviewed commits, not from reviewer claims.
+ */
+function unitChangeRanges(worktree, runState, headCommit) {
+  const history = Array.isArray(runState.task_history) ? runState.task_history : [];
+  const ranges = [];
+  let base = runState.run_base_commit || runState.plan_commit || null;
+  for (const entry of history) {
+    const head = entry?.reviewed_commit || null;
+    if (!base || !head) {
+      ranges.push({ unit_or_task: entry?.id || null, base, head, files: null });
+      continue;
+    }
+    ranges.push({
+      unit_or_task: entry?.id || null,
+      base,
+      head,
+      files: filesChangedBetween(worktree, base, head),
+    });
+    base = head;
+  }
+  if (base && headCommit && base !== headCommit) {
+    ranges.push({
+      unit_or_task: runState.current_unit || "(after last approval)",
+      base,
+      head: headCommit,
+      files: filesChangedBetween(worktree, base, headCommit),
+    });
+  }
+  return ranges;
+}
+
+/**
+ * Integration surface for a final review: files more than one unit touched,
+ * shared/public contract changes, and the highest fan-in changed files.
+ */
+function integrationSelection(ranges, changedFiles, impactSelection_) {
+  const owners = new Map();
+  for (const range of ranges) {
+    for (const file of range.files || []) {
+      if (!owners.has(file)) owners.set(file, new Set());
+      owners.get(file).add(range.unit_or_task || "(unknown)");
+    }
+  }
+  const crossUnitFiles = [...owners.entries()]
+    .filter(([, units]) => units.size > 1)
+    .map(([file, units]) => ({ file, units: [...units].sort() }))
+    .sort((left, right) => (left.file < right.file ? -1 : 1));
+  const contractFiles = (changedFiles || []).filter(isSharedContractPath);
+  const fanIn = (impactSelection_?.dependents || [])
+    .map((entry) => ({ file: entry.file, callers: entry.callers.length }))
+    .sort((left, right) => right.callers - left.callers)
+    .slice(0, 10);
+  const hotspots = [
+    ...new Set([
+      ...crossUnitFiles.map((entry) => entry.file),
+      ...contractFiles,
+      ...fanIn.filter((entry) => entry.callers >= 2).map((entry) => entry.file),
+    ]),
+  ].filter((file) => (changedFiles || []).includes(file));
+  return {
+    owners: [...owners.entries()].map(([file, units]) => ({
+      file,
+      units: [...units].sort(),
+    })),
+    cross_unit_files: crossUnitFiles,
+    contract_files: contractFiles,
+    fan_in: fanIn,
+    hotspots,
+  };
 }
 
 function previousTaskReviews(worktree, runState, runId, headCommit) {
@@ -283,6 +617,7 @@ export function resolveReviewPackageBase(runState = {}, scope = "task", opts = {
  * @param {object} opts
  */
 export function buildReviewPackage(worktree, opts = {}) {
+  const startedAt = Date.now();
   const root = path.resolve(worktree);
   const rootBoundary = validateContainedPath(root, root, {
     allowMissing: false,
@@ -335,19 +670,15 @@ export function buildReviewPackage(worktree, opts = {}) {
     }
   }
 
-  const fullDiff = runGit(worktree, [
+  const diffStat = runGit(worktree, ["diff", "--stat", baseCommit, headCommit]);
+  const nameStatusText = nameStatus.ok ? nameStatus.stdout.trimEnd() : "";
+  const fullDiffBytes = runGit(worktree, [
     "diff",
     "--find-renames",
     baseCommit,
     headCommit,
   ]);
-  let diffText = fullDiff.ok
-    ? fullDiff.stdout
-    : fullDiff.stderr || "(diff unavailable)";
-  const maxDiff = opts.maxDiffBytes || 400_000;
-  if (diffText.length > maxDiff) {
-    diffText = `${diffText.slice(0, maxDiff)}\n\n…[diff truncated]…\n`;
-  }
+  const wholeDiffBytes = fullDiffBytes.ok ? fullDiffBytes.stdout.length : null;
 
   const planPath = opts.planPath
     ? path.isAbsolute(opts.planPath)
@@ -363,7 +694,7 @@ export function buildReviewPackage(worktree, opts = {}) {
       `review package plan path violates filesystem boundary (${planBoundary.reason})`,
     );
   }
-  const planExcerpt = safeRead(planPath, 20_000) || "_PLAN.md not found._";
+  const planSelection = currentUnitFromPlan(planPath, unit);
 
   const impact =
     opts.impact || runState.post_impact || runState.impact || null;
@@ -378,12 +709,61 @@ export function buildReviewPackage(worktree, opts = {}) {
     "";
 
   const productionChanged = changedFiles.filter(isLikelyProductionPath);
+  const ordering = reviewOrderedFiles(changedFiles);
+  const impactSelected = impactSelection(impact, changedFiles);
+  const sealedCommands = sealedCommandsFromVerification(verification);
+
+  const ranges = scope === "final" ? unitChangeRanges(worktree, runState, headCommit) : [];
+  const integration =
+    scope === "final"
+      ? integrationSelection(ranges, changedFiles, impactSelected)
+      : null;
+
+  // Selection: a task review is unit-focused (production first, then its tests);
+  // a final review is integration-focused (shared surface and post-approval
+  // changes first). Everything omitted is retrievable with a named command.
+  const hunkFiles =
+    scope === "final"
+      ? [
+          ...new Set([
+            ...(integration?.hotspots || []),
+            ...(ranges.at(-1)?.files || []).filter(isLikelyProductionPath),
+          ]),
+        ]
+      : [...ordering.production, ...ordering.tests];
+  const hunks = selectFocusedHunks(worktree, baseCommit, headCommit, hunkFiles, {
+    maxBytes:
+      opts.maxHunkBytes ||
+      opts.maxDiffBytes ||
+      (scope === "final" ? DEFAULT_FINAL_HUNK_BYTES : DEFAULT_TASK_HUNK_BYTES),
+    maxPerFileBytes: opts.maxPerFileHunkBytes,
+  });
+
+  const inspectCommands = [
+    "## Inspect anything else yourself (read-only)",
+    "",
+    "The package is a selection, not the whole truth. You have read-only git and",
+    "file access; use it whenever a judgement needs more than what is quoted here.",
+    "",
+    "```bash",
+    `git diff ${baseCommit} ${headCommit}                  # whole diff${
+      wholeDiffBytes != null ? ` (${wholeDiffBytes} bytes)` : ""
+    }`,
+    `git diff ${baseCommit} ${headCommit} -- <path>        # one file`,
+    `git log --oneline ${baseCommit}..${headCommit}        # commits under review`,
+    `git show <commit>                                     # one commit`,
+    "rg -n '<symbol>'                                      # callers and usages",
+    "```",
+    "",
+  ];
+
   const generatedAt = new Date().toISOString();
-  const md = [
+  const identitySection = [
     `# Nexus Review Package (${scope})`,
     "",
     "> Generated deterministically by Nexus. Treat implementer notes as **unverified claims**.",
     "> There is **no expected verdict**. Try to disprove correctness.",
+    "> Sealed deterministic verification is authoritative evidence: **consume it, do not replay it**.",
     "",
     "## Identity",
     "",
@@ -394,32 +774,146 @@ export function buildReviewPackage(worktree, opts = {}) {
     `- base_commit: \`${baseCommit}\``,
     `- head_commit: \`${headCommit}\``,
     `- generated_at: \`${generatedAt}\``,
+    `- selection: \`${REVIEW_SELECTION_VERSION}\``,
     "",
+  ];
+
+  const acceptanceSection = [
     "## Acceptance criteria",
     "",
     Array.isArray(acceptance) && acceptance.length
-      ? acceptance.map((c, i) => `${i + 1}. ${c}`).join("\n")
-      : "_No acceptance_criteria recorded on run state — derive from PLAN.md / task brief._",
+      ? acceptance.map((c, i) => `AC-${i + 1}. ${c}`).join("\n")
+      : "_No acceptance_criteria recorded on run state — derive from the execution unit below._",
     "",
-    "## Task / plan excerpt",
-    "",
-    planExcerpt,
-    "",
-    ...(scope === "final"
+  ];
+
+  const unitSection =
+    scope === "task"
       ? [
-          "## Previous task review evidence",
+          "## Execution unit under review",
           "",
-          priorTaskReviews.length
-            ? ["```json", JSON.stringify(priorTaskReviews, null, 2), "```"].join("\n")
-            : "_No prior task approvals are recorded._",
+          planSelection?.unit
+            ? [
+                `- id: \`${planSelection.unit.id}\``,
+                `- title: ${planSelection.unit.title || "(untitled)"}`,
+                `- user_outcome: ${planSelection.unit.user_outcome || "(not stated)"}`,
+                `- review_boundary: ${planSelection.unit.review_boundary || "(not stated)"}`,
+                `- estimated_lines: ${planSelection.unit.estimated_lines ?? "(not stated)"}`,
+                `- plan goal: ${planSelection.plan_goal || "(not stated)"}`,
+                planSelection.plan_non_goals.length
+                  ? `- plan non-goals: ${planSelection.plan_non_goals.join("; ")}`
+                  : "- plan non-goals: (none stated)",
+                planSelection.unit.allowed_files.length
+                  ? `- declared scope: ${planSelection.unit.allowed_files.map((f) => `\`${f}\``).join(", ")}`
+                  : "- declared scope: (not stated)",
+                planSelection.unit.evidence.length
+                  ? `- plan evidence: ${planSelection.unit.evidence.slice(0, 10).join("; ")}`
+                  : "- plan evidence: (none stated)",
+                planSelection.unit.stop_conditions.length
+                  ? `- STOP conditions: ${planSelection.unit.stop_conditions.join("; ")}`
+                  : "- STOP conditions: (none stated)",
+                planSelection.unit.acceptance_criteria.length
+                  ? `- plan acceptance criteria: ${planSelection.unit.acceptance_criteria.join("; ")}`
+                  : "- plan acceptance criteria: (none stated)",
+              ].join("\n")
+            : `_No matching execution unit found in ${path.relative(root, planPath).split(path.sep).join("/")}; read the plan directly._`,
           "",
         ]
-      : []),
+      : [
+          "## Run objective",
+          "",
+          `- plan goal: ${planSelection?.plan_goal || "(not stated)"}`,
+          planSelection?.plan_non_goals?.length
+            ? `- plan non-goals: ${planSelection.plan_non_goals.join("; ")}`
+            : "- plan non-goals: (none stated)",
+          `- execution units in plan: ${planSelection?.unit_count ?? "unknown"}`,
+          `- units with a recorded approval: ${priorTaskReviews.length}`,
+          "",
+        ];
+
+  const finalSections =
+    scope === "final"
+      ? [
+          "## Previous task review evidence (task approval summaries)",
+          "",
+          priorTaskReviews.length
+            ? priorTaskReviews
+                .map((review) =>
+                  [
+                    `- ${review.unit_or_task || "(unknown unit)"}: ${review.verdict || "NO_VERDICT"}` +
+                      ` @ \`${review.reviewed_commit || "(no commit)"}\``,
+                    `  - review_evidence_bound: ${review.review_evidence_bound}`,
+                    `  - acceptance entries: ${review.acceptance.length}, checks: ${review.checks.length}, files_reviewed: ${review.files_reviewed.length}`,
+                    `  - files_changed_after_review: ${
+                      review.files_changed_after_review === null
+                        ? "UNAVAILABLE (treat every criterion as reopened)"
+                        : review.files_changed_after_review.length === 0
+                          ? "none"
+                          : review.files_changed_after_review.join(", ")
+                    }`,
+                  ].join("\n"),
+                )
+                .join("\n")
+            : "_No prior task approvals are recorded._",
+          "",
+          "Reuse a prior result only when `review_evidence_bound: true`, the",
+          "post-review file list is available, and none of the criterion's owning",
+          "files appears in it. This never replaces this final review.",
+          "",
+          "## Cross-unit and shared files",
+          "",
+          integration?.cross_unit_files?.length
+            ? integration.cross_unit_files
+                .map((entry) => `- ${entry.file} ← ${entry.units.join(", ")}`)
+                .join("\n")
+            : "_No file was changed by more than one unit._",
+          "",
+          "## Public / shared contract changes",
+          "",
+          integration?.contract_files?.length
+            ? integration.contract_files.map((file) => `- ${file}`).join("\n")
+            : "_No shared contract surface changed._",
+          "",
+          "## Integration hotspots (review these interactions first)",
+          "",
+          integration?.hotspots?.length
+            ? integration.hotspots.map((file) => `- ${file}`).join("\n")
+            : "_No integration hotspot detected._",
+          "",
+          "## Per-unit change ranges",
+          "",
+          ranges.length
+            ? ranges
+                .map(
+                  (range) =>
+                    `- ${range.unit_or_task || "(unknown)"}: \`${range.base || "?"}\`..\`${range.head || "?"}\` → ${
+                      range.files === null
+                        ? "range unavailable"
+                        : `${range.files.length} file(s)`
+                    }`,
+                )
+                .join("\n")
+            : "_No unit ranges available._",
+          "",
+        ]
+      : [];
+
+  const md = [
+    ...identitySection,
+    ...acceptanceSection,
+    ...unitSection,
+    ...finalSections,
     "## Changed files",
     "",
-    changedFiles.length
-      ? changedFiles.map((f) => `- ${f}`).join("\n")
+    nameStatusText
+      ? ["```text", clamp(nameStatusText, 20_000, "name-status"), "```"].join("\n")
       : "_No changed files between base and head._",
+    "",
+    "## Diff stat",
+    "",
+    diffStat.ok && diffStat.stdout.trim()
+      ? ["```text", clamp(diffStat.stdout.trimEnd(), DEFAULT_DIFF_STAT_BYTES, "diff stat"), "```"].join("\n")
+      : "_No diff stat available._",
     "",
     "## Production files (must be reviewed or explicitly skipped)",
     "",
@@ -427,24 +921,40 @@ export function buildReviewPackage(worktree, opts = {}) {
       ? productionChanged.map((f) => `- ${f}`).join("\n")
       : "_None classified as production._",
     "",
-    "## Impact evidence",
+    "## Impact evidence (callers and related tests)",
     "",
-    summarizeImpact(impact),
+    summarizeImpactSelection(impactSelected),
     "",
-    "## Verification results (deterministic)",
+    "## Sealed verification (authoritative, already executed)",
     "",
-    summarizeVerification(verification),
+    summarizeSealedVerification(verification, sealedCommands),
     "",
+    scope === "final"
+      ? "## Focused integration hunks"
+      : "## Focused hunks (changed production files, then their tests)",
+    "",
+    hunks.text || "_No focused hunks selected._",
+    "",
+    ...(hunks.omitted.length > 0 || hunks.clipped.length > 0
+      ? [
+          "### Not quoted here",
+          "",
+          ...hunks.clipped.map(
+            (entry) =>
+              `- ${entry.file}: clipped at the per-file budget (${entry.bytes} bytes total) — \`git diff ${baseCommit} ${headCommit} -- ${entry.file}\``,
+          ),
+          ...hunks.omitted.map(
+            (entry) =>
+              `- ${entry.file}: ${entry.reason} — \`git diff ${baseCommit} ${headCommit} -- ${entry.file}\``,
+          ),
+          "",
+        ]
+      : []),
     "## Implementer notes (unverified claims)",
     "",
     implementerNotes || "_None._",
     "",
-    "## Diff (BASE..HEAD)",
-    "",
-    "```diff",
-    diffText.trimEnd() || "(empty diff)",
-    "```",
-    "",
+    ...inspectCommands,
   ].join("\n");
 
   const reviewRoot = path.resolve(root, ".opencode", "reviews");
@@ -504,10 +1014,50 @@ export function buildReviewPackage(worktree, opts = {}) {
     production_files: productionChanged,
     acceptance_criteria: acceptance,
     previous_task_reviews: priorTaskReviews,
+    // PR6: the sealed commands the reviewer must consume instead of replaying.
+    sealed_commands: sealedCommands,
+    selection: {
+      version: REVIEW_SELECTION_VERSION,
+      hunk_budget_bytes: hunks.budget,
+      hunk_bytes: hunks.bytes,
+      hunk_files_included: hunks.included,
+      hunk_files_clipped: hunks.clipped.map((entry) => entry.file),
+      hunk_files_omitted: hunks.omitted,
+      whole_diff_bytes: wholeDiffBytes,
+      integration:
+        scope === "final"
+          ? {
+              cross_unit_files: integration?.cross_unit_files || [],
+              contract_files: integration?.contract_files || [],
+              hotspots: integration?.hotspots || [],
+              unit_ranges: ranges.map((range) => ({
+                unit_or_task: range.unit_or_task,
+                base: range.base,
+                head: range.head,
+                file_count: range.files === null ? null : range.files.length,
+              })),
+            }
+          : null,
+    },
+    package_bytes: Buffer.byteLength(md, "utf8"),
+    generation_ms: Date.now() - startedAt,
     digest_sha256: digest,
     generated_at: generatedAt,
   };
   fs.writeFileSync(jsonPath, `${JSON.stringify(meta, null, 2)}\n`, "utf8");
+
+  // PR6.D: measure the briefing so a selection regression is observable.
+  if (typeof opts.telemetry?.emit === "function") {
+    opts.telemetry.emit({
+      event: "review_package",
+      run_id: runId,
+      kind: scope,
+      review_package_bytes: meta.package_bytes,
+      review_package_generation_ms: meta.generation_ms,
+      duration_ms: meta.generation_ms,
+      bytes: meta.package_bytes,
+    });
+  }
   return meta;
 }
 

@@ -74,6 +74,7 @@ jobs:
           npm ci
           npm test
           npm run test:install
+          node bin/nexus.js eval reviewer --json
 
       - name: Publish package
         env:

@@ -89,13 +89,28 @@
       }
     },
     "adversarial_checks": {
+      "description": "Declared adversarial probes. Analysis-only entries need no command. An entry that executed a command must state the hypothesis the sealed deterministic evidence does not answer, the command, and the reason; Nexus rejects a re-run of an already-sealed passing command that merely reports PASS.",
       "type": "array",
       "items": {
         "type": "object",
         "additionalProperties": true,
-        "required": ["risk", "result", "evidence"],
+        "required": ["result", "evidence"],
+        "anyOf": [
+          {
+            "properties": { "risk": { "type": "string", "minLength": 1 } },
+            "required": ["risk"]
+          },
+          {
+            "properties": { "hypothesis": { "type": "string", "minLength": 1 } },
+            "required": ["hypothesis"]
+          }
+        ],
         "properties": {
           "risk": { "type": "string", "minLength": 1 },
+          "hypothesis": { "type": "string", "minLength": 1 },
+          "command": { "type": "string", "minLength": 1 },
+          "argv": { "type": "array", "items": { "type": "string" } },
+          "reason": { "type": "string", "minLength": 1 },
           "result": {
             "type": "string",
             "enum": ["PASS", "FAIL", "CANNOT_VERIFY"]

@@ -10,6 +10,153 @@ export const MANDATORY_CHECK_CATEGORIES = [
   "impact",
 ];
 
+/**
+ * Reviewer command policy (PR6.A).
+ *
+ * Deterministic verification is already sealed by `nexus verify` before a
+ * reviewer is dispatched. The reviewer's job is semantic and adversarial
+ * analysis, so it *consumes* that evidence instead of replaying it:
+ *
+ *   sealed deterministic evidence → consume, don't replay
+ *   → review code / acceptance / impact / tests
+ *   → specific new hypothesis? no → no command; yes → focused probe
+ *
+ * Command execution stays permitted, because a targeted probe can find what the
+ * sealed ladder never exercised. What is not permitted is re-running an
+ * already-sealed passing command to reconfirm that it passes. Declared probes
+ * therefore carry a hypothesis and a reason, and a declared re-run of a sealed
+ * passing command that also reports PASS is a redundant replay: it adds latency
+ * and no evidence, so it is inadmissible for APPROVED.
+ *
+ * A probe that contradicts sealed evidence (FAIL / CANNOT_VERIFY) is always
+ * admissible — disproving a sealed result is exactly the kind of finding this
+ * workflow wants.
+ */
+export const REVIEWER_COMMAND_POLICY_VERSION = "nexus-reviewer-command-policy/1";
+
+function commandTokens(value) {
+  if (Array.isArray(value)) {
+    return value.map((entry) => String(entry ?? "").trim()).filter(Boolean);
+  }
+  const text = String(value ?? "").trim();
+  if (!text) return [];
+  return text.split(/\s+/).filter(Boolean);
+}
+
+/** Canonical comparable form of a command. Argv order is meaningful. */
+export function normalizeCommandKey(value) {
+  return commandTokens(value).join(" ");
+}
+
+/**
+ * Sealed commands available for consumption, from a review package or a sealed
+ * verification artifact. Only passing results can make a re-run redundant: a
+ * failed or unavailable check is not evidence of anything.
+ */
+export function sealedCommandIndex(source) {
+  const rows = [];
+  const push = (entry) => {
+    if (!entry || typeof entry !== "object") return;
+    const key = normalizeCommandKey(entry.argv?.length ? entry.argv : entry.command);
+    if (!key) return;
+    rows.push({
+      id: typeof entry.id === "string" ? entry.id : null,
+      command: key,
+      pass: entry.pass === true,
+      status: typeof entry.status === "string" ? entry.status : null,
+      identity: typeof entry.identity === "string" ? entry.identity : null,
+    });
+  };
+  if (Array.isArray(source)) {
+    for (const entry of source) push(entry);
+  } else if (source && typeof source === "object") {
+    for (const entry of source.sealed_commands || []) push(entry);
+    for (const entry of source.results || []) push(entry);
+  }
+  const byCommand = new Map();
+  for (const row of rows) {
+    const existing = byCommand.get(row.command);
+    if (!existing || (!existing.pass && row.pass)) byCommand.set(row.command, row);
+  }
+  return byCommand;
+}
+
+/**
+ * Normalize one declared adversarial check. `risk` and `hypothesis` are the same
+ * field under two names; `command` marks an execution rather than pure analysis.
+ */
+export function normalizeAdversarialCheck(entry = {}) {
+  const check = entry && typeof entry === "object" ? entry : {};
+  const hypothesis = String(check.hypothesis ?? check.risk ?? "").trim();
+  const command = normalizeCommandKey(check.argv?.length ? check.argv : check.command);
+  return {
+    hypothesis,
+    risk: hypothesis,
+    command: command || null,
+    reason: String(check.reason ?? "").trim(),
+    result: String(check.result ?? "").trim().toUpperCase(),
+    evidence: String(check.evidence ?? "").trim(),
+    executed: Boolean(command),
+  };
+}
+
+/**
+ * Classify the commands a reviewer declared against sealed evidence.
+ *
+ * @returns {{adversarial_command_count: number, duplicate_command_count: number,
+ *   duplicates: object[], errors: string[], checks: object[]}}
+ */
+export function classifyReviewerCommands(handoff = {}, sealedSource = null) {
+  const sealed = sealedCommandIndex(sealedSource);
+  const raw = Array.isArray(handoff?.adversarial_checks)
+    ? handoff.adversarial_checks
+    : [];
+  const checks = raw.map(normalizeAdversarialCheck);
+  const duplicates = [];
+  const errors = [];
+  let executed = 0;
+
+  for (const [index, check] of checks.entries()) {
+    if (!check.executed) continue;
+    executed += 1;
+    if (!check.hypothesis) {
+      errors.push(
+        `adversarial_checks[${index}] executed \`${check.command}\` without a hypothesis; state the specific risk the sealed evidence does not answer`,
+      );
+    }
+    if (!check.reason) {
+      errors.push(
+        `adversarial_checks[${index}] executed \`${check.command}\` without a reason; explain why sealed verification cannot answer it`,
+      );
+    }
+    const sealedMatch = sealed.get(check.command);
+    if (sealedMatch?.pass) {
+      duplicates.push({
+        index,
+        command: check.command,
+        sealed_step: sealedMatch.id,
+        result: check.result || null,
+        informative: check.result === "FAIL" || check.result === "CANNOT_VERIFY",
+      });
+      if (check.result !== "FAIL" && check.result !== "CANNOT_VERIFY") {
+        errors.push(
+          `adversarial_checks[${index}] re-ran sealed passing command \`${check.command}\`${sealedMatch.id ? ` (sealed step ${sealedMatch.id})` : ""} and reported ${check.result || "no result"}; consume sealed verification instead of replaying it`,
+        );
+      }
+    }
+  }
+
+  return {
+    version: REVIEWER_COMMAND_POLICY_VERSION,
+    adversarial_command_count: executed,
+    duplicate_command_count: duplicates.length,
+    duplicates,
+    errors,
+    checks,
+    sealed_command_count: sealed.size,
+  };
+}
+
 // A review loop costs an implementer and a reviewer call. Keep the ceiling
 // small and deterministic so one hard unit cannot consume the whole run.
 export const DEFAULT_MAX_FIX_LOOP_ATTEMPTS = 3;
@@ -244,7 +391,19 @@ export function isApprovalAdmissible(handoff, state = {}, opts = {}) {
     );
   }
 
-  return { ok: errors.length === 0, errors };
+  // PR6.A: declared reviewer executions must be hypothesis-driven probes, not
+  // reconfirmation of sealed deterministic checks.
+  const commandPolicy = classifyReviewerCommands(
+    handoff,
+    opts.sealed_verification ||
+      pkg ||
+      state.provider_verification ||
+      state.final_verification ||
+      null,
+  );
+  errors.push(...commandPolicy.errors);
+
+  return { ok: errors.length === 0, errors, command_policy: commandPolicy };
 }
 
 export function fixLoopDecision({

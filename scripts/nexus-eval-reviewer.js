@@ -3,12 +3,13 @@
  * CLI: nexus eval reviewer
  *
  * Modes:
- *   --mode deterministic (default): oracle + rubber-stamp synthetic suites
+ *   --mode deterministic (default): oracle, rubber-stamp, sealed-replay, and
+ *                                   focused-probe synthetic suites
  *   --mode live: score real reviewer handoffs from --handoffs-dir
  *                (or --prepare to emit planted fixtures + review packages)
  *
  * Usage:
- *   nexus eval reviewer [--mode deterministic|live] [--suite oracle|rubber|both]
+ *   nexus eval reviewer [--mode deterministic|live] [--suite oracle|rubber|replay|probe|both]
  *   nexus eval reviewer --mode live --prepare [--out-dir <dir>]
  *   nexus eval reviewer --mode live --handoffs-dir <dir> [--json]
  */
@@ -21,8 +22,10 @@ import {
 import {
   scoreReviewerHandoff,
   aggregateReviewerEval,
+  focusedProbeApproval,
   oracleReviewHandoff,
   rubberStampApproval,
+  sealedReplayApproval,
 } from "./lib/reviewer-eval.js";
 
 function parseArgs(argv) {
@@ -185,11 +188,20 @@ function main() {
 
   // deterministic (default)
   const suites = [];
-  if (args.suite === "oracle" || args.suite === "both") {
+  const all = args.suite === "both";
+  if (args.suite === "oracle" || all) {
     suites.push(runSuite("oracle", oracleReviewHandoff));
   }
-  if (args.suite === "rubber" || args.suite === "both") {
+  if (args.suite === "rubber" || all) {
     suites.push(runSuite("rubber", rubberStampApproval));
+  }
+  // PR6.A protection: a declared re-run of an already-sealed passing command
+  // must never be admissible, and a focused probe must never be penalized.
+  if (args.suite === "replay" || all) {
+    suites.push(runSuite("replay", sealedReplayApproval));
+  }
+  if (args.suite === "probe" || all) {
+    suites.push(runSuite("probe", focusedProbeApproval));
   }
 
   const report = {
@@ -207,6 +219,14 @@ function main() {
         approval_of_bad_patch_rate: 1,
         defect_recall: 0,
       },
+      replay: {
+        admissible_rate: 0,
+        duplicate_sealed_rerun_rate: 1,
+      },
+      probe: {
+        admissible_rate: 1,
+        duplicate_sealed_rerun_rate: 0,
+      },
     },
     live_hint:
       "For real DeepSeek/Claude reviewer metrics: nexus eval reviewer --mode live --prepare",
@@ -221,13 +241,24 @@ function main() {
   if (rubber) {
     if (rubber.aggregate.approval_of_bad_patch_rate !== 1) report.ok = false;
   }
+  const replay = suites.find((s) => s.suite === "replay");
+  const probe = suites.find((s) => s.suite === "probe");
+  if (oracle && oracle.aggregate.duplicate_sealed_rerun_rate !== 0) report.ok = false;
+  if (replay) {
+    if (replay.aggregate.admissible_rate !== 0) report.ok = false;
+    if (replay.aggregate.duplicate_sealed_rerun_rate !== 1) report.ok = false;
+  }
+  if (probe) {
+    if (probe.aggregate.admissible_rate !== 1) report.ok = false;
+    if (probe.aggregate.duplicate_sealed_rerun_rate !== 0) report.ok = false;
+  }
 
   if (args.json) {
     process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
   } else {
     for (const s of suites) {
       process.stdout.write(
-        `${s.suite}: recall=${s.aggregate.defect_recall} fp=${s.aggregate.false_positive_rate} bad_approve=${s.aggregate.approval_of_bad_patch_rate} unsupported=${s.aggregate.unsupported_finding_rate}\n`,
+        `${s.suite}: recall=${s.aggregate.defect_recall} fp=${s.aggregate.false_positive_rate} bad_approve=${s.aggregate.approval_of_bad_patch_rate} unsupported=${s.aggregate.unsupported_finding_rate} admissible=${s.aggregate.admissible_rate} adversarial_cmds=${s.aggregate.adversarial_command_total} sealed_reruns=${s.aggregate.duplicate_command_total}\n`,
       );
     }
     process.stdout.write(report.ok ? "PASS\n" : "FAIL\n");

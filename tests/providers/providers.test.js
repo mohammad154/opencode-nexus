@@ -204,7 +204,7 @@ test("metrics JSONL records measurements without prompts or raw errors", () => {
   assert.equal(totals.cost_usd, 0.02);
 });
 
-test("PR5 lean-planning metrics survive sanitization and aggregate in totals", () => {
+test("PR5/PR6 measurement metrics survive sanitization and aggregate in totals", () => {
   const worktree = tempDir("nexus-pr5-metrics-");
   const metricsPath = path.join(worktree, "metrics.jsonl");
   const telemetry = createMetricsTelemetry({ worktree, metricsPath });
@@ -250,7 +250,31 @@ test("PR5 lean-planning metrics survive sanitization and aggregate in totals", (
   assert.equal(lines[2].generated_task_bytes, 971);
   assert.equal(lines[2].task_materialization_count, 1);
 
+  telemetry.emit({
+    event: "review_package",
+    run_id: "pr5-metrics",
+    kind: "task",
+    review_package_bytes: 6490,
+    review_package_generation_ms: 41,
+  });
+  telemetry.emit({
+    event: "review_commands",
+    run_id: "pr5-metrics",
+    kind: "task",
+    reviewer_adversarial_command_count: 1,
+    reviewer_duplicate_command_count: 0,
+  });
+
+  assert.equal(
+    fs.readFileSync(metricsPath, "utf8").trim().split(/\r?\n/).length,
+    5,
+  );
+
   const totals = telemetry.getTotals();
+  assert.equal(totals.review_package_bytes, 6490);
+  assert.equal(totals.review_package_generation_ms, 41);
+  assert.equal(totals.reviewer_adversarial_command_count, 1);
+  assert.equal(totals.reviewer_duplicate_command_count, 0);
   assert.equal(totals.project_profile_cache_hit, 1);
   assert.equal(totals.project_profile_rebuild, 1);
   assert.equal(totals.project_profile_duration_ms, 20);

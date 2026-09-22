@@ -227,6 +227,53 @@ Only after task verification is `PASSED`: run `nexus review-package --scope task
 then dispatch `reviewer`. A pending, failed, running, or timed-out verification
 never dispatches a reviewer.
 
+### Reviewer contract: consume sealed evidence, do not replay it
+
+`nexus verify` seals the deterministic ladder before a reviewer is dispatched, so
+that result is the authoritative evidence and the reviewer is the semantic and
+adversarial layer above it:
+
+```text
+sealed deterministic evidence → consume, don't replay → review code / acceptance
+/ impact / tests → specific new hypothesis? no → no command; yes → focused probe
+```
+
+The reviewer keeps its command permissions, because a targeted probe can find
+what the ladder never exercised. What it must not do is re-run an already-sealed
+command to reconfirm that it passes. Every execution is declared in
+`adversarial_checks` with `hypothesis`, `command`, and `reason`:
+
+```json
+{
+  "hypothesis": "Malformed token may bypass expiry validation",
+  "command": "npm test -- tests/auth-expiry.test.js",
+  "reason": "Existing sealed verification does not exercise this edge case",
+  "result": "FAIL",
+  "evidence": "src/auth.js:88 accepts an expired token when aud is absent"
+}
+```
+
+Nexus rejects an `APPROVED` handoff that declares a command without a hypothesis
+and reason, and one that re-runs a sealed **passing** command while reporting
+`PASS`. A probe that contradicts sealed evidence (`FAIL`/`CANNOT_VERIFY`) is
+always admissible — disproving a sealed result is a finding, not a redundancy.
+
+### Review packages are selections
+
+A package is built to be reviewed, not to contain everything. Each section has a
+purpose, files are ordered by review value, and anything omitted is named with
+the exact read-only command that retrieves it (`git diff <base> <head> -- path`).
+
+| Scope | Selected content |
+|---|---|
+| `task` | identity · current execution unit from the normalized plan · acceptance criteria · changed and production files · diff stat · impact callers and related tests · sealed verification summary · focused hunks (production files, then their tests) · untrusted implementer notes |
+| `final` | run objective · `Previous task review evidence` summaries with `review_evidence_bound` and `files_changed_after_review` · cross-unit/shared files · public/shared contract changes · integration hotspots · per-unit change ranges · diff stat/index · focused integration hunks |
+
+`review_package.selection` records the budget, which files were quoted, clipped,
+or omitted, and the size of the whole diff, so a reviewer (or an auditor) can see
+exactly what was left out and why. Package identity, digest binding, and
+`APPROVED` admissibility are unchanged.
+
 After the last task APPROVED: `nexus review-package --scope final` then dispatch
 `reviewer` again (`review_scope: final`) before `FINAL_VERIFYING`. Final packages
 use immutable `run_base_commit..HEAD` (whole branch), not the last task's

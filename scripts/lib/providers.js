@@ -255,6 +255,11 @@ function sanitizeMetricEvent(event = {}) {
     "plan_bytes",
     "generated_task_bytes",
     "task_materialization_count",
+    // PR6 review-efficiency measurements.
+    "review_package_bytes",
+    "review_package_generation_ms",
+    "reviewer_adversarial_command_count",
+    "reviewer_duplicate_command_count",
   ]) {
     const value = numericMetric(input[key]);
     if (value !== null) out[key] = value;
@@ -308,6 +313,10 @@ function addMetricTotals(totals, event) {
     "plan_bytes",
     "generated_task_bytes",
     "task_materialization_count",
+    "review_package_bytes",
+    "review_package_generation_ms",
+    "reviewer_adversarial_command_count",
+    "reviewer_duplicate_command_count",
   ]) {
     // Phase events span other recorded work. Summing both would double count,
     // so phase wall time is aggregated separately in `phase_durations_ms`.
@@ -351,6 +360,10 @@ export function createMetricsTelemetry(options = {}) {
     plan_bytes: 0,
     generated_task_bytes: 0,
     task_materialization_count: 0,
+    review_package_bytes: 0,
+    review_package_generation_ms: 0,
+    reviewer_adversarial_command_count: 0,
+    reviewer_duplicate_command_count: 0,
   };
   // Phase 0 duplicate-work diagnostics. Keyed by evidence identity, so two
   // executions collide only when Nexus already possessed the answer for the

@@ -43,7 +43,7 @@ protocol docs live under `docs/workflow.md`.
 
 4. On success the workflow:
 
-   - Re-runs `npm test` and `npm run test:install`
+   - Re-runs `npm test`, `npm run test:install`, and `nexus eval reviewer --json` (reviewer quality gate)
    - Publishes to [npm](https://www.npmjs.com/package/@mohammad154/opencode-nexus)
    - Creates annotated tag `v4.x.y` and a GitHub release with generated notes
 
@@ -65,6 +65,7 @@ for the same version only if that version is not already on the registry.
 ```bash
 npm test
 npm run test:install
+nexus eval reviewer --json      # reviewer quality gate (no regression allowed)
 ```
 
 These match the gates the Release workflow runs before publish.

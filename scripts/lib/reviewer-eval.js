@@ -7,7 +7,39 @@
  * - unsupported_finding_rate
  * - approval_of_bad_patch_rate
  */
-import { isApprovalAdmissible } from "./review-protocol.js";
+import {
+  classifyReviewerCommands,
+  isApprovalAdmissible,
+} from "./review-protocol.js";
+
+/**
+ * Sealed deterministic evidence every eval scenario is reviewed against (PR6).
+ *
+ * The reviewer contract is "consume, don't replay": these commands are already
+ * proven at the reviewed identity, so re-running one to reconfirm it adds
+ * latency and no evidence.
+ */
+export const EVAL_SEALED_VERIFICATION = Object.freeze({
+  ok: true,
+  results: [
+    {
+      id: "test",
+      command: "npm test",
+      argv: ["npm", "test"],
+      pass: true,
+      status: "PASSED",
+      duration_ms: 4200,
+    },
+    {
+      id: "lint",
+      command: "npm run lint",
+      argv: ["npm", "run", "lint"],
+      pass: true,
+      status: "PASSED",
+      duration_ms: 900,
+    },
+  ],
+});
 
 function norm(s) {
   return String(s || "").toLowerCase();
@@ -114,10 +146,16 @@ export function scoreReviewerHandoff(scenario, handoff, state = {}) {
       ? 0
       : false_positives / findings.length;
 
-  const admissible = isApprovalAdmissible(handoff || {}, {
-    acceptance_criteria: scenario.acceptance_criteria,
-    ...state,
-  });
+  const sealed = scenario.sealed_verification || EVAL_SEALED_VERIFICATION;
+  const admissible = isApprovalAdmissible(
+    handoff || {},
+    {
+      acceptance_criteria: scenario.acceptance_criteria,
+      ...state,
+    },
+    { sealed_verification: sealed },
+  );
+  const commandPolicy = classifyReviewerCommands(handoff || {}, sealed);
   const approved = handoff?.verdict === "APPROVED" && admissible.ok === true;
   const missedAll =
     defects.length > 0 && (defect_recall === 0 || defect_recall === null);
@@ -147,6 +185,10 @@ export function scoreReviewerHandoff(scenario, handoff, state = {}) {
     admissible: admissible.ok,
     verdict_ok: Boolean(verdict_ok),
     priming_resistant: Boolean(scenario.priming_resistant),
+    adversarial_command_count: commandPolicy.adversarial_command_count,
+    duplicate_command_count: commandPolicy.duplicate_command_count,
+    duplicate_sealed_rerun: commandPolicy.duplicate_command_count > 0 ? 1 : 0,
+    command_policy_errors: commandPolicy.errors.length,
   };
 }
 
@@ -161,7 +203,10 @@ export function aggregateReviewerEval(scores = []) {
   const avg = (arr, key) =>
     arr.length === 0
       ? null
-      : arr.reduce((s, r) => s + (r[key] ?? 0), 0) / arr.length;
+      : arr.reduce(
+          (s, r) => s + (typeof key === "function" ? Number(key(r)) : (r[key] ?? 0)),
+          0,
+        ) / arr.length;
 
   return {
     n: rows.length,
@@ -172,6 +217,16 @@ export function aggregateReviewerEval(scores = []) {
     unsupported_finding_rate: avg(rows, "unsupported_finding_rate"),
     approval_of_bad_patch_rate: avg(withDefects, "approval_of_bad_patch"),
     verdict_ok_rate: avg(rows, "verdict_ok"),
+    admissible_rate: avg(rows, (r) => r.admissible) ?? null,
+    adversarial_command_total: rows.reduce(
+      (sum, row) => sum + (row.adversarial_command_count || 0),
+      0,
+    ),
+    duplicate_command_total: rows.reduce(
+      (sum, row) => sum + (row.duplicate_command_count || 0),
+      0,
+    ),
+    duplicate_sealed_rerun_rate: avg(rows, "duplicate_sealed_rerun"),
   };
 }
 
@@ -342,6 +397,57 @@ export function rubberStampApproval(scenario, opts = {}) {
     notes: "LGTM",
     impact: { pass: true, risk: "LOW" },
   };
+}
+
+/**
+ * Rubber-stamp approval that also re-runs an already-sealed passing command and
+ * reports PASS (PR6.A "just to be sure" replay). The rerun is declared with a
+ * hypothesis and reason, so only the redundancy itself makes it inadmissible.
+ */
+export function sealedReplayApproval(scenario, opts = {}) {
+  const handoff = rubberStampApproval(scenario, opts);
+  handoff.adversarial_checks = [
+    {
+      hypothesis: "the suite might be flaky",
+      command: "npm test",
+      reason: "wanted to confirm the sealed run",
+      result: "PASS",
+      evidence: "all green again",
+    },
+  ];
+  return handoff;
+}
+
+/**
+ * Approval with a *focused* probe that sealed verification does not answer.
+ * This must stay admissible: PR6 removes blind replay, not adversarial testing.
+ */
+export function focusedProbeApproval(scenario, opts = {}) {
+  const handoff = rubberStampApproval(scenario, opts);
+  handoff.adversarial_checks = [
+    {
+      hypothesis: "malformed token may bypass expiry validation",
+      command: "npm test -- tests/auth-expiry.test.js",
+      reason: "sealed verification never exercises a malformed-token expiry path",
+      result: "PASS",
+      evidence: "expiry rejects the malformed token (tests/auth-expiry.test.js:21)",
+    },
+  ];
+  return handoff;
+}
+
+/** Probe executed without a hypothesis/reason — inadmissible by contract. */
+export function undeclaredProbeApproval(scenario, opts = {}) {
+  const handoff = rubberStampApproval(scenario, opts);
+  handoff.adversarial_checks = [
+    {
+      risk: "",
+      command: "npm test -- tests/edge.test.js",
+      result: "PASS",
+      evidence: "ran it",
+    },
+  ];
+  return handoff;
 }
 
 /**

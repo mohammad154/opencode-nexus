@@ -127,7 +127,7 @@ task verification `PASSED`; `COMPLETED` requires sealed final verification
 2. Before `IMPLEMENTING` → complete brainstorm → plan → **pre-impact**. Do not edit production files.
 3. At `IMPLEMENTING` → only dispatch **implementer** via Task tool.
 4. In `VERIFYING` / `FINAL_VERIFYING` → follow `nexus next`: run deterministic `nexus verify`, resume a timeout with `nexus verify --resume`, and for one current sealed executed-check failure run fresh impact and re-enter `TASK_IMPACT_READY` once. Non-repairable failures remain manual; never dispatch a verifier subagent.
-5. After `VERIFYING/PASSED → REVIEWING` → dispatch **reviewer** (see [`reviewer-prompt.md`](reviewer-prompt.md)).
+5. After `VERIFYING/PASSED → REVIEWING` → build the package (`nexus review-package --scope task|final`) and dispatch **reviewer** (see [`reviewer-prompt.md`](reviewer-prompt.md)). The package is a selection; the reviewer consumes sealed verification instead of re-running it and declares any probe in `adversarial_checks` with a hypothesis, command, and reason.
 5. On verification failure, let `nexus next` choose the guarded automatic repair or manual reconciliation. On `REQUEST_CHANGES` → extract findings → fresh pre-impact → implementer → verify → reviewer. Do not ask the user to "fix review issues".
 
 ## Next action (deterministic)

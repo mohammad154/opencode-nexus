@@ -47,6 +47,7 @@ import {
 import {
   DEFAULT_MAX_FIX_LOOP_ATTEMPTS,
   DEFAULT_MAX_VERIFICATION_REPAIR_ATTEMPTS,
+  classifyReviewerCommands,
   fixLoopDecision,
   isApprovalAdmissible,
   isBlockingFinding,
@@ -2157,6 +2158,39 @@ export function transition(state, to, evidence = {}, providers = null) {
       call_count: budgetCheck.charge.count,
       agent_calls_used: budgetCheck.used,
       budget_max: budgetCheck.budget?.max_calls,
+    });
+  }
+
+  // PR6.D: measure how the reviewer used its command allowance. Sealed
+  // deterministic evidence is meant to be consumed; a declared re-run of an
+  // already-sealed passing command is recorded so replay stays observable.
+  const reviewerHandoffForMetrics =
+    ctx.review_handoff || ctx.unified_handoff || ctx.request_changes_handoff;
+  if (reviewerHandoffForMetrics && typeof reviewerHandoffForMetrics === "object") {
+    const commandPolicy = classifyReviewerCommands(
+      reviewerHandoffForMetrics,
+      ctx.review_package ||
+        state.review_package ||
+        state.provider_verification ||
+        state.final_verification ||
+        null,
+    );
+    next.last_review_command_policy = {
+      version: commandPolicy.version,
+      review_scope: reviewerHandoffForMetrics.review_scope || null,
+      adversarial_command_count: commandPolicy.adversarial_command_count,
+      duplicate_command_count: commandPolicy.duplicate_command_count,
+      sealed_command_count: commandPolicy.sealed_command_count,
+      duplicates: commandPolicy.duplicates,
+    };
+    prov.telemetry?.emit?.({
+      event: "review_commands",
+      run_id: state.run_id,
+      from: state.state,
+      to,
+      kind: reviewerHandoffForMetrics.review_scope || "task",
+      reviewer_adversarial_command_count: commandPolicy.adversarial_command_count,
+      reviewer_duplicate_command_count: commandPolicy.duplicate_command_count,
     });
   }
 
