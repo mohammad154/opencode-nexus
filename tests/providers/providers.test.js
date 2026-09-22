@@ -204,7 +204,7 @@ test("metrics JSONL records measurements without prompts or raw errors", () => {
   assert.equal(totals.cost_usd, 0.02);
 });
 
-test("PR5/PR6/PR7/PR8 measurement metrics survive sanitization and aggregate in totals", () => {
+test("PR5/PR6/PR7/PR8/PR9 measurement metrics survive sanitization and aggregate in totals", () => {
   const worktree = tempDir("nexus-pr5-metrics-");
   const metricsPath = path.join(worktree, "metrics.jsonl");
   const telemetry = createMetricsTelemetry({ worktree, metricsPath });
@@ -280,6 +280,18 @@ test("PR5/PR6/PR7/PR8 measurement metrics survive sanitization and aggregate in 
     trace_converged: 0,
   });
   telemetry.emit({
+    event: "lane_join",
+    run_id: "pr5-metrics",
+    lane_wave_size: 2,
+    lane_max_concurrency: 2,
+    lane_open: 1,
+    lane_excluded: 1,
+    lane_started: 1,
+    lane_joined: 1,
+    lane_join_refused: 0,
+    lane_aborted: 0,
+  });
+  telemetry.emit({
     event: "review_commands",
     run_id: "pr5-metrics",
     kind: "task",
@@ -289,7 +301,7 @@ test("PR5/PR6/PR7/PR8 measurement metrics survive sanitization and aggregate in 
 
   assert.equal(
     fs.readFileSync(metricsPath, "utf8").trim().split(/\r?\n/).length,
-    7,
+    8,
   );
   const advanceEvent = fs
     .readFileSync(metricsPath, "utf8")
@@ -310,6 +322,15 @@ test("PR5/PR6/PR7/PR8 measurement metrics survive sanitization and aggregate in 
   assert.equal(traceEvent.trace_criteria_covered, 2);
   assert.equal(traceEvent.trace_requirements_declared, 2);
   assert.equal(traceEvent.trace_converged, 0);
+  const laneEvent = fs
+    .readFileSync(metricsPath, "utf8")
+    .trim()
+    .split(/\r?\n/)
+    .map((line) => JSON.parse(line))
+    .find((event) => event.event === "lane_join");
+  assert.equal(laneEvent.lane_wave_size, 2);
+  assert.equal(laneEvent.lane_joined, 1);
+  assert.equal(laneEvent.lane_join_refused, 0);
 
   const totals = telemetry.getTotals();
   assert.equal(totals.review_package_bytes, 6490);

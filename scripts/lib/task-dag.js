@@ -68,6 +68,14 @@ function sharesFiles(a, b) {
 }
 
 /**
+ * Do two units' file allowlists overlap? Exposed for the lane scheduler (PR9),
+ * which must answer the same question for units that are not yet running.
+ */
+export function unitsShareFiles(a, b) {
+  return sharesFiles(a, b);
+}
+
+/**
  * Ready tasks whose deps are in completed set and that don't file-conflict
  * with currently running tasks.
  */

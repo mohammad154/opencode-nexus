@@ -96,6 +96,7 @@ nexus advance            # human summary
 nexus advance --json     # machine-readable steps + prepared dispatch
 nexus advance --dry-run  # show the next deterministic step, run nothing
 nexus trace              # what is still uncovered (exit 3 = not converged)
+nexus lane plan          # units whose implementers may run concurrently
 ```
 
 It stops (never guesses) at: your own brainstorm/plan work, an agent dispatch, a
@@ -125,6 +126,23 @@ nexus run transition --to FINAL_VERIFYING --json '{"reuse_final_review":true,"re
 nexus verify
 nexus run transition --to COMPLETED
 ```
+
+## Guarded parallel execution
+
+For independent units, run the implementers concurrently instead of one at a time:
+
+1. `nexus lane plan --max-concurrency 2` — the wave, plus a reason for every
+   excluded unit.
+2. `nexus lane start --unit <id>` per unit in the wave, then dispatch one
+   implementer inside each lane worktree with pre-impact measured there.
+3. Authorize the unit in the parent as usual, then `nexus lane join --unit <id>`.
+   The join rebases the lane onto the parent tip and leaves an ordinary
+   implementer handoff; `nexus advance` takes it from there.
+
+Only the implementer is parallel. Verification, the per-unit task review, the
+final review, and convergence are unchanged, so the agent-call count matches a
+sequential run. A refused join is final: on a conflict the disjointness
+assumption was wrong, so abort the lane and implement that unit sequentially.
 
 ## Convergence
 

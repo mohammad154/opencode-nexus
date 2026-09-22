@@ -70,6 +70,7 @@ Nexus gives OpenCode a repeatable delivery loop with explicit ownership and evid
 | **Impact mapping** | Built-in Nexus Impact Engine (git + AST + imports + tests) before every implementer |
 | **Safe implementation** | Production edits only via implementer, with branch, worktree, and handoff context |
 | **Always-on review** | Single `reviewer` on every execution unit; auto fix-loop on REQUEST_CHANGES |
+| **Guarded parallelism** | Independent units' implementers run concurrently in isolated lanes, joined by rebase so every parent gate runs unchanged |
 | **Durable state** | Stores plans, tasks, handoffs, impact reports, and run state so interrupted work can recover |
 | **Runtime integrity** | Freezes scope policy and orchestrator-owned `.opencode` state before implementation; tampering blocks verification |
 
@@ -285,6 +286,9 @@ nexus advance --json                    # steps + prepared agent dispatch
 nexus advance --dry-run                 # show the next deterministic step only
 nexus trace                             # requirement/criterion coverage matrix
 nexus trace --json                      # exit 3 while the run has not converged
+nexus lane plan --max-concurrency 2     # units whose implementers may run concurrently
+nexus lane start --unit unit-2          # isolated lane worktree for one unit
+nexus lane join --unit unit-2           # rebase onto the parent tip and hand over
 nexus classify --files 2 --lines 40 --class small-feature-with-tests --focused
 nexus estimate --tasks 3
 nexus project-profile --json            # advisory cached repo recon
@@ -342,6 +346,7 @@ Only the **implementer** writes production code. Nexus uses one fixed V5 workflo
 - Pass complete handoffs by file (`--implementer-handoff-file` or `--review-handoff-file`) rather than rebuilding partial JSON in the orchestrator.
 - `nexus advance` runs every deterministic step the current state allows — plan-check, pre-impact, drift, the authorization transitions, `nexus verify`, the review package — then stops at the next boundary and returns the prepared agent dispatch. It executes state changes only through the same gates, consumes an agent handoff only when it is bound to the current authorization, and never writes a handoff, dispatches an agent, or retries a rejected gate.
 - Acceptance criteria carry stable identity (`unit-1/AC1` plus a digest of their text), which the review package publishes. `COMPLETED` requires **convergence**: every planned execution unit has an approved task review, and every planned criterion has a passing acceptance result from it — so a planned unit cannot be silently abandoned. A plan may also declare `## Requirements` and map them to units with `covers:`; when it does, an unmapped requirement fails the `PLANNED` gate. `nexus trace` shows the matrix.
+- Independent units can run in parallel without loosening anything. `nexus lane` opens an isolated worktree per unit for the **implementer only**; a unit joins a wave only when its dependencies are reviewed, its `allowed_files` is non-empty, and its scope is provably disjoint from every other lane and from the unit in flight. `nexus lane join` rebases the lane onto the parent tip, refuses a conflict or an out-of-scope diff instead of resolving it, and hands the parent an ordinary implementer handoff — so scope lock, verification, the per-unit task review, the final review, and convergence all run unchanged. Reviews are never parallelized, so the agent-call count is identical to a sequential run.
 - Before implementation, Nexus snapshots trusted scope policy and orchestrator-owned `.opencode` runtime; unexpected changes block `VERIFYING` with `CONTROL_PLANE_TAMPERED` (handoffs remain writable).
 
 Full policy: [`docs/workflow.md`](docs/workflow.md). Integrity details: [`docs/architecture.md`](docs/architecture.md#runtime-integrity-control-plane-and-policy-snapshots).
@@ -358,6 +363,8 @@ Full policy: [`docs/workflow.md`](docs/workflow.md). Integrity details: [`docs/a
 | `.opencode/cache/project-profile.json` | Advisory cached project recon facts |
 | `.opencode/handoffs/` | Implementer and reviewer results |
 | `.opencode/impact/` | Impact analysis reports |
+| `.opencode/lanes/<run-id>.json` | Parallel lane records (outside the protected control-plane tree) |
+| `.opencode/worktrees/` | Isolated per-unit worktrees, including lanes |
 | `.opencode/reconcile/` | Reconcile reports |
 | `.opencode/memory/` + `reflections/LESSONS.md` | Outcome memory |
 

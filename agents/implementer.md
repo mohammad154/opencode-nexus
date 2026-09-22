@@ -62,6 +62,11 @@ Requirements:
 - Use one planned evidence path per acceptance criterion. Do not repeat equivalent probes or replays after the required evidence already exists.
 - If a required criterion cannot be proven after the planned evidence path, stop and report `BLOCKED` with exact evidence instead of continuing exploratory tool calls.
 - Stay on the assigned feature branch / worktree; never commit to base.
+- In a **lane** (`nexus lane start`) you work in an isolated worktree at the
+  parent tip and nothing else changes: same `allowed_files`, same evidence, same
+  handoff. Commit production files only — a lane that commits `.opencode/`
+  artifacts is refused at join as out-of-scope — and never rebase or merge the
+  lane yourself; `nexus lane join` does that and proves the result.
 - Treat every pre-existing modified or untracked file as user-owned. Never use
   `git restore`, `git reset`, `git checkout`, `git clean`, branch switching,
   direct deletion, or overwrite to manufacture a pristine baseline. If an

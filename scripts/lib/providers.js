@@ -278,6 +278,15 @@ function sanitizeMetricEvent(event = {}) {
     "trace_requirements_declared",
     "trace_requirements_covered",
     "trace_converged",
+    // PR9 guarded parallel execution: wave width and join outcomes.
+    "lane_wave_size",
+    "lane_max_concurrency",
+    "lane_open",
+    "lane_excluded",
+    "lane_started",
+    "lane_joined",
+    "lane_join_refused",
+    "lane_aborted",
   ]) {
     const value = numericMetric(input[key]);
     if (value !== null) out[key] = value;

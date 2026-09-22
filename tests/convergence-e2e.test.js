@@ -461,6 +461,9 @@ test("a two-unit run that covers every unit reaches COMPLETED", () => {
     ["unit-1", "unit-2"],
   );
 
+  // Baseline for PR9: the agent-call ledger a sequential two-unit run spends.
+  assert.equal(state.agent_calls_used, 6);
+
   const trace = nx(root, "trace", "--json", "--run-id", "conv");
   assert.equal(trace.status, 0, trace.text);
   const matrix = JSON.parse(trace.stdout);

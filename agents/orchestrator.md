@@ -102,6 +102,7 @@ nexus advance              # run the deterministic chain to the next boundary
 nexus next --json
 nexus advance --json       # same chain, machine-readable steps + prepared dispatch
 nexus trace                # requirement/criterion coverage (exit 3 = not converged)
+nexus lane plan            # wave of units whose implementers may run concurrently
 nexus run transition --to PLANNED --plan-check  # diagnostic + persisted gate
 nexus run transition --to BRAINSTORMING
 # if ambiguous:
@@ -234,6 +235,13 @@ hidden in the transition evidence.
 - The implementer runs targeted checks after internal implementation steps, then completes the unit's declared gates. Nexus does not persist or authorize each internal step as a separate verification boundary: run deterministic `nexus verify` for the completed unit before its one task reviewer.
 - Dispatch the reviewer only after `nexus next` reports `transition_to_reviewing`. If verification is `RUNNING` or `TIMED_OUT`, run `nexus verify --resume`. If `FAILED`, follow `nexus next`: a current sealed failure from an executed check gets one automatic fresh-impact → `TASK_IMPACT_READY` repair; timeout, unavailable, stale-HEAD, dirty-worktree, and other non-repairable evidence stays manual. Never create a verifier subagent.
 - Fresh implementer per execution unit; isolated worktree; `allowed_files` scope lock.
+- Independent units may implement concurrently: `nexus lane plan` reports the wave
+  the schedule allows (and why each other unit is excluded), `nexus lane start
+  --unit <id>` opens its worktree, and `nexus lane join --unit <id>` hands the
+  work back once the parent has authorized that unit. Dispatch one implementer per
+  lane; never parallelize a reviewer. A refused join is authoritative — on a
+  conflict, abort the lane and implement that unit sequentially instead of
+  resolving anything by hand.
 - Pass pre-impact (dependents, callers, related tests) into the implementer prompt.
 - On reviewer `REQUEST_CHANGES`: extract findings → **fresh pre-impact** → implementer → VERIFYING → `nexus verify` → reviewer. Do not wait for the user to say "fix review".
 - Agent claims are never evidence — re-run verification at gates.

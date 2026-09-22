@@ -236,6 +236,10 @@ a generic rationale such as “easier to review.”
   - In: <files that may be edited>
   - Out (do NOT touch): <files adjacent but unrelated>
   - Related callers (blast): <list from nexus-blast – files that may break>
+  # `In:` is the unit's `allowed_files`. Accurate, non-overlapping scopes are what
+  # let independent units' implementers run concurrently in lanes; two units that
+  # can touch the same file are serialized, and a unit with no declared scope is
+  # never parallelized.
 - Acceptance criteria:
   - [ ] Criterion 1 – machine-checkable
   - [ ] Criterion 2 – includes negative case

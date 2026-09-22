@@ -133,6 +133,61 @@ at COMPLETED over phrasing.
 `nexus trace` prints the matrix and exits 3 while a run has not converged, so
 "what is still missing?" is answerable without re-reading PLAN.md.
 
+### Guarded parallel execution
+
+The plan has always carried a dependency schedule; `nexus lane` makes one wave of
+it executable. Lanes parallelize **only the implementer**: every review still
+happens in the parent run, on the parent's integrated tree, with unchanged
+binding.
+
+```bash
+nexus lane plan --max-concurrency 2   # the wave the schedule allows, with reasons
+nexus lane start --unit unit-2        # isolated worktree + branch at the parent tip
+nexus lane status                     # measured from git, not reported by the lane
+nexus lane join  --unit unit-2        # rebase onto the parent tip, then hand over
+nexus lane abort --unit unit-2        # give up the lane; the unit stays unimplemented
+```
+
+A lane is deliberately small: a worktree, a branch, and one implementer. It has
+no state machine, no run state, and authorizes nothing.
+
+A unit joins a wave only when every one of these is true, and each exclusion is
+reported rather than silently dropped:
+
+| Requirement | Why |
+|---|---|
+| Its dependencies already have approved task reviews | The lane's base must contain what the unit builds on |
+| Its `allowed_files` is non-empty | An unprovable scope can never be shown disjoint; scope lock already fails closed on it |
+| Its scope is disjoint from every other lane and from the unit the parent has in flight | Two implementers must not be able to edit the same file |
+| The wave fits the concurrency ceiling (4) | Width stays reviewable |
+
+The join is what keeps the gates intact. It rebases the lane's commits onto the
+parent tip and then hands the parent an ordinary implementer handoff whose
+`base_commit` is the parent's authorization base and whose `commit` is the
+parent's new HEAD — so the parent applies its normal bindings rather than an
+exception. A join is refused, leaving the parent branch untouched, when:
+
+- the rebase conflicts (proof the disjointness guard did not hold — the conflict
+  is never auto-resolved, because a resolution is unreviewed code);
+- the rebased diff touches a file outside the unit's `allowed_files`;
+- the resulting commit is not a descendant of the parent tip, or the parent
+  cannot fast-forward to it (the parent moved during the join);
+- the lane has no `DONE` implementer handoff for that unit.
+
+After a successful join the parent runs its unchanged chain: fresh pre-impact,
+scope lock recomputed from the git diff, deterministic `nexus verify` on the
+integrated tree, one task review bound to that commit, then the next unit, the
+mandatory final review, and PR8 convergence. Reviews are never parallelized and
+never reused, so the agent-call ledger is identical to a sequential run — lanes
+buy wall-clock, not calls. For a wave of N independent units the critical path
+drops from `advisor + N implementers + N task reviews + final` to the same set
+with the N implementers overlapped into one round.
+
+Two operational notes: a lane implementer must not commit `.opencode/` artifacts
+(the join refuses them as out-of-scope), and lane records live under
+`.opencode/lanes/`, outside the control-plane protected tree, so a join may run
+while the parent holds an implementer authorization.
+
 ## Lifecycle
 
 ```text
@@ -403,6 +458,7 @@ nexus advance              # run every deterministic step up to the next boundar
 nexus advance --json
 nexus advance --dry-run    # show the next deterministic step, execute nothing
 nexus trace                # requirement/criterion coverage matrix (exit 3 = not converged)
+nexus lane plan            # the wave of units whose implementers may run concurrently
 nexus trace --json
 nexus run inspect --run-id <id>
 nexus estimate --tasks 3

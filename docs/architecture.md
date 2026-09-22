@@ -144,6 +144,22 @@ Emitted by `nexus trace`. These are per-run coverage snapshots rather than
 additive work counters, so they are useful for answering "did runs finish with
 every planned criterion demonstrated?" across a project.
 
+### Lane telemetry
+
+| Event | Fields |
+|---|---|
+| `lane_plan` | `lane_wave_size`, `lane_max_concurrency`, `lane_open`, `lane_excluded` |
+| `lane_start` | `lane_started` |
+| `lane_join` | `lane_joined`, `lane_join_refused` |
+| `lane_abort` | `lane_aborted` |
+
+Lane records themselves live in `.opencode/lanes/<run-id>.json`, deliberately
+outside the control-plane protected tree: the control plane snapshots
+orchestrator-owned runtime at `IMPLEMENTING` and compares it at `VERIFYING`, and
+a join legitimately runs inside that window. Lane records are not gate evidence —
+the rebased handoff and the parent's own measurements are — so nothing is
+weakened by keeping them outside.
+
 ### Planning telemetry
 
 When a run is initialized, measurements land in
