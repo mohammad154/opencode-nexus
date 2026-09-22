@@ -124,10 +124,10 @@ function scriptPath(name) {
 function runNodeScript(scriptName, args, { cwd = process.cwd() } = {}) {
   const script = scriptPath(scriptName);
   const result = spawnSync(process.execPath, [script, ...args], {
-    stdio: ["inherit", "pipe", "pipe"],
+    // Inherit stdio so large --json payloads are not truncated when this
+    // process is itself spawned with piped stdout (macOS CI).
+    stdio: "inherit",
     cwd,
-    encoding: "utf8",
-    maxBuffer: 64 * 1024 * 1024,
     env: {
       ...process.env,
       NEXUS_PKG_ROOT: pkgRoot,
@@ -136,8 +136,6 @@ function runNodeScript(scriptName, args, { cwd = process.cwd() } = {}) {
   if (result.error) {
     fail(result.error.message);
   }
-  if (result.stdout) process.stdout.write(result.stdout);
-  if (result.stderr) process.stderr.write(result.stderr);
   if (result.signal) {
     console.error(`Terminated by ${result.signal}`);
     process.exitCode = 1;
