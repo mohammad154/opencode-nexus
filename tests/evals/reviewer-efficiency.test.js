@@ -91,10 +91,11 @@ test("nexus eval reviewer gates the replay and probe suites", () => {
   const result = spawnSync(
     process.execPath,
     [path.join(repoRoot, "bin", "nexus.js"), "eval", "reviewer", "--json"],
-    { cwd: repoRoot, encoding: "utf8", maxBuffer: 32 * 1024 * 1024 },
+    { cwd: repoRoot, maxBuffer: 32 * 1024 * 1024 },
   );
-  assert.equal(result.status, 0, result.stderr);
-  const report = JSON.parse(result.stdout);
+  const stderr = result.stderr?.toString("utf8") ?? "";
+  assert.equal(result.status, 0, stderr);
+  const report = JSON.parse(result.stdout?.toString("utf8") ?? "");
   assert.equal(report.ok, true);
   assert.deepEqual(
     report.suites.map((entry) => entry.suite),

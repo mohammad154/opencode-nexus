@@ -29,12 +29,16 @@ after(() => {
 });
 
 function sh(root, command, args) {
-  return spawnSync(command, args, {
+  const result = spawnSync(command, args, {
     cwd: root,
-    encoding: "utf8",
     maxBuffer: 32 * 1024 * 1024,
     env: { ...process.env, NEXUS_WORKTREE: root },
   });
+  return {
+    ...result,
+    stdout: result.stdout?.toString("utf8") ?? "",
+    stderr: result.stderr?.toString("utf8") ?? "",
+  };
 }
 
 function git(root, ...args) {
