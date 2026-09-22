@@ -204,7 +204,7 @@ test("metrics JSONL records measurements without prompts or raw errors", () => {
   assert.equal(totals.cost_usd, 0.02);
 });
 
-test("PR5/PR6/PR7 measurement metrics survive sanitization and aggregate in totals", () => {
+test("PR5/PR6/PR7/PR8 measurement metrics survive sanitization and aggregate in totals", () => {
   const worktree = tempDir("nexus-pr5-metrics-");
   const metricsPath = path.join(worktree, "metrics.jsonl");
   const telemetry = createMetricsTelemetry({ worktree, metricsPath });
@@ -269,6 +269,17 @@ test("PR5/PR6/PR7 measurement metrics survive sanitization and aggregate in tota
     advance_ms: 720,
   });
   telemetry.emit({
+    event: "trace",
+    run_id: "pr5-metrics",
+    trace_units_planned: 2,
+    trace_units_reviewed: 1,
+    trace_criteria_planned: 3,
+    trace_criteria_covered: 2,
+    trace_requirements_declared: 2,
+    trace_requirements_covered: 1,
+    trace_converged: 0,
+  });
+  telemetry.emit({
     event: "review_commands",
     run_id: "pr5-metrics",
     kind: "task",
@@ -278,7 +289,7 @@ test("PR5/PR6/PR7 measurement metrics survive sanitization and aggregate in tota
 
   assert.equal(
     fs.readFileSync(metricsPath, "utf8").trim().split(/\r?\n/).length,
-    6,
+    7,
   );
   const advanceEvent = fs
     .readFileSync(metricsPath, "utf8")
@@ -289,6 +300,16 @@ test("PR5/PR6/PR7 measurement metrics survive sanitization and aggregate in tota
   assert.equal(advanceEvent.from_state, "PLANNED");
   assert.equal(advanceEvent.advance_boundary, "AGENT");
   assert.equal(advanceEvent.advance_steps, 3);
+  const traceEvent = fs
+    .readFileSync(metricsPath, "utf8")
+    .trim()
+    .split(/\r?\n/)
+    .map((line) => JSON.parse(line))
+    .find((event) => event.event === "trace");
+  assert.equal(traceEvent.trace_units_planned, 2);
+  assert.equal(traceEvent.trace_criteria_covered, 2);
+  assert.equal(traceEvent.trace_requirements_declared, 2);
+  assert.equal(traceEvent.trace_converged, 0);
 
   const totals = telemetry.getTotals();
   assert.equal(totals.review_package_bytes, 6490);

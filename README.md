@@ -31,7 +31,7 @@ single-unit + unchanged review evidence → final verify → finish
 
 **Principle:** LLM proposes. Scripts measure. Tests prove. Independent reviewer approves. State machine decides.
 
-**Three invariants:** (1) brainstorm + plan every request (2) fresh impact before every implementer (3) reviewer APPROVED every execution unit.
+**Three invariants:** (1) brainstorm + plan every request (2) fresh impact before every implementer (3) reviewer APPROVED every execution unit — and `COMPLETED` requires that every planned unit and acceptance criterion is demonstrably covered.
 
 Package: [`@mohammad154/opencode-nexus`](https://www.npmjs.com/package/@mohammad154/opencode-nexus) · package release line 4.x · workflow protocol v5 · Node 20+ · MIT
 
@@ -283,6 +283,8 @@ nexus run init --run-id demo
 nexus advance                           # run the deterministic chain to the next boundary
 nexus advance --json                    # steps + prepared agent dispatch
 nexus advance --dry-run                 # show the next deterministic step only
+nexus trace                             # requirement/criterion coverage matrix
+nexus trace --json                      # exit 3 while the run has not converged
 nexus classify --files 2 --lines 40 --class small-feature-with-tests --focused
 nexus estimate --tasks 3
 nexus project-profile --json            # advisory cached repo recon
@@ -339,6 +341,7 @@ Only the **implementer** writes production code. Nexus uses one fixed V5 workflo
 - Run `nexus verify` in either verification state to measure fresh post-impact, discover the risk-based ladder, execute checks, and seal evidence. Only `verification_status: PASSED` authorizes the next review/completion transition. A timeout stays in the same state; use `nexus verify --resume`. An eligible current sealed check failure gets one automatic fresh-impact repair; unavailable, stale, dirty, and timeout evidence remains manual.
 - Pass complete handoffs by file (`--implementer-handoff-file` or `--review-handoff-file`) rather than rebuilding partial JSON in the orchestrator.
 - `nexus advance` runs every deterministic step the current state allows — plan-check, pre-impact, drift, the authorization transitions, `nexus verify`, the review package — then stops at the next boundary and returns the prepared agent dispatch. It executes state changes only through the same gates, consumes an agent handoff only when it is bound to the current authorization, and never writes a handoff, dispatches an agent, or retries a rejected gate.
+- Acceptance criteria carry stable identity (`unit-1/AC1` plus a digest of their text), which the review package publishes. `COMPLETED` requires **convergence**: every planned execution unit has an approved task review, and every planned criterion has a passing acceptance result from it — so a planned unit cannot be silently abandoned. A plan may also declare `## Requirements` and map them to units with `covers:`; when it does, an unmapped requirement fails the `PLANNED` gate. `nexus trace` shows the matrix.
 - Before implementation, Nexus snapshots trusted scope policy and orchestrator-owned `.opencode` runtime; unexpected changes block `VERIFYING` with `CONTROL_PLANE_TAMPERED` (handoffs remain writable).
 
 Full policy: [`docs/workflow.md`](docs/workflow.md). Integrity details: [`docs/architecture.md`](docs/architecture.md#runtime-integrity-control-plane-and-policy-snapshots).
@@ -350,7 +353,7 @@ Full policy: [`docs/workflow.md`](docs/workflow.md). Integrity details: [`docs/a
 | `.opencode/runs/<run-id>/state.json` | Durable state-machine state |
 | `.opencode/runs/<run-id>/verification.json` | Durable per-step verification progress and sealed-evidence summary |
 | `.opencode/CONTEXT.md` | Active run, branch, and verification context |
-| `.opencode/plans/PLAN.md` | Plan: the semantic planning authority |
+| `.opencode/plans/PLAN.md` | Plan: the semantic planning authority (units, criteria, optional requirements) |
 | `.opencode/tasks/task-N.md` | Execution-unit views generated from PLAN.md |
 | `.opencode/cache/project-profile.json` | Advisory cached project recon facts |
 | `.opencode/handoffs/` | Implementer and reviewer results |

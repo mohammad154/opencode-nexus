@@ -254,7 +254,7 @@ test("nexus-run completes a full CLI workflow in a temporary repository", () => 
       branch: "e2e/complete",
       allowed_files: ["src/app.js"],
       acceptance_criteria: ["the CLI flow reaches COMPLETED"],
-      current_unit: "e2e-unit",
+      current_unit: "unit-1",
       drift: {
         schema_version: "1.0",
         drift: "NONE",
@@ -278,7 +278,7 @@ test("nexus-run completes a full CLI workflow in a temporary repository", () => 
   const implementer = {
     schema_version: "1.1",
     run_id: runId,
-    unit_or_task: "e2e-unit",
+    unit_or_task: "unit-1",
     agent: "implementer",
     base_commit: baseHead,
     created_at: new Date().toISOString(),
@@ -299,7 +299,7 @@ test("nexus-run completes a full CLI workflow in a temporary repository", () => 
 
   const statePath = path.join(root, ".opencode", "runs", runId, "state.json");
   const st = JSON.parse(fs.readFileSync(statePath, "utf8"));
-  st.current_unit = "e2e-unit";
+  st.current_unit = "unit-1";
   fs.writeFileSync(statePath, JSON.stringify(st, null, 2) + "\n");
 
   invoke(root, home, [
@@ -333,7 +333,7 @@ test("nexus-run completes a full CLI workflow in a temporary repository", () => 
   const reviewHandoff = {
     schema_version: "1.2",
     run_id: runId,
-    unit_or_task: "e2e-unit",
+    unit_or_task: "unit-1",
     agent: "reviewer",
     base_commit: baseHead,
     created_at: new Date().toISOString(),
@@ -648,6 +648,7 @@ test("nexus CLI run forwards workflow in an external temporary repository", () =
     "--json",
     json({
       branch: "e2e/nexus-cli",
+      current_unit: "unit-1",
       allowed_files: ["src/app.js"],
       acceptance_criteria: ["CLI forwarded to IMPLEMENTING"],
       drift: {

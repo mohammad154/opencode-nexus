@@ -10,6 +10,7 @@ import { createHash } from "node:crypto";
 import { isLikelyProductionPath } from "./review-protocol.js";
 import { validateContainedPath } from "./filesystem-boundary.js";
 import { normalizePlan } from "./plan-check.js";
+import { normalizeCriterionText, planCriteria } from "./traceability.js";
 
 /**
  * Selection budgets (PR6.B/C).
@@ -616,6 +617,24 @@ export function resolveReviewPackageBase(runState = {}, scope = "task", opts = {
  * @param {string} worktree
  * @param {object} opts
  */
+/**
+ * Map the criteria recorded for this review, in order, to the plan's stable
+ * criterion ids. A criterion that cannot be matched to the plan yields `null`
+ * rather than a guessed id: the package must not invent identity.
+ */
+function acceptanceCriterionIds(runState = {}, acceptance = []) {
+  const ledger = planCriteria(runState);
+  if (ledger.length === 0) return (acceptance || []).map(() => null);
+  const byText = new Map();
+  for (const row of ledger) {
+    const key = normalizeCriterionText(row.text);
+    if (key && !byText.has(key)) byText.set(key, row.id);
+  }
+  return (acceptance || []).map(
+    (text) => byText.get(normalizeCriterionText(text)) || null,
+  );
+}
+
 export function buildReviewPackage(worktree, opts = {}) {
   const startedAt = Date.now();
   const root = path.resolve(worktree);
@@ -778,11 +797,24 @@ export function buildReviewPackage(worktree, opts = {}) {
     "",
   ];
 
+  // PR8: publish the plan's stable criterion identity next to the positional
+  // `AC-n` label, so a reviewer reports the criterion the plan named instead of
+  // re-deriving one, and the trace ledger can match on identity.
+  const criterionIds = acceptanceCriterionIds(runState, acceptance);
   const acceptanceSection = [
     "## Acceptance criteria",
     "",
     Array.isArray(acceptance) && acceptance.length
-      ? acceptance.map((c, i) => `AC-${i + 1}. ${c}`).join("\n")
+      ? [
+          "Report one `acceptance` entry per criterion, using the stable id when shown.",
+          "",
+          ...acceptance.map((c, i) => {
+            const stable = criterionIds[i];
+            return stable
+              ? `AC-${i + 1} (id: \`${stable}\`). ${c}`
+              : `AC-${i + 1}. ${c}`;
+          }),
+        ].join("\n")
       : "_No acceptance_criteria recorded on run state — derive from the execution unit below._",
     "",
   ];
@@ -1013,6 +1045,7 @@ export function buildReviewPackage(worktree, opts = {}) {
     changed_files: changedFiles,
     production_files: productionChanged,
     acceptance_criteria: acceptance,
+    acceptance_criterion_ids: criterionIds,
     previous_task_reviews: priorTaskReviews,
     // PR6: the sealed commands the reviewer must consume instead of replaying.
     sealed_commands: sealedCommands,

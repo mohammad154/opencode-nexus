@@ -147,6 +147,16 @@ Prevent cache reuse across different request identities.
 ## Goal
 <1-2 sentence goal, plain language, user-intent aligned>
 
+## Requirements
+Optional, but strongly preferred for standard/deep plans: name the user's asks
+once, with stable ids, and map each to the unit that satisfies it via `covers:`.
+A declared requirement that no unit claims fails the `PLANNED` gate
+(`REQUIREMENT_NOT_COVERED`), which is what stops a plan from silently dropping
+part of the request.
+
+- R1: <a user-visible outcome the request demands>
+- R2: <another>
+
 ## Non-goals
 - <explicit out-of-scope 1>
 - <explicit out-of-scope 2>
@@ -210,6 +220,7 @@ a generic rationale such as “easier to review.”
 ## Execution Unit breakdown (ordered, dependencies noted)
 ### Execution Unit 1: <title> (slug: <slug>)
 - id: unit-1
+- covers: R1            # required when the plan declares `## Requirements`
 - user_outcome: <user-visible behavior this unit completes>
 - independently_shippable: true|false
 - review_boundary: NONE|PUBLIC_CONTRACT|SECURITY_BOUNDARY|MIGRATION_BOUNDARY|INDEPENDENT_ROLLBACK|INDEPENDENT_SHIPPING|REVIEW_SIZE_LIMIT|SUBSYSTEM_BOUNDARY
@@ -228,6 +239,10 @@ a generic rationale such as “easier to review.”
 - Acceptance criteria:
   - [ ] Criterion 1 – machine-checkable
   - [ ] Criterion 2 – includes negative case
+  # Each criterion gets a stable id from its position (`unit-1/AC1`, `unit-1/AC2`)
+  # and a digest of its text. The review package publishes them, the reviewer
+  # reports one result per id, and `COMPLETED` requires a PASS for every one, so
+  # write criteria you can actually evidence.
 - Verification gates (each task ends with these, exact commands):
   1. `npm run build` – expected: exits 0, no errors
   2. `npm test -- path/to/new.test` – expected: N passing

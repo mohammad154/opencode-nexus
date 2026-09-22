@@ -26,6 +26,7 @@ Commands:
   project-init   Bootstrap .opencode/ in the current project (external repos)
   next           Deterministic next orchestrator action (dispatch / transition / skill)
   advance        Run the deterministic chain to the next agent/user boundary
+  trace          Requirement/criterion coverage matrix for a run (read-only)
   run            Workflow state machine (init, classify, transition, status, inspect, ...)
   impact         Nexus Impact Engine (git + AST + affected tests)
   blast          Alias for impact (compatibility)
@@ -51,6 +52,8 @@ Examples:
   nexus advance
   nexus advance --json
   nexus advance --dry-run
+  nexus trace
+  nexus trace --json
   nexus run status
   nexus run inspect
   nexus classify --files 2 --lines 40 --class small-feature-with-tests --focused
@@ -80,6 +83,7 @@ Subcommands:
   init              Create a run (--run-id <id>)
   next              Deterministic next action (alias of nexus next)
   advance           Run the deterministic chain to the next boundary (alias of nexus advance)
+  trace             Requirement/criterion coverage matrix (alias of nexus trace)
   classify          Classify and optionally apply (--apply)
   transition        Transition state (--to STATE; PLANNED supports --plan-check)
   validate-handoff  Validate a handoff JSON (--role ROLE --file path)
@@ -278,6 +282,10 @@ function cmdRun(args) {
   }
   if (args[0] === "advance") {
     runNodeScript("nexus-advance.js", args.slice(1));
+    return;
+  }
+  if (args[0] === "trace") {
+    runNodeScript("nexus-trace.js", args.slice(1));
     return;
   }
   runNodeScript("nexus-run.js", args);
@@ -498,6 +506,9 @@ switch (command) {
     break;
   case "advance":
     runNodeScript("nexus-advance.js", args);
+    break;
+  case "trace":
+    runNodeScript("nexus-trace.js", args);
     break;
   case "run":
     cmdRun(args);

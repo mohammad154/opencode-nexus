@@ -281,6 +281,19 @@ test("advance drives a single-unit run to COMPLETED with two agent boundaries", 
   const third = advance(root);
   assert.equal(third.exit_code, 0, third.raw);
   assert.equal(third.report.state, "COMPLETED");
+  // PR8: COMPLETED is only reachable because the reuse route recorded its task
+  // approval in the traceability ledger, and every planned criterion is covered.
+  const completed = runState(root);
+  assert.deepEqual(
+    completed.task_history.map((entry) => entry.id),
+    ["unit-1"],
+  );
+  const trace = sh(root, process.execPath, [nexus, "trace", "--json", "--run-id", "e2e"]);
+  const matrix = JSON.parse(trace.stdout);
+  assert.equal(trace.status, 0, trace.stdout + trace.stderr);
+  assert.equal(matrix.summary.converged, true);
+  assert.equal(matrix.summary.criteria_covered, 1);
+  assert.equal(matrix.rows[0].id, "unit-1/AC1");
   assert.deepEqual(
     third.report.steps.map((step) => step.step),
     ["consume_review_handoff", "verify", "authorize_completed"],

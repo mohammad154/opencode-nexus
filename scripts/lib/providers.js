@@ -270,6 +270,14 @@ function sanitizeMetricEvent(event = {}) {
     "advance_steps",
     "advance_commands",
     "advance_ms",
+    // PR8 traceability coverage.
+    "trace_units_planned",
+    "trace_units_reviewed",
+    "trace_criteria_planned",
+    "trace_criteria_covered",
+    "trace_requirements_declared",
+    "trace_requirements_covered",
+    "trace_converged",
   ]) {
     const value = numericMetric(input[key]);
     if (value !== null) out[key] = value;

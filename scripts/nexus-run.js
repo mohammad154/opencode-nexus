@@ -223,6 +223,9 @@ export function loadEvidence(flags) {
       delete evidence.plan_skip;
     }
   }
+  // The unit id is required to authorize IMPLEMENTING, so it gets a flag of its
+  // own rather than forcing callers to hand-build JSON for one field.
+  if (flags.unit) evidence.current_unit = String(flags.unit);
   if (flags["acceptance"]) {
     evidence.acceptance_criteria = String(flags.acceptance)
       .split("|")

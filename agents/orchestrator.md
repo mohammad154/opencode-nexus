@@ -101,6 +101,7 @@ nexus next                 # deterministic next step (also injected every turn)
 nexus advance              # run the deterministic chain to the next boundary
 nexus next --json
 nexus advance --json       # same chain, machine-readable steps + prepared dispatch
+nexus trace                # requirement/criterion coverage (exit 3 = not converged)
 nexus run transition --to PLANNED --plan-check  # diagnostic + persisted gate
 nexus run transition --to BRAINSTORMING
 # if ambiguous:
@@ -116,7 +117,7 @@ nexus run transition --to PLANNED --plan-check --json '{"planning_mode":"standar
 # persists the passing report; a standalone nexus plan-check is diagnostic only.
 nexus impact --json --targets <files>
 nexus run transition --to TASK_IMPACT_READY --json '{"planned_targets":["..."]}'
-nexus run transition --to IMPLEMENTING --branch <b> --acceptance 'c1|c2'
+nexus run transition --to IMPLEMENTING --branch <b> --unit unit-1 --acceptance 'c1|c2'
 nexus run transition --to VERIFYING --implementer-handoff-file .opencode/handoffs/<id>-implementer.json
 nexus verify                         # persists VERIFYING/PASSED; does not dispatch reviewer
 nexus run transition --to REVIEWING

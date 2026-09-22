@@ -4,6 +4,7 @@ import { buildTaskDag, detectCycle, scheduleParallel } from "./task-dag.js";
 import { globsOverlap } from "./impact/boundaries.js";
 import { estimateAgentCalls } from "./agent-estimate.js";
 import { inferPlanningMode, normalizePlanningMode } from "./planning.js";
+import { requirementMappingErrors } from "./traceability.js";
 
 const GENERIC_TITLE_WORDS = new Set([
   "add",
@@ -250,6 +251,35 @@ function parseNonGoals(lines) {
 }
 
 /**
+ * PR8: the plan's optional `## Requirements` section. Each bullet declares one
+ * requirement with a stable id the units then claim with `covers:`:
+ *
+ *   - R1: a caller can clamp a sum
+ *   - R2 — a caller can clamp an average
+ *
+ * The section is optional; a plan that omits it is unchanged. When it is
+ * present, the PLANNED gate requires every requirement to be mapped to a unit,
+ * so a plan cannot silently drop part of the user's ask.
+ */
+function parseRequirements(lines) {
+  const section = namedSection(lines, /^##\s+Requirements?\s*$/i);
+  const items = bulletItems(section);
+  const requirements = [];
+  const seen = new Set();
+  items.forEach((item, index) => {
+    const text = clean(item);
+    if (!text) return;
+    const match = text.match(/^([A-Za-z][A-Za-z0-9._-]{0,31})\s*(?::|[—–-]\s)\s*(.+)$/);
+    const id = match ? match[1] : `R${index + 1}`;
+    const body = match ? clean(match[2]) : text;
+    if (seen.has(id.toLowerCase())) return;
+    seen.add(id.toLowerCase());
+    requirements.push({ id, text: body });
+  });
+  return requirements;
+}
+
+/**
  * Commit the plan was written against. Accepts the explicit metadata field and
  * the `writing-plans` generation banner, which both record the same fact.
  */
@@ -315,6 +345,9 @@ function parseUnit(section, index) {
       scalarAfter(lines, /^[-*]\s*independently[_ ]+shippable\s*:\s*/i),
     ),
     review_boundary: scalarAfter(lines, /^[-*]\s*review[_ ]+boundary\s*:\s*/i),
+    covers: splitValues(
+      scalarAfter(lines, /^[-*]\s*covers\s*:\s*/i),
+    ),
   };
 
   const allowedFiles = [];
@@ -329,7 +362,7 @@ function parseUnit(section, index) {
   const stopConditions = [];
   for (const line of lines) {
     if (
-      /^[-*]\s*(?:id|depends(?:\s+on)?|deps|effort|confidence|risk\s+if\s+wrong|user[_ ]+outcome|independently[_ ]+shippable|review[_ ]+boundary|estimated[_ ]+lines?|lines?)\s*:/i.test(line)
+      /^[-*]\s*(?:id|depends(?:\s+on)?|deps|effort|confidence|risk\s+if\s+wrong|user[_ ]+outcome|independently[_ ]+shippable|review[_ ]+boundary|covers|estimated[_ ]+lines?|lines?)\s*:/i.test(line)
     ) {
       inScope = false;
       inAcceptance = false;
@@ -458,7 +491,7 @@ function parseUnit(section, index) {
       .filter(
         (line) =>
           line &&
-          !/^[-*]\s*(?:id|depends|deps|effort|confidence|risk|scope|acceptance|verification|evidence|allowed|files|stop|user[_ ]+outcome|independently[_ ]+shippable|review[_ ]+boundary|estimated[_ ]+lines?|lines?)\b/i.test(line),
+          !/^[-*]\s*(?:id|depends|deps|effort|confidence|risk|scope|acceptance|verification|evidence|allowed|files|stop|user[_ ]+outcome|independently[_ ]+shippable|review[_ ]+boundary|covers|estimated[_ ]+lines?|lines?)\b/i.test(line),
       )
       .join(" "),
     depends_on: metadata.depends_on,
@@ -474,6 +507,7 @@ function parseUnit(section, index) {
     independently_shippable: metadata.independently_shippable,
     review_boundary: normalizeReviewBoundary(metadata.review_boundary),
     estimated_lines: parseEstimatedLines(estimatedLineText),
+    covers: metadata.covers,
     source_heading: section.title,
   };
 }
@@ -493,6 +527,7 @@ export function parsePlanMarkdown(planText) {
     planning_mode: planningMode ? normalizePlanningMode(planningMode) : null,
     goal: parseGoal(lines),
     non_goals: parseNonGoals(lines),
+    requirements: parseRequirements(lines),
     plan_commit: parsePlanCommit(lines),
     execution_units: units,
     tasks: units,
@@ -1094,6 +1129,17 @@ export function checkPlan(plan, options = {}) {
         maxConcurrency: Math.max(1, Number(options.maxConcurrency) || 1),
       })
     : { ok: false };
+  // PR8: a declared requirement must be claimed by at least one unit.
+  const requirements = Array.isArray(normalized.requirements)
+    ? normalized.requirements
+    : [];
+  for (const message of requirementMappingErrors({
+    requirements,
+    execution_units: units,
+  })) {
+    errors.push({ code: "REQUIREMENT_NOT_COVERED", message });
+  }
+
   const mergeMatchingSize = maximumMergeMatchingSize(units, mergeCandidates);
   const suggestedUnitCount = Math.max(1, units.length - mergeMatchingSize);
   const strictFailure = options.strict === true && warnings.length > 0;
@@ -1108,6 +1154,7 @@ export function checkPlan(plan, options = {}) {
     contract,
     goal: normalized.goal || null,
     non_goals: Array.isArray(normalized.non_goals) ? normalized.non_goals : [],
+    requirements,
     plan_commit: normalized.plan_commit || null,
     plan_bytes:
       typeof normalized.text === "string"

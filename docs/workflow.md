@@ -87,6 +87,52 @@ consumed: `COMMIT_NOT_CURRENT_HEAD`, `BASE_NOT_CURRENT_AUTHORIZATION`,
 `REVIEWED_COMMIT_NOT_CURRENT_HEAD`, `SCOPE_MISMATCH`, `ALREADY_CONSUMED`,
 `PREDATES_CURRENT_STATE`, `NOT_DONE`, `OTHER_RUN`, `UNPARSABLE`, `MISSING`.
 
+### Traceability and convergence
+
+Intent is named once and then traced, instead of being re-derived from prose at
+every step:
+
+```text
+requirement (optional `## Requirements`) → execution unit (`covers:`)
+  → acceptance criterion (`unit-1/AC1`, digest of its text)
+    → approved task review that reported PASS for that criterion
+```
+
+| Identity | Rule |
+|---|---|
+| Criterion id | `<unit-id>/AC<n>`, from the unit and the criterion's 1-based position in the plan. Deterministic; no PLAN.md change required. |
+| Criterion digest | 12 hex characters of the normalized criterion text, so a real edit is distinguishable from reformatting. |
+| Requirement id | The id declared in `## Requirements` (`- R1: ...`). The section is optional. |
+
+Three gates use the ledger:
+
+1. **PLANNED** — a plan that declares requirements must map every one of them to
+   a unit with `covers:`. An unmapped requirement is `REQUIREMENT_NOT_COVERED`.
+   Plans without the section are unaffected.
+2. **IMPLEMENTING** — `current_unit` must name a planned execution unit, so every
+   approval can be traced back to planned intent. This fails at authorization,
+   the cheapest point, rather than at the end of a run. Pass it as
+   `nexus run transition --to IMPLEMENTING --unit unit-1 ...`; `nexus advance`
+   takes it from the plan.
+3. **FINAL_REVIEWING / FINAL_VERIFYING (reuse) / COMPLETED** — the convergence
+   gate: every planned unit needs an approved task review, and every planned
+   criterion needs a passing acceptance result from it. A silently abandoned unit
+   is named and the run cannot finish. Checked at the final review as well so an
+   incomplete run is caught before a final reviewer call is spent.
+
+The convergence gate is computed only from durable evidence the existing gates
+already persisted (`execution_units` from PLANNED, `task_history` from admissible
+approvals). It is vacuous for runs whose plan persisted no units: it adds a
+requirement, it does not invent a plan.
+
+Paraphrasing a criterion when authorizing a unit is reported, not rejected
+(`criteria_text_drift`, `criteria_positional_match` in `nexus trace`): an
+abandoned unit is unambiguous evidence, wording is not, and a run must not fail
+at COMPLETED over phrasing.
+
+`nexus trace` prints the matrix and exits 3 while a run has not converged, so
+"what is still missing?" is answerable without re-reading PLAN.md.
+
 ## Lifecycle
 
 ```text
@@ -356,6 +402,8 @@ nexus next --json
 nexus advance              # run every deterministic step up to the next boundary
 nexus advance --json
 nexus advance --dry-run    # show the next deterministic step, execute nothing
+nexus trace                # requirement/criterion coverage matrix (exit 3 = not converged)
+nexus trace --json
 nexus run inspect --run-id <id>
 nexus estimate --tasks 3
 nexus run transition --to PLANNED --plan-check

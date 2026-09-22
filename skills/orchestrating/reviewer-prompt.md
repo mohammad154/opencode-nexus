@@ -79,7 +79,8 @@ Write `.opencode/handoffs/[id]-reviewer.json` (schema_version **1.2**):
   "files_reviewed": ["<changed production file>", "<relevant test>"],
   "acceptance": [
     {
-      "id": "AC-1",
+      "id": "<the id the package published, e.g. unit-1/AC1; else AC-1>",
+      "criterion": "<the criterion text you evaluated>",
       "status": "<PASS|FAIL|CANNOT_VERIFY>",
       "evidence": [
         { "file": "<path>", "line": 0, "reason": "<why this status>" }
@@ -113,6 +114,12 @@ Decide the verdict **only after** completing the review.
 Verdicts: `APPROVED` | `REQUEST_CHANGES` | `ISOLATION_VIOLATION` | `BLOCKED`.
 
 Nexus admits `APPROVED` only when every acceptance is PASS with evidence, mandatory checks PASS with evidence, `files_reviewed` is non-empty, and there are no blocking findings. An empty approval is gate-invalid.
+
+Report one acceptance entry per criterion, using the stable id the package shows
+next to each criterion (`AC-1 (id: unit-1/AC1)`). Those ids are how the run's
+traceability ledger proves the criterion was demonstrated; a positional `AC-n`
+alone still works but is recorded as a weaker, position-only match. Include the
+`criterion` text you evaluated so the evidence stays readable after the fact.
 
 Findings: set `blocking: true|false` explicitly. Severity describes impact; `blocking` controls the workflow.
 

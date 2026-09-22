@@ -95,6 +95,7 @@ next boundary that needs judgement and returns the prepared dispatch:
 nexus advance            # human summary
 nexus advance --json     # machine-readable steps + prepared dispatch
 nexus advance --dry-run  # show the next deterministic step, run nothing
+nexus trace              # what is still uncovered (exit 3 = not converged)
 ```
 
 It stops (never guesses) at: your own brainstorm/plan work, an agent dispatch, a
@@ -114,7 +115,7 @@ nexus plan-check --json
 nexus run transition --to PLANNED
 nexus impact --json --targets <planned files>
 nexus run transition --to TASK_IMPACT_READY --json '{"planned_targets":["src/foo.js"]}'
-nexus run transition --to IMPLEMENTING --branch <b> --acceptance 'c1|c2'
+nexus run transition --to IMPLEMENTING --branch <b> --unit unit-1 --acceptance 'c1|c2'
 nexus run transition --to VERIFYING --json '{"implementer_handoff":{...}}'
 nexus verify
 nexus run transition --to REVIEWING
@@ -124,6 +125,20 @@ nexus run transition --to FINAL_VERIFYING --json '{"reuse_final_review":true,"re
 nexus verify
 nexus run transition --to COMPLETED
 ```
+
+## Convergence
+
+`COMPLETED` requires every planned execution unit to have an approved task review
+and every planned acceptance criterion to have a passing result from it. Two
+consequences for the loop:
+
+- Authorize work only under a planned unit id. `IMPLEMENTING` rejects a
+  `current_unit` the plan never declared.
+- Do not route to the final review while units remain. If you do, the gate names
+  the missing unit; run `nexus trace` to see the ledger, then finish that unit.
+
+Dropping a planned unit is a plan change, not a shortcut: re-plan explicitly
+rather than leaving it unimplemented.
 
 ## Verification boundary
 

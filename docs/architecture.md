@@ -134,6 +134,16 @@ was admissible (a probe that contradicts sealed evidence).
 `advance_commands` the underlying gate invocations, so the collapsed orchestrator
 round trips are measured rather than assumed.
 
+### Traceability telemetry
+
+| Event | Fields |
+|---|---|
+| `trace` | `trace_units_planned`, `trace_units_reviewed`, `trace_criteria_planned`, `trace_criteria_covered`, `trace_requirements_declared`, `trace_requirements_covered`, `trace_converged` |
+
+Emitted by `nexus trace`. These are per-run coverage snapshots rather than
+additive work counters, so they are useful for answering "did runs finish with
+every planned criterion demonstrated?" across a project.
+
 ### Planning telemetry
 
 When a run is initialized, measurements land in

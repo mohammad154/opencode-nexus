@@ -38,6 +38,11 @@ import {
   validatePlanAdvisorModelDiversity,
 } from "./planning.js";
 import { checkPlanFile } from "./plan-check.js";
+import {
+  convergenceErrors,
+  plannedUnitIds,
+  traceMatrix,
+} from "./traceability.js";
 import { inspectWorkspace } from "./workspace-integrity.js";
 import { validateContainedPath } from "./filesystem-boundary.js";
 import {
@@ -872,6 +877,51 @@ function taskReviewHistoryEntry(state, handoff, reviewPackage) {
   };
 }
 
+/**
+ * Convergence is computed from recorded approvals, but the approval that
+ * authorizes *this* transition is only written by the reducer afterwards.
+ * Project it into the state first, using the same history shape, so the gate
+ * sees the unit being approved right now.
+ *
+ * This cannot manufacture coverage: the projected handoff is the same one the
+ * transition's own admissibility check must accept, and it only ever covers the
+ * current unit.
+ */
+/**
+ * The unit being authorized must be one the PLANNED gate persisted. Runs whose
+ * plan persisted no units are unaffected.
+ */
+function unitIdentityErrors(state = {}, ctx = {}) {
+  const planned = plannedUnitIds(state);
+  if (planned.length === 0) return [];
+  const unit = String(ctx.current_unit || ctx.unit || state.current_unit || "").trim();
+  if (!unit) {
+    return [
+      `IMPLEMENTING requires current_unit naming a planned execution unit (${planned.join(", ")})`,
+    ];
+  }
+  if (!planned.includes(unit)) {
+    return [
+      `IMPLEMENTING unit ${unit} is not a planned execution unit (${planned.join(", ")})`,
+    ];
+  }
+  return [];
+}
+
+function convergenceState(state = {}, ctx = {}) {
+  const raw =
+    ctx.review_handoff || ctx.unified_handoff || ctx.integration_handoff || null;
+  if (!raw || typeof raw !== "object") return state;
+  if (raw.verdict !== "APPROVED") return state;
+  const scope = String(raw.review_scope || "task");
+  if (scope !== "task") return state;
+  const history = Array.isArray(state.task_history) ? [...state.task_history] : [];
+  history.push(
+    taskReviewHistoryEntry(state, raw, ctx.review_package || state.review_package),
+  );
+  return { ...state, task_history: history };
+}
+
 function singleUnitReuseErrors(state, ctx, handoff, reviewPackage) {
   const errors = [];
   if (!ctx.worktree) {
@@ -1630,6 +1680,10 @@ export function canTransition(state, to, ctx = {}) {
     if (!criteria || (Array.isArray(criteria) && criteria.length === 0)) {
       errors.push("IMPLEMENTING requires acceptance criteria");
     }
+    // Identity binding: work must be authorized under a unit the plan declares,
+    // so every approval can be traced back to planned intent. Checked here, at
+    // the cheapest point, rather than as a surprise at COMPLETED.
+    errors.push(...unitIdentityErrors(state, ctx));
     const drift = ctx.drift;
     if (!drift) {
       errors.push("IMPLEMENTING requires valid DriftReport evidence");
@@ -1746,6 +1800,11 @@ export function canTransition(state, to, ctx = {}) {
         `FINAL_REVIEWING blocked by unresolved findings: ${high.map((f) => f.id).join(", ")}`,
       );
     }
+    // Convergence is checked here as well as at COMPLETED so an abandoned unit
+    // is reported before a final reviewer call is spent on the branch.
+    errors.push(
+      ...convergenceErrors(convergenceState(state, ctx), { label: "FINAL_REVIEWING" }),
+    );
   }
 
   if (to === "FINAL_VERIFYING") {
@@ -1761,6 +1820,9 @@ export function canTransition(state, to, ctx = {}) {
     });
     errors.push(...validated.errors);
     if (reuse) {
+      errors.push(
+        ...convergenceErrors(convergenceState(state, ctx), { label: "FINAL_VERIFYING" }),
+      );
       errors.push(
         ...singleUnitReuseErrors(
           state,
@@ -1799,6 +1861,8 @@ export function canTransition(state, to, ctx = {}) {
     if (from === "FINAL_VERIFYING") {
       assertCompletedVerification(state, ctx, errors, { phase: "FINAL" });
     }
+    // The convergence gate: the plan's intent must be demonstrably covered.
+    errors.push(...convergenceErrors(state, { label: "COMPLETED" }));
   }
 
   // The historical charge is recorded when the implementer handoff enters
@@ -2230,7 +2294,15 @@ export function transition(state, to, evidence = {}, providers = null) {
       next.units = plannedUnits;
       next.tasks = plannedUnits;
       next.task_count = plannedUnits.length;
-    } else {
+    }
+    // PR8: persist the plan's declared requirements alongside its units so the
+    // trace ledger and the convergence gate read one durable source.
+    const plannedRequirements =
+      ctx.plan_check?.requirements ?? ctx.requirements ?? null;
+    if (Array.isArray(plannedRequirements)) {
+      next.requirements = plannedRequirements;
+    }
+    if (!Array.isArray(plannedUnits)) {
       const plannedCount = unitCountEntries(ctx)
         .map((entry) => entry.count)
         .find((count) => count != null);
@@ -2420,6 +2492,22 @@ export function transition(state, to, evidence = {}, providers = null) {
     if (state.state === "REVIEWING" && finalReviewReuseRequested(ctx)) {
       next.final_review_reused = true;
       next.last_final_review_handoff = next.last_review_handoff;
+      // The reuse route skips FINAL_REVIEWING, which is where a task approval is
+      // normally recorded. Record it here too so the traceability ledger holds
+      // every approval, whichever route the run took.
+      const reused = next.last_review_handoff;
+      if (reused?.verdict === "APPROVED" && (reused.review_scope || "task") === "task") {
+        const history = Array.isArray(state.task_history) ? [...state.task_history] : [];
+        const unit = String(
+          state.current_unit || reused.unit_or_task || reused.task_id || "",
+        );
+        if (!history.some((entry) => String(entry?.id || "") === unit)) {
+          history.push(
+            taskReviewHistoryEntry(state, reused, ctx.review_package || state.review_package),
+          );
+          next.task_history = history;
+        }
+      }
     }
     delete next.final_verification;
     delete next.final_post_impact;
