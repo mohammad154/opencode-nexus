@@ -17,17 +17,122 @@ This skill borrows the three guarantees from shadcn/improve:
 
 ## Step 0 — Recon (always before planning)
 
-1. Read README, CLAUDE.md / AGENTS.md, CONTRIBUTING, root config (package.json, pyproject.toml, go.mod, Cargo.toml, etc.), CI config.
-2. Detect **exact verification commands** — how to build / test / lint / typecheck — these become gates in every task. If none exist, note that; "establish a verification baseline" may become task 1.
-3. Record `git rev-parse --short HEAD` → every plan stamps the commit it was written against. Executors must run a drift check before touching code.
-4. If present, read `.opencode/reflections/LESSONS.md` and `.opencode/memory/` — carry forward prior architectural knowledge and past failure modes.
-5. Glob for intent docs (docs/adr/, PRODUCT.md, CONTEXT.md, DESIGN.md) so you do not re-flag decided trade-offs as findings.
+Repository-level recon is cached. Start with:
+
+```bash
+nexus project-profile --json
+```
+
+It returns, from cache when the source files are unchanged: ecosystem, package
+manager, exact build/test/lint/typecheck commands, CI config paths, AGENTS /
+CLAUDE / CONTRIBUTING locations, intent/ADR locations, memory locations, base
+branch, and root config metadata. The cache lives at
+`.opencode/cache/project-profile.json`, is keyed by the **content** of those
+source files (an unrelated code commit does not invalidate it), and is
+**advisory only** — it can never authorize a gate or a transition.
+
+Then do the task-specific reading the cache deliberately does not hold:
+
+1. Read the target implementation and its tests, at the exact file:line you will cite as evidence.
+2. Read the relevant callers/paths the change flows through.
+3. Read the applicable design/ADR document when the task touches a decided trade-off.
+4. Read one task-specific implementation exemplar to match conventions.
+5. Record `git rev-parse --short HEAD` → every plan stamps the plan/base commit it was written against. Executors must run a drift check before touching code.
+6. If the profile lists `.opencode/reflections/LESSONS.md` or `.opencode/memory/`, read them — carry forward prior architectural knowledge and past failure modes.
+
+If the profile reports no verification commands, say so in the plan;
+"establish a verification baseline" may become unit 1.
 
 ## Step 1 — Create PLAN.md
 
-Write `.opencode/plans/PLAN.md` using the template below. Every section is mandatory.
+Write `.opencode/plans/PLAN.md`. The required content is **mode-aware**: plan
+depth follows the planning mode Nexus derives from evidence, so a small cohesive
+change does not pay for a large plan.
 
-### PLAN.md template
+### Required in every mode
+
+```text
+Planning mode
+plan/base commit
+Goal
+Non-goals
+one or more execution units, each with:
+  user_outcome, independently_shippable, review_boundary, estimated_lines
+  Evidence (file:line you read)
+  Scope / allowed files
+  Acceptance criteria
+  Verification gates (exact commands)
+  STOP conditions
+```
+
+`nexus plan-check` fails a plan that is missing any of them
+(`MISSING_PLAN_GOAL`, `MISSING_PLAN_NON_GOALS`, `MISSING_PLAN_COMMIT`,
+`MISSING_ALLOWED_FILES`, `MISSING_UNIT_EVIDENCE`, `MISSING_STOP_CONDITIONS`, …).
+
+### Mode selects the narrative sections
+
+| Mode | Plan shape |
+|---|---|
+| `compact` (exactly one execution unit) | minimal safe plan — the required content above and nothing else |
+| `standard` | normal plan: add `## Execution Unit Justification` and the context/verification narrative the change actually needs |
+| `deep` | full template below, including findings triage, dependency graph, global verification strategy, rollback, and outcome memory |
+
+A compact plan **must not** be padded with: findings triage, long Context &
+Evidence prose, Mermaid diagrams, a global verification essay, a rollback essay,
+an outcome-memory section, an Execution Unit Justification essay, an
+implementation sketch, or a warning-disposition section when there are no
+warnings.
+
+Two independent facts, never one:
+
+```text
+PLAN structural validity (this skill, nexus plan-check)
+        +
+compact admissibility re-derived from planning evidence (Nexus)
+        ↓
+PLANNED
+```
+
+Writing `Planning mode: compact` never makes compact admissible. A structurally
+perfect compact plan for a security boundary, public contract, migration,
+destructive change, or HIGH/UNKNOWN impact still fails the `PLANNED` gate. A
+compact plan with more than one execution unit is warned
+(`COMPACT_PLAN_MULTIPLE_UNITS`) and must satisfy the standard contract.
+
+### Compact PLAN.md example (complete and sufficient)
+
+```markdown
+# Plan: cache-key-fix
+
+- Planning mode: compact
+- Plan commit: abc1234
+
+## Goal
+Prevent cache reuse across different request identities.
+
+## Non-goals
+- No cache backend redesign.
+
+### Execution Unit 1: Correct cache identity
+- id: unit-1
+- user_outcome: Cache entries cannot leak between different keys.
+- independently_shippable: true
+- review_boundary: NONE
+- estimated_lines: 60
+- Evidence:
+  - `src/cache.js:42-70`
+- Scope:
+  - In: `src/cache.js`, `tests/cache.test.js`
+- Acceptance criteria:
+  - [ ] same key still reuses
+  - [ ] different key cannot reuse
+- Verification gates:
+  1. `npm test -- tests/cache.test.js`
+- STOP conditions:
+  - STOP if public cache contract must change.
+```
+
+### Full PLAN.md template (deep; trim per the table above)
 
 ```markdown
 # Plan: <short slug> — <date>
@@ -169,28 +274,31 @@ verification passes.
 - On future plans, check LESSONS for patterns and avoid repeating mistakes
 ```
 
-## Step 2 — Generate execution-unit files
+## Step 2 — Do not write task-N.md
 
-Write `.opencode/tasks/task-N.md` for every execution unit in the plan. The
-directory and `task-N` filename remain compatibility paths. Use the same
-self-contained, drift-checked template with blast-radius placeholders and STOP
-conditions:
+`.opencode/tasks/task-N.md` is **generated**, not authored. Nexus materializes
+one view per execution unit from the plan you just wrote:
 
-Each task-N.md MUST include:
-- Frontmatter-like header: id, title, commit drift sha, base_branch, effort, confidence, dependencies
-- `user_outcome`, `independently_shippable`, `review_boundary`, and `estimated_lines`
-- Evidence with file:line
-- Scope in/out
-- Related callers / blast radius (run `nexus impact --json --targets <path>` or `nexus blast --files <target> --task N`)
-- Acceptance criteria as checklists
-- STOP conditions (at least 2)
-- Verification gates (exact commands)
-- Graph context: top 5 importers if known
+```text
+PLAN.md  →  parsePlanMarkdown()/normalizePlan()  →  task-N.md (generated view)
+```
 
-Label confidence honestly:
-- HIGH: location verified by you reading the file now, minimal ambiguity
-- MEDIUM: location plausible, minor assumption
-- LOW: needs investigation, mark STOP condition tight
+Source-of-truth rule:
+
+```text
+PLAN.md    = semantic planning authority
+run state  = execution authority
+task-N.md  = generated compatibility/execution view
+```
+
+Each generated file carries a `GENERATED BY NEXUS` header bound to the PLAN
+digest and the unit id, and is regenerated when the plan changes. Nexus removes
+only stale files it can prove it generated; a hand-authored file under
+`.opencode/tasks` is preserved and never overwritten.
+
+So: put the evidence, scope, acceptance criteria, verification gates, and STOP
+conditions in **PLAN.md once**. Writing them a second time into a task file
+duplicates semantics, costs tokens, and creates two documents that can disagree.
 
 ## Planning rules
 
@@ -198,7 +306,7 @@ Label confidence honestly:
 - An implementation step is not automatically an execution unit. Keep model/types/tests/setup with the behavior they support unless an independent boundary justifies separation.
 - Give every unit the four required fields above. Use `review_boundary: NONE` when there is no independent boundary; otherwise use one of the seven boundary values and explain it.
 - Merge dependent units by default when they cannot ship independently and their combined scope fits the configured reviewer-audit limits, unless a named boundary justifies separation. Do not turn a step, test, type, or setup task into a unit on its own.
-- For every plan, include `## Execution Unit Justification` with reasons why fewer and more units are not appropriate.
+- Include `## Execution Unit Justification` (why not fewer, why not more) for every standard/deep plan and for any plan with more than one unit. A single-unit compact plan does not need it.
 - Record the planning evidence Nexus needs to decide depth and whether an independent challenge is required: `Planning mode`, unit count, whether the work is one cohesive unit, whether the implementation pattern is already established in this repo, and any semantic signal (public contract, security boundary, migration, destructive change, architectural choice, multiple subsystems, unresolved decision). State it as evidence, not as a conclusion about the advisor.
 - A plan with an unresolved product or design decision is not ready: either resolve it (`WAITING_FOR_USER`) or state it so the plan-advisor challenge is triggered. Do not bury it in prose.
 - Never claim a cohesive unit or an established pattern you have not verified in the repository. Those claims can lower planning depth, so they need the same evidence standard as everything else in the plan.
@@ -206,13 +314,13 @@ Label confidence honestly:
 - For `KEEP_SEPARATE`, use one of the seven `reason_code` values above plus a concrete explanation. For `MERGED`, revise the plan and rerun `nexus plan-check` until no merge-candidate warning remains for those units; remove stale dispositions.
 - Prefer minimal diffs and existing patterns — cite an exemplar file per task.
 - Do not start implementation in this skill.
-- Every task file must have:
+- Every execution unit in PLAN.md must have:
   - At least one file:line evidence you personally read in this session
-  - Effort and confidence
   - STOP conditions (including drift)
   - Verification gates with exact commands (not "run tests")
+  - Effort and confidence in standard/deep plans
 - Blast radius awareness (run `nexus impact --json` for proposed targets)
-- If verification baseline is missing (no tests / broken build), make task 1 "establish verification baseline".
+- If the verification baseline is missing (no tests / broken build), make unit 1 "establish verification baseline".
 - Stamp commit SHA: `git rev-parse --short HEAD` (and full SHA in PLAN.md metadata). Include warning: if executor finds drift > threshold, STOP.
 
 ## CONTEXT.md creation/refresh
@@ -233,6 +341,8 @@ Also create or refresh `.opencode/CONTEXT.md` with:
 ## Outcome
 
 You have written:
-- .opencode/plans/PLAN.md (full, with metadata, effort/confidence, STOP, drift)
+- .opencode/plans/PLAN.md (mode-appropriate: plan/base commit, goal, non-goals, per-unit evidence/scope/acceptance/gates/STOP)
 - .opencode/CONTEXT.md (with verification_baseline + plan_commit)
-- .opencode/tasks/task-N.md (N per task, self-contained, with STOP + blast)
+
+Nexus generates `.opencode/tasks/task-N.md` from PLAN.md at the `PLANNED`
+transition. Do not write those files yourself.

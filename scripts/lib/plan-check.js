@@ -213,6 +213,58 @@ function headingSections(lines) {
   });
 }
 
+/** Body lines of one `## Heading` block, without the heading itself. */
+function namedSection(lines, pattern) {
+  const start = lines.findIndex((line) => pattern.test(clean(line)));
+  if (start < 0) return null;
+  const end = lines.findIndex(
+    (line, index) => index > start && /^#{2,3}\s+/.test(clean(line)),
+  );
+  return lines.slice(start + 1, end < 0 ? lines.length : end).map(clean);
+}
+
+function bulletItems(sectionLines) {
+  if (!Array.isArray(sectionLines)) return [];
+  return sectionLines
+    .map((line) => clean(line).replace(/^[-*]\s*/, "").replace(/^\[[ xX]\]\s*/, ""))
+    .filter((line) => line && !/^none$/i.test(line));
+}
+
+/** Plan goal: a `Goal:` scalar or the prose under `## Goal`. */
+function parseGoal(lines) {
+  const scalar = scalarAfter(lines, /^\s*(?:[-*]\s*)?Goal\s*:\s*/i);
+  if (scalar) return scalar;
+  const section = namedSection(lines, /^##\s+Goal\s*$/i);
+  if (!section) return null;
+  const prose = section.filter(Boolean).join(" ").trim();
+  return prose || null;
+}
+
+/** Explicit out-of-scope declarations: `## Non-goals` bullets or a scalar list. */
+function parseNonGoals(lines) {
+  const section = namedSection(lines, /^##\s+Non[-_ ]?goals?\s*$/i);
+  const items = bulletItems(section);
+  if (items.length > 0) return items;
+  const scalar = scalarAfter(lines, /^\s*(?:[-*]\s*)?Non[-_ ]?goals?\s*:\s*/i);
+  return scalar ? splitValues(scalar) : [];
+}
+
+/**
+ * Commit the plan was written against. Accepts the explicit metadata field and
+ * the `writing-plans` generation banner, which both record the same fact.
+ */
+function parsePlanCommit(lines) {
+  const explicit = scalarAfter(
+    lines,
+    /^\s*(?:[-*>]\s*)?(?:plan[_ ]commit|base[_ ]commit|plan\/base\s+commit)\s*:\s*/i,
+  );
+  if (explicit) return explicit.split(/\s+/)[0].replace(/[(),]/g, "") || null;
+  const banner = lines.find((line) => /against\s+commit\s+/i.test(clean(line)));
+  if (!banner) return null;
+  const match = clean(banner).match(/against\s+commit\s+`?([0-9a-f]{7,40})`?/i);
+  return match ? match[1] : null;
+}
+
 function parseJustification(lines) {
   const start = lines.findIndex((line) =>
     /^##\s+Execution\s+Unit\s+Justification\s*$/i.test(line),
@@ -269,9 +321,12 @@ function parseUnit(section, index) {
   let inScope = false;
   let inAcceptance = false;
   let inVerification = false;
+  let inEvidence = false;
+  let inStop = false;
   const acceptance = [];
   const verification = [];
   const evidence = [];
+  const stopConditions = [];
   for (const line of lines) {
     if (
       /^[-*]\s*(?:id|depends(?:\s+on)?|deps|effort|confidence|risk\s+if\s+wrong|user[_ ]+outcome|independently[_ ]+shippable|review[_ ]+boundary|estimated[_ ]+lines?|lines?)\s*:/i.test(line)
@@ -279,35 +334,71 @@ function parseUnit(section, index) {
       inScope = false;
       inAcceptance = false;
       inVerification = false;
+      inEvidence = false;
+      inStop = false;
+    }
+    // STOP conditions and Evidence own the bullets that follow their marker, so
+    // they are matched before the generic section resets below.
+    const stopMarker = line.match(/^[-*]\s*stop\s+conditions?\b[^:]*:\s*(.*)$/i);
+    if (stopMarker) {
+      inStop = true;
+      inEvidence = false;
+      inScope = false;
+      inAcceptance = false;
+      inVerification = false;
+      const inline = clean(stopMarker[1]);
+      if (inline) stopConditions.push(inline);
+      continue;
+    }
+    const evidenceMarker = line.match(/^[-*]\s*evidence\s*:\s*(.*)$/i);
+    if (evidenceMarker) {
+      inEvidence = true;
+      inStop = false;
+      inScope = false;
+      inAcceptance = false;
+      inVerification = false;
+      const inline = clean(evidenceMarker[1]);
+      if (inline) evidence.push(inline);
+      continue;
     }
     if (/^[-*]\s*scope\s*:/i.test(line)) {
       inScope = true;
       inAcceptance = false;
       inVerification = false;
+      inEvidence = false;
+      inStop = false;
       continue;
     }
     if (/^[-*]\s*acceptance\s+criteria\s*:/i.test(line)) {
       inAcceptance = true;
       inScope = false;
       inVerification = false;
+      inEvidence = false;
+      inStop = false;
       continue;
     }
     if (/^[-*]\s*verification(?:\s+gates?|\s+steps?)?(?:\s*\([^)]*\))?\s*:/i.test(line)) {
       inVerification = true;
       inAcceptance = false;
       inScope = false;
+      inEvidence = false;
+      inStop = false;
       continue;
     }
-    if (/^[-*]\s*(?:out|related\s+callers?|implementation\s+sketch|stop\s+conditions?)\b/i.test(line)) {
+    if (/^[-*]\s*(?:out|related\s+callers?|implementation\s+sketch)\b/i.test(line)) {
       inAcceptance = false;
       inVerification = false;
       inScope = false;
+      inEvidence = false;
+      inStop = false;
       continue;
     }
-    if (/^[-*]\s*(?:evidence|context)\s*:/i.test(line)) {
+    if (/^[-*]\s*context\s*:/i.test(line)) {
       inAcceptance = false;
       inVerification = false;
       inScope = false;
+      inEvidence = false;
+      inStop = false;
       continue;
     }
     if (/^(?:[-*]\s*)?(?:scope|acceptance|verification|evidence)\b/i.test(line)) {
@@ -333,7 +424,15 @@ function parseUnit(section, index) {
       if (gate && clean(gate[1])) verification.push(clean(gate[1]));
       else if (line) verification.push(line);
     }
-    if (/^[-*]\s*evidence\s*:/i.test(line)) evidence.push(line);
+    if (inEvidence && line) {
+      evidence.push(clean(line).replace(/^[-*]\s*/, ""));
+    }
+    if (inStop && line) {
+      stopConditions.push(clean(line).replace(/^[-*]\s*/, ""));
+    } else if (!inStop && /^[-*]\s*STOP\s+(?:if|when)\b/i.test(line)) {
+      // A bare `- STOP if ...` bullet is a stop condition even without a marker.
+      stopConditions.push(clean(line).replace(/^[-*]\s*/, ""));
+    }
   }
 
   // Some plans use checkbox criteria without a separate marker. Accept those
@@ -359,14 +458,15 @@ function parseUnit(section, index) {
       .filter(
         (line) =>
           line &&
-          !/^[-*]\s*(?:id|depends|deps|effort|confidence|risk|scope|acceptance|verification|evidence|allowed|files|user[_ ]+outcome|independently[_ ]+shippable|review[_ ]+boundary|estimated[_ ]+lines?|lines?)\b/i.test(line),
+          !/^[-*]\s*(?:id|depends|deps|effort|confidence|risk|scope|acceptance|verification|evidence|allowed|files|stop|user[_ ]+outcome|independently[_ ]+shippable|review[_ ]+boundary|estimated[_ ]+lines?|lines?)\b/i.test(line),
       )
       .join(" "),
     depends_on: metadata.depends_on,
     allowed_files: [...new Set(allowedFiles)],
     acceptance_criteria: [...new Set(acceptance)],
     verification_gates: [...new Set(verification)],
-    evidence,
+    evidence: [...new Set(evidence)],
+    stop_conditions: [...new Set(stopConditions)],
     effort: metadata.effort,
     confidence: metadata.confidence,
     risk: metadata.risk,
@@ -391,7 +491,9 @@ export function parsePlanMarkdown(planText) {
     source: "markdown",
     text,
     planning_mode: planningMode ? normalizePlanningMode(planningMode) : null,
-    goal: scalarAfter(lines, /^\s*(?:[-*]\s*)?Goal\s*:\s*/i),
+    goal: parseGoal(lines),
+    non_goals: parseNonGoals(lines),
+    plan_commit: parsePlanCommit(lines),
     execution_units: units,
     tasks: units,
     justification: parseJustification(lines),
@@ -404,6 +506,8 @@ function normalizeUnit(raw, index) {
   const acceptance = unit.acceptance_criteria ?? unit.acceptance ?? unit.criteria;
   const verification = unit.verification_gates ?? unit.verification ?? unit.tests;
   const files = unit.allowed_files ?? unit.files ?? unit.scope?.in;
+  const evidence = unit.evidence ?? unit.context;
+  const stop = unit.stop_conditions ?? unit.stopConditions ?? unit.stop;
   return {
     ...unit,
     id: clean(unit.id || unit.unit_id || unit.task_id || `unit-${index + 1}`),
@@ -412,6 +516,20 @@ function normalizeUnit(raw, index) {
     allowed_files: Array.isArray(files)
       ? files.map(clean).filter(Boolean)
       : extractPathTokens(files || ""),
+    evidence: Array.isArray(evidence)
+      ? evidence
+          .map((item) =>
+            clean(typeof item === "object" ? item.text || item.file || "" : item),
+          )
+          .filter(Boolean)
+      : splitValues(evidence),
+    stop_conditions: Array.isArray(stop)
+      ? stop
+          .map((item) =>
+            clean(typeof item === "object" ? item.text || item.condition || "" : item),
+          )
+          .filter(Boolean)
+      : splitValues(stop),
     acceptance_criteria: Array.isArray(acceptance)
       ? acceptance.map((item) => clean(typeof item === "object" ? item.criterion || item.text : item)).filter(Boolean)
       : splitValues(acceptance),
@@ -447,6 +565,13 @@ export function normalizePlan(plan) {
     ...raw,
     source: raw.source || "json",
     planning_mode: raw.planning_mode || raw.planningMode || null,
+    goal: typeof raw.goal === "string" && raw.goal.trim() ? raw.goal.trim() : null,
+    non_goals: Array.isArray(raw.non_goals ?? raw.nonGoals)
+      ? (raw.non_goals ?? raw.nonGoals).map(clean).filter(Boolean)
+      : splitValues(raw.non_goals ?? raw.nonGoals),
+    plan_commit:
+      clean(raw.plan_commit ?? raw.planCommit ?? raw.base_commit ?? raw.baseCommit) ||
+      null,
     execution_units: units,
     tasks: units,
     justification: raw.justification || raw.execution_unit_justification || null,
@@ -690,6 +815,63 @@ function maximumMergeMatchingSize(units, candidates) {
 }
 
 /**
+ * Mode-aware PLAN document contract (PR5.A).
+ *
+ * Every mode requires the same *safety* content: goal, explicit non-goals, the
+ * commit the plan was written against, and per-unit evidence, scope, acceptance
+ * criteria, verification gates, and STOP conditions. Modes differ only in the
+ * narrative sections a plan must carry:
+ *
+ * - `compact` (one execution unit): no decomposition essay, no findings triage,
+ *   no diagram, no global verification/rollback/outcome-memory prose.
+ * - `standard` / `deep`, and any multi-unit plan: the decomposition
+ *   justification stays mandatory because there is a decomposition to defend.
+ *
+ * A compact *document* never authorizes compact *planning*: PR4's re-derived
+ * admissibility is still the authority for that decision.
+ */
+export const PLAN_CONTRACT_VERSION = "nexus-plan-contract/1";
+
+const ALWAYS_REQUIRED_SECTIONS = Object.freeze([
+  "planning_mode",
+  "plan_commit",
+  "goal",
+  "non_goals",
+  "execution_units",
+  "unit_metadata",
+  "evidence",
+  "allowed_files",
+  "acceptance_criteria",
+  "verification_gates",
+  "stop_conditions",
+]);
+
+const COMPACT_RELAXED_SECTIONS = Object.freeze([
+  "execution_unit_justification",
+  "findings_triage",
+  "context_and_evidence_prose",
+  "dependency_diagram",
+  "global_verification_strategy",
+  "rollback_section",
+  "outcome_memory_section",
+  "implementation_sketch",
+]);
+
+export function planContract(planningMode, unitCount = 1) {
+  const mode = normalizePlanningMode(planningMode, "standard");
+  const compactDocument = mode === "compact" && Number(unitCount) === 1;
+  return {
+    version: PLAN_CONTRACT_VERSION,
+    planning_mode: mode,
+    compact_document: compactDocument,
+    required_sections: compactDocument
+      ? [...ALWAYS_REQUIRED_SECTIONS]
+      : [...ALWAYS_REQUIRED_SECTIONS, "execution_unit_justification"],
+    relaxed_sections: compactDocument ? [...COMPACT_RELAXED_SECTIONS] : [],
+  };
+}
+
+/**
  * Run the deterministic pre-finalization linter. Decomposition warnings are
  * advisory only after every actionable warning has an explicit disposition;
  * use `requireWarningDispositions: false` for diagnostic-only callers.
@@ -703,6 +885,40 @@ export function checkPlan(plan, options = {}) {
   const duplicateFiles = new Map();
   const maxFiles = Number(options.maxFiles) > 0 ? Number(options.maxFiles) : 12;
   const maxLines = Number(options.maxLines) > 0 ? Number(options.maxLines) : 400;
+  const declaredMode = normalizePlanningMode(
+    normalized.planning_mode ||
+      options.planningMode ||
+      inferPlanningMode({ unit_count: units.length }),
+    "standard",
+  );
+  const contract = planContract(declaredMode, units.length);
+  // A compact plan with more than one unit is not a compact document: the
+  // decomposition still has to be defended, so the standard contract applies.
+  if (declaredMode === "compact" && units.length > 1) {
+    warnings.push({
+      code: "COMPACT_PLAN_MULTIPLE_UNITS",
+      units: units.map((unit) => unit.id),
+      message: `plan declares compact planning with ${units.length} execution units; the standard PLAN contract applies`,
+    });
+  }
+  if (!normalized.goal) {
+    errors.push({
+      code: "MISSING_PLAN_GOAL",
+      message: "plan must state a Goal",
+    });
+  }
+  if (!Array.isArray(normalized.non_goals) || normalized.non_goals.length === 0) {
+    errors.push({
+      code: "MISSING_PLAN_NON_GOALS",
+      message: "plan must state at least one explicit non-goal",
+    });
+  }
+  if (!normalized.plan_commit) {
+    errors.push({
+      code: "MISSING_PLAN_COMMIT",
+      message: "plan must record the plan/base commit it was written against",
+    });
+  }
 
   if (units.length === 0) {
     errors.push({ code: "NO_EXECUTION_UNITS", message: "plan must define at least one Execution Unit" });
@@ -717,6 +933,27 @@ export function checkPlan(plan, options = {}) {
     for (const file of unit.allowed_files || []) {
       if (!duplicateFiles.has(file)) duplicateFiles.set(file, []);
       duplicateFiles.get(file).push(unit.id);
+    }
+    if ((unit.allowed_files || []).length === 0) {
+      errors.push({
+        code: "MISSING_ALLOWED_FILES",
+        unit: unit.id,
+        message: `${unit.id} has no allowed files`,
+      });
+    }
+    if ((unit.evidence || []).length === 0) {
+      errors.push({
+        code: "MISSING_UNIT_EVIDENCE",
+        unit: unit.id,
+        message: `${unit.id} has no file evidence`,
+      });
+    }
+    if ((unit.stop_conditions || []).length === 0) {
+      errors.push({
+        code: "MISSING_STOP_CONDITIONS",
+        unit: unit.id,
+        message: `${unit.id} has no STOP conditions`,
+      });
     }
     if ((unit.acceptance_criteria || []).length === 0) {
       errors.push({ code: "MISSING_ACCEPTANCE", unit: unit.id, message: `${unit.id} has no acceptance criteria` });
@@ -826,8 +1063,13 @@ export function checkPlan(plan, options = {}) {
   );
 
   const justification = normalized.justification;
+  const justificationRequired = contract.required_sections.includes(
+    "execution_unit_justification",
+  );
   if (!justification) {
-    errors.push({ code: "MISSING_UNIT_JUSTIFICATION", message: "plan must include ## Execution Unit Justification" });
+    if (justificationRequired) {
+      errors.push({ code: "MISSING_UNIT_JUSTIFICATION", message: "plan must include ## Execution Unit Justification" });
+    }
   } else {
     if (justification.number_of_units != null && justification.number_of_units !== units.length) {
       errors.push({ code: "UNIT_COUNT_MISMATCH", message: `justification says ${justification.number_of_units} units but plan defines ${units.length}` });
@@ -840,10 +1082,7 @@ export function checkPlan(plan, options = {}) {
     }
   }
 
-  const planningMode = normalizePlanningMode(
-    normalized.planning_mode || options.planningMode || inferPlanningMode({ unit_count: units.length }),
-    "standard",
-  );
+  const planningMode = declaredMode;
   const estimate = estimateAgentCalls({
     units: units.length || 1,
     planningMode,
@@ -866,6 +1105,14 @@ export function checkPlan(plan, options = {}) {
     execution_units: units,
     tasks: units,
     planning_mode: planningMode,
+    contract,
+    goal: normalized.goal || null,
+    non_goals: Array.isArray(normalized.non_goals) ? normalized.non_goals : [],
+    plan_commit: normalized.plan_commit || null,
+    plan_bytes:
+      typeof normalized.text === "string"
+        ? Buffer.byteLength(normalized.text, "utf8")
+        : null,
     errors,
     warnings,
     merge_candidates: mergeCandidates,

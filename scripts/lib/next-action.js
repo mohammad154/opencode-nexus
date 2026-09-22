@@ -566,7 +566,9 @@ function resolveNextActionInternal(runState, opts = {}) {
             "Enough information? If yes, write .opencode/plans/PLAN.md then transition to PLANNED. If not, ask one concrete question (WAITING_FOR_USER).",
           steps: [
             "If ambiguous: nexus run transition --to WAITING_FOR_USER --json '{\"question\":\"...\"}'",
+            "nexus project-profile --json (advisory cached repo recon; still read the task-specific code)",
             "Else: Load skill: writing-plans → create .opencode/plans/PLAN.md",
+            "Do not write .opencode/tasks/task-N.md; PLANNED generates those views",
             "nexus run transition --to PLANNED --plan-check",
           ],
         };

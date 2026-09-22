@@ -59,6 +59,7 @@ import {
   boundaryError,
   validateContainedPath,
 } from "./lib/filesystem-boundary.js";
+import { materializeTaskArtifacts } from "./lib/task-artifacts.js";
 
 function parseArgs(argv) {
   const out = { _: [], flags: {} };
@@ -546,6 +547,32 @@ function cmdTransition(flags) {
     );
     console.error(JSON.stringify({ ok: false, errors: r.errors }, null, 2));
     process.exit(3);
+  }
+  // PR5.C: PLAN.md is the semantic authority, so the per-unit execution view is
+  // generated deterministically instead of being written a second time by the
+  // planner. It is a view, never evidence: a failure here cannot fail the
+  // transition the state machine already authorized.
+  if (to === "PLANNED") {
+    const materialized = materializeTaskArtifacts({
+      worktree: worktree(),
+      planPath: r.state.plan_path || r.state.plan_check?.plan_path,
+      telemetry: providers.telemetry,
+      runId: r.state.run_id,
+    });
+    r.state.task_artifacts = {
+      ok: materialized.ok,
+      generated_view: true,
+      advisory: true,
+      plan_path: materialized.plan_path,
+      plan_digest: materialized.plan_digest,
+      unit_count: materialized.unit_count,
+      files: materialized.tasks,
+      removed: materialized.removed,
+      preserved: materialized.preserved,
+      generated_task_bytes: materialized.generated_task_bytes,
+      plan_bytes: materialized.plan_bytes,
+      reason: materialized.reason || null,
+    };
   }
   writeRunState(worktree(), r.state);
   if (to === "IMPLEMENTING") {

@@ -4,6 +4,13 @@ import { checkPlan, normalizePlan, parsePlanMarkdown } from "../scripts/lib/plan
 
 const VALID_PLAN = `# Plan: cohesive units
 - Planning mode: standard
+- Plan commit: 1234567
+
+## Goal
+Ship the API response and the worker event.
+
+## Non-goals
+- No transport redesign.
 
 ## Execution Unit Justification
 Number of units: 2
@@ -23,10 +30,14 @@ Why not more:
 - review_boundary: none
 - estimated_lines: 120
 - Allowed files: \`src/api.js\`
+- Evidence:
+  - \`src/api.js:1\` current implementation
 - Acceptance criteria:
   - [ ] API returns the new response.
 - Verification gates:
   1. npm test -- api
+- STOP conditions:
+  - STOP if \`src/api.js\` is missing.
 
 ### Execution Unit 2: Worker event
 - id: unit-2
@@ -36,10 +47,14 @@ Why not more:
 - review_boundary: none
 - estimated_lines: 90
 - Allowed files: \`src/worker.js\`
+- Evidence:
+  - \`src/worker.js:1\` current implementation
 - Acceptance criteria:
   - [ ] Worker handles the new event.
 - Verification gates:
   1. npm test -- worker
+- STOP conditions:
+  - STOP if \`src/worker.js\` is missing.
 `;
 
 test("plan-check parses cohesive execution units and a valid dependency DAG", () => {
@@ -103,6 +118,9 @@ test("plan-check reports missing ownership, cycles, and missing unit justificati
 
 test("plan-check warns on test-only units and requires explicit dispositions", () => {
   const plan = normalizePlan({
+    goal: "Serve the API response with regression coverage.",
+    non_goals: ["No transport redesign."],
+    plan_commit: "1234567",
     justification: {
       number_of_units: 2,
       why_not_fewer: "Separate public boundary.",
@@ -117,6 +135,8 @@ test("plan-check warns on test-only units and requires explicit dispositions", (
         review_boundary: "none",
         estimated_lines: 120,
         allowed_files: ["src/api.js"],
+        evidence: ["`src/api.js:1` current implementation"],
+        stop_conditions: ["STOP if `src/api.js` is missing."],
         acceptance_criteria: ["works"],
         verification_gates: ["npm test"],
       },
@@ -129,6 +149,8 @@ test("plan-check warns on test-only units and requires explicit dispositions", (
         estimated_lines: 70,
         depends_on: ["behavior"],
         allowed_files: ["tests/api.test.js"],
+        evidence: ["`tests/api.test.js:1` current implementation"],
+        stop_conditions: ["STOP if `tests/api.test.js` is missing."],
         acceptance_criteria: ["regression covered"],
         verification_gates: ["npm test -- api"],
       },
@@ -199,6 +221,8 @@ function unit(overrides = {}) {
     review_boundary: "none",
     estimated_lines: 80,
     allowed_files: ["src/one.js"],
+    evidence: ["`src/one.js:1` current implementation"],
+    stop_conditions: ["STOP if `src/one.js` is missing."],
     acceptance_criteria: ["the behavior works"],
     verification_gates: ["npm test"],
     ...overrides,
@@ -207,6 +231,9 @@ function unit(overrides = {}) {
 
 function plan(execution_units, warning_dispositions = []) {
   return {
+    goal: "Keep the pipeline correct.",
+    non_goals: ["No storage redesign."],
+    plan_commit: "1234567",
     justification: {
       number_of_units: execution_units.length,
       why_not_fewer: "Each retained unit is cohesive and reviewable.",

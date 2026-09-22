@@ -24,6 +24,7 @@ branch_cleanup_policy: always
 
 const PROJECT_DIRS = [
   ".opencode/config",
+  ".opencode/cache",
   ".opencode/plans",
   ".opencode/tasks",
   ".opencode/handoffs",

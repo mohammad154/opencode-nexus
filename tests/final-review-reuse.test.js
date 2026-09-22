@@ -87,7 +87,7 @@ function planningWorktree(mode) {
   fs.mkdirSync(planDir, { recursive: true });
   fs.writeFileSync(
     path.join(planDir, "PLAN.md"),
-    `# Plan\n- Planning mode: ${mode}\n\n## Execution Unit Justification\nNumber of units: 1\n\nWhy not fewer:\n- One cohesive behavior owns the outcome.\n\nWhy not more:\n- There is no independent boundary to split.\n\n## Execution Unit breakdown\n### Execution Unit 1: behavior\n- id: unit-1\n- user_outcome: Deliver the behavior\n- independently_shippable: true\n- review_boundary: NONE\n- estimated_lines: 10\n- Allowed files: \`src/app.js\`\n- Acceptance criteria:\n  - [ ] behavior works.\n- Verification gates:\n  1. npm test\n`,
+    `# Plan\n- Planning mode: ${mode}\n- Plan commit: 1234567\n\n## Goal\nDeliver the behavior.\n\n## Non-goals\n- No unrelated refactoring.\n\n## Execution Unit Justification\nNumber of units: 1\n\nWhy not fewer:\n- One cohesive behavior owns the outcome.\n\nWhy not more:\n- There is no independent boundary to split.\n\n## Execution Unit breakdown\n### Execution Unit 1: behavior\n- id: unit-1\n- user_outcome: Deliver the behavior\n- independently_shippable: true\n- review_boundary: NONE\n- estimated_lines: 10\n- Allowed files: \`src/app.js\`\n- Evidence:\n  - \`src/app.js:1\` current behavior\n- Acceptance criteria:\n  - [ ] behavior works.\n- Verification gates:\n  1. npm test\n- STOP conditions:\n  - STOP if \`src/app.js\` no longer exists.\n`,
   );
   return worktree;
 }

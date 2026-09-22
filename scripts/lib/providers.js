@@ -248,6 +248,13 @@ function sanitizeMetricEvent(event = {}) {
     "duplicate_commands",
     "duplicate_impact_queries",
     "bytes",
+    // PR5 lean-planning measurements.
+    "project_profile_cache_hit",
+    "project_profile_rebuild",
+    "project_profile_duration_ms",
+    "plan_bytes",
+    "generated_task_bytes",
+    "task_materialization_count",
   ]) {
     const value = numericMetric(input[key]);
     if (value !== null) out[key] = value;
@@ -294,6 +301,13 @@ function addMetricTotals(totals, event) {
     "cache_hits",
     "failures",
     "reuse_count",
+    // PR5 lean-planning totals: cache effectiveness and generated plan volume.
+    "project_profile_cache_hit",
+    "project_profile_rebuild",
+    "project_profile_duration_ms",
+    "plan_bytes",
+    "generated_task_bytes",
+    "task_materialization_count",
   ]) {
     // Phase events span other recorded work. Summing both would double count,
     // so phase wall time is aggregated separately in `phase_durations_ms`.
@@ -331,6 +345,12 @@ export function createMetricsTelemetry(options = {}) {
     cache_hits: 0,
     failures: 0,
     reuse_count: 0,
+    project_profile_cache_hit: 0,
+    project_profile_rebuild: 0,
+    project_profile_duration_ms: 0,
+    plan_bytes: 0,
+    generated_task_bytes: 0,
+    task_materialization_count: 0,
   };
   // Phase 0 duplicate-work diagnostics. Keyed by evidence identity, so two
   // executions collide only when Nexus already possessed the answer for the

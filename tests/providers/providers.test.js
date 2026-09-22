@@ -204,6 +204,61 @@ test("metrics JSONL records measurements without prompts or raw errors", () => {
   assert.equal(totals.cost_usd, 0.02);
 });
 
+test("PR5 lean-planning metrics survive sanitization and aggregate in totals", () => {
+  const worktree = tempDir("nexus-pr5-metrics-");
+  const metricsPath = path.join(worktree, "metrics.jsonl");
+  const telemetry = createMetricsTelemetry({ worktree, metricsPath });
+
+  telemetry.emit({
+    event: "project_profile",
+    run_id: "pr5-metrics",
+    kind: "rebuild",
+    cache_hit: false,
+    project_profile_cache_hit: 0,
+    project_profile_rebuild: 1,
+    project_profile_duration_ms: 18,
+    prompt: "secret prompt",
+  });
+  telemetry.emit({
+    event: "project_profile",
+    run_id: "pr5-metrics",
+    kind: "cache_hit",
+    cache_hit: true,
+    project_profile_cache_hit: 1,
+    project_profile_rebuild: 0,
+    project_profile_duration_ms: 2,
+  });
+  telemetry.emit({
+    event: "task_materialization",
+    run_id: "pr5-metrics",
+    plan_bytes: 690,
+    generated_task_bytes: 971,
+    task_materialization_count: 1,
+  });
+
+  const lines = fs
+    .readFileSync(metricsPath, "utf8")
+    .trim()
+    .split(/\r?\n/)
+    .map((line) => JSON.parse(line));
+  assert.equal(lines.length, 3);
+  assert.equal(lines[0].project_profile_rebuild, 1);
+  assert.equal(lines[0].cache_hit, false);
+  assert.equal(Object.hasOwn(lines[0], "prompt"), false);
+  assert.equal(lines[1].project_profile_cache_hit, 1);
+  assert.equal(lines[2].plan_bytes, 690);
+  assert.equal(lines[2].generated_task_bytes, 971);
+  assert.equal(lines[2].task_materialization_count, 1);
+
+  const totals = telemetry.getTotals();
+  assert.equal(totals.project_profile_cache_hit, 1);
+  assert.equal(totals.project_profile_rebuild, 1);
+  assert.equal(totals.project_profile_duration_ms, 20);
+  assert.equal(totals.plan_bytes, 690);
+  assert.equal(totals.generated_task_bytes, 971);
+  assert.equal(totals.task_materialization_count, 1);
+});
+
 test("metrics do not invent a USD value when the host supplies no pricing", () => {
   const telemetry = createMetricsTelemetry({ enabled: false });
   telemetry.recordCall({ run_id: "no-pricing", provider: "host" });

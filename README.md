@@ -282,6 +282,7 @@ nexus project-init
 nexus run init --run-id demo
 nexus classify --files 2 --lines 40 --class small-feature-with-tests --focused
 nexus estimate --tasks 3
+nexus project-profile --json            # advisory cached repo recon
 nexus plan-check --json                 # diagnostic only
 nexus run transition --to PLANNED --plan-check  # persist the passing gate
 ```
@@ -344,7 +345,9 @@ Full policy: [`docs/workflow.md`](docs/workflow.md). Integrity details: [`docs/a
 | `.opencode/runs/<run-id>/state.json` | Durable state-machine state |
 | `.opencode/runs/<run-id>/verification.json` | Durable per-step verification progress and sealed-evidence summary |
 | `.opencode/CONTEXT.md` | Active run, branch, and verification context |
-| `.opencode/plans/PLAN.md` and `tasks/` | Plan and execution units |
+| `.opencode/plans/PLAN.md` | Plan: the semantic planning authority |
+| `.opencode/tasks/task-N.md` | Execution-unit views generated from PLAN.md |
+| `.opencode/cache/project-profile.json` | Advisory cached project recon facts |
 | `.opencode/handoffs/` | Implementer and reviewer results |
 | `.opencode/impact/` | Impact analysis reports |
 | `.opencode/reconcile/` | Reconcile reports |

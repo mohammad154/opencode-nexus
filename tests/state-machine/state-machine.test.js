@@ -58,10 +58,14 @@ function writePlan(worktree, count = 1) {
       "- review_boundary: NONE",
       "- estimated_lines: 10",
       `- Allowed files: \`src/app-${index + 1}.js\``,
+      "- Evidence:",
+      `  - \`src/app-${index + 1}.js:1\` – current behavior`,
       "- Acceptance criteria:",
       `  - [ ] behavior ${index + 1} works.`,
       "- Verification gates:",
       "  1. npm test",
+      "- STOP conditions:",
+      `  - STOP if \`src/app-${index + 1}.js\` no longer exists.`,
       "",
     ].join("\n");
   }).join("\n");
@@ -70,6 +74,13 @@ function writePlan(worktree, count = 1) {
     [
       "# Plan",
       "- Planning mode: compact",
+      "- Plan commit: 1234567",
+      "",
+      "## Goal",
+      "Deliver the planned behaviors.",
+      "",
+      "## Non-goals",
+      "- No unrelated refactoring.",
       "",
       "## Execution Unit Justification",
       `Number of units: ${count}`,

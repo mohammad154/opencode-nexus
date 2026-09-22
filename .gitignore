@@ -1,7 +1,7 @@
 # Generated / local install artifacts (not part of the package)
 .opencode/blast/
 .opencode/impact/
-.opencode/cache/impact/
+.opencode/cache/
 .opencode/reconcile/
 .opencode/CONTEXT.md
 .opencode/plans/

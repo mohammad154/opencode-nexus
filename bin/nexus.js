@@ -31,6 +31,7 @@ Commands:
   classify       Risk classifier CLI
   estimate       Estimate minimum agent calls for a plan
   plan-check     Deterministic PLAN.md linter (no LLM calls)
+  project-profile Advisory cached project recon facts (commands, CI, guides)
   review-package Build deterministic reviewer briefing (task|final)
   eval           Reviewer planted-defect eval harness (oracle/rubber suites)
   worktree       Manage task worktrees (create, list, remove)
@@ -56,6 +57,7 @@ Examples:
   nexus verify --baseline
   nexus estimate --tasks 3
   nexus plan-check --json
+  nexus project-profile --json
   nexus review-package --scope task --json
   nexus eval reviewer --json
   nexus worktree create --task task-1 --base HEAD
@@ -502,6 +504,9 @@ switch (command) {
     break;
   case "plan-check":
     cmdPlanCheck(args);
+    break;
+  case "project-profile":
+    runNodeScript("nexus-project-profile.js", args);
     break;
   case "review-package":
     runNodeScript("nexus-review-package.js", args);

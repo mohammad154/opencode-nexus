@@ -4,6 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { estimateAgentCalls } from "./lib/agent-estimate.js";
 import { checkPlan, checkPlanFile } from "./lib/plan-check.js";
+import { inspectTaskArtifacts } from "./lib/task-artifacts.js";
 
 const HELP = `Usage: nexus plan-check [options]
 
@@ -16,6 +17,7 @@ Options:
   --planning-mode MODE    compact|standard|deep (override plan metadata)
   --fix-loops N           Include assumed reviewer fix loops in the estimate
   --reuse-single-final    Estimate digest-bound single-unit final-review reuse
+  --task-views            Also report generated .opencode/tasks view freshness
   --json                  Print machine-readable JSON
   -h, --help              Show this message
 `;
@@ -26,6 +28,7 @@ const BOOLEAN_OPTIONS = new Set([
   "json",
   "reuse-single-final",
   "strict",
+  "task-views",
 ]);
 const VALUE_OPTIONS = new Set([
   "fix-loops",
@@ -175,8 +178,35 @@ function main() {
     );
   }
 
+  // Diagnostic only: generated views are never gate evidence, so a stale view
+  // is reported and never silently trusted or repaired here.
+  if (flags["task-views"] === true) {
+    const views = inspectTaskArtifacts({
+      worktree: process.cwd(),
+      planPath: flags.plan || undefined,
+    });
+    result.task_views = {
+      advisory: true,
+      current: views.current,
+      plan_digest: views.plan_digest,
+      stale: views.stale_tasks.map((task) => task.file),
+      preserved: views.preserved,
+      regenerated_by: "nexus run transition --to PLANNED --plan-check",
+    };
+  }
+
   if (flags.json === true) console.log(JSON.stringify(result, null, 2));
-  else console.log(humanReport(result));
+  else {
+    console.log(humanReport(result));
+    if (result.task_views) {
+      console.log(
+        `\nGenerated task views: ${result.task_views.current ? "current" : "stale"}` +
+          (result.task_views.stale.length > 0
+            ? ` — ${result.task_views.stale.join(", ")}`
+            : ""),
+      );
+    }
+  }
   if (!result.ok) process.exit(2);
 }
 

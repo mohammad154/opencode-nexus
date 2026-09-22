@@ -89,6 +89,7 @@ than asking the user to investigate them. After the answer, resume
 
 ```bash
 nexus project-init
+nexus project-profile --json   # advisory cached repo recon (commands, CI, guides)
 nexus run init --run-id <id>
 nexus next                 # deterministic next step (also injected every turn)
 nexus next --json
@@ -131,9 +132,25 @@ reviewable, and safe. Every unit must state `user_outcome`,
 `review_boundary: NONE` unless one real independent boundary applies; valid
 values are `PUBLIC_CONTRACT`, `SECURITY_BOUNDARY`, `MIGRATION_BOUNDARY`,
 `INDEPENDENT_ROLLBACK`, `INDEPENDENT_SHIPPING`, `REVIEW_SIZE_LIMIT`, and
-`SUBSYSTEM_BOUNDARY`. Every PLAN.md must include `## Execution Unit
+`SUBSYSTEM_BOUNDARY`.
+
+The PLAN contract is mode-aware. Every mode requires planning mode, plan/base
+commit, goal, non-goals, and per-unit evidence, allowed files, acceptance
+criteria, verification gates, and STOP conditions. A standard or deep plan — and
+any plan with more than one unit — must also include `## Execution Unit
 Justification` with the number of units and reasons why fewer or more units are
-not appropriate.
+not appropriate. A single-unit compact plan omits it and stays minimal: no
+findings triage, diagram, global verification essay, rollback essay,
+outcome-memory section, or implementation sketch.
+
+Declaring `Planning mode: compact` does not make compact admissible. The
+`PLANNED` gate re-derives admissibility from planning evidence, so a compact plan
+for a security boundary, public contract, migration, destructive change, or
+HIGH/UNKNOWN impact still fails.
+
+Do not write `.opencode/tasks/task-N.md`. Nexus materializes those views from
+PLAN.md at the `PLANNED` transition: PLAN.md is the semantic planning authority,
+run state is the execution authority, and `task-N.md` is a generated view.
 
 Merge dependent units that are not independently shippable when their combined
 scope fits reviewer-audit limits and no named boundary justifies a split. An
