@@ -123,35 +123,34 @@ function scriptPath(name) {
 
 function runNodeScript(scriptName, args, { cwd = process.cwd() } = {}) {
   const script = scriptPath(scriptName);
-  const child = spawn(process.execPath, [script, ...args], {
+  const result = spawnSync(process.execPath, [script, ...args], {
     stdio: ["inherit", "pipe", "pipe"],
     cwd,
+    encoding: "utf8",
+    maxBuffer: 64 * 1024 * 1024,
     env: {
       ...process.env,
       NEXUS_PKG_ROOT: pkgRoot,
     },
   });
-  child.stdout.on("data", (chunk) => process.stdout.write(chunk));
-  child.stderr.on("data", (chunk) => process.stderr.write(chunk));
-  child.on("error", (err) => {
-    fail(err.message);
-  });
-  child.on("close", (code, signal) => {
-    if (signal) {
-      console.error(`Terminated by ${signal}`);
-      process.exitCode = 1;
-      return;
-    }
-    // Set exitCode instead of calling process.exit so forwarded stdout/stderr
-    // data has time to flush to programmatic CLI consumers.
-    process.exitCode = code ?? 1;
-  });
+  if (result.error) {
+    fail(result.error.message);
+  }
+  if (result.stdout) process.stdout.write(result.stdout);
+  if (result.stderr) process.stderr.write(result.stderr);
+  if (result.signal) {
+    console.error(`Terminated by ${result.signal}`);
+    process.exitCode = 1;
+    return;
+  }
+  process.exitCode = result.status ?? 1;
 }
 
 function runNodeScriptSync(scriptName, args, { cwd = process.cwd() } = {}) {
   const script = scriptPath(scriptName);
   return spawnSync(process.execPath, [script, ...args], {
     encoding: "utf8",
+    maxBuffer: 64 * 1024 * 1024,
     cwd,
     env: {
       ...process.env,
