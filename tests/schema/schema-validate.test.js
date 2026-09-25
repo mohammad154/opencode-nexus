@@ -5,6 +5,7 @@ import {
   loadSchema,
   validateHandoff,
   validatePlanAdvisorHandoff,
+  validateImpactReport,
   validateRunState,
 } from "../../scripts/lib/schema-validate.js";
 import {
@@ -227,4 +228,27 @@ test("validator type and required work", () => {
 test("loadSchema finds run-state", () => {
   const s = loadSchema("run-state.schema.json");
   assert.equal(s.title, "NexusRunState");
+});
+
+test("impact confidence enforces both minimum and maximum", () => {
+  const report = (confidence) =>
+    validateImpactReport({ schema_version: "1", risk: "LOW", confidence });
+
+  const above = report(5);
+  assert.equal(above.ok, false);
+  assert.ok(
+    above.errors.some(
+      (error) =>
+        error.path === "$.confidence" && /above maximum 1/.test(error.message),
+    ),
+  );
+
+  const below = report(-1);
+  assert.equal(below.ok, false);
+  assert.ok(
+    below.errors.some((error) => /below minimum 0/.test(error.message)),
+  );
+
+  assert.equal(report(0).ok, true);
+  assert.equal(report(1).ok, true, JSON.stringify(report(1).errors));
 });

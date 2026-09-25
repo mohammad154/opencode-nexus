@@ -175,3 +175,62 @@ test("failed git diff is not reported as a clean successful tree", () => {
   );
   fs.rmSync(root, { recursive: true, force: true });
 });
+
+test("impact CLI prints JSON only when --json is set", () => {
+  const root = tempRepo();
+  fs.writeFileSync(
+    path.join(root, "src", "a.js"),
+    "export function a() { return 3; }\n",
+  );
+  const quiet = spawnSync(process.execPath, [impactCli, "--worktree", root], {
+    encoding: "utf8",
+  });
+  assert.equal(quiet.status, 0, quiet.stderr);
+  assert.equal(quiet.stdout, "");
+  const artifact = path.join(root, ".opencode", "impact", "latest.json");
+  assert.equal(
+    JSON.parse(fs.readFileSync(artifact, "utf8")).provider,
+    "nexus-impact",
+  );
+
+  const loud = spawnSync(
+    process.execPath,
+    [impactCli, "--json", "--worktree", root],
+    {
+      encoding: "utf8",
+    },
+  );
+  assert.equal(loud.status, 0, loud.stderr);
+  assert.equal(JSON.parse(loud.stdout).provider, "nexus-impact");
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test("impact provider refuses an outPath outside the worktree or through a symlink", async () => {
+  const { createNexusImpactProvider } =
+    await import("../../scripts/lib/providers/impact-provider.js");
+  const root = tempRepo();
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), "nexus-impact-out-"));
+  const provider = createNexusImpactProvider();
+  const escaped = path.join(outside, "escaped.json");
+  const outsideResult = provider.analyze({ worktree: root, outPath: escaped });
+  assert.equal(outsideResult.recomputed, true);
+  assert.equal(fs.existsSync(escaped), false);
+
+  const inside = path.join(root, ".opencode", "impact", "custom.json");
+  const insideResult = provider.analyze({ worktree: root, outPath: inside });
+  assert.equal(insideResult.recomputed, true);
+  assert.equal(
+    JSON.parse(fs.readFileSync(inside, "utf8")).provider,
+    "nexus-impact",
+  );
+
+  const planted = path.join(outside, "planted.json");
+  fs.writeFileSync(planted, "original\n");
+  const link = path.join(root, ".opencode", "impact", "linked.json");
+  fs.symlinkSync(planted, link);
+  provider.analyze({ worktree: root, outPath: link });
+  assert.equal(fs.readFileSync(planted, "utf8"), "original\n");
+
+  fs.rmSync(root, { recursive: true, force: true });
+  fs.rmSync(outside, { recursive: true, force: true });
+});

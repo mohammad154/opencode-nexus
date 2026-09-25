@@ -101,6 +101,19 @@ function main() {
 
   if (args.command === "status") {
     const status = laneStatus(worktree, state);
+    if (status.ok === false) {
+      emit(
+        args,
+        {
+          ...status,
+          text: [
+            `lane ledger unusable (${status.code}):`,
+            ...(status.errors || []).map((entry) => `- ${entry}`),
+          ].join("\n"),
+        },
+        3,
+      );
+    }
     const text = [
       `parent tip: ${status.parent_tip || "unknown"}`,
       ...(status.lanes.length === 0

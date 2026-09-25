@@ -41,8 +41,8 @@ function matchesType(data, type) {
 /**
  * Hand-rolled JSON Schema draft-07 subset validator.
  * Supports: type, enum, const, required, properties, additionalProperties,
- * items, oneOf, anyOf, allOf, minLength, maxLength, pattern, minimum, $ref
- * (local file set).
+ * items, oneOf, anyOf, allOf, minLength, maxLength, pattern, minimum,
+ * maximum, $ref (local file set).
  */
 export function validate(schema, data, options = {}) {
   const errors = [];
@@ -130,6 +130,13 @@ export function validate(schema, data, options = {}) {
       val < sch.minimum
     ) {
       fail(p, `number below minimum ${sch.minimum}`);
+    }
+    if (
+      typeof val === "number" &&
+      sch.maximum !== undefined &&
+      val > sch.maximum
+    ) {
+      fail(p, `number above maximum ${sch.maximum}`);
     }
 
     if (sch.oneOf) {

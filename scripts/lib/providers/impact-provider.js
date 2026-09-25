@@ -132,22 +132,24 @@ export function createNexusImpactProvider() {
         ctx.outPath || path.join(worktree, ".opencode", "impact", "latest.json");
       try {
         const root = path.resolve(worktree);
-        const boundary = ctx.outPath
-          ? { ok: true }
-          : validateContainedPath(root, outPath, {
-              allowMissing: true,
-              rejectSymlinks: true,
-            });
+        // Caller-supplied outPath is not exempt: a relative or absolute path
+        // still has to stay inside the worktree, including through symlinks.
+        const resolvedOut = path.resolve(root, outPath);
+        const boundary = validateContainedPath(root, resolvedOut, {
+          allowMissing: true,
+          rejectSymlinks: true,
+        });
         if (boundary.ok) {
-          fs.mkdirSync(path.dirname(outPath), { recursive: true });
-          const afterMkdir = ctx.outPath
-            ? { ok: true }
-            : validateContainedPath(root, outPath, {
-                allowMissing: true,
-                rejectSymlinks: true,
-              });
+          fs.mkdirSync(path.dirname(resolvedOut), { recursive: true });
+          const afterMkdir = validateContainedPath(root, resolvedOut, {
+            allowMissing: true,
+            rejectSymlinks: true,
+          });
           if (afterMkdir.ok) {
-            fs.writeFileSync(outPath, JSON.stringify(report, null, 2) + "\n");
+            fs.writeFileSync(
+              resolvedOut,
+              JSON.stringify(report, null, 2) + "\n",
+            );
           }
         }
       } catch {

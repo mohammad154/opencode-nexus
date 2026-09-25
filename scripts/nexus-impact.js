@@ -70,7 +70,7 @@ function main() {
   fs.mkdirSync(path.dirname(outPath), { recursive: true });
   assertContained();
   fs.writeFileSync(outPath, text + "\n");
-  if (args.json || true) {
+  if (args.json) {
     process.stdout.write(text + "\n");
   }
   process.exit(report.ok ? 0 : 1);
