@@ -30,9 +30,11 @@ parts. Skill files remain on the shared search path. OpenCode still hides a
 skill from an agent whose `skill` permission denies it, so the installer sets
 `permission.skill["nexus-*"]` to `deny` for every agent and then allows
 `nexus-*` only on `orchestrator`. `implementer` and `reviewer` may load only
-`nexus-impact-analysis`. `build`, `plan`, custom agents, and `plan-advisor`
-neither list nor load Nexus skills. Automatic Nexus routing and instructions
-remain gated by the exact primary-agent identity.
+`nexus-impact-analysis`. `build`, `plan`, `plan-advisor`, and a custom agent
+with no skill rule of its own neither list nor load Nexus skills. A later
+skill rule on that agent, such as `{"*": "allow"}`, overrides the global deny
+because OpenCode keeps the last matching rule. Automatic Nexus routing and
+instructions remain gated by the exact primary-agent identity.
 
 Before implementation, the controller freezes the normalized scope policy and
 an external digest of protected `.opencode` runtime state. A changed control

@@ -101,7 +101,7 @@ overrides the global deny for that agent alone.
 
 `blast-radius` is deprecated and is not a loadable skill.
 
-| Skill | orchestrator | implementer | reviewer | plan-advisor | build, plan, custom |
+| Skill | orchestrator | implementer | reviewer | plan-advisor | build, plan, custom with no later skill rule |
 |---|---|---|---|---|---|
 | `nexus-using-nexus` | allow | deny | deny | deny | deny |
 | `nexus-brainstorming` | allow | deny | deny | deny | deny |
@@ -117,7 +117,10 @@ The orchestrator allow is the pattern `nexus-*`, so it can load every workflow
 skill above. implementer and reviewer receive only the id
 `nexus-impact-analysis`, so they can read an impact report and cannot load
 orchestrator workflow skills. plan-advisor keeps its own prompt and receives no
-Nexus skill allow. build, plan, and any custom agent inherit the global deny.
+Nexus skill allow. build, plan, and a custom agent with no skill rule of its
+own inherit the global deny. A later rule on that specific agent, such as
+`skill: {"*": "allow"}`, overrides the global deny. OpenCode uses the last
+matching rule.
 
 These rules govern the skill tool. They do not change shell permissions. An
 agent that can already run arbitrary shell commands can still invoke the

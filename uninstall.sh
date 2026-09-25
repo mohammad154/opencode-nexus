@@ -332,6 +332,11 @@ clean_opencode_config() {
       else . end
     | if original_skill_string
         and ((.permission.skill? | type) == "object")
+        and ((.permission.skill | keys_unsorted) == ["*"])
+        and (.permission.skill["*"] == $original[0].permission.skill) then
+          .permission.skill = $original[0].permission.skill
+      elif original_skill_string
+        and ((.permission.skill? | type) == "object")
         and ((.permission.skill | length) == 0) then
           .permission.skill = $original[0].permission.skill
       elif original_skill_object then

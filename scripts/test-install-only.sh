@@ -257,3 +257,42 @@ cmp -s "$fresh_home/skills.json" "$legacy_home/skills.json" \
   || { echo "FAIL: 4.5.1 upgrade skill permissions differ from a fresh install"; diff -u "$fresh_home/skills.json" "$legacy_home/skills.json"; rm -rf "$fresh_home" "$legacy_home"; exit 1; }
 rm -rf "$fresh_home" "$legacy_home"
 echo "PASS: upgrade from 4.5.1 writes the same skill permissions as a fresh install"
+
+echo "== skill shorthand becomes a catch-all, then the Nexus rule =="
+assert_skill_shorthand() {
+  local home=$1 global_action=$2 impl_action=$3
+  jq -e \
+    --arg global "$global_action" \
+    --arg impl "$impl_action" '
+    .permission.skill["*"] == $global
+    and .permission.skill["nexus-*"] == "deny"
+    and (.permission.skill | keys_unsorted[0]) == "*"
+    and .agent.implementer.permission.skill["*"] == $impl
+    and .agent.implementer.permission.skill["nexus-impact-analysis"] == "allow"
+    and (.agent.implementer.permission.skill | keys_unsorted[0]) == "*"
+    and (.agent.implementer.permission.skill | has("nexus-*") | not)
+  ' "$home/.config/opencode/opencode.json" >/dev/null
+}
+for spec in "deny:ask" "ask:deny"; do
+  global_action="${spec%%:*}"
+  impl_action="${spec##*:}"
+  SHORT_HOME="$(mktemp -d)"
+  mkdir -p "$SHORT_HOME/.config/opencode" "$SHORT_HOME/project" "$SHORT_HOME/bin"
+  git init -q "$SHORT_HOME/project"
+  printf '#!/bin/sh\nexit 0\n' >"$SHORT_HOME/bin/opencode"; chmod +x "$SHORT_HOME/bin/opencode"
+  jq -n --arg global "$global_action" --arg impl "$impl_action" '{
+    permission: { skill: $global, other: "keep" },
+    agent: { implementer: { permission: { skill: $impl, bash: "deny" } } }
+  }' >"$SHORT_HOME/.config/opencode/opencode.json"
+  (
+    export HOME="$SHORT_HOME" PATH="$SHORT_HOME/bin:/usr/bin:/bin"
+    cd "$SHORT_HOME/project"
+    "$ROOT/install.sh"
+  ) >/tmp/nexus-skill-shorthand.log 2>&1 || { cat /tmp/nexus-skill-shorthand.log; rm -rf "$SHORT_HOME"; exit 1; }
+  assert_skill_shorthand "$SHORT_HOME" "$global_action" "$impl_action" \
+    || { echo "FAIL: shorthand $global_action / implementer $impl_action was not preserved"; jq . "$SHORT_HOME/.config/opencode/opencode.json"; rm -rf "$SHORT_HOME"; exit 1; }
+  jq -e '.permission.other == "keep" and .agent.implementer.permission.bash == "deny"' \
+    "$SHORT_HOME/.config/opencode/opencode.json" >/dev/null
+  rm -rf "$SHORT_HOME"
+done
+echo "PASS: skill shorthand deny and ask stay in effect beside the Nexus rule"

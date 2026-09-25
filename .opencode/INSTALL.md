@@ -44,8 +44,10 @@ read-only and cannot write code or change run state.
 
 Install writes skill permissions into `opencode.json`: global `nexus-*` is
 denied, the orchestrator is allowed `nexus-*`, and implementer and reviewer
-are allowed only `nexus-impact-analysis`. build, plan, custom agents, and
-plan-advisor inherit the deny.
+are allowed only `nexus-impact-analysis`. build, plan, plan-advisor, and a
+custom agent with no skill rule of its own inherit the deny. A later skill
+rule on that agent overrides it. An existing `skill` shorthand is kept as a
+`"*"` rule, then the Nexus rule is added after it.
 
 ## Uninstall
 

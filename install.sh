@@ -210,16 +210,20 @@ if ! jq --arg p "$PLUGIN_SPEC" --arg name "$PKG_NAME" --arg legacy "$LEGACY_GIT_
         }
     )
   | .permission.skill = (
-      (if ((.permission.skill? | type) == "object") then .permission.skill else {} end)
-      + { "nexus-*": "deny" }
+      (.permission.skill // null)
+      | if type == "string" then { "*": . } + { "nexus-*": "deny" }
+        elif type == "object" then . + { "nexus-*": "deny" }
+        else { "nexus-*": "deny" } end
     )
   | if .agent.orchestrator then
       .agent.orchestrator.permission = (
         (if ((.agent.orchestrator.permission? | type) == "object") then .agent.orchestrator.permission else {} end)
       )
       | .agent.orchestrator.permission.skill = (
-          (if ((.agent.orchestrator.permission.skill? | type) == "object") then .agent.orchestrator.permission.skill else {} end)
-          + { "nexus-*": "allow" }
+          (.agent.orchestrator.permission.skill // null)
+          | if type == "string" then { "*": . } + { "nexus-*": "allow" }
+            elif type == "object" then . + { "nexus-*": "allow" }
+            else { "nexus-*": "allow" } end
         )
     else . end
   | if .agent.implementer then
@@ -227,8 +231,10 @@ if ! jq --arg p "$PLUGIN_SPEC" --arg name "$PKG_NAME" --arg legacy "$LEGACY_GIT_
         (if ((.agent.implementer.permission? | type) == "object") then .agent.implementer.permission else {} end)
       )
       | .agent.implementer.permission.skill = (
-          (if ((.agent.implementer.permission.skill? | type) == "object") then .agent.implementer.permission.skill else {} end)
-          + { "nexus-impact-analysis": "allow" }
+          (.agent.implementer.permission.skill // null)
+          | if type == "string" then { "*": . } + { "nexus-impact-analysis": "allow" }
+            elif type == "object" then . + { "nexus-impact-analysis": "allow" }
+            else { "nexus-impact-analysis": "allow" } end
         )
     else . end
   | if .agent.reviewer then
@@ -236,8 +242,10 @@ if ! jq --arg p "$PLUGIN_SPEC" --arg name "$PKG_NAME" --arg legacy "$LEGACY_GIT_
         (if ((.agent.reviewer.permission? | type) == "object") then .agent.reviewer.permission else {} end)
       )
       | .agent.reviewer.permission.skill = (
-          (if ((.agent.reviewer.permission.skill? | type) == "object") then .agent.reviewer.permission.skill else {} end)
-          + { "nexus-impact-analysis": "allow" }
+          (.agent.reviewer.permission.skill // null)
+          | if type == "string" then { "*": . } + { "nexus-impact-analysis": "allow" }
+            elif type == "object" then . + { "nexus-impact-analysis": "allow" }
+            else { "nexus-impact-analysis": "allow" } end
         )
     else . end
 ' "$CONFIG_FILE" >"$TMP"; then

@@ -11,7 +11,7 @@ fail() { echo "FAIL: $*" >&2; exit 1; }
 
 # --- Test 1: install → upgrade → upgrade → uninstall restores original -------
 T1="$(mktemp -d)"
-trap 'rm -rf "$T1" "${T2:-}" "${T3:-}" "${T4:-}" "${T5:-}" "${T6:-}"' EXIT
+trap 'rm -rf "$T1" "${T2:-}" "${T3:-}" "${T4:-}" "${T5:-}" "${T6:-}" "${T7:-}"' EXIT
 (
   export HOME="$T1"
   CD="$HOME/.config/opencode"; AD="$CD/agents"
@@ -185,13 +185,19 @@ T5="$(mktemp -d)"
   git init -q "$HOME/project"
   printf '{ "permission": { "skill": "allow", "other": "keep" } }\n' >"$CD/opencode.json"
   ( cd "$HOME/project" && "$ROOT/install.sh" ) >/dev/null 2>&1
-  jq -e '.permission.skill["nexus-*"] == "deny" and .permission.other == "keep"' "$CD/opencode.json" >/dev/null
+  jq -e '
+    .permission.other == "keep"
+    and .permission.skill["*"] == "allow"
+    and .permission.skill["nexus-*"] == "deny"
+    and (.permission.skill | keys_unsorted[0]) == "*"
+  ' "$CD/opencode.json" >/dev/null
   tmp="$(mktemp)"
   jq '.permission.skill["added-later"] = "ask"' "$CD/opencode.json" >"$tmp"
   mv "$tmp" "$CD/opencode.json"
   ( cd "$HOME/project" && "$ROOT/uninstall.sh" ) >/dev/null 2>&1
   jq -e '
     .permission.other == "keep"
+    and .permission.skill["*"] == "allow"
     and .permission.skill["added-later"] == "ask"
     and (.permission.skill | has("nexus-*") | not)
   ' "$CD/opencode.json" >/dev/null
@@ -212,5 +218,34 @@ T6="$(mktemp -d)"
   jq -e '.permission.skill == "allow"' "$CD/opencode.json" >/dev/null
 ) || fail "uninstall did not restore a pre-existing skill permission shorthand"
 pass "uninstall restores a pre-existing skill permission shorthand"
+
+T7="$(mktemp -d)"
+(
+  export HOME="$T7"
+  CD="$HOME/.config/opencode"
+  mkdir -p "$CD" "$HOME/bin" "$HOME/project"
+  printf '#!/bin/sh\nexit 0\n' >"$HOME/bin/opencode"; chmod +x "$HOME/bin/opencode"
+  export PATH="$HOME/bin:/usr/bin:/bin"
+  git init -q "$HOME/project"
+  printf '%s\n' '{
+    "permission": { "skill": "ask" },
+    "agent": { "implementer": { "permission": { "skill": "deny" }, "custom": "keep" } }
+  }' >"$CD/opencode.json"
+  ( cd "$HOME/project" && "$ROOT/install.sh" ) >/dev/null 2>&1
+  jq -e '
+    .permission.skill["*"] == "ask"
+    and .permission.skill["nexus-*"] == "deny"
+    and .agent.implementer.permission.skill["*"] == "deny"
+    and .agent.implementer.permission.skill["nexus-impact-analysis"] == "allow"
+    and .agent.implementer.custom == "keep"
+  ' "$CD/opencode.json" >/dev/null
+  ( cd "$HOME/project" && "$ROOT/uninstall.sh" ) >/dev/null 2>&1
+  jq -e '
+    .permission.skill == "ask"
+    and .agent.implementer.permission.skill == "deny"
+    and .agent.implementer.custom == "keep"
+  ' "$CD/opencode.json" >/dev/null
+) || fail "uninstall did not restore ask and implementer skill shorthands"
+pass "uninstall restores ask and the implementer skill shorthand"
 
 echo "PASS: uninstall lifecycle regressions"
