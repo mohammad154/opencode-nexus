@@ -42,7 +42,7 @@ Requirements:
   this agent is `.opencode/handoffs/**`; prefer returning handoff data to the
   orchestrator so it can persist that evidence.
 - Before editing, run drift check (`nexus run drift`). If STOP triggered, return BLOCKED with evidence.
-- Read the **pre-impact** report (risk, confidence, related tests, dependents/callers) — do not invent numbers. Use that context so you do not break callers.
+- Read the **pre-impact** report (risk, confidence, related tests, dependents/callers) — do not invent numbers. Load `nexus-impact-analysis` for how to read that report. Do not load any other Nexus skill. Use that context so you do not break callers.
 - If `review_findings` are present (fix loop), address every finding; re-check impacted callers/tests.
 - For behavioral changes / bug fixes: TDD red then green; put `tdd.red` / `tdd.green` in the handoff.
 - Treat the plan's implementation steps as work inside this one assigned unit. Run each step's targeted check after that step and record its command and result; do not dispatch a reviewer between steps.

@@ -1,11 +1,8 @@
----
-name: blast-radius
-description: DEPRECATED in V5 — use impact-analysis / nexus impact instead. Kept for reference only.
-compatibility: opencode
----
-
 # Blast Radius (deprecated)
 
-**Do not use in the V5 core workflow.** Use `impact-analysis` and `nexus impact --json`.
+This note is not a loadable skill. OpenCode only discovers `SKILL.md` files with
+`name` and `description` frontmatter, and this file is intentionally neither.
 
-This skill remains only for historical reference.
+**Do not use in the V5 core workflow.** Use `nexus-impact-analysis` and `nexus impact --json`.
+
+Kept for historical reference only.

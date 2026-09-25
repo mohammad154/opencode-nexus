@@ -42,12 +42,21 @@ Planning-only specialist:
 `plan-advisor` — used once for `standard`/`deep` planning when warranted; it is
 read-only and cannot write code or change run state.
 
+Install writes skill permissions into `opencode.json`: global `nexus-*` is
+denied, the orchestrator is allowed `nexus-*`, and implementer and reviewer
+are allowed only `nexus-impact-analysis`. build, plan, custom agents, and
+plan-advisor inherit the deny.
+
 ## Uninstall
 
 ```bash
 nexus uninstall
 npm uninstall -g @mohammad154/opencode-nexus
 ```
+
+Uninstall removes the Nexus skill permission keys (`permission.skill["nexus-*"]`
+and the per-agent skill allows) and restores a pre-existing value for the same
+key. Other skill rules and unrelated permission entries stay.
 
 Uninstall removes Nexus agents, plugin/config entries, permission rules, model
 files, OpenCode package-cache copies, local plugin overrides, CLI PATH helpers,

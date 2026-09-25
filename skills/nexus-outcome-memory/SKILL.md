@@ -1,5 +1,5 @@
 ---
-name: outcome-memory
+name: nexus-outcome-memory
 description: Optional LESSONS reflection — not part of the V5 core pipeline
 compatibility: opencode
 ---

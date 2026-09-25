@@ -1,5 +1,5 @@
 ---
-name: brainstorming
+name: nexus-brainstorming
 description: Clarify goals, constraints, and acceptance criteria before writing a plan. Ask questions only when genuinely ambiguous.
 compatibility: opencode
 ---
@@ -26,7 +26,7 @@ Before planning:
 
 Enough information?
 
-- **Yes** → no question → hand off to `writing-plans` immediately.
+- **Yes** → no question → hand off to `nexus-writing-plans` immediately.
 - **No** → ask the whole current frontier in one round, record the answers,
   recompute the frontier, and continue brainstorming.
 
@@ -48,7 +48,7 @@ Examples:
 - Current code reading (file:line when asking questions)
 - Suggested implementation direction with trade-offs
 - Risks and mitigations
-- Clear handoff into `writing-plans`
+- Clear handoff into `nexus-writing-plans`
 
 Use `nexus impact` once targets are known for optional analysis — never block
 brainstorming on external graph tooling. Do not act on the plan until every

@@ -57,18 +57,21 @@ test("plugin injects V5 compact router and keeps automatic skill routing", async
   assert.match(injected, /nexus impact/);
   assert.ok(injected.length < 2800, `router too large: ${injected.length}`);
   assert.equal(injected.includes("The using-nexus skill content below"), false);
-  assert.match(injected, /→ using-nexus/);
-  assert.match(injected, /→ brainstorming/);
-  assert.match(injected, /→ writing-plans/);
-  assert.match(injected, /→ impact-analysis/);
-  assert.match(injected, /→ orchestrating/);
+  assert.match(injected, /→ nexus-using-nexus/);
+  assert.match(injected, /→ nexus-brainstorming/);
+  assert.match(injected, /→ nexus-writing-plans/);
+  assert.match(injected, /→ nexus-impact-analysis/);
+  assert.match(injected, /→ nexus-orchestrating/);
   assert.match(injected, /BRAINSTORMING/);
   assert.match(injected, /TASK_IMPACT_READY/);
   assert.match(injected, /WAITING_FOR_USER/);
   assert.match(injected, /Autonomy:/);
   assert.match(injected, /continue.*same turn/i);
-  assert.equal(injected.includes("nexus-using-nexus"), false);
-  assert.equal(injected.includes("nexus-brainstorming"), false);
+  assert.match(injected, /→ nexus-using-feature-branches/);
+  assert.match(injected, /→ nexus-finishing-a-development-branch/);
+  assert.match(injected, /→ nexus-reconcile/);
+  assert.equal(injected.includes("→ using-nexus"), false);
+  assert.equal(injected.includes("→ brainstorming"), false);
   for (const bad of FORBIDDEN_V3) {
     assert.equal(
       injected.includes(bad),
@@ -85,7 +88,7 @@ test("plugin injects V5 compact router and keeps automatic skill routing", async
 test("completion gate continues branch finishing without a routine user prompt", () => {
   const text = buildRunGateReminder({ state: "COMPLETED", run_id: "done" });
   assert.match(text, /COMPLETED/);
-  assert.match(text, /finishing-a-development-branch/);
+  assert.match(text, /nexus-finishing-a-development-branch/);
   assert.match(text, /always_to_base/);
   assert.match(text, /continuation: FINISH/);
   assert.doesNotMatch(text, /please say continue/i);

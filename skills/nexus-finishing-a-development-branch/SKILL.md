@@ -1,5 +1,5 @@
 ---
-name: finishing-a-development-branch
+name: nexus-finishing-a-development-branch
 description: Use after tasks or execution units pass review to finalize the branch safely — with outcome memory (LESSONS) capture, script cleanup, and reconcile awareness
 compatibility: opencode
 ---
@@ -47,7 +47,7 @@ After reviews pass:
      <feature-branch>
    ```
    For `discarded` unmerged branches only: add `--force-discard`.
-5. **Outcome memory**: follow `lessonPolicy` (the default is `noteworthy-only`; see `outcome-memory`).
+5. **Outcome memory**: follow `lessonPolicy` (the default is `noteworthy-only`; see `nexus-outcome-memory`).
 6. If the user explicitly selected checkpoint mode, wait for explicit continue
    before the next unit. This opt-in checkpoint does not apply to the default
    continuous workflow.
@@ -87,7 +87,7 @@ Rules:
 
 ## Outcome memory
 
-After disposition: load `outcome-memory`. Under `noteworthy-only`, skip routine SUCCESS with no review findings.
+After disposition: load `nexus-outcome-memory`. Under `noteworthy-only`, skip routine SUCCESS with no review findings.
 
 ## Detect the base branch
 
@@ -99,7 +99,7 @@ Never force-push to main/master.
 
 ## Plan-end finalization
 
-- Optionally `reconcile` if drift suspected.
+- Optionally `nexus-reconcile` if drift suspected.
 - LESSONS plan-level reflect when noteworthy.
 - Cleanup remaining eligible branches via script:
   ```bash

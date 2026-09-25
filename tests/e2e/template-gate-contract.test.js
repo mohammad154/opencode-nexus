@@ -30,7 +30,7 @@ function handoffFromImplementerTemplate({
   base = "baseaaa",
   commit = "commitbb",
 } = {}) {
-  const prompt = read("skills/orchestrating/implementer-prompt.md");
+  const prompt = read("skills/nexus-orchestrating/implementer-prompt.md");
   assert.match(prompt, /schema_version: "1\.1"/);
   assert.match(prompt, /development_checks/);
   assert.match(prompt, /verification_gates/); // documented compatibility alias
@@ -68,7 +68,7 @@ function handoffFromReviewerTemplate({
   base = "baseaaa",
   commit = "commitbb",
 } = {}) {
-  const prompt = read("skills/orchestrating/reviewer-prompt.md");
+  const prompt = read("skills/nexus-orchestrating/reviewer-prompt.md");
   assert.match(prompt, /"schema_version": "1\.2"/);
   assert.match(prompt, /reviewed_commit/);
   assert.match(prompt, /run_id/);
@@ -268,11 +268,11 @@ test("empty APPROVED (zero acceptance / checks) is gate-invalid", () => {
   );
 });
 
-test("OpenCode compact router uses unprefixed skill names", () => {
+test("OpenCode compact router uses nexus-prefixed skill names", () => {
   const plugin = read(".opencode/plugins/nexus.js");
-  assert.match(plugin, /→ using-nexus/);
-  assert.match(plugin, /→ brainstorming/);
-  assert.equal(plugin.includes("nexus-using-nexus"), false);
+  assert.match(plugin, /→ nexus-using-nexus/);
+  assert.match(plugin, /→ nexus-brainstorming/);
+  assert.equal(plugin.includes("→ using-nexus"), false);
 });
 
 test("CI runs npm test", () => {

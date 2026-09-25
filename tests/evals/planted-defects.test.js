@@ -91,11 +91,11 @@ test("priming-resistant scenarios: oracle still REQUEST_CHANGES", () => {
 
 test("anti-priming: screenshot-style dispatch text is banned from prompts", () => {
   const prompt = fs.readFileSync(
-    path.join(root, "skills/orchestrating/reviewer-prompt.md"),
+    path.join(root, "skills/nexus-orchestrating/reviewer-prompt.md"),
     "utf8",
   );
   const dispatch = fs.readFileSync(
-    path.join(root, "skills/orchestrating/dispatch.md"),
+    path.join(root, "skills/nexus-orchestrating/dispatch.md"),
     "utf8",
   );
   const agent = fs.readFileSync(path.join(root, "agents/reviewer.md"), "utf8");

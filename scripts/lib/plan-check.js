@@ -281,7 +281,7 @@ function parseRequirements(lines) {
 
 /**
  * Commit the plan was written against. Accepts the explicit metadata field and
- * the `writing-plans` generation banner, which both record the same fact.
+ * the nexus-writing-plans generation banner, which both record the same fact.
  */
 function parsePlanCommit(lines) {
   const explicit = scalarAfter(

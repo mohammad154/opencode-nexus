@@ -197,7 +197,7 @@ test("FINAL_VERIFYING uses review_handoff.findings for blocking", () => {
 
 test("reviewer prompt does not prime APPROVED", () => {
   const prompt = fs.readFileSync(
-    path.join(root, "skills/orchestrating/reviewer-prompt.md"),
+    path.join(root, "skills/nexus-orchestrating/reviewer-prompt.md"),
     "utf8",
   );
   assert.match(prompt, /no expected verdict/i);

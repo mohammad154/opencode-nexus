@@ -26,10 +26,13 @@ is missing or ambiguous, the plugin fails closed.
 
 When a conversation switches away from `orchestrator`, the plugin removes only
 explicitly wrapped Nexus-owned injected sections and preserves user-authored
-parts. The current OpenCode plugin configuration API exposes skill search paths
-globally rather than per primary agent, so Nexus skills may remain discoverable
-to other agents; automatic Nexus routing and instructions are still gated by
-the exact primary-agent identity.
+parts. Skill files remain on the shared search path. OpenCode still hides a
+skill from an agent whose `skill` permission denies it, so the installer sets
+`permission.skill["nexus-*"]` to `deny` for every agent and then allows
+`nexus-*` only on `orchestrator`. `implementer` and `reviewer` may load only
+`nexus-impact-analysis`. `build`, `plan`, custom agents, and `plan-advisor`
+neither list nor load Nexus skills. Automatic Nexus routing and instructions
+remain gated by the exact primary-agent identity.
 
 Before implementation, the controller freezes the normalized scope policy and
 an external digest of protected `.opencode` runtime state. A changed control

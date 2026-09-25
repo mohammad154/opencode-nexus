@@ -1,3 +1,9 @@
+---
+name: nexus-impact-analysis
+description: Use when reading or sealing a Nexus impact report — pre-impact before every implementer dispatch and post-impact during verification. Scripts measure risk, confidence, callers, and tests; never invent those numbers.
+compatibility: opencode
+---
+
 # Impact Analysis (V5)
 
 Use the Nexus Impact Engine (deterministic scripts — not an agent).

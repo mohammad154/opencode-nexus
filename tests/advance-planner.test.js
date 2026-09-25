@@ -366,10 +366,15 @@ test("prepared dispatches carry evidence and never a verdict", () => {
     state: "IMPLEMENTING",
     impact: { risk: "MEDIUM", direct_dependents: { "src/one.js": ["src/two.js"] }, related_tests: ["tests/one.test.js"] },
   });
-  const dispatch = preparedDispatch("implementer", factsFor(state), { skill: "orchestrating" });
+  const dispatch = preparedDispatch("implementer", factsFor(state), {
+    skill: "nexus-orchestrating",
+  });
   assert.equal(dispatch.agent, "implementer");
   assert.equal(dispatch.impact.risk, "MEDIUM");
-  assert.equal(dispatch.prompt, "skills/orchestrating/implementer-prompt.md");
+  assert.equal(
+    dispatch.prompt,
+    "skills/nexus-orchestrating/implementer-prompt.md",
+  );
   for (const forbidden of ["verdict", "status", "approved", "review_handoff", "handoff"]) {
     assert.equal(forbidden in dispatch, false, forbidden);
   }

@@ -11,7 +11,7 @@ fail() { echo "FAIL: $*" >&2; exit 1; }
 
 # --- Test 1: install → upgrade → upgrade → uninstall restores original -------
 T1="$(mktemp -d)"
-trap 'rm -rf "$T1" "${T2:-}" "${T3:-}"' EXIT
+trap 'rm -rf "$T1" "${T2:-}" "${T3:-}" "${T4:-}" "${T5:-}" "${T6:-}"' EXIT
 (
   export HOME="$T1"
   CD="$HOME/.config/opencode"; AD="$CD/agents"
@@ -55,6 +55,10 @@ T3="$(mktemp -d)"
     "external_directory": {
       "custom/path/**": "allow",
       "/usr/local/lib/node_modules/@mohammad154/opencode-nexus/**": "deny"
+    },
+    "skill": {
+      "user-skill": "allow",
+      "nexus-*": "ask"
     },
     "other": "keep"
   }
@@ -108,6 +112,10 @@ JSON
     and .permission.other == "keep"
     and .permission.external_directory["custom/path/**"] == "allow"
     and .permission.external_directory["/usr/local/lib/node_modules/@mohammad154/opencode-nexus/**"] == "deny"
+    and .permission.skill["user-skill"] == "allow"
+    and .permission.skill["nexus-*"] == "ask"
+    and ((.agent.orchestrator.permission.skill // {}) | has("nexus-*") | not)
+    and ((.agent.custom.permission.skill // {}) | has("nexus-*") | not)
   ' "$CD/opencode.json" >/dev/null
 ) || fail "full uninstall left Nexus artifacts or changed user configuration"
 pass "full uninstall removes models, local plugin, CLI shims, PATH block, cache, permissions, and backups"
@@ -165,5 +173,44 @@ T4="$(mktemp -d)"
     || { echo "current user modification was deleted"; exit 1; }
 )
 pass "missing pristine backup preserves current user modification"
+
+# --- Test 5: post-install skill rules and a string shorthand survive ----------
+T5="$(mktemp -d)"
+(
+  export HOME="$T5"
+  CD="$HOME/.config/opencode"
+  mkdir -p "$CD" "$HOME/bin" "$HOME/project"
+  printf '#!/bin/sh\nexit 0\n' >"$HOME/bin/opencode"; chmod +x "$HOME/bin/opencode"
+  export PATH="$HOME/bin:/usr/bin:/bin"
+  git init -q "$HOME/project"
+  printf '{ "permission": { "skill": "allow", "other": "keep" } }\n' >"$CD/opencode.json"
+  ( cd "$HOME/project" && "$ROOT/install.sh" ) >/dev/null 2>&1
+  jq -e '.permission.skill["nexus-*"] == "deny" and .permission.other == "keep"' "$CD/opencode.json" >/dev/null
+  tmp="$(mktemp)"
+  jq '.permission.skill["added-later"] = "ask"' "$CD/opencode.json" >"$tmp"
+  mv "$tmp" "$CD/opencode.json"
+  ( cd "$HOME/project" && "$ROOT/uninstall.sh" ) >/dev/null 2>&1
+  jq -e '
+    .permission.other == "keep"
+    and .permission.skill["added-later"] == "ask"
+    and (.permission.skill | has("nexus-*") | not)
+  ' "$CD/opencode.json" >/dev/null
+) || fail "uninstall did not preserve unrelated skill rules"
+pass "uninstall preserves post-install skill rules and drops only Nexus keys"
+
+T6="$(mktemp -d)"
+(
+  export HOME="$T6"
+  CD="$HOME/.config/opencode"
+  mkdir -p "$CD" "$HOME/bin" "$HOME/project"
+  printf '#!/bin/sh\nexit 0\n' >"$HOME/bin/opencode"; chmod +x "$HOME/bin/opencode"
+  export PATH="$HOME/bin:/usr/bin:/bin"
+  git init -q "$HOME/project"
+  printf '{ "permission": { "skill": "allow" } }\n' >"$CD/opencode.json"
+  ( cd "$HOME/project" && "$ROOT/install.sh" ) >/dev/null 2>&1
+  ( cd "$HOME/project" && "$ROOT/uninstall.sh" ) >/dev/null 2>&1
+  jq -e '.permission.skill == "allow"' "$CD/opencode.json" >/dev/null
+) || fail "uninstall did not restore a pre-existing skill permission shorthand"
+pass "uninstall restores a pre-existing skill permission shorthand"
 
 echo "PASS: uninstall lifecycle regressions"

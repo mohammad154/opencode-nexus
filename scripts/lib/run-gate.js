@@ -56,7 +56,7 @@ export function buildRunGateReminder(activeRun, opts = {}) {
     gate = [
       "## Nexus Completion Gate",
       `Run ${runId || "unknown"} is COMPLETED. Continue branch finalization now; do not wait for another user message.`,
-      "Load finishing-a-development-branch and follow the selected merge/cleanup policy.",
+      "Load nexus-finishing-a-development-branch and follow the selected merge/cleanup policy.",
       "Under the default always_to_base policy, finish the local merge and guarded cleanup automatically.",
       "Ask only for merge_policy: prompt or a critical irreversible/external operation (push, force-discard, destructive migration, secrets, deploy, or scope change).",
     ].join("\n");

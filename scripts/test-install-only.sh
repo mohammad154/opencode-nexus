@@ -151,3 +151,109 @@ test ! -f "$UPG_HOME/.config/opencode/agents/knowledge-graph.md"
 test -f "$UPG_HOME/.config/opencode/agents/reviewer.md"
 rm -rf "$UPG_HOME"
 echo "PASS: V4→V5 upgrade prunes retired agent config and files"
+
+echo "== skill permissions are role-scoped and idempotent =="
+SKILL_HOME="$(mktemp -d)"
+mkdir -p "$SKILL_HOME/.config/opencode" "$SKILL_HOME/project" "$SKILL_HOME/bin"
+git init -q "$SKILL_HOME/project"
+printf '#!/bin/sh\nexit 0\n' >"$SKILL_HOME/bin/opencode"; chmod +x "$SKILL_HOME/bin/opencode"
+cat >"$SKILL_HOME/.config/opencode/opencode.json" <<'JSON'
+{
+  "agent": {
+    "build": { "model": "user-build" },
+    "plan": { "model": "user-plan" },
+    "custom": { "model": "user-custom", "permission": { "edit": "allow" } },
+    "implementer": { "permission": { "skill": { "user-impl-skill": "allow" }, "bash": "deny" } }
+  },
+  "permission": {
+    "skill": { "user-skill": "allow" },
+    "other": "keep"
+  }
+}
+JSON
+(
+  export HOME="$SKILL_HOME" PATH="$SKILL_HOME/bin:/usr/bin:/bin"
+  cd "$SKILL_HOME/project"
+  "$ROOT/install.sh"
+) >/tmp/nexus-skill-install.log 2>&1 || { cat /tmp/nexus-skill-install.log; rm -rf "$SKILL_HOME"; exit 1; }
+cp "$SKILL_HOME/.config/opencode/opencode.json" "$SKILL_HOME/after-first.json"
+(
+  export HOME="$SKILL_HOME" PATH="$SKILL_HOME/bin:/usr/bin:/bin"
+  cd "$SKILL_HOME/project"
+  "$ROOT/install.sh"
+) >/tmp/nexus-skill-reinstall.log 2>&1 || { cat /tmp/nexus-skill-reinstall.log; rm -rf "$SKILL_HOME"; exit 1; }
+cmp -s "$SKILL_HOME/after-first.json" "$SKILL_HOME/.config/opencode/opencode.json" \
+  || { echo "FAIL: reinstall changed opencode.json"; diff -u "$SKILL_HOME/after-first.json" "$SKILL_HOME/.config/opencode/opencode.json"; rm -rf "$SKILL_HOME"; exit 1; }
+jq -e '
+  .permission.skill["nexus-*"] == "deny"
+  and .permission.skill["user-skill"] == "allow"
+  and .permission.other == "keep"
+  and .agent.orchestrator.permission.skill["nexus-*"] == "allow"
+  and (.agent.orchestrator.permission.skill | has("nexus-impact-analysis") | not)
+  and .agent.implementer.permission.skill["nexus-impact-analysis"] == "allow"
+  and .agent.implementer.permission.skill["user-impl-skill"] == "allow"
+  and .agent.implementer.permission.bash == "deny"
+  and (.agent.implementer.permission.skill | has("nexus-*") | not)
+  and .agent.reviewer.permission.skill["nexus-impact-analysis"] == "allow"
+  and (.agent.reviewer.permission.skill | has("nexus-*") | not)
+  and ((.agent["plan-advisor"].permission.skill // {}) | has("nexus-*") | not)
+  and ((.agent["plan-advisor"].permission.skill // {}) | has("nexus-impact-analysis") | not)
+  and .agent.build.model == "user-build"
+  and ((.agent.build.permission.skill // {}) | has("nexus-*") | not)
+  and ((.agent.build.permission.skill // {}) | has("nexus-impact-analysis") | not)
+  and .agent.plan.model == "user-plan"
+  and ((.agent.plan.permission.skill // {}) | has("nexus-*") | not)
+  and .agent.custom.model == "user-custom"
+  and .agent.custom.permission.edit == "allow"
+  and ((.agent.custom.permission.skill // {}) | has("nexus-*") | not)
+  and ((.agent.custom.permission.skill // {}) | has("nexus-impact-analysis") | not)
+' "$SKILL_HOME/.config/opencode/opencode.json" >/dev/null
+rm -rf "$SKILL_HOME"
+echo "PASS: skill permissions deny build/plan/custom, allow orchestrator, and scope subagents"
+
+echo "== upgrade from 4.5.1 skill config matches a fresh install =="
+fresh_home="$(mktemp -d)"
+legacy_home="$(mktemp -d)"
+for home in "$fresh_home" "$legacy_home"; do
+  mkdir -p "$home/.config/opencode" "$home/project" "$home/bin"
+  git init -q "$home/project"
+  printf '#!/bin/sh\nexit 0\n' >"$home/bin/opencode"; chmod +x "$home/bin/opencode"
+done
+printf '{}\n' >"$fresh_home/.config/opencode/opencode.json"
+cat >"$legacy_home/.config/opencode/opencode.json" <<'JSON'
+{
+  "plugin": ["@mohammad154/opencode-nexus@4.5.1"],
+  "agent": {
+    "orchestrator": { "mode": "primary", "model": "opencode-go/minimax-m3" },
+    "implementer": { "mode": "subagent", "model": "opencode/deepseek-v4-flash-free" },
+    "reviewer": { "mode": "subagent", "model": "opencode-go/deepseek-v4-pro" }
+  },
+  "permission": {
+    "external_directory": {
+      "/usr/local/lib/node_modules/@mohammad154/opencode-nexus/**": "allow"
+    }
+  }
+}
+JSON
+for home in "$fresh_home" "$legacy_home"; do
+  (
+    export HOME="$home" PATH="$home/bin:/usr/bin:/bin"
+    cd "$home/project"
+    "$ROOT/install.sh"
+  ) >/dev/null
+done
+skill_view='{
+  global: .permission.skill,
+  orchestrator: .agent.orchestrator.permission.skill,
+  implementer: .agent.implementer.permission.skill,
+  reviewer: .agent.reviewer.permission.skill,
+  advisor: (.agent["plan-advisor"].permission.skill // null),
+  build: (.agent.build.permission.skill // null),
+  plan: (.agent.plan.permission.skill // null)
+}'
+jq -S "$skill_view" "$fresh_home/.config/opencode/opencode.json" >"$fresh_home/skills.json"
+jq -S "$skill_view" "$legacy_home/.config/opencode/opencode.json" >"$legacy_home/skills.json"
+cmp -s "$fresh_home/skills.json" "$legacy_home/skills.json" \
+  || { echo "FAIL: 4.5.1 upgrade skill permissions differ from a fresh install"; diff -u "$fresh_home/skills.json" "$legacy_home/skills.json"; rm -rf "$fresh_home" "$legacy_home"; exit 1; }
+rm -rf "$fresh_home" "$legacy_home"
+echo "PASS: upgrade from 4.5.1 writes the same skill permissions as a fresh install"

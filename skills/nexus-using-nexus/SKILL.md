@@ -1,5 +1,5 @@
 ---
-name: using-nexus
+name: nexus-using-nexus
 description: Use when starting any Nexus session — establishes the fixed V5 skill router (brainstorm → optional plan-advisor → plan-check → impact → implement → review)
 compatibility: opencode
 ---
@@ -14,7 +14,7 @@ If you were dispatched as a subagent (plan-advisor, implementer, or reviewer), s
 
 **Invoke the relevant Nexus skill BEFORE responding or acting** when the task is non-trivial.
 
-Announce: "Using brainstorming to clarify requirements. (V5: fixed pipeline + Impact Engine)"
+Announce: "Using nexus-brainstorming to clarify requirements. (V5: fixed pipeline + Impact Engine)"
 
 ## Three invariants
 
@@ -32,15 +32,15 @@ a clear cohesive task — including a `standard` one — does not. Check
 
 | Situation | Skill to load |
 |-----------|---------------|
-| New request / unclear scope | `brainstorming` |
-| Need a plan file | `writing-plans` |
+| New request / unclear scope | `nexus-brainstorming` |
+| Need a plan file | `nexus-writing-plans` |
 | Challenge a plan when `plan_advisor_decision.required` | `plan-advisor` (one read-only call) |
 | Lint a plan before PLANNED | `nexus plan-check --json` |
-| Need impact / affected tests | `impact-analysis` — run `nexus impact --json` |
-| Plan exists, start implementation | `orchestrating` |
-| Feature/task branch | `using-feature-branches` |
-| Execution stuck / BLOCKED | `reconcile` |
-| Workflow complete | `finishing-a-development-branch` |
+| Need impact / affected tests | `nexus-impact-analysis` — run `nexus impact --json` |
+| Plan exists, start implementation | `nexus-orchestrating` |
+| Feature/task branch | `nexus-using-feature-branches` |
+| Execution stuck / BLOCKED | `nexus-reconcile` |
+| Workflow complete | `nexus-finishing-a-development-branch` |
 
 ## Workflow engine gates
 

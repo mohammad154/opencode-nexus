@@ -200,8 +200,8 @@ export function preparedDispatch(agent, facts, next) {
   if (agent === "implementer") {
     return {
       agent: "implementer",
-      skill: "orchestrating",
-      prompt: "skills/orchestrating/implementer-prompt.md",
+      skill: "nexus-orchestrating",
+      prompt: "skills/nexus-orchestrating/implementer-prompt.md",
       run_id: state.run_id || null,
       unit_or_task: facts.unit?.id || state.current_unit || null,
       branch: state.branch || facts.branch,
@@ -228,8 +228,8 @@ export function preparedDispatch(agent, facts, next) {
     const scope = state.state === "FINAL_REVIEWING" ? "final" : "task";
     return {
       agent: "reviewer",
-      skill: "orchestrating",
-      prompt: "skills/orchestrating/reviewer-prompt.md",
+      skill: "nexus-orchestrating",
+      prompt: "skills/nexus-orchestrating/reviewer-prompt.md",
       run_id: state.run_id || null,
       unit_or_task: facts.unit?.id || state.current_unit || null,
       review_scope: scope,
@@ -332,7 +332,7 @@ export function planAdvanceStep(next, facts) {
         return stop(
           "SELF",
           "NO_EXECUTION_BRANCH",
-          `Create and check out the execution branch first (current: ${branch || "unknown"}). Branch naming belongs to using-feature-branches, not to advance.`,
+          `Create and check out the execution branch first (current: ${branch || "unknown"}). Branch naming belongs to nexus-using-feature-branches, not to advance.`,
         );
       }
       if (facts.unit_acceptance.length === 0) {

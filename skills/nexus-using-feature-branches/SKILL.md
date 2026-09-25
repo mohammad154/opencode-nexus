@@ -1,5 +1,5 @@
 ---
-name: using-feature-branches
+name: nexus-using-feature-branches
 description: Use when starting execution-unit work to isolate changes on feature branches and keep review diffs precise
 compatibility: opencode
 ---

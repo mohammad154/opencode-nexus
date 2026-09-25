@@ -52,6 +52,7 @@ Plan, custom agents, and subagents remain ordinary OpenCode agents.
 - [Install](#install)
 - [Use it](#use-it)
 - [How the workflow works](#how-the-workflow-works)
+- [Skill access](#skill-access)
 - [Customize models](#customize-models)
 - [Uninstall](#uninstall)
 - [Verify / tests](#verify--tests)
@@ -88,6 +89,39 @@ After install, OpenCode has three canonical execution agents plus one planning-o
 Nexus also installs a plugin and model config, with the **Nexus Impact Engine** as the primary canonical evidence provider.
 
 Plans, run state, handoffs, and impact reports live in `.opencode/`.
+
+## Skill access
+
+OpenCode discovers skills from a shared path, then hides any skill whose `skill`
+permission is `deny` for the current agent. A denied skill is absent from that
+agent's skill list and `skill({ name })` is rejected. Nexus installs one global
+rule, `permission.skill["nexus-*"] = "deny"`, and adds a later per-agent allow
+only where the role needs it. The last matching rule wins, so a specific allow
+overrides the global deny for that agent alone.
+
+`blast-radius` is deprecated and is not a loadable skill.
+
+| Skill | orchestrator | implementer | reviewer | plan-advisor | build, plan, custom |
+|---|---|---|---|---|---|
+| `nexus-using-nexus` | allow | deny | deny | deny | deny |
+| `nexus-brainstorming` | allow | deny | deny | deny | deny |
+| `nexus-writing-plans` | allow | deny | deny | deny | deny |
+| `nexus-orchestrating` | allow | deny | deny | deny | deny |
+| `nexus-using-feature-branches` | allow | deny | deny | deny | deny |
+| `nexus-finishing-a-development-branch` | allow | deny | deny | deny | deny |
+| `nexus-reconcile` | allow | deny | deny | deny | deny |
+| `nexus-outcome-memory` | allow | deny | deny | deny | deny |
+| `nexus-impact-analysis` | allow | allow | allow | deny | deny |
+
+The orchestrator allow is the pattern `nexus-*`, so it can load every workflow
+skill above. implementer and reviewer receive only the id
+`nexus-impact-analysis`, so they can read an impact report and cannot load
+orchestrator workflow skills. plan-advisor keeps its own prompt and receives no
+Nexus skill allow. build, plan, and any custom agent inherit the global deny.
+
+These rules govern the skill tool. They do not change shell permissions. An
+agent that can already run arbitrary shell commands can still invoke the
+`nexus` CLI directly; blocking that requires a separate shell policy.
 
 ---
 
@@ -487,7 +521,7 @@ ls ~/.config/opencode/agents/{orchestrator,implementer,reviewer,plan-advisor}.md
 
 ```text
 agents/          canonical execution + planning-only agent definitions
-skills/          workflow skills the orchestrator loads
+skills/          workflow skills, named nexus-* and permission-scoped per role
 config/          fixed V5 workflow and model defaults
 scripts/         impact, classify, state machine, plan-check, estimate, cleanup
 schemas/         handoff, impact, and run-state JSON schemas
@@ -508,7 +542,7 @@ uninstall.sh     matching cleanup
 - [`docs/troubleshooting.md`](docs/troubleshooting.md) — common gate failures and recovery
 - [`docs/releasing.md`](docs/releasing.md) — publishing a new `4.x.y` release (maintainers)
 - [`docs/compatibility-v3.md`](docs/compatibility-v3.md) — legacy V3 migration notes
-- [`skills/using-nexus/SKILL.md`](skills/using-nexus/SKILL.md) — how the orchestrator routes skills
+- [`skills/nexus-using-nexus/SKILL.md`](skills/nexus-using-nexus/SKILL.md) — how the orchestrator routes skills
 - [OpenCode installation](https://opencode.ai/docs/installation/)
 
 ---

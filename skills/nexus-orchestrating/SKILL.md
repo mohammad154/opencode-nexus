@@ -1,5 +1,5 @@
 ---
-name: orchestrating
+name: nexus-orchestrating
 description: Execute a plan through the V5 fixed state machine — adaptive planning, cohesive execution units, deterministic verification, independent review, and fix loops
 compatibility: opencode
 ---
@@ -27,7 +27,7 @@ that cannot be resolved safely. A passing final verification authorizes
 
 ## Execution invariants
 
-1. Every request: **brainstorming** → **writing-plans**.
+1. Every request: **nexus-brainstorming** → **nexus-writing-plans**.
 2. Every implementer dispatch: **fresh pre-impact**.
 3. Every task: independent **reviewer** `APPROVED`.
 
@@ -70,8 +70,8 @@ merge candidates, oversized/test-only/setup-only units, and estimated calls.
 ## Prerequisites
 
 - Confirm the workspace is a git repository.
-- Load `using-feature-branches` and record `base_branch` in `.opencode/CONTEXT.md`.
-- If drift is suspected, run `reconcile` (skill) before starting tasks.
+- Load `nexus-using-feature-branches` and record `base_branch` in `.opencode/CONTEXT.md`.
+- If drift is suspected, run `nexus-reconcile` (skill) before starting tasks.
 - Graphify is not part of Nexus. Use `nexus impact`.
 
 ## Lifecycle
@@ -111,7 +111,7 @@ nexus run transition --to BRAINSTORMING
 # report planning depth and evidence; Nexus decides if an advisor call is required:
 nexus run transition --to BRAINSTORMING --json '{"planning_mode":"standard","unit_count":1,"cohesive_unit":true,"known_pattern":true,"risk":"LOW"}'
 nexus next   # dispatch_plan_advisor only when the persisted decision requires it
-# writing-plans creates PLAN.md, then the deterministic check runs first:
+# nexus-writing-plans creates PLAN.md, then the deterministic check runs first:
 nexus plan-check --json
 nexus run transition --to PLANNED
 nexus impact --json --targets <planned files>

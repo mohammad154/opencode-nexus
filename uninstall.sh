@@ -35,6 +35,10 @@ MANIFEST_FILE="$CD/nexus-install-manifest.json"
 # survive.
 NAG='["orchestrator","implementer","reviewer","plan-advisor","diagnostician","unified-reviewer","spec-reviewer","code-reviewer","integration-reviewer","reconciler","blast-analyzer","knowledge-graph"]'
 PERMISSION_PATHS='["/usr/local/lib/node_modules/@mohammad154/opencode-nexus/**","/usr/local/lib/node_modules/@mohammad154/opencode-nexus/schemas/*","~/.cache/opencode/packages/@mohammad154/**"]'
+# Global skill key Nexus writes. Agent-level skill keys are removed with the
+# agent object (restored from the pre-Nexus original, or stripped below).
+SKILL_GLOBAL_KEYS='["nexus-*"]'
+AGENT_SKILL_KEYS='["nexus-*","nexus-impact-analysis"]'
 
 cleanup_backups_for_path() {
   local t=$1
@@ -255,7 +259,21 @@ clean_opencode_config() {
       (type == "string")
       and (. == $pl or . == $legacy or . == $name or startswith($name + "@"));
     def strip_agent_fields:
-      del(.model, .variant, .reasoningEffort, .mode, .steps, .planning_only);
+      del(.model, .variant, .reasoningEffort, .mode, .steps, .planning_only)
+      | if ((.permission? | type) == "object") then
+          .permission |= (
+            if ((.skill? | type) == "object") then
+              .skill |= (reduce $agent_skill_keys[] as $p (. ; del(.[$p])))
+              | if .skill == {} then del(.skill) else . end
+            else . end)
+          | if .permission == {} then del(.permission) else . end
+        else . end;
+    def original_skill_object:
+      original_object("permission")
+      and (($original[0].permission.skill? | type) == "object");
+    def original_skill_string:
+      original_object("permission")
+      and (($original[0].permission.skill? | type) == "string");
 
     if (.plugin? | type) == "array" then
       .plugin |= map(select((nexus_plugin | not)))
@@ -308,6 +326,29 @@ clean_opencode_config() {
         and ((.permission.external_directory | length) == 0)) then
           .permission |= del(.external_directory)
       else . end
+    | if ((.permission? | type) == "object")
+        and ((.permission.skill? | type) == "object") then
+          .permission.skill |= (reduce $skill_keys[] as $p (. ; del(.[$p])))
+      else . end
+    | if original_skill_string
+        and ((.permission.skill? | type) == "object")
+        and ((.permission.skill | length) == 0) then
+          .permission.skill = $original[0].permission.skill
+      elif original_skill_object then
+          .permission.skill = (
+            (if ((.permission.skill? | type) == "object") then .permission.skill else {} end)
+            | (reduce $skill_keys[] as $p (. ;
+                if ($original[0].permission.skill | has($p))
+                then .[$p] = $original[0].permission.skill[$p]
+                else . end))
+          )
+      else . end
+    | if original_skill_object or original_skill_string then .
+      elif (((.permission? | type) == "object")
+        and ((.permission.skill? | type) == "object")
+        and ((.permission.skill | length) == 0)) then
+          .permission |= del(.skill)
+      else . end
     | if original_has_top("permission") then .
       elif (((.permission? | type) == "object") and ((.permission | length) == 0)) then del(.permission)
       else . end
@@ -317,6 +358,7 @@ clean_opencode_config() {
   if jq "${original_args[@]}" --arg pl "$spec" --arg name "$pkg_name" \
       --arg legacy "nexus@git+https://github.com/mohammad154/opencode-nexus.git" \
       --argjson ns "$NAG" --argjson permission_paths "$PERMISSION_PATHS" \
+      --argjson skill_keys "$SKILL_GLOBAL_KEYS" --argjson agent_skill_keys "$AGENT_SKILL_KEYS" \
       "$filter" "$CF" >"$tmp"; then
     mv "$tmp" "$CF"
   else

@@ -47,7 +47,7 @@ You are the Nexus orchestrator V5 (fixed three-agent execution pipeline).
 
 ## Three invariants
 
-1. Every request starts with **brainstorming** then **writing-plans**.
+1. Every request starts with **nexus-brainstorming** then **nexus-writing-plans**.
 2. Every **implementer** dispatch requires **fresh pre-impact** (including after REQUEST_CHANGES).
 3. Every task must be **APPROVED** by the independent **reviewer**.
 
@@ -151,7 +151,7 @@ any plan with more than one unit — must also include `## Execution Unit
 Justification` with the number of units and reasons why fewer or more units are
 not appropriate. A single-unit compact plan omits it and stays minimal: no
 findings triage, diagram, global verification essay, rollback essay,
-outcome-memory section, or implementation sketch.
+outcome memory section, or implementation sketch.
 
 Declaring `Planning mode: compact` does not make compact admissible. The
 `PLANNED` gate re-derives admissibility from planning evidence, so a compact plan

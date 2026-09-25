@@ -209,6 +209,37 @@ if ! jq --arg p "$PLUGIN_SPEC" --arg name "$PKG_NAME" --arg legacy "$LEGACY_GIT_
           "~/.cache/opencode/packages/@mohammad154/**": "allow"
         }
     )
+  | .permission.skill = (
+      (if ((.permission.skill? | type) == "object") then .permission.skill else {} end)
+      + { "nexus-*": "deny" }
+    )
+  | if .agent.orchestrator then
+      .agent.orchestrator.permission = (
+        (if ((.agent.orchestrator.permission? | type) == "object") then .agent.orchestrator.permission else {} end)
+      )
+      | .agent.orchestrator.permission.skill = (
+          (if ((.agent.orchestrator.permission.skill? | type) == "object") then .agent.orchestrator.permission.skill else {} end)
+          + { "nexus-*": "allow" }
+        )
+    else . end
+  | if .agent.implementer then
+      .agent.implementer.permission = (
+        (if ((.agent.implementer.permission? | type) == "object") then .agent.implementer.permission else {} end)
+      )
+      | .agent.implementer.permission.skill = (
+          (if ((.agent.implementer.permission.skill? | type) == "object") then .agent.implementer.permission.skill else {} end)
+          + { "nexus-impact-analysis": "allow" }
+        )
+    else . end
+  | if .agent.reviewer then
+      .agent.reviewer.permission = (
+        (if ((.agent.reviewer.permission? | type) == "object") then .agent.reviewer.permission else {} end)
+      )
+      | .agent.reviewer.permission.skill = (
+          (if ((.agent.reviewer.permission.skill? | type) == "object") then .agent.reviewer.permission.skill else {} end)
+          + { "nexus-impact-analysis": "allow" }
+        )
+    else . end
 ' "$CONFIG_FILE" >"$TMP"; then
   echo "  Error: failed to merge plugin/models into $CONFIG_FILE"
   rm -f "$TMP"

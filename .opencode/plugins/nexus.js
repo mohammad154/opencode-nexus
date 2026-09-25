@@ -36,7 +36,7 @@ function buildCompactRouter() {
     "<EXTREMELY_IMPORTANT>",
     BOOTSTRAP_MARKER,
     "Nexus workflow protocol v5 installed (the npm package remains on its 4.x release line). Load detailed instructions only with the native skill tool when needed.",
-    "Route: start/orient → using-nexus; clarify only if ambiguous → brainstorming; always plan → writing-plans; standard/deep → plan-advisor; plan-check → PLANNED; pre-impact → impact-analysis (nexus impact); units → orchestrating; branches → using-feature-branches; finish → finishing-a-development-branch; blocked → reconcile.",
+    "Route: start → nexus-using-nexus; clarify → nexus-brainstorming; plan → nexus-writing-plans; advisor → plan-advisor; check → PLANNED; pre-impact → nexus-impact-analysis; units → nexus-orchestrating; branches → nexus-using-feature-branches; finish → nexus-finishing-a-development-branch; blocked → nexus-reconcile.",
     "Autonomy: after the plan is confirmed, continue safe commands and Task-dispatches in the same turn. Do not ask to continue, test, review, fix, merge, or clean up under the default policy; ask only for plan decisions or critical irreversible/external approval.",
     "Three invariants: (1) brainstorm then PLAN.md for every request (2) fresh pre-impact before every implementer dispatch including REQUEST_CHANGES fix loops (3) every task needs independent reviewer APPROVED.",
     "State: active-run/state.json, not CONTEXT.md. Never reset/restore/clean/delete files.",

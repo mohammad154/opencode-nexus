@@ -1,5 +1,5 @@
 ---
-name: reconcile
+name: nexus-reconcile
 description: Use to verify DONE tasks still hold, investigate BLOCKED tasks, refresh drifted plans, and retire findings fixed elsewhere — plan-end cleanup for drift and outcome coherence (inspired by shadcn/improve reconcile)
 compatibility: opencode
 ---
@@ -15,7 +15,7 @@ Ensures the PLAN is still a true picture of the repo after time and commits have
 - When implementer returned BLOCKED due to drift (STOP triggered).
 - At plan end for final cleanup pass.
 - On explicit user request: "reconcile the plan" or "check if plan still applies".
-- Before finishing-a-development-branch at plan completion to catch stale todos.
+- Before nexus-finishing-a-development-branch at plan completion to catch stale todos.
 
 ## Pre-requisites
 
@@ -126,7 +126,7 @@ For each implementer handoff with status BLOCKED or NEEDS_CONTEXT:
    - AUTH_BLOCK – needs decision / design clarity. Action: ask user.
 3. Attempt auto-recovery for DRIFT_BLOCK when possible: re-detect target file:line via `rg -n <symbol> <dir>` and patch the unit's Evidence in PLAN.md.
 4. If recovery fails, surface to user with concrete options:
-   - Re-run writing-plans for this task only
+   - Re-run nexus-writing-plans for this task only
    - Retire task if no longer needed
    - Split task
 
@@ -176,7 +176,7 @@ Hard rules:
 - Edit PLAN.md, never a generated `task-N.md`. Generated views are rebuilt from the plan digest.
 - Never edit production code.
 - Never auto-commit reconcile results – only edit .opencode/* artifacts.
-- If drift HIGH and many DONE tasks REGRESSED, recommend re-running writing-plans or brainstorming rather than patching silently.
+- If drift HIGH and many DONE tasks REGRESSED, recommend re-running nexus-writing-plans or nexus-brainstorming rather than patching silently.
 - When in doubt, conserve – mark DRIFTED rather than REGRESSED; let orchestrator or user decide.
 
 ### Reference: shadcn/improve reconcile contract borrowed
