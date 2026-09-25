@@ -25,6 +25,7 @@ import {
   findLane,
   laneBranch,
   laneEligibility,
+  laneHandoffBindingErrors,
   laneId,
   laneJoinErrors,
   laneRecords,
@@ -270,6 +271,22 @@ export function joinLane(worktree, state, unitId, options = {}) {
 
   const laneHandoff = readLaneHandoff(lane, runId);
   const laneTip = revParse(lane.path, "HEAD");
+  const handoffBindingErrors = laneHandoffBindingErrors({
+    runId,
+    unit: unitId,
+    laneBaseCommit: lane.base_commit,
+    laneTip,
+    laneHandoff,
+  });
+  if (handoffBindingErrors.length > 0) {
+    return {
+      ok: false,
+      code: "LANE_JOIN_REFUSED",
+      errors: handoffBindingErrors,
+      lane,
+      parent_tip: parentTip,
+    };
+  }
 
   // Rebase the lane's commits onto the parent tip. This is what lets the parent
   // apply its unchanged bindings: afterwards the work sits directly on the

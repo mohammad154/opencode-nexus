@@ -178,7 +178,11 @@ export function laneEligibility(state, options = {}) {
   // Lanes are recorded outside the run state (see lane-runtime.js), so the
   // caller supplies them; nothing is assumed about unreported lanes.
   const activeLanes = Array.isArray(options.activeLanes) ? options.activeLanes : [];
-  const inFlight = new Set(activeLanes.map((lane) => String(lane?.unit || "")).filter(Boolean));
+  const activeLaneUnits = new Set(
+    activeLanes.map((lane) => String(lane?.unit || "")).filter(Boolean),
+  );
+  const availableConcurrency = Math.max(0, maxConcurrency - activeLaneUnits.size);
+  const inFlight = new Set(activeLaneUnits);
   // The unit the parent itself is working on occupies scope exactly like a lane.
   const parentUnit =
     typeof state?.current_unit === "string" && !completed.has(state.current_unit)
@@ -224,7 +228,7 @@ export function laneEligibility(state, options = {}) {
       note(LANE_EXCLUSION.FILE_CONFLICT, conflict.id);
       continue;
     }
-    if (wave.length >= maxConcurrency) {
+    if (wave.length >= availableConcurrency) {
       note(LANE_EXCLUSION.CONCURRENCY_LIMIT);
       continue;
     }
@@ -270,6 +274,52 @@ export function openLanes(laneFile) {
 /** The lane record for a unit, or null. */
 export function findLane(laneFile, unitId) {
   return laneRecords(laneFile).find((lane) => lane.unit === unitId) || null;
+}
+
+/**
+ * Require the implementer handoff to identify the exact lane execution before
+ * the lane branch is rebased or its claims are rebound for the parent.
+ *
+ * @param {object} facts
+ * @param {string} facts.runId current run id
+ * @param {string} facts.unit planned unit owned by this lane
+ * @param {string} facts.laneBaseCommit base recorded when the lane was opened
+ * @param {string} facts.laneTip initial lane HEAD measured before rebase
+ * @param {object|null} facts.laneHandoff lane implementer's handoff
+ */
+export function laneHandoffBindingErrors(facts = {}) {
+  const errors = [];
+  const unit = String(facts.unit || "");
+  const runId = String(facts.runId || "");
+  const label = unit || "unknown";
+  const handoff = facts.laneHandoff;
+
+  if (!runId) errors.push(`lane ${label} has no current run id to bind`);
+  if (!unit) errors.push("lane join requires the unit it implemented");
+  if (!handoff || typeof handoff !== "object") {
+    errors.push(`lane ${label} has no implementer handoff to join`);
+    return errors;
+  }
+
+  if (handoff.run_id !== runId) {
+    errors.push(`lane ${label} handoff run_id does not match the current run`);
+  }
+  const handoffUnit = handoff.unit_or_task || handoff.task_id;
+  if (handoffUnit !== unit) {
+    errors.push(`lane ${label} handoff unit does not match the lane`);
+  }
+  if (typeof facts.laneBaseCommit !== "string" || !facts.laneBaseCommit) {
+    errors.push(`lane ${label} has no recorded base commit to bind`);
+  } else if (handoff.base_commit !== facts.laneBaseCommit) {
+    errors.push(`lane ${label} handoff base_commit does not match the lane base`);
+  }
+  if (typeof facts.laneTip !== "string" || !facts.laneTip) {
+    errors.push(`lane ${label} tip cannot be resolved for handoff binding`);
+  } else if (handoff.commit !== facts.laneTip) {
+    errors.push(`lane ${label} handoff commit does not match its initial tip`);
+  }
+
+  return errors;
 }
 
 /**

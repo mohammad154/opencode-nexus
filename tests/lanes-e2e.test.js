@@ -567,6 +567,10 @@ test("a lane that leaves its scope is refused and the parent branch does not mov
   fs.writeFileSync(path.join(lane, "src", "sum.js"), "export const sneaked = true;\n");
   git(lane, "add", "src/sum.js");
   git(lane, "commit", "-m", "unit-2: also touch sum");
+  const handoffPath = path.join(lane, ".opencode", "handoffs", "lane-implementer.json");
+  const handoff = JSON.parse(fs.readFileSync(handoffPath, "utf8"));
+  handoff.commit = git(lane, "rev-parse", "HEAD");
+  fs.writeFileSync(handoffPath, JSON.stringify(handoff, null, 2));
 
   const joined = nx(root, "lane", "join", "--unit", "unit-2", "--run-id", "lane");
   assert.equal(joined.status, 3, joined.text);
@@ -670,6 +674,48 @@ test("a lane with no finished implementer cannot be joined", () => {
   const joined = nx(root, "lane", "join", "--unit", "unit-1", "--run-id", "lane");
   assert.equal(joined.status, 3, joined.text);
   assert.match(joined.text, /no implementer handoff to join/);
+});
+
+test("a mismatched lane handoff is refused before the lane is rebased", () => {
+  const mismatches = [
+    [{ run_id: "another-run" }, /run_id/],
+    [{ unit_or_task: "unit-1" }, /unit/],
+    [{ base_commit: "replace-with-lane-tip" }, /base_commit/],
+    [{ commit: "replace-with-parent-base" }, /initial tip/],
+  ];
+
+  for (const [change, expected] of mismatches) {
+    const { root, base } = project();
+    assert.equal(
+      nx(root, "lane", "start", "--unit", "unit-2", "--run-id", "lane").status,
+      0,
+    );
+    const lane = lanePath(root, "unit-2");
+    const laneTip = implement(lane, "unit-2", base);
+    const handoffPath = path.join(lane, ".opencode", "handoffs", "lane-implementer.json");
+    const handoff = JSON.parse(fs.readFileSync(handoffPath, "utf8"));
+    const tampered = Object.fromEntries(
+      Object.entries(change).map(([key, value]) => [
+        key,
+        value === "replace-with-lane-tip"
+          ? laneTip
+          : value === "replace-with-parent-base"
+            ? base
+            : value,
+      ]),
+    );
+    fs.writeFileSync(handoffPath, JSON.stringify({ ...handoff, ...tampered }, null, 2));
+
+    const joined = nx(root, "lane", "join", "--unit", "unit-2", "--run-id", "lane");
+    assert.equal(joined.status, 3, joined.text);
+    assert.match(joined.text, expected);
+    assert.equal(git(root, "rev-parse", "HEAD"), base, "the parent branch is untouched");
+    assert.equal(git(lane, "rev-parse", "HEAD"), laneTip, "the lane was not rebased");
+    assert.equal(
+      JSON.parse(nx(root, "lane", "status", "--json", "--run-id", "lane").stdout).lanes[0].status,
+      "RUNNING",
+    );
+  }
 });
 
 test("lanes refuse units that share scope, and refuse to abandon joined work", () => {

@@ -18,6 +18,7 @@ import {
   formatLaneEligibility,
   laneBranch,
   laneEligibility,
+  laneHandoffBindingErrors,
   laneId,
   laneJoinErrors,
   openLanes,
@@ -169,6 +170,33 @@ test("already open lanes hold their scope too", () => {
   });
   assert.deepEqual(result.wave, []);
   assert.equal(result.excluded.find((e) => e.id === "unit-2").reason, LANE_EXCLUSION.FILE_CONFLICT);
+});
+
+test("open lanes consume the configured concurrency capacity", () => {
+  const units = [1, 2, 3, 4].map((n) => unit(`unit-${n}`, [`src/${n}.js`]));
+  const oneOpen = laneEligibility(planState(units), {
+    maxConcurrency: 2,
+    activeLanes: [{ unit: "unit-1", status: LANE_STATUS.RUNNING }],
+  });
+  assert.deepEqual(oneOpen.wave.map((entry) => entry.id), ["unit-2"]);
+  assert.equal(oneOpen.max_concurrency, 2);
+  assert.equal(
+    oneOpen.excluded.find((entry) => entry.id === "unit-1").reason,
+    LANE_EXCLUSION.IN_FLIGHT,
+  );
+  assert.equal(
+    oneOpen.excluded.find((entry) => entry.id === "unit-3").reason,
+    LANE_EXCLUSION.CONCURRENCY_LIMIT,
+  );
+
+  const capacityFull = laneEligibility(planState(units), {
+    maxConcurrency: 2,
+    activeLanes: [
+      { unit: "unit-1", status: LANE_STATUS.RUNNING },
+      { unit: "unit-2", status: LANE_STATUS.IMPLEMENTED },
+    ],
+  });
+  assert.deepEqual(capacityFull.wave, []);
 });
 
 test("concurrency is bounded and the excess is reported, not silently dropped", () => {
@@ -345,6 +373,38 @@ test("a unit with no persisted scope cannot be joined", () => {
     laneHandoff: { status: "DONE", agent: "implementer", unit_or_task: "unit-2" },
   });
   assert.match(errors.join(" | "), /no persisted allowed_files/);
+});
+
+test("a lane handoff must match the run, unit, lane base, and pre-rebase tip", () => {
+  const binding = {
+    runId: "lane-run",
+    unit: "unit-2",
+    laneBaseCommit: "a".repeat(40),
+    laneTip: "b".repeat(40),
+    laneHandoff: {
+      run_id: "lane-run",
+      unit_or_task: "unit-2",
+      agent: "implementer",
+      status: "DONE",
+      base_commit: "a".repeat(40),
+      commit: "b".repeat(40),
+    },
+  };
+  assert.deepEqual(laneHandoffBindingErrors(binding), []);
+
+  const mismatches = [
+    [{ run_id: "other-run" }, /run_id/],
+    [{ unit_or_task: "unit-1" }, /unit/],
+    [{ base_commit: "c".repeat(40) }, /base_commit/],
+    [{ commit: "c".repeat(40) }, /initial tip/],
+  ];
+  for (const [change, expected] of mismatches) {
+    const errors = laneHandoffBindingErrors({
+      ...binding,
+      laneHandoff: { ...binding.laneHandoff, ...change },
+    });
+    assert.match(errors.join(" | "), expected);
+  }
 });
 
 test("rebinding rewrites only the commits the join created and keeps provenance", () => {
