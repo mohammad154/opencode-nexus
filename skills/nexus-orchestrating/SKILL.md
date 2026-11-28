@@ -27,9 +27,13 @@ that cannot be resolved safely. A passing final verification authorizes
 
 ## Execution invariants
 
-1. Every request: **nexus-brainstorming** → **nexus-writing-plans**.
-2. Every implementer dispatch: **fresh pre-impact**.
-3. Every task: independent **reviewer** `APPROVED`.
+1. Every standard request: **nexus-brainstorming** → **nexus-writing-plans**.
+2. Every standard implementer dispatch: **fresh pre-impact**.
+3. Every standard task: independent **reviewer** `APPROVED`.
+
+**Direct mode** (`nexus triage`, stored on the run by `nexus run init`) is the default for compact-eligible, unclassified, git-less, or test-less work. It keeps a five-line session plan, skips `PLAN.md`, the plan-advisor, and a feature branch, and lets the orchestrator edit at most 20 lines or dispatch one implementer in the current directory. The reviewer runs only after the check fails twice or impact risk is HIGH/CRITICAL. `NEXUS_FAST_PATH=0` keeps the standard pipeline. Size above 5 files or 150 lines, HIGH/UNKNOWN risk, and safety signals escalate to standard.
+
+Subagent waits are bounded (plan-advisor 5 minutes, reviewer 10, implementer 20; override `budget_ms` in `nexus.models.json`). A timeout writes `TIMED_OUT`. Then skip the advisor, accept sealed verification, or re-dispatch the implementer once. Reviewer remediation is one round, or two when impact risk is HIGH or CRITICAL.
 
 The execution roster remains three agents: orchestrator, implementer, reviewer.
 `plan-advisor` is a conditional planning-only specialist and is never dispatched

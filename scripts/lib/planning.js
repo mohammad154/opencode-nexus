@@ -229,10 +229,11 @@ const TRIVIAL_CLASS = /^(rename|typo|docs?|documentation|format|tiny|comment)/i;
 /**
  * Decide whether compact planning is admissible.
  *
- * Compact requires positive evidence of cohesion, not merely the absence of
- * escalation signals: an unclassified change is planned as `standard`. Agent
- * claims can therefore only lower planning depth when no deterministic signal
- * fires — they can never override one.
+ * Compact requires positive evidence of cohesion. Missing that evidence does
+ * not by itself select the standard execution pipeline: unclassified work
+ * defaults to direct mode (`selectFastPath`) and escalates only on size, risk,
+ * or a safety signal. Agent claims can lower planning depth only when no
+ * deterministic signal fires — they can never override one.
  */
 export function compactEligibility(input = {}) {
   const signals = Array.isArray(input.__signals)

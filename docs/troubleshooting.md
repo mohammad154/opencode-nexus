@@ -14,6 +14,14 @@
 Never delete a cache to hide an unexpected result. Rebuild it and inspect the
 reported invalidation reason.
 
+## A subagent wait never finishes
+
+Plan-advisor, reviewer, and implementer calls have wall-clock budgets (5, 10, and 20 minutes by default). When a budget expires, Nexus writes `.opencode/subagent-timeouts.json` and `.opencode/handoffs/<role>-timeout.json` with status `TIMED_OUT`, then aborts the child session when the host exposes one. `nexus next` skips a timed-out advisor, accepts sealed verification after a timed-out reviewer, and re-dispatches a timed-out implementer once. Override a budget with `budget_ms` on that role in `nexus.models.json`, or with `NEXUS_PLAN_ADVISOR_BUDGET_MS`, `NEXUS_REVIEWER_BUDGET_MS`, or `NEXUS_IMPLEMENTER_BUDGET_MS`.
+
+## The workspace is not a git repository
+
+`nexus run init` creates a private baseline (`git init`, `git add -A`, commit `nexus-baseline`) with a repo-local name and email. It does not change global git config or an existing repository. Nexus removes that `.git` when the run reaches `COMPLETED` or `FAILED`. Set `NEXUS_KEEP_PRIVATE_BASELINE=1` to keep it. If the `git` binary is missing, init records `.opencode/baselines/content-hash.json` instead and plan-check accepts that token in place of `NO_GIT_REPO`.
+
 ## PLANNED is blocked by the plan-advisor decision
 
 Two distinct errors come from the deterministic planning decision.

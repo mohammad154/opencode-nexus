@@ -8,7 +8,8 @@ TMPROOT="$(mktemp -d)"
 cleanup() { rm -rf "$TMPROOT"; }
 trap cleanup EXIT
 
-SANITIZED_PATH="/usr/bin:/bin"
+NODE_BIN_DIR="$(dirname "$(command -v node)")"
+SANITIZED_PATH="$NODE_BIN_DIR:/usr/bin:/bin"
 CANONICAL_AGENTS=(orchestrator implementer reviewer)
 
 fail() {

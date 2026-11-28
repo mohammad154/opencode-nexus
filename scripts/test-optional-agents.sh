@@ -6,7 +6,8 @@ TMPHOME="$(mktemp -d)"
 cleanup() { rm -rf "$TMPHOME"; }
 trap cleanup EXIT
 
-SANITIZED_PATH="/usr/bin:/bin"
+NODE_BIN_DIR="$(dirname "$(command -v node)")"
+SANITIZED_PATH="$NODE_BIN_DIR:/usr/bin:/bin"
 export HOME="$TMPHOME"
 mkdir -p "$HOME/.config/opencode" "$HOME/bin"
 printf '#!/bin/sh\nexit 0\n' >"$HOME/bin/opencode"; chmod +x "$HOME/bin/opencode"

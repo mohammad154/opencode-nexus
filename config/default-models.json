@@ -8,11 +8,14 @@
     "mode": "subagent",
     "model": "opencode/deepseek-v4-flash-free",
     "variant": "high",
-    "steps": 64
+    "steps": 64,
+    "budget_ms": 1200000
   },
   "reviewer": {
     "mode": "subagent",
     "model": "opencode-go/deepseek-v4-pro",
-    "variant": "high"
+    "variant": "high",
+    "steps": 24,
+    "budget_ms": 600000
   }
 }

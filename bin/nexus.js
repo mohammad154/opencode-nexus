@@ -32,6 +32,7 @@ Commands:
   impact         Nexus Impact Engine (git + AST + affected tests)
   blast          Alias for impact (compatibility)
   classify       Risk classifier CLI
+  triage         Choose direct or standard execution (compact tasks skip the slow pipeline)
   estimate       Estimate minimum agent calls for a plan
   plan-check     Deterministic PLAN.md linter (no LLM calls)
   project-profile Advisory cached project recon facts (commands, CI, guides)
@@ -530,6 +531,9 @@ switch (command) {
     break;
   case "classify":
     cmdClassify(args);
+    break;
+  case "triage":
+    runNodeScript("nexus-triage.js", args);
     break;
   case "estimate":
     cmdEstimate(args);

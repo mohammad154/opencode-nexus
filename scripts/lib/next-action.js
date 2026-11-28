@@ -16,10 +16,12 @@ import { getAgentCallBudget } from "./providers.js";
 import { validateContainedPath } from "./filesystem-boundary.js";
 import { verifySealedArtifact } from "./artifact-seal.js";
 import {
-  DEFAULT_MAX_FIX_LOOP_ATTEMPTS,
   DEFAULT_MAX_VERIFICATION_REPAIR_ATTEMPTS,
+  resolveMaxReviewRounds,
 } from "./review-protocol.js";
 import { consumableImplementerHandoff } from "./handoff-freshness.js";
+import { directReviewRequired, isDirectFastPath } from "./fast-path.js";
+import { degradeSubagentTimeout, readSubagentTimeouts } from "./subagent-budget.js";
 
 /**
  * @typedef {object} NextAction
@@ -187,10 +189,11 @@ function exhaustedFixLoop(runState) {
       "",
   ).trim();
   const attempts = Number(runState?.fix_loop_attempts?.[unit]);
-  if (!unit || !Number.isInteger(attempts) || attempts < DEFAULT_MAX_FIX_LOOP_ATTEMPTS) {
+  const maxAttempts = resolveMaxReviewRounds(runState);
+  if (!unit || !Number.isInteger(attempts) || attempts < maxAttempts) {
     return null;
   }
-  return { unit, attempts };
+  return { unit, attempts, maxAttempts };
 }
 
 function fixLoopBlock(runId, state, loop) {
@@ -204,7 +207,7 @@ function fixLoopBlock(runId, state, loop) {
     command:
       `nexus run transition --to BLOCKED --run-id ${runId || "<id>"} ` +
       `--json '{"block_code":"FIX_LOOP_EXHAUSTED","block_reason":"maximum reviewer remediation attempts reached"}'`,
-    instruction: `Fix-loop budget is exhausted for ${loop.unit} (${loop.attempts}/${DEFAULT_MAX_FIX_LOOP_ATTEMPTS}). Do not dispatch another reviewer or implementer; transition to BLOCKED and reconcile.`,
+    instruction: `Fix-loop budget is exhausted for ${loop.unit} (${loop.attempts}/${loop.maxAttempts}). Do not dispatch another reviewer or implementer; transition to BLOCKED and reconcile.`,
     steps: [
       "Do not dispatch another reviewer or implementer",
       "Transition to BLOCKED with FIX_LOOP_EXHAUSTED",
@@ -452,7 +455,8 @@ function continuationFor(next) {
     next.action === "reconcile" ||
     next.action === "block_for_agent_budget" ||
     next.action === "block_for_fix_loop" ||
-    next.action === "block_for_verification_repair"
+    next.action === "block_for_verification_repair" ||
+    next.action === "block_for_subagent_timeout"
   ) {
     return { mode: "MANUAL", resume_on: "repair" };
   }
@@ -479,11 +483,62 @@ function continuationFor(next) {
  * @param {{ worktree?: string|null }} [opts]
  * @returns {NextAction}
  */
+function timeoutRecord(timeouts, role) {
+  const record = timeouts?.[role];
+  return record?.status === "TIMED_OUT" ? record : null;
+}
+
+function timeoutAction(runId, state, role, record, runState) {
+  const degraded = degradeSubagentTimeout(role, record, runState);
+  if (!degraded || degraded.action === "skip_advisor") return null;
+  if (degraded.action === "accept_sealed_verification") {
+    return {
+      ok: true,
+      run_id: runId,
+      state,
+      action: "transition_to_completed",
+      agent: null,
+      skill: "nexus-orchestrating",
+      command: "nexus run transition --to COMPLETED",
+      instruction: degraded.instruction,
+      steps: ["nexus run transition --to COMPLETED"],
+    };
+  }
+  if (degraded.action === "redispatch_once") {
+    return {
+      ok: true,
+      run_id: runId,
+      state,
+      action: "redispatch_once",
+      agent: degraded.agent,
+      skill: "nexus-orchestrating",
+      command: null,
+      instruction: degraded.instruction,
+      steps: [
+        `Task-dispatch ${degraded.agent} once with a smaller brief`,
+        "Do not open a second retry if it times out again",
+      ],
+    };
+  }
+  return {
+    ok: true,
+    run_id: runId,
+    state,
+    action: "block_for_subagent_timeout",
+    agent: null,
+    skill: "nexus-reconcile",
+    command: null,
+    instruction: degraded.instruction,
+    steps: ["Do not dispatch the timed-out agent again", "Reconcile the partial result"],
+  };
+}
+
 function resolveNextActionInternal(runState, opts = {}) {
   const worktree = opts.worktree || null;
   const state = runState?.state || null;
   const runId = runState?.run_id || null;
   const hasPlan = planExists(worktree);
+  const timeouts = opts.timeouts || readSubagentTimeouts(worktree);
 
   if (!state) {
     return {
@@ -532,19 +587,46 @@ function resolveNextActionInternal(runState, opts = {}) {
         command: "nexus run transition --to BRAINSTORMING",
         instruction:
           "Start brainstorming (ask the user only if requirements are ambiguous).",
-        steps: [
-          "Load skill: nexus-brainstorming",
-          "nexus run transition --to BRAINSTORMING",
-          "If ambiguous → WAITING_FOR_USER with a concrete question",
-          "Else write PLAN.md via nexus-writing-plans, then PLANNED",
-        ],
+        steps: isDirectFastPath(runState)
+          ? [
+              "Load skill: nexus-brainstorming",
+              "nexus run transition --to BRAINSTORMING",
+              "Direct mode: keep the five-line session plan, then IMPLEMENTING in this directory",
+            ]
+          : [
+              "Load skill: nexus-brainstorming",
+              "nexus run transition --to BRAINSTORMING",
+              "If ambiguous → WAITING_FOR_USER with a concrete question",
+              "Else write PLAN.md via nexus-writing-plans, then PLANNED",
+            ],
       };
 
     case "BRAINSTORMING":
+      if (isDirectFastPath(runState)) {
+        return {
+          ok: true,
+          run_id: runId,
+          state,
+          action: "direct_execute",
+          agent: null,
+          skill: "nexus-orchestrating",
+          command: "nexus run transition --to IMPLEMENTING",
+          instruction:
+            "Direct mode. Keep the five-line session plan in the conversation. Do not write PLAN.md, do not dispatch plan-advisor, and do not create a branch. Edit at most 20 lines yourself or Task-dispatch one implementer in this directory, then run the check.",
+          steps: [
+            "Use the session_plan stored on the run",
+            "nexus run transition --to IMPLEMENTING with session_plan, allowed_files, and acceptance criteria",
+            "Edit at most 20 lines or Task-dispatch one implementer in this directory",
+            "Run the discovered or declared check",
+          ],
+        };
+      }
       if (
         runAdvisorRequired(runState) &&
         !runState.plan_advisor &&
-        !runState.plan_advisor_handoff
+        !runState.plan_advisor_handoff &&
+        !timeoutRecord(timeouts, "plan-advisor") &&
+        runState.fast_path?.advisor_parallel !== true
       ) {
         return {
           ok: true,
@@ -565,6 +647,10 @@ function resolveNextActionInternal(runState, opts = {}) {
         };
       }
       if (!hasPlan) {
+        const parallelAdvisor =
+          runState.fast_path?.advisor_parallel === true &&
+          runAdvisorRequired(runState) &&
+          !timeoutRecord(timeouts, "plan-advisor");
         return {
           ok: true,
           run_id: runId,
@@ -573,8 +659,9 @@ function resolveNextActionInternal(runState, opts = {}) {
           agent: null,
           skill: "nexus-writing-plans",
           command: null,
-          instruction:
-            "Enough information? If yes, write .opencode/plans/PLAN.md then transition to PLANNED. If not, ask one concrete question (WAITING_FOR_USER).",
+          instruction: parallelAdvisor
+            ? "Write .opencode/plans/PLAN.md and transition to PLANNED. Dispatch plan-advisor now, but do not wait for it before pre-impact."
+            : "Enough information? If yes, write .opencode/plans/PLAN.md then transition to PLANNED. If not, ask one concrete question (WAITING_FOR_USER).",
           steps: [
             'If ambiguous: nexus run transition --to WAITING_FOR_USER --json \'{"question":"..."}\'',
             "nexus project-profile --json (advisory cached repo recon; still read the task-specific code)",
@@ -652,6 +739,29 @@ function resolveNextActionInternal(runState, opts = {}) {
       };
 
     case "TASK_IMPACT_READY":
+      if (
+        runState.fast_path?.advisor_parallel === true &&
+        runAdvisorRequired(runState) &&
+        !runState.plan_advisor &&
+        !runState.plan_advisor_handoff &&
+        !timeoutRecord(timeouts, "plan-advisor")
+      ) {
+        return {
+          ok: true,
+          run_id: runId,
+          state,
+          action: "await_plan_advisor",
+          agent: "plan-advisor",
+          skill: "nexus-orchestrating",
+          command: null,
+          instruction:
+            "Pre-impact is ready and plan-advisor was started in parallel. Do not dispatch the implementer until the advisor handoff arrives or the advisor is TIMED_OUT.",
+          steps: [
+            "Wait for the plan-advisor handoff, or for .opencode/subagent-timeouts.json to record TIMED_OUT",
+            "Then dispatch the implementer",
+          ],
+        };
+      }
       return {
         ok: true,
         run_id: runId,
@@ -687,6 +797,29 @@ function resolveNextActionInternal(runState, opts = {}) {
           ],
         };
       }
+      const implementerTimeout = timeoutRecord(timeouts, "implementer");
+      if (implementerTimeout) {
+        const degraded = timeoutAction(runId, state, "implementer", implementerTimeout, runState);
+        if (degraded) return degraded;
+      }
+      if (isDirectFastPath(runState)) {
+        return {
+          ok: true,
+          run_id: runId,
+          state,
+          action: "direct_execute",
+          agent: null,
+          skill: "nexus-orchestrating",
+          command: "nexus run transition --to VERIFYING",
+          instruction:
+            "Direct mode. Edit at most 20 lines yourself or Task-dispatch one implementer in this directory. Then transition to VERIFYING and run the check. No feature branch.",
+          steps: [
+            "Edit at most 20 lines, or Task-dispatch one implementer in this directory",
+            "nexus run transition --to VERIFYING",
+            "Run the discovered or declared check with nexus verify",
+          ],
+        };
+      }
       return {
         ok: true,
         run_id: runId,
@@ -708,6 +841,27 @@ function resolveNextActionInternal(runState, opts = {}) {
     case "VERIFYING":
       switch (verificationStatus(runState, "TASK")) {
         case "PASSED":
+          {
+            const reviewerTimeout = timeoutRecord(timeouts, "reviewer");
+            if (reviewerTimeout && !runState.last_review_handoff) {
+              const sealed = timeoutAction(runId, state, "reviewer", reviewerTimeout, runState);
+              if (sealed) return sealed;
+            }
+            if (isDirectFastPath(runState) && !directReviewRequired(runState)) {
+              return {
+                ok: true,
+                run_id: runId,
+                state,
+                action: "transition_to_completed",
+                agent: null,
+                skill: "nexus-orchestrating",
+                command: "nexus run transition --to COMPLETED",
+                instruction:
+                  "Direct mode check passed. A reviewer is required only after a second failed check or HIGH risk. Authorize COMPLETED.",
+                steps: ["nexus run transition --to COMPLETED"],
+              };
+            }
+          }
           return {
             ok: true,
             run_id: runId,
@@ -789,6 +943,11 @@ function resolveNextActionInternal(runState, opts = {}) {
       }
 
     case "REVIEWING": {
+      const reviewerTimeout = timeoutRecord(timeouts, "reviewer");
+      if (reviewerTimeout && !runState.last_review_handoff) {
+        const degraded = timeoutAction(runId, state, "reviewer", reviewerTimeout, runState);
+        if (degraded) return degraded;
+      }
       const loop = exhaustedFixLoop(runState);
       if (loop) return fixLoopBlock(runId, state, loop);
       if (stateHasSingleUnit(runState)) {
@@ -832,6 +991,11 @@ function resolveNextActionInternal(runState, opts = {}) {
     }
 
     case "FINAL_REVIEWING": {
+      const reviewerTimeout = timeoutRecord(timeouts, "reviewer");
+      if (reviewerTimeout && !runState.last_review_handoff) {
+        const degraded = timeoutAction(runId, state, "reviewer", reviewerTimeout, runState);
+        if (degraded) return degraded;
+      }
       const loop = exhaustedFixLoop(runState);
       if (loop) return fixLoopBlock(runId, state, loop);
       return {

@@ -41,5 +41,9 @@
     "implementer": 1,
     "reviewer": 1,
     "fixLoopExtra": 2
-  }
+  },
+  "fastPath": true,
+  "maxReviewRounds": 1,
+  "maxReviewRoundsHigh": 2,
+  "advisorParallel": true
 }

@@ -37,6 +37,8 @@ import {
   CLASSIFY_APPLY_SOURCE,
 } from "./lib/state-machine.js";
 import { createDefaultProviders } from "./lib/providers.js";
+import { isDirectFastPath, probeWorkspace, selectFastPath } from "./lib/fast-path.js";
+import { cleanupPrivateBaseline, ensurePrivateBaseline } from "./lib/private-baseline.js";
 import { createVerificationProvider } from "./lib/providers/verification-provider.js";
 import { runVerificationLifecycle } from "./lib/verification-lifecycle.js";
 import { assessDrift } from "./lib/drift.js";
@@ -307,7 +309,31 @@ function cmdInit(flags) {
   const state = createEmptyRunState(id, {
     workflow: "default",
   });
-  writeRunState(worktree(), state);
+  const root = worktree();
+  const baseline = ensurePrivateBaseline(root);
+  if (!baseline.ok) {
+    console.error(baseline.message || "Private git baseline failed.");
+    process.exit(2);
+  }
+  const workspace = probeWorkspace(root);
+  if (baseline.created || baseline.method === "content-hash") {
+    workspace.repo_history = false;
+  }
+  state.private_baseline = {
+    method: baseline.method,
+    created: baseline.created === true,
+    existed_before: baseline.existed_before !== false,
+    commit: baseline.commit || null,
+  };
+  state.fast_path = selectFastPath(
+    {},
+    {
+      workspace,
+      enabled: flags["no-triage"] ? false : undefined,
+    },
+  );
+  if (baseline.message) console.error(baseline.message);
+  writeRunState(root, state);
   recordTrajectory(flags, { command: "init", run_id: id }, { ok: true, state }, state);
   console.log(JSON.stringify({ ok: true, state }, null, 2));
 }
@@ -440,7 +466,7 @@ function cmdTransition(flags) {
   // The CLI's selected worktree is authoritative. Never let an evidence file
   // redirect identity checks or state persistence to a different checkout.
   evidence.worktree = worktree();
-  if (to === "IMPLEMENTING") {
+  if (to === "IMPLEMENTING" && !(isDirectFastPath(state) && state.state === "BRAINSTORMING")) {
     const sourceCommit =
       evidence.drift?.current_head ||
       evidence.current_head ||
@@ -609,6 +635,14 @@ function cmdTransition(flags) {
         ),
       );
       process.exit(3);
+    }
+  }
+  if (to === "COMPLETED" || to === "FAILED") {
+    const cleaned = cleanupPrivateBaseline(worktree());
+    if (cleaned.removed) {
+      console.error("Removed the private git baseline created for this run.");
+    } else if (cleaned.ok === false) {
+      console.error(`Private git baseline was kept: ${cleaned.reason}`);
     }
   }
   recordTrajectory(

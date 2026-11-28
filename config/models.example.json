@@ -14,7 +14,9 @@
   "reviewer": {
     "mode": "subagent",
     "model": "anthropic/claude-sonnet-4-20250514",
-    "variant": "high"
+    "variant": "high",
+    "steps": 24,
+    "budget_ms": 600000
   },
   "plan-advisor": {
     "mode": "subagent",

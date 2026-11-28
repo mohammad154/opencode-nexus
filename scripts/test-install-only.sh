@@ -6,7 +6,8 @@ TMPHOME="$(mktemp -d)"
 cleanup() { rm -rf "$TMPHOME"; }
 trap cleanup EXIT
 
-SANITIZED_PATH="/usr/bin:/bin"
+NODE_BIN_DIR="$(dirname "$(command -v node)")"
+SANITIZED_PATH="$NODE_BIN_DIR:/usr/bin:/bin"
 
 run_install() {
   (cd "$HOME/project" && "$ROOT/install.sh" "$@")
@@ -117,7 +118,7 @@ JSON
 printf '# leftover\n' >"$UPG_HOME/.config/opencode/agents/unified-reviewer.md"
 printf '# leftover\n' >"$UPG_HOME/.config/opencode/agents/knowledge-graph.md"
 (
-  export HOME="$UPG_HOME" PATH="$UPG_HOME/bin:/usr/bin:/bin"
+  export HOME="$UPG_HOME" PATH="$UPG_HOME/bin:$SANITIZED_PATH"
   cd "$UPG_HOME/project"
   "$ROOT/install.sh"
 ) >/tmp/nexus-upgrade-v4.log 2>&1 || { cat /tmp/nexus-upgrade-v4.log; rm -rf "$UPG_HOME"; exit 1; }
@@ -142,9 +143,10 @@ if grep -q '^model:' "$UPG_HOME/.config/opencode/agents/plan-advisor.md"; then
   exit 1
 fi
 jq -e '
-  .permission.external_directory["/usr/local/lib/node_modules/@mohammad154/opencode-nexus/**"] == "allow"
-  and .permission.external_directory["/usr/local/lib/node_modules/@mohammad154/opencode-nexus/schemas/*"] == "allow"
+  .permission.external_directory["**/@mohammad154/opencode-nexus/**"] == "allow"
+  and .permission.external_directory["**/@mohammad154/opencode-nexus/schemas/*"] == "allow"
   and .permission.external_directory["~/.cache/opencode/packages/@mohammad154/**"] == "allow"
+  and .permission.external_directory["**/.cache/opencode/packages/@mohammad154/**"] == "allow"
 ' "$UPG_HOME/.config/opencode/opencode.json" >/dev/null
 test ! -f "$UPG_HOME/.config/opencode/agents/unified-reviewer.md"
 test ! -f "$UPG_HOME/.config/opencode/agents/knowledge-graph.md"
@@ -172,13 +174,13 @@ cat >"$SKILL_HOME/.config/opencode/opencode.json" <<'JSON'
 }
 JSON
 (
-  export HOME="$SKILL_HOME" PATH="$SKILL_HOME/bin:/usr/bin:/bin"
+  export HOME="$SKILL_HOME" PATH="$SKILL_HOME/bin:$SANITIZED_PATH"
   cd "$SKILL_HOME/project"
   "$ROOT/install.sh"
 ) >/tmp/nexus-skill-install.log 2>&1 || { cat /tmp/nexus-skill-install.log; rm -rf "$SKILL_HOME"; exit 1; }
 cp "$SKILL_HOME/.config/opencode/opencode.json" "$SKILL_HOME/after-first.json"
 (
-  export HOME="$SKILL_HOME" PATH="$SKILL_HOME/bin:/usr/bin:/bin"
+  export HOME="$SKILL_HOME" PATH="$SKILL_HOME/bin:$SANITIZED_PATH"
   cd "$SKILL_HOME/project"
   "$ROOT/install.sh"
 ) >/tmp/nexus-skill-reinstall.log 2>&1 || { cat /tmp/nexus-skill-reinstall.log; rm -rf "$SKILL_HOME"; exit 1; }
@@ -237,7 +239,7 @@ cat >"$legacy_home/.config/opencode/opencode.json" <<'JSON'
 JSON
 for home in "$fresh_home" "$legacy_home"; do
   (
-    export HOME="$home" PATH="$home/bin:/usr/bin:/bin"
+    export HOME="$home" PATH="$home/bin:$SANITIZED_PATH"
     cd "$home/project"
     "$ROOT/install.sh"
   ) >/dev/null
@@ -285,7 +287,7 @@ for spec in "deny:ask" "ask:deny"; do
     agent: { implementer: { permission: { skill: $impl, bash: "deny" } } }
   }' >"$SHORT_HOME/.config/opencode/opencode.json"
   (
-    export HOME="$SHORT_HOME" PATH="$SHORT_HOME/bin:/usr/bin:/bin"
+    export HOME="$SHORT_HOME" PATH="$SHORT_HOME/bin:$SANITIZED_PATH"
     cd "$SHORT_HOME/project"
     "$ROOT/install.sh"
   ) >/tmp/nexus-skill-shorthand.log 2>&1 || { cat /tmp/nexus-skill-shorthand.log; rm -rf "$SHORT_HOME"; exit 1; }

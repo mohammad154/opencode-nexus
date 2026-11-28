@@ -5,6 +5,14 @@ import { fileURLToPath } from "url";
 import { buildRunGateReminder } from "../../scripts/lib/run-gate.js";
 import { latestActiveRunState } from "../../scripts/lib/migrate-artifacts.js";
 import { validateContainedPath } from "../../scripts/lib/filesystem-boundary.js";
+import { assessOrchestratorEdit, assessToolEdit } from "../../scripts/lib/orchestrator-edit.js";
+import { isDirectFastPath } from "../../scripts/lib/fast-path.js";
+import {
+  abortSubagentSession,
+  createSubagentWatchdog,
+  loadRoleBudgets,
+  recordSubagentTimeout,
+} from "../../scripts/lib/subagent-budget.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const skillsDir = path.resolve(__dirname, "../../skills");
@@ -38,12 +46,12 @@ function buildCompactRouter() {
     "Nexus workflow protocol v5 installed (the npm package remains on its 4.x release line). Load detailed instructions only with the native skill tool when needed.",
     "Route: start → nexus-using-nexus; clarify → nexus-brainstorming; plan → nexus-writing-plans; advisor → plan-advisor; check → PLANNED; pre-impact → nexus-impact-analysis; units → nexus-orchestrating; branches → nexus-using-feature-branches; finish → nexus-finishing-a-development-branch; blocked → nexus-reconcile.",
     "Autonomy: after the plan is confirmed, continue safe commands and Task-dispatches in the same turn. Do not ask to continue, test, review, fix, merge, or clean up under the default policy; ask only for plan decisions or critical irreversible/external approval.",
-    "Three invariants: (1) brainstorm then PLAN.md for every request (2) fresh pre-impact before every implementer dispatch including REQUEST_CHANGES fix loops (3) every task needs independent reviewer APPROVED.",
+    "Three invariants: (1) direct mode: five-line plan, no PLAN.md/advisor/branch; else brainstorm then PLAN.md (2) fresh pre-impact before standard implementer dispatch (3) reviewer APPROVED; direct mode reviews on second failure or HIGH risk.",
     "State: active-run/state.json, not CONTEXT.md. Never reset/restore/clean/delete files.",
     "Portable commands: nexus project-init | nexus next | nexus run ... | nexus impact ... | nexus estimate ...",
     "Use nexus run for gates and nexus next for the deterministic next step, including REQUIRED_DISPATCH. Do not assume repo-local scripts/ exists.",
-    "Execution: orchestrator, implementer, reviewer; plan-advisor only during planning. Reviewer follows PASSED verification; verification is deterministic. Never self-implement or skip review.",
-    "Lifecycle: CREATED → BRAINSTORMING ↔ WAITING_FOR_USER → PLANNED → TASK_IMPACT_READY → IMPLEMENTING → VERIFYING → REVIEWING → FINAL_REVIEWING → FINAL_VERIFYING → COMPLETED. Follow nexus next for timeout resume, one eligible sealed verification-failure repair, review packages, and final approval; never create a verifier subagent.",
+    "Execution: orchestrator, implementer, reviewer; plan-advisor only while planning. Reviewer follows PASSED verification; verification is deterministic. Direct mode: edit <=20 lines or one implementer.",
+    "Lifecycle: CREATED → BRAINSTORMING ↔ WAITING_FOR_USER → PLANNED → TASK_IMPACT_READY → IMPLEMENTING → VERIFYING → REVIEWING → FINAL_REVIEWING → FINAL_VERIFYING → COMPLETED. Follow nexus next for timeout resume, one sealed repair, review packages, and final approval; never create a verifier subagent.",
     "</EXTREMELY_IMPORTANT>",
   ].join("\n");
 }
@@ -298,9 +306,18 @@ function injectTextPart(
   else message.parts.unshift(part);
 }
 
-export const NexusPlugin = async ({ worktree }) => {
+export const NexusPlugin = async ({ worktree, client } = {}) => {
   const homeDir = os.homedir();
   const sessionAgents = new Map();
+  const watchdog = createSubagentWatchdog({
+    budgets: loadRoleBudgets({}),
+    onTimeout(event) {
+      if (worktree) recordSubagentTimeout(worktree, event);
+      if (event.childSessionID && event.childSessionID !== event.parentSessionID) {
+        void abortSubagentSession(client, event.childSessionID);
+      }
+    },
+  });
   const configDir =
     process.env.OPENCODE_CONFIG_DIR ||
     path.join(homeDir, ".config", "opencode");
@@ -314,6 +331,67 @@ export const NexusPlugin = async ({ worktree }) => {
       }
       config.nexus = config.nexus || {};
       config.nexus.configDir = configDir;
+      config.permission = config.permission || {};
+      const external = config.permission.external_directory || {};
+      const packageGlob = "**/@mohammad154/opencode-nexus/**";
+      if (!external[packageGlob]) external[packageGlob] = "allow";
+      const schemaGlob = "**/@mohammad154/opencode-nexus/schemas/*";
+      if (!external[schemaGlob]) external[schemaGlob] = "allow";
+      const cacheGlob = "**/.cache/opencode/packages/@mohammad154/**";
+      if (!external[cacheGlob]) external[cacheGlob] = "allow";
+      config.permission.external_directory = external;
+    },
+
+    "tool.execute.before": async (input, output) => {
+      const sessionID = input?.sessionID || input?.sessionId || null;
+      const agent = sessionAgents.get(sessionID) || input?.agent || null;
+      if (sessionID && agent) sessionAgents.set(sessionID, agent);
+      watchdog.before(input, output);
+      if (!worktree) return;
+      const runState = latestActiveRunState(worktree);
+      const decision = assessToolEdit({
+        agent,
+        worktree,
+        input,
+        args: output?.args || input?.args || {},
+        runState,
+      });
+      if (decision && decision.ok === false) {
+        throw new Error(decision.reason || "Nexus blocked this edit");
+      }
+    },
+
+    "tool.execute.after": async (input) => {
+      watchdog.after(input);
+      const parent = input?.sessionID || input?.sessionId || null;
+      const child = input?.metadata?.sessionID || input?.metadata?.sessionId || null;
+      if (parent && child) watchdog.noteChildSession(parent, child);
+    },
+
+    "permission.ask": async (input, output) => {
+      const kind = input?.permission || input?.type;
+      if (kind !== "edit") return;
+      const sessionID = input?.sessionID || input?.sessionId || null;
+      const agent = sessionAgents.get(sessionID) || input?.agent || null;
+      if (agent !== "orchestrator" || !output) return;
+      const pattern = input?.pattern || input?.patterns?.[0] || null;
+      const runState = worktree ? latestActiveRunState(worktree) : null;
+      const decision = assessOrchestratorEdit({
+        worktree,
+        filePath: pattern,
+        args: {},
+        runState,
+      });
+      if (decision.ok && isDirectFastPath(runState)) output.status = "allow";
+      else if (!decision.ok) output.status = "deny";
+    },
+
+    event: async (input) => {
+      const properties = input?.event?.properties || input?.properties || {};
+      const info = properties.info || {};
+      const parent = info.parentID || properties.parentID || null;
+      const child = info.id || properties.sessionID || null;
+      if (parent && child) watchdog.noteChildSession(parent, child);
     },
 
     "experimental.chat.messages.transform": async (input, output) => {

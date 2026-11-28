@@ -5,6 +5,16 @@ import { globsOverlap } from "./impact/boundaries.js";
 import { estimateAgentCalls } from "./agent-estimate.js";
 import { inferPlanningMode, normalizePlanningMode } from "./planning.js";
 import { requirementMappingErrors } from "./traceability.js";
+import { readPrivateBaseline } from "./private-baseline.js";
+
+const PLACEHOLDER_PLAN_COMMITS = new Set([
+  "NO_GIT_REPO",
+  "N/A",
+  "NA",
+  "NONE",
+  "NULL",
+  "TODO",
+]);
 
 const GENERIC_TITLE_WORDS = new Set([
   "add",
@@ -911,6 +921,21 @@ export function planContract(planningMode, unitCount = 1) {
  * advisory only after every actionable warning has an explicit disposition;
  * use `requireWarningDispositions: false` for diagnostic-only callers.
  */
+function privateBaselineForPlan(options = {}) {
+  const candidates = [];
+  if (typeof options.worktree === "string" && options.worktree.trim()) {
+    candidates.push(path.resolve(options.worktree));
+  }
+  if (typeof options.planPath === "string" && options.planPath.trim()) {
+    candidates.push(path.resolve(path.dirname(options.planPath), "..", ".."));
+  }
+  for (const root of candidates) {
+    const marker = readPrivateBaseline(root);
+    if (marker?.commit) return marker;
+  }
+  return null;
+}
+
 export function checkPlan(plan, options = {}) {
   const normalized = normalizePlan(plan);
   const units = normalized.execution_units;
@@ -948,11 +973,23 @@ export function checkPlan(plan, options = {}) {
       message: "plan must state at least one explicit non-goal",
     });
   }
-  if (!normalized.plan_commit) {
-    errors.push({
-      code: "MISSING_PLAN_COMMIT",
-      message: "plan must record the plan/base commit it was written against",
-    });
+  const planCommit = String(normalized.plan_commit || "").trim();
+  const placeholderCommit =
+    !planCommit || PLACEHOLDER_PLAN_COMMITS.has(planCommit.toUpperCase());
+  if (placeholderCommit) {
+    const marker = privateBaselineForPlan(options);
+    if (marker?.commit) {
+      normalized.plan_commit = marker.commit;
+      warnings.push({
+        code: "PRIVATE_BASELINE_COMMIT",
+        message: `Plan commit was ${planCommit || "missing"}; using the private baseline ${marker.commit}.`,
+      });
+    } else {
+      errors.push({
+        code: "MISSING_PLAN_COMMIT",
+        message: "plan must record the plan/base commit it was written against",
+      });
+    }
   }
 
   if (units.length === 0) {
@@ -1219,6 +1256,9 @@ export function checkPlanFile(planPath, options = {}) {
       estimate: estimateAgentCalls({ units: 1 }),
     };
   }
-  const result = checkPlan(fs.readFileSync(absolute, "utf8"), options);
+  const result = checkPlan(fs.readFileSync(absolute, "utf8"), {
+    ...options,
+    planPath: absolute,
+  });
   return { ...result, plan_path: planPath };
 }

@@ -10,9 +10,11 @@ Nexus is a **fixed** three-agent execution workflow for OpenCode. The orchestrat
 
 ## Three invariants
 
-1. Every request starts with brainstorming and a plan.
-2. Every implementer call requires fresh impact analysis.
-3. Every implementation must be approved by an independent reviewer.
+1. Every standard request starts with brainstorming and a plan. Direct mode, chosen by `nexus triage` and `nexus run init`, keeps a five-line session plan instead of `PLAN.md` when the task is compact-eligible, unclassified, git-less, or has no test suite.
+2. Every standard implementer call requires fresh impact analysis. Direct mode edits in the current directory with no feature branch.
+3. Every standard implementation must be approved by an independent reviewer. Direct mode dispatches the reviewer only after the check fails twice or impact risk is HIGH/CRITICAL.
+
+`NEXUS_FAST_PATH=0` disables direct mode. Safety signals, HIGH/UNKNOWN risk, and a change above 5 files or 150 lines stay on the standard pipeline. An explicit `standard` label with no size or risk evidence does not.
 
 ## Orchestrator-only activation
 
@@ -432,7 +434,7 @@ review path.
 
 Verdicts: `APPROVED` | `REQUEST_CHANGES`. Approvals require evidence (all persisted acceptance criteria, mandatory checks, production-file coverage in `files_reviewed` or explicit `files_skipped`, bound review-package digest); empty APPROVED is gate-invalid.
 
-On an eligible verification `FAILED`, the orchestrator automatically re-impacts and re-dispatches the implementer once; this is separate from reviewer `REQUEST_CHANGES` remediation. On `REQUEST_CHANGES`, it automatically re-impacts and re-dispatches the implementer — the user does not need to ask for fixes. Reviewer remediation is capped at three attempts per execution unit. After `VERIFICATION_REPAIR_EXHAUSTED`, `FIX_LOOP_EXHAUSTED`, or `AGENT_CALL_BUDGET_EXCEEDED`, it must transition to `BLOCKED` and reconcile instead of dispatching another subagent.
+On an eligible verification `FAILED`, the orchestrator automatically re-impacts and re-dispatches the implementer once; this is separate from reviewer `REQUEST_CHANGES` remediation. On `REQUEST_CHANGES`, it automatically re-impacts and re-dispatches the implementer — the user does not need to ask for fixes. Reviewer remediation is capped at one round per execution unit, or two when impact risk is HIGH or CRITICAL. Subagent waits are bounded (plan-advisor 5 minutes, reviewer 10, implementer 20). A timeout becomes `TIMED_OUT`: skip the advisor, accept sealed verification, or re-dispatch the implementer once with a smaller brief. After `VERIFICATION_REPAIR_EXHAUSTED`, `FIX_LOOP_EXHAUSTED`, or `AGENT_CALL_BUDGET_EXCEEDED`, it must transition to `BLOCKED` and reconcile instead of dispatching another subagent.
 
 For any transition that consumes a handoff, pass the complete handoff file rather than reconstructing a partial object: `--implementer-handoff-file .opencode/handoffs/<id>-implementer.json` or `--review-handoff-file .opencode/handoffs/<id>-reviewer.json`. This preserves the acceptance and evidence required by the state gate.
 

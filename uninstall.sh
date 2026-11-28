@@ -34,7 +34,7 @@ MANIFEST_FILE="$CD/nexus-install-manifest.json"
 # package has installed. Keep this list explicit: arbitrary user agents must
 # survive.
 NAG='["orchestrator","implementer","reviewer","plan-advisor","diagnostician","unified-reviewer","spec-reviewer","code-reviewer","integration-reviewer","reconciler","blast-analyzer","knowledge-graph"]'
-PERMISSION_PATHS='["/usr/local/lib/node_modules/@mohammad154/opencode-nexus/**","/usr/local/lib/node_modules/@mohammad154/opencode-nexus/schemas/*","~/.cache/opencode/packages/@mohammad154/**"]'
+PERMISSION_PATHS='["/usr/local/lib/node_modules/@mohammad154/opencode-nexus/**","/usr/local/lib/node_modules/@mohammad154/opencode-nexus/schemas/*","~/.cache/opencode/packages/@mohammad154/**","**/@mohammad154/opencode-nexus/**","**/@mohammad154/opencode-nexus/schemas/*","**/.cache/opencode/packages/@mohammad154/**"]'
 # Global skill key Nexus writes. Agent-level skill keys are removed with the
 # agent object (restored from the pre-Nexus original, or stripped below).
 SKILL_GLOBAL_KEYS='["nexus-*"]'

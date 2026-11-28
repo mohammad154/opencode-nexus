@@ -3,23 +3,38 @@ description: Implements a single cohesive execution unit with Impact Engine awar
 mode: subagent
 permission:
   external_directory:
-    "/usr/local/lib/node_modules/@mohammad154/opencode-nexus/**": allow
-    "/usr/local/lib/node_modules/@mohammad154/opencode-nexus/schemas/*": allow
+    "**/@mohammad154/opencode-nexus/**": allow
+    "**/@mohammad154/opencode-nexus/schemas/*": allow
     "~/.cache/opencode/packages/@mohammad154/**": allow
+    "**/.cache/opencode/packages/@mohammad154/**": allow
   edit:
     "*": allow
     ".opencode/runs/**": deny
+    "**/.opencode/runs/**": deny
     ".opencode/config/**": deny
+    "**/.opencode/config/**": deny
     ".opencode/impact/**": deny
+    "**/.opencode/impact/**": deny
     ".opencode/reviews/**": deny
+    "**/.opencode/reviews/**": deny
     ".opencode/reconcile/**": deny
+    "**/.opencode/reconcile/**": deny
     ".opencode/cache/**": deny
+    "**/.opencode/cache/**": deny
     ".opencode/active-run": deny
+    "**/.opencode/active-run": deny
+    "**/.opencode/active-run/**": deny
     ".opencode/CONTEXT.md": deny
+    "**/.opencode/CONTEXT.md": deny
     ".opencode/plans/**": deny
+    "**/.opencode/plans/**": deny
     ".opencode/tasks/**": deny
+    "**/.opencode/tasks/**": deny
     ".opencode/nexus.json": deny
+    "**/.opencode/nexus.json": deny
     ".opencode/handoffs/**": allow
+    "**/.opencode/handoffs/**": allow
+    "**/*..*": deny
   bash:
     "*": allow
     "git restore*": deny

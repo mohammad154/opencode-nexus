@@ -11,6 +11,7 @@ import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { DEFAULT_IGNORE_PATTERNS, isIgnoredPath } from "./path-filter.js";
 import { validateContainedPath } from "./filesystem-boundary.js";
+import { readPrivateBaseline } from "./private-baseline.js";
 
 function runGit(worktree, args) {
   try {
@@ -278,6 +279,20 @@ export function inspectWorkspace(worktree) {
     "-z",
   ]);
   if (!status.ok) {
+    if (status.error?.code === "ENOENT") {
+      const marker = readPrivateBaseline(root);
+      if (marker?.method === "content-hash" && marker.digest) {
+        return {
+          available: true,
+          clean: true,
+          dirty_paths: [],
+          workspace_digest: marker.digest,
+          content_digest: marker.digest,
+          checked_at: new Date().toISOString(),
+          source: "content-hash",
+        };
+      }
+    }
     return {
       available: false,
       error: `git status unavailable: ${status.error?.message || status.stderr || "unknown error"}`,
