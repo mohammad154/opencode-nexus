@@ -5,8 +5,14 @@ import { fileURLToPath } from "url";
 import { buildRunGateReminder } from "../../scripts/lib/run-gate.js";
 import { latestActiveRunState } from "../../scripts/lib/migrate-artifacts.js";
 import { validateContainedPath } from "../../scripts/lib/filesystem-boundary.js";
-import { assessOrchestratorEdit, assessToolEdit } from "../../scripts/lib/orchestrator-edit.js";
+import {
+  assessOrchestratorEdit,
+  assessToolEdit,
+  assessUnknownAgentEdit,
+  editToolName,
+} from "../../scripts/lib/orchestrator-edit.js";
 import { isDirectFastPath } from "../../scripts/lib/fast-path.js";
+import { readInstalledModels as readModelLayers } from "../../scripts/lib/installed-models.js";
 import {
   abortSubagentSession,
   createSubagentWatchdog,
@@ -18,24 +24,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const skillsDir = path.resolve(__dirname, "../../skills");
 const defaultModelsFile = path.resolve(__dirname, "../../config/default-models.json");
 
-function readInstalledModels(worktree) {
-  const configDir =
-    process.env.OPENCODE_CONFIG_DIR || path.join(os.homedir(), ".config", "opencode");
-  const files = [
-    defaultModelsFile,
-    path.join(configDir, "nexus.models.json"),
-  ];
-  if (worktree) files.push(path.join(worktree, ".opencode", "nexus.models.json"));
-  const merged = {};
-  for (const file of files) {
-    try {
-      const data = JSON.parse(fs.readFileSync(file, "utf8"));
-      if (data && typeof data === "object" && !Array.isArray(data)) Object.assign(merged, data);
-    } catch {
-      // A missing override keeps the previous layer.
-    }
-  }
-  return merged;
+function readInstalledModels() {
+  return readModelLayers({ defaultFile: defaultModelsFile });
 }
 
 const BOOTSTRAP_MARKER = "NEXUS_ROUTER_V5";
@@ -331,7 +321,7 @@ export const NexusPlugin = async ({ worktree, client } = {}) => {
   const homeDir = os.homedir();
   const sessionAgents = new Map();
   const watchdog = createSubagentWatchdog({
-    budgets: loadRoleBudgets(readInstalledModels(worktree)),
+    budgets: loadRoleBudgets(readInstalledModels()),
     abortChild: (sessionID) => abortSubagentSession(client, sessionID),
     onTimeout(event) {
       try {
@@ -378,13 +368,15 @@ export const NexusPlugin = async ({ worktree, client } = {}) => {
       watchdog.before(input, output);
       if (!worktree) return;
       const runState = latestActiveRunState(worktree);
-      const decision = assessToolEdit({
-        agent,
-        worktree,
-        input,
-        args: output?.args || input?.args || {},
-        runState,
-      });
+      const decision =
+        assessUnknownAgentEdit({ agent, tool: editToolName(input), runState }) ||
+        assessToolEdit({
+          agent,
+          worktree,
+          input,
+          args: output?.args || input?.args || {},
+          runState,
+        });
       if (decision && decision.ok === false) {
         throw new Error(decision.reason || "Nexus blocked this edit");
       }
@@ -402,9 +394,14 @@ export const NexusPlugin = async ({ worktree, client } = {}) => {
       if (kind !== "edit") return;
       const sessionID = input?.sessionID || input?.sessionId || null;
       const agent = sessionAgents.get(sessionID) || input?.agent || null;
-      if (agent !== "orchestrator" || !output) return;
-      const pattern = input?.pattern || input?.patterns?.[0] || null;
+      if (!output) return;
       const runState = worktree ? latestActiveRunState(worktree) : null;
+      if (assessUnknownAgentEdit({ agent, tool: kind, runState })) {
+        output.status = "deny";
+        return;
+      }
+      if (agent !== "orchestrator") return;
+      const pattern = input?.pattern || input?.patterns?.[0] || null;
       const decision = assessOrchestratorEdit({
         worktree,
         filePath: pattern,
