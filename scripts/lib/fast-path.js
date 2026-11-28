@@ -1,9 +1,10 @@
 /**
- * Direct execution for compact, unclassified, git-less, or test-less tasks.
+ * Direct execution for compact, git-less, or test-less tasks.
  *
  * Planning depth (`compact` / `standard` / `deep`) is unchanged. This module
- * chooses the execution pipeline. Unclassified work defaults to direct.
- * Standard is used only when size, risk, or a safety signal is actually present.
+ * chooses the execution pipeline. A repository with history and tests stays
+ * on the standard pipeline until size, risk, or a safety signal is known.
+ * Git-less and test-less workspaces may start direct and escalate later.
  * Set NEXUS_FAST_PATH=0 or workflow.fastPath=false to keep the full pipeline.
  */
 import fs from "node:fs";
@@ -220,11 +221,9 @@ export function selectFastPath(input = {}, options = {}) {
   const tests = workspaceFact(input, options, "test_suite");
   const noHistory = history === false;
   const noTests = tests === false;
-  const unclassified = !hasSize && !risk && signals.length === 0;
-  const explicitStandardWithoutEvidence =
-    explicit === "standard" && !hasSize && !risk && hard.length === 0 && !oversize;
+  const unclassified = !hasSize && !risk && signals.length === 0 && explicit == null;
   const reasons = [];
-  let mode = "direct";
+  let mode = "standard";
 
   if (!enabled) {
     mode = "standard";
@@ -254,13 +253,12 @@ export function selectFastPath(input = {}, options = {}) {
   } else if (noTests) {
     mode = "direct";
     reasons.push("NO_TEST_SUITE");
-  } else if (unclassified || explicitStandardWithoutEvidence) {
-    mode = "direct";
-    reasons.push(
-      explicitStandardWithoutEvidence
-        ? "EXPLICIT_STANDARD_WITHOUT_EVIDENCE"
-        : "UNCLASSIFIED_DEFAULT_DIRECT",
-    );
+  } else if (unclassified) {
+    mode = "standard";
+    reasons.push("UNCLASSIFIED_REQUIRES_STANDARD");
+  } else if (explicit === "standard") {
+    mode = "standard";
+    reasons.push("EXPLICIT_STANDARD_KEPT");
   } else {
     mode = "standard";
     reasons.push("EVIDENCE_OF_SIZE_OR_RISK");
@@ -271,6 +269,7 @@ export function selectFastPath(input = {}, options = {}) {
     advisorInput.planning_mode = "compact";
   }
   const advisor = planAdvisorDecision(advisorInput);
+  const workflow = loadFastPathConfig(options.workflow);
   const direct = mode === "direct";
   return {
     enabled,
@@ -278,7 +277,14 @@ export function selectFastPath(input = {}, options = {}) {
     planning_mode: direct ? "compact" : inferPlanningMode(input),
     plan_file: !direct,
     plan_advisor: direct ? false : advisor.required,
-    advisor_parallel: !direct && advisor.required && hard.length === 0 && explicit !== "deep",
+    advisor_parallel:
+      workflow.advisorParallel !== false &&
+      !direct &&
+      advisor.required &&
+      hard.length === 0 &&
+      explicit !== "deep",
+    repo_history: history,
+    test_suite: tests,
     worktree: !direct,
     branch: !direct,
     reviewer: direct ? "on-second-failure-or-high" : "always",
@@ -323,9 +329,98 @@ function safeAllowedFiles(value) {
   });
 }
 
+const CONTEXT_KEYS = [
+  "security_boundary",
+  "securitySensitive",
+  "public_api",
+  "publicApi",
+  "databaseMigration",
+  "database_migration",
+  "destructive_change",
+  "credentialHandling",
+  "signals",
+  "semantic_signals",
+  "planning_mode",
+  "planningMode",
+  "force_standard",
+  "execution_mode",
+];
+
+/** Size, risk, and safety flags the orchestrator can present mid-run. */
+export function fastPathInputFromContext(state = {}, ctx = {}) {
+  const input = {};
+  const allowed = ctx.allowed_files || state.allowed_files;
+  if (Array.isArray(allowed)) input.files_changed = allowed.length;
+  const files = ctx.files_changed ?? ctx.filesChanged ?? ctx.file_count;
+  if (files != null) input.files_changed = files;
+  const lines = ctx.estimated_lines ?? ctx.estimatedLines ?? ctx.lines;
+  if (lines != null) input.estimated_lines = lines;
+  const units = ctx.unit_count ?? ctx.execution_units ?? ctx.units;
+  if (units != null) input.unit_count = Array.isArray(units) ? units.length : units;
+  const risk = ctx.risk || ctx.impact_risk || ctx.impact?.risk || state.impact?.risk || state.fast_path?.risk;
+  if (risk) input.risk = risk;
+  for (const key of CONTEXT_KEYS) {
+    if (ctx[key] != null) input[key] = ctx[key];
+  }
+  return input;
+}
+
+export function fastPathWorkspaceFromState(state = {}) {
+  return {
+    repo_history: state.fast_path?.repo_history ?? null,
+    test_suite: state.fast_path?.test_suite ?? null,
+  };
+}
+
+/**
+ * Record a direct-mode check failure or a measured impact risk.
+ * `check_failures` is what makes the second failure dispatch a reviewer.
+ */
+export function noteDirectVerification(state = {}, { failed = false, risk = null } = {}) {
+  if (!isDirectFastPath(state)) return state;
+  const fast = { ...(state.fast_path || {}) };
+  if (failed) fast.check_failures = (Number(fast.check_failures) || 0) + 1;
+  if (risk) fast.risk = String(risk).trim().toUpperCase();
+  const next = { ...state, fast_path: fast };
+  if (risk) next.impact = { ...(state.impact || {}), risk: fast.risk };
+  return next;
+}
+
+const ESCALATION_REASONS = new Set([
+  "FAST_PATH_DISABLED",
+  "EXPLICIT_STANDARD",
+  "ESCALATE_SIGNAL",
+  "EXPLICIT_DEEP",
+  "ESCALATE_RISK",
+  "EVIDENCE_OF_SIZE",
+]);
+
+/**
+ * Re-classify a direct run. Only positive evidence of size, risk, or a safety
+ * signal escalates. Missing facts do not.
+ */
+export function escalationDecision(state = {}, ctx = {}, options = {}) {
+  if (!isDirectFastPath(state)) return null;
+  const decision = selectFastPath(fastPathInputFromContext(state, ctx), {
+    workspace: options.workspace || fastPathWorkspaceFromState(state),
+    env: options.env,
+    workflow: options.workflow,
+    enabled: options.enabled,
+  });
+  if (decision.mode !== "standard") return null;
+  if (!decision.reasons.some((reason) => ESCALATION_REASONS.has(reason))) return null;
+  return decision;
+}
+
 /** Evidence for BRAINSTORMING → IMPLEMENTING on the direct path. */
 export function directImplementErrors(state = {}, ctx = {}) {
   const errors = [];
+  const escalation = escalationDecision(state, ctx);
+  if (escalation) {
+    return [
+      `direct IMPLEMENTING refused (${escalation.reasons.join(", ")}). Escalate to the standard pipeline.`,
+    ];
+  }
   const lines = sessionPlanLines(ctx.session_plan || ctx.sessionPlan || state.fast_path?.session_plan);
   if (lines.length < 1 || lines.length > 8) {
     errors.push(

@@ -37,8 +37,17 @@ import {
   CLASSIFY_APPLY_SOURCE,
 } from "./lib/state-machine.js";
 import { createDefaultProviders } from "./lib/providers.js";
-import { isDirectFastPath, probeWorkspace, selectFastPath } from "./lib/fast-path.js";
-import { cleanupPrivateBaseline, ensurePrivateBaseline } from "./lib/private-baseline.js";
+import {
+  escalationDecision,
+  isDirectFastPath,
+  probeWorkspace,
+  selectFastPath,
+} from "./lib/fast-path.js";
+import {
+  cleanupPrivateBaseline,
+  ensurePrivateBaseline,
+  sealDirectSelfEdit,
+} from "./lib/private-baseline.js";
 import { createVerificationProvider } from "./lib/providers/verification-provider.js";
 import { runVerificationLifecycle } from "./lib/verification-lifecycle.js";
 import { assessDrift } from "./lib/drift.js";
@@ -310,7 +319,7 @@ function cmdInit(flags) {
     workflow: "default",
   });
   const root = worktree();
-  const baseline = ensurePrivateBaseline(root);
+  const baseline = ensurePrivateBaseline(root, { runId: id });
   if (!baseline.ok) {
     console.error(baseline.message || "Private git baseline failed.");
     process.exit(2);
@@ -319,11 +328,12 @@ function cmdInit(flags) {
   if (baseline.created || baseline.method === "content-hash") {
     workspace.repo_history = false;
   }
-  state.private_baseline = {
+    state.private_baseline = {
     method: baseline.method,
     created: baseline.created === true,
     existed_before: baseline.existed_before !== false,
     commit: baseline.commit || null,
+    run_id: id,
   };
   state.fast_path = selectFastPath(
     {},
@@ -387,10 +397,33 @@ function cmdClassify(flags) {
       headResult.status === 0
         ? String(headResult.stdout || "").trim() || null
         : null;
+    const workspace = probeWorkspace(worktree());
+    if (state.private_baseline?.created || state.private_baseline?.method === "content-hash") {
+      workspace.repo_history = false;
+    }
+    const decision = selectFastPath(
+      { ...input, risk: result?.risk || input.risk },
+      { workspace },
+    );
+    let escalated = false;
+    if (isDirectFastPath(state) && decision.mode === "standard") {
+      state = {
+        ...state,
+        fast_path: {
+          ...state.fast_path,
+          ...decision,
+          escalated_from: "direct",
+        },
+      };
+      escalated = true;
+      writeRunState(worktree(), state);
+    }
     const classification = {
       ...result,
       classification_source: CLASSIFY_APPLY_SOURCE,
       worktree_head: worktreeHead,
+      fast_path: state.fast_path || null,
+      escalated,
     };
     const { artifact_digest: _omit, ...forDigest } = classification;
     classification.artifact_digest = `sha256:${createHash("sha256")
@@ -414,6 +447,8 @@ function cmdClassify(flags) {
           warning:
             "V5: nexus classify --apply no longer transitions run state. Use brainstorming → PLANNED.",
           classification: result,
+          fast_path: state.fast_path || null,
+          escalated,
           state,
         },
         null,
@@ -466,6 +501,40 @@ function cmdTransition(flags) {
   // The CLI's selected worktree is authoritative. Never let an evidence file
   // redirect identity checks or state persistence to a different checkout.
   evidence.worktree = worktree();
+  if (to === "IMPLEMENTING" && state.state === "BRAINSTORMING" && isDirectFastPath(state)) {
+    const decision = escalationDecision(state, evidence);
+    if (decision) {
+      state = {
+        ...state,
+        fast_path: {
+          ...state.fast_path,
+          ...decision,
+          escalated_from: "direct",
+        },
+      };
+      writeRunState(worktree(), state);
+      const errors = [
+        `direct mode escalated to standard (${decision.reasons.join(", ")}). Continue with PLANNED, pre-impact, and a feature branch.`,
+      ];
+      console.error(JSON.stringify({ ok: false, code: "ESCALATED_TO_STANDARD", errors, state }, null, 2));
+      process.exit(3);
+    }
+  }
+  if (
+    to === "VERIFYING" &&
+    isDirectFastPath(state) &&
+    !evidence.implementer_handoff &&
+    !evidence.handoff
+  ) {
+    const sealed = sealDirectSelfEdit(worktree(), {
+      allowedFiles: evidence.allowed_files || state.allowed_files || [],
+    });
+    if (!sealed.ok) {
+      console.error(JSON.stringify({ ok: false, error: sealed.message }, null, 2));
+      process.exit(2);
+    }
+    evidence.direct_seal = sealed;
+  }
   if (to === "IMPLEMENTING" && !(isDirectFastPath(state) && state.state === "BRAINSTORMING")) {
     const sourceCommit =
       evidence.drift?.current_head ||
@@ -638,7 +707,10 @@ function cmdTransition(flags) {
     }
   }
   if (to === "COMPLETED" || to === "FAILED") {
-    const cleaned = cleanupPrivateBaseline(worktree());
+    const cleaned = cleanupPrivateBaseline(worktree(), {
+      runId: r.state.run_id,
+      fastPathMode: r.state.fast_path?.mode,
+    });
     if (cleaned.removed) {
       console.error("Removed the private git baseline created for this run.");
     } else if (cleaned.ok === false) {
@@ -920,6 +992,20 @@ function cmdBaseline(flags) {
   console.log(JSON.stringify({ ok: true, baseline }, null, 2));
 }
 
+function cmdCleanup(flags) {
+  const state = resolveRun(flags);
+  const cleaned = cleanupPrivateBaseline(worktree(), {
+    runId: state?.run_id || flags["run-id"] || null,
+    fastPathMode: state?.fast_path?.mode,
+  });
+  const payload = { ok: cleaned.ok !== false, ...cleaned, run_id: state?.run_id || null };
+  if (cleaned.ok === false) {
+    console.error(JSON.stringify(payload, null, 2));
+    process.exit(2);
+  }
+  console.log(JSON.stringify(payload, null, 2));
+}
+
 function cmdVerify(flags) {
   if (flags.baseline) {
     return cmdBaseline(flags);
@@ -1081,9 +1167,11 @@ function main() {
         return cmdBaseline(flags);
       case "verify":
         return cmdVerify(flags);
+      case "cleanup":
+        return cmdCleanup(flags);
       default:
         console.error(
-          `Unknown or missing command. Use: init|classify|transition|validate-handoff|status|resume|drift|can-transition|inspect|worktree|baseline|verify`,
+          `Unknown or missing command. Use: init|classify|transition|validate-handoff|status|resume|drift|can-transition|inspect|worktree|baseline|verify|cleanup`,
         );
         process.exit(2);
     }

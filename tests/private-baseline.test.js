@@ -174,7 +174,10 @@ test("a missing git binary records a content-hash baseline and plan-check accept
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "nexus-hash-"));
   try {
     fs.writeFileSync(path.join(root, "app.js"), "export const app = true;\n");
-    const baseline = ensurePrivateBaseline(root, { gitBin: path.join(root, "missing-git") });
+    const baseline = ensurePrivateBaseline(root, {
+      gitBin: path.join(root, "missing-git"),
+      runId: "hash-run",
+    });
     assert.equal(baseline.ok, true);
     assert.equal(baseline.method, "content-hash");
     assert.equal(fs.existsSync(path.join(root, ".git")), false);
@@ -183,7 +186,7 @@ test("a missing git binary records a content-hash baseline and plan-check accept
     fs.mkdirSync(planDir, { recursive: true });
     const planPath = path.join(planDir, "PLAN.md");
     fs.writeFileSync(planPath, PLAN);
-    const result = checkPlan(PLAN, { planPath, worktree: root });
+    const result = checkPlan(PLAN, { planPath, worktree: root, runId: "hash-run" });
     assert.equal(
       result.errors.some((error) => error.code === "MISSING_PLAN_COMMIT"),
       false,

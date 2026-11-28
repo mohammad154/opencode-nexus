@@ -229,10 +229,10 @@ const TRIVIAL_CLASS = /^(rename|typo|docs?|documentation|format|tiny|comment)/i;
 /**
  * Decide whether compact planning is admissible.
  *
- * Compact requires positive evidence of cohesion. Missing that evidence does
- * not by itself select the standard execution pipeline: unclassified work
- * defaults to direct mode (`selectFastPath`) and escalates only on size, risk,
- * or a safety signal. Agent claims can lower planning depth only when no
+ * Compact requires positive evidence of cohesion. Execution mode is separate:
+ * `selectFastPath` stays standard when a repository has history and tests and
+ * no size or risk evidence, and uses direct mode for git-less or test-less
+ * work until size, risk, or a safety signal escalates it. Agent claims can lower planning depth only when no
  * deterministic signal fires — they can never override one.
  */
 export function compactEligibility(input = {}) {

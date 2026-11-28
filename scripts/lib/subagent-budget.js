@@ -16,7 +16,9 @@ export const DEFAULT_ROLE_BUDGETS_MS = Object.freeze({
 
 export const DEFAULT_REVIEWER_STEPS = 24;
 
-const TIMEOUT_FILE = path.join(".opencode", "subagent-timeouts.json");
+function timeoutFile(worktree, runId) {
+  return path.join(worktree, ".opencode", "runs", String(runId), "subagent-timeouts.json");
+}
 
 export function roleBudgetMs(role, models = {}, env = process.env) {
   const envKey = `NEXUS_${String(role || "")
@@ -62,18 +64,35 @@ export function subagentRoleFromTaskArgs(args = {}) {
   );
 }
 
-function timeoutPath(worktree) {
-  return path.join(worktree, TIMEOUT_FILE);
+function readTimeoutDocument(worktree, runId) {
+  if (!worktree || !runId) return null;
+  try {
+    const data = JSON.parse(fs.readFileSync(timeoutFile(worktree, runId), "utf8"));
+    if (!data || typeof data !== "object" || Array.isArray(data)) return null;
+    if (data.run_id !== runId) return null;
+    return data;
+  } catch {
+    return null;
+  }
 }
 
-export function readSubagentTimeouts(worktree) {
-  if (!worktree) return {};
-  try {
-    const data = JSON.parse(fs.readFileSync(timeoutPath(worktree), "utf8"));
-    return data && typeof data === "object" && !Array.isArray(data) ? data : {};
-  } catch {
-    return {};
+/**
+ * Role-indexed timeouts for one run and, when set, one unit.
+ * Records outside this run are ignored. There is no global timeout file.
+ */
+export function readSubagentTimeouts(worktree, runId, unit = null) {
+  const document = readTimeoutDocument(worktree, runId);
+  if (!document) return {};
+  const records = document.records && typeof document.records === "object" ? document.records : {};
+  const out = {};
+  for (const record of Object.values(records)) {
+    if (!record || record.status !== "TIMED_OUT" || record.run_id !== runId) continue;
+    if (unit && record.unit !== unit) continue;
+    const role = record.role;
+    const previous = out[role];
+    if (!previous || Number(record.attempts) >= Number(previous.attempts)) out[role] = record;
   }
+  return out;
 }
 
 function writeJsonAtomic(file, value) {
@@ -93,43 +112,35 @@ export function recordSubagentTimeout(worktree, event = {}) {
   }
   const role = normalizeSubagentRole(event.role);
   if (!role) throw new Error(`unknown subagent role: ${event.role || "missing"}`);
-  const current = readSubagentTimeouts(worktree);
-  const previous = current[role] && typeof current[role] === "object" ? current[role] : {};
-  const attempts = (Number(previous.attempts) || 0) + 1;
+  const runId = event.run_id || event.runId || null;
+  const callID = event.callID || event.call_id || null;
+  if (!runId) throw new Error("subagent timeout requires run_id");
+  if (!callID) throw new Error("subagent timeout requires call_id");
+  const unit = String(event.unit || event.unit_id || "unit-1");
+  const current = readTimeoutDocument(worktree, runId) || { run_id: runId, records: {} };
+  const records = current.records && typeof current.records === "object" ? current.records : {};
+  const key = `${unit}:${role}:${callID}`;
+  if (records[key]?.status === "TIMED_OUT") {
+    return { record: records[key], duplicate: true };
+  }
+  const attempts =
+    Object.values(records).filter((record) => record?.role === role && record?.unit === unit).length +
+    1;
   const record = {
     status: "TIMED_OUT",
     role,
+    run_id: runId,
+    unit,
     attempts,
-    exhausted: role === "implementer" ? attempts >= 2 : false,
+    exhausted: role === "implementer" ? attempts >= 2 : attempts >= 2 && role === "reviewer",
     budget_ms: Number(event.budgetMs ?? event.budget_ms) || null,
     elapsed_ms: Number(event.elapsedMs ?? event.elapsed_ms ?? event.budgetMs) || null,
     at: new Date().toISOString(),
-    call_id: event.callID || event.call_id || null,
+    call_id: callID,
   };
-  current[role] = record;
-  writeJsonAtomic(timeoutPath(worktree), current);
-
-  const handoff = {
-    schema_version: "1.0",
-    agent: role,
-    status: "TIMED_OUT",
-    verdict: "TIMED_OUT",
-    run_id: event.run_id || null,
-    created_at: record.at,
-    read_only: role !== "implementer",
-    wrote_production_code: false,
-    budget_ms: record.budget_ms,
-    elapsed_ms: record.elapsed_ms,
-    attempts,
-  };
-  const handoffFile = path.join(
-    worktree,
-    ".opencode",
-    "handoffs",
-    `${role}-timeout.json`,
-  );
-  writeJsonAtomic(handoffFile, handoff);
-  return { record, handoff, handoff_path: handoffFile };
+  records[key] = record;
+  writeJsonAtomic(timeoutFile(worktree, runId), { run_id: runId, records });
+  return { record };
 }
 
 function verificationPassed(state = {}) {
@@ -156,10 +167,10 @@ export function degradeSubagentTimeout(role, record, state = {}) {
   if (normalized === "reviewer") {
     if (verificationPassed(state)) {
       return {
-        action: "accept_sealed_verification",
+        action: "advance_to_final_verifying",
         agent: null,
         instruction:
-          "reviewer timed out. Accept the sealed verification and continue. Do not dispatch the reviewer again.",
+          "reviewer timed out. Task verification stands, but final verification is still required. Do not mark the run COMPLETED and do not dispatch the reviewer again.",
       };
     }
     if (attempts < 2 && record.exhausted !== true) {
@@ -199,23 +210,59 @@ export function degradeSubagentTimeout(role, record, state = {}) {
 /**
  * In-process watchdog. Timers are injected so tests do not wait on the wall clock.
  */
+function timeoutPayload(record, now) {
+  return {
+    role: record.role,
+    callID: record.callID,
+    budgetMs: record.budgetMs,
+    elapsedMs: Math.max(0, now() - record.startedAt),
+    parentSessionID: record.parentSessionID,
+    childSessionID:
+      record.child && record.child !== record.parentSessionID ? record.child : null,
+    args: record.args,
+  };
+}
+
 export function createSubagentWatchdog({
   budgets = DEFAULT_ROLE_BUDGETS_MS,
   schedule = (fn, ms) => setTimeout(fn, ms),
   cancel = (id) => clearTimeout(id),
   now = () => Date.now(),
   onTimeout = () => {},
+  abortChild = async () => ({ aborted: false }),
 } = {}) {
   const inflight = new Map();
-  const children = new Map();
+  const pendingByParent = new Map();
+  function forget(callID, parentSessionID) {
+    inflight.delete(callID);
+    const queue = pendingByParent.get(parentSessionID);
+    if (!queue) return;
+    const next = queue.filter((id) => id !== callID);
+    if (next.length === 0) pendingByParent.delete(parentSessionID);
+    else pendingByParent.set(parentSessionID, next);
+  }
+  function recordTimeout(record) {
+    if (record.recorded) return;
+    record.recorded = true;
+    try {
+      onTimeout(timeoutPayload(record, now));
+    } catch {
+      // A timeout must not crash the host. The call is still settled.
+    }
+  }
   return {
     noteChildSession(parentSessionID, childSessionID) {
-      if (parentSessionID && childSessionID && parentSessionID !== childSessionID) {
-        children.set(parentSessionID, childSessionID);
-      }
+      if (!parentSessionID || !childSessionID || parentSessionID === childSessionID) return;
+      const queue = pendingByParent.get(parentSessionID) || [];
+      const callID = queue.find((id) => {
+        const record = inflight.get(id);
+        return record && !record.child;
+      });
+      if (!callID) return;
+      inflight.get(callID).child = childSessionID;
     },
-    childSession(parentSessionID) {
-      return children.get(parentSessionID) || null;
+    childSession(callID) {
+      return inflight.get(callID)?.child || null;
     },
     before(input = {}, output = {}) {
       const tool = input.tool || input.name;
@@ -223,43 +270,62 @@ export function createSubagentWatchdog({
       const args = output.args || input.args || {};
       const role = subagentRoleFromTaskArgs(args);
       const budgetMs = role ? budgets[role] : null;
-      if (!role || !budgetMs) return null;
-      const callID =
-        input.callID || input.callId || `${role}:${now()}:${inflight.size}`;
+      const callID = input.callID || input.callId || null;
+      if (!role || !budgetMs || !callID) return null;
       const parentSessionID = input.sessionID || input.sessionId || null;
       const startedAt = now();
-      const timer = schedule(() => {
-        const record = inflight.get(callID);
-        if (!record || record.settled) return;
-        record.settled = true;
-        inflight.delete(callID);
-        const childSessionID =
-          args.sessionID ||
-          args.session_id ||
-          (parentSessionID ? children.get(parentSessionID) : null) ||
-          null;
-        onTimeout({
-          role,
-          callID,
-          budgetMs,
-          elapsedMs: Math.max(0, now() - startedAt),
-          parentSessionID,
-          childSessionID:
-            childSessionID && childSessionID !== parentSessionID ? childSessionID : null,
-          args,
-        });
+      const record = {
+        role,
+        callID,
+        budgetMs,
+        parentSessionID,
+        args,
+        startedAt,
+        child: args.sessionID || args.session_id || null,
+        timer: null,
+        timedOut: false,
+        recorded: false,
+        recordOnReturn: false,
+      };
+      record.timer = schedule(() => {
+        const current = inflight.get(callID);
+        if (!current || current.timedOut || current.recorded) return;
+        current.timedOut = true;
+        const child = current.child;
+        if (!child || child === current.parentSessionID) {
+          current.recordOnReturn = true;
+          return;
+        }
+        void (async () => {
+          let aborted = false;
+          try {
+            const result = await abortChild(child);
+            aborted = result?.aborted === true;
+          } catch {
+            aborted = false;
+          }
+          if (aborted) recordTimeout(current);
+          else if (inflight.has(callID)) current.recordOnReturn = true;
+          else if (!current.recorded) recordTimeout(current);
+        })();
       }, budgetMs);
-      inflight.set(callID, { role, timer, startedAt, settled: false });
+      inflight.set(callID, record);
+      if (parentSessionID) {
+        const queue = pendingByParent.get(parentSessionID) || [];
+        queue.push(callID);
+        pendingByParent.set(parentSessionID, queue);
+      }
       return { callID, role, budgetMs };
     },
     after(input = {}) {
       const callID = input.callID || input.callId;
       if (!callID || !inflight.has(callID)) return false;
       const record = inflight.get(callID);
-      record.settled = true;
       cancel(record.timer);
-      inflight.delete(callID);
-      return true;
+      const timedOut = record.timedOut === true;
+      if (timedOut && record.recordOnReturn && !record.recorded) recordTimeout(record);
+      forget(callID, record.parentSessionID);
+      return !timedOut;
     },
   };
 }

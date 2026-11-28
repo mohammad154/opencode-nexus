@@ -5,6 +5,7 @@ import { globsOverlap } from "./impact/boundaries.js";
 import { estimateAgentCalls } from "./agent-estimate.js";
 import { inferPlanningMode, normalizePlanningMode } from "./planning.js";
 import { requirementMappingErrors } from "./traceability.js";
+import { spawnSync } from "node:child_process";
 import { readPrivateBaseline } from "./private-baseline.js";
 
 const PLACEHOLDER_PLAN_COMMITS = new Set([
@@ -921,7 +922,18 @@ export function planContract(planningMode, unitCount = 1) {
  * advisory only after every actionable warning has an explicit disposition;
  * use `requireWarningDispositions: false` for diagnostic-only callers.
  */
+function commitExists(root, commit) {
+  if (!root || !commit || String(commit).startsWith("content-hash:")) return true;
+  const result = spawnSync("git", ["cat-file", "-t", commit], {
+    cwd: root,
+    encoding: "utf8",
+  });
+  return result.status === 0 && String(result.stdout || "").trim() === "commit";
+}
+
 function privateBaselineForPlan(options = {}) {
+  const runId = options.runId || options.run_id || null;
+  if (!runId) return null;
   const candidates = [];
   if (typeof options.worktree === "string" && options.worktree.trim()) {
     candidates.push(path.resolve(options.worktree));
@@ -930,8 +942,10 @@ function privateBaselineForPlan(options = {}) {
     candidates.push(path.resolve(path.dirname(options.planPath), "..", ".."));
   }
   for (const root of candidates) {
-    const marker = readPrivateBaseline(root);
-    if (marker?.commit) return marker;
+    const marker = readPrivateBaseline(root, runId);
+    if (!marker?.commit || marker.run_id !== runId) continue;
+    if (!commitExists(root, marker.commit)) continue;
+    return marker;
   }
   return null;
 }

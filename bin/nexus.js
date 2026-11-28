@@ -101,6 +101,7 @@ Subcommands:
   worktree          Manage task worktrees (create, list, remove)
   baseline          Capture verification baseline (--run-id <id>)
   verify            Run deterministic verification (--baseline, --compare, --resume)
+  cleanup           Remove a private baseline .git only when HEAD is still that one commit
 
 Transition handoffs:
   --implementer-handoff-file <path>  Complete implementer handoff (legacy: --handoff-file)

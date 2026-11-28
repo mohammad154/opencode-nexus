@@ -16,6 +16,27 @@ import {
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const skillsDir = path.resolve(__dirname, "../../skills");
+const defaultModelsFile = path.resolve(__dirname, "../../config/default-models.json");
+
+function readInstalledModels(worktree) {
+  const configDir =
+    process.env.OPENCODE_CONFIG_DIR || path.join(os.homedir(), ".config", "opencode");
+  const files = [
+    defaultModelsFile,
+    path.join(configDir, "nexus.models.json"),
+  ];
+  if (worktree) files.push(path.join(worktree, ".opencode", "nexus.models.json"));
+  const merged = {};
+  for (const file of files) {
+    try {
+      const data = JSON.parse(fs.readFileSync(file, "utf8"));
+      if (data && typeof data === "object" && !Array.isArray(data)) Object.assign(merged, data);
+    } catch {
+      // A missing override keeps the previous layer.
+    }
+  }
+  return merged;
+}
 
 const BOOTSTRAP_MARKER = "NEXUS_ROUTER_V5";
 const GATE_MARKER = "NEXUS_DELEGATION_GATE";
@@ -310,11 +331,19 @@ export const NexusPlugin = async ({ worktree, client } = {}) => {
   const homeDir = os.homedir();
   const sessionAgents = new Map();
   const watchdog = createSubagentWatchdog({
-    budgets: loadRoleBudgets({}),
+    budgets: loadRoleBudgets(readInstalledModels(worktree)),
+    abortChild: (sessionID) => abortSubagentSession(client, sessionID),
     onTimeout(event) {
-      if (worktree) recordSubagentTimeout(worktree, event);
-      if (event.childSessionID && event.childSessionID !== event.parentSessionID) {
-        void abortSubagentSession(client, event.childSessionID);
+      try {
+        const runState = worktree ? latestActiveRunState(worktree) : null;
+        if (!worktree || !runState?.run_id || !event.callID) return;
+        recordSubagentTimeout(worktree, {
+          ...event,
+          run_id: runState.run_id,
+          unit: runState.current_unit || "unit-1",
+        });
+      } catch {
+        // The watchdog also swallows callback errors. A timeout must not crash the host.
       }
     },
   });
@@ -362,10 +391,10 @@ export const NexusPlugin = async ({ worktree, client } = {}) => {
     },
 
     "tool.execute.after": async (input) => {
-      watchdog.after(input);
       const parent = input?.sessionID || input?.sessionId || null;
       const child = input?.metadata?.sessionID || input?.metadata?.sessionId || null;
       if (parent && child) watchdog.noteChildSession(parent, child);
+      watchdog.after(input);
     },
 
     "permission.ask": async (input, output) => {

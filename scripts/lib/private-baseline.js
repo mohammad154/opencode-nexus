@@ -1,23 +1,38 @@
 /**
  * Private git baseline for workspaces that are not already a repository.
  *
- * When `git rev-parse` shows this directory is not inside a work tree, Nexus
- * creates a repo, commits the current files with a repo-local identity, and
- * deletes that `.git` when the run finishes. An existing repository is never
- * rewritten and global git config is never touched. A content-hash snapshot
- * is used only when the git binary itself is missing.
+ * Nexus creates the repo itself. It never asks the orchestrator to run
+ * git init/add/commit, never writes global git config, and never commits
+ * into an existing repository. The marker lives under
+ * `.opencode/runs/<run_id>/`, which agents cannot edit. `.git` is removed
+ * only when this run created it and HEAD is still exactly that one baseline
+ * commit, with no other refs or worktrees. A content-hash snapshot is used
+ * only when the git binary itself is missing.
  */
 import { createHash } from "node:crypto";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { validateContainedPath } from "./filesystem-boundary.js";
 
 export const BASELINE_COMMIT_MESSAGE = "nexus-baseline";
-export const BASELINE_MARKER = path.join(".opencode", "private-baseline.json");
+export const DIRECT_EDIT_COMMIT_MESSAGE = "nexus-direct-edit";
 const LOCAL_NAME = "Nexus Baseline";
 const LOCAL_EMAIL = "nexus-baseline@localhost";
-const SKIP_DIRECTORIES = new Set([".git", "node_modules", ".opencode"]);
+const DEFAULT_MAX_FILE_BYTES = 5 * 1024 * 1024;
+const SKIP_DIRECTORIES = new Set([
+  ".git",
+  "node_modules",
+  ".opencode",
+  ".venv",
+  "venv",
+  "__pycache__",
+  "dist",
+  "build",
+  "coverage",
+  ".cache",
+]);
 
 function run(gitBin, args, cwd, env) {
   return spawnSync(gitBin, args, {
@@ -31,12 +46,19 @@ function gitMissing(result) {
   return result?.error?.code === "ENOENT";
 }
 
-export function readPrivateBaseline(worktree) {
-  if (!worktree) return null;
+export function baselineMarkerPath(worktree, runId) {
+  if (!worktree || !runId) return null;
+  return path.join(worktree, ".opencode", "runs", String(runId), "private-baseline.json");
+}
+
+export function readPrivateBaseline(worktree, runId) {
+  const file = baselineMarkerPath(worktree, runId);
+  if (!file) return null;
   try {
-    const file = path.join(worktree, BASELINE_MARKER);
     const data = JSON.parse(fs.readFileSync(file, "utf8"));
-    return data && typeof data === "object" ? data : null;
+    if (!data || typeof data !== "object" || Array.isArray(data)) return null;
+    if (data.run_id && data.run_id !== runId) return null;
+    return data;
   } catch {
     return null;
   }
@@ -49,14 +71,25 @@ function rollbackCreatedGit(root) {
     if (stat.isSymbolicLink() || !stat.isDirectory()) return;
     fs.rmSync(gitDir, { recursive: true, force: false });
   } catch {
-    // The caller still reports the baseline error. A leftover .git is not committed into.
+    // The caller still reports the baseline error.
   }
 }
 
-function writeMarker(worktree, marker) {
-  const file = path.join(worktree, BASELINE_MARKER);
+function writeMarker(worktree, runId, marker) {
+  const file = baselineMarkerPath(worktree, runId);
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, `${JSON.stringify(marker, null, 2)}\n`, "utf8");
+  return file;
+}
+
+function removeMarker(worktree, runId) {
+  const file = baselineMarkerPath(worktree, runId);
+  if (!file) return;
+  try {
+    fs.rmSync(file, { force: true });
+  } catch {
+    // The git directory was already removed. A leftover marker is not a repo.
+  }
 }
 
 function hashFile(file) {
@@ -96,44 +129,214 @@ function walkFiles(root, relative, entries) {
   }
 }
 
-export function writeContentHashBaseline(worktree) {
+function snapshotEntries(worktree) {
   const entries = [];
   walkFiles(worktree, "", entries);
   entries.sort((left, right) => left.path.localeCompare(right.path));
-  const digest = createHash("sha256")
-    .update(JSON.stringify(entries))
-    .digest("hex");
+  const digest = createHash("sha256").update(JSON.stringify(entries)).digest("hex");
+  return { entries, digest };
+}
+
+export function writeContentHashBaseline(worktree, options = {}) {
+  const runId = options.runId || null;
+  if (!runId) {
+    return {
+      ok: false,
+      created: false,
+      method: "content-hash",
+      message: "Content-hash baseline requires a run_id.",
+    };
+  }
+  const { entries, digest } = snapshotEntries(worktree);
+  const snapshotRelative = path.join(".opencode", "baselines", `${runId}-content-hash.json`);
   const snapshot = {
     method: "content-hash",
     algorithm: "sha256",
+    run_id: runId,
     digest,
     commit: `content-hash:${digest.slice(0, 12)}`,
     files: entries,
     created_at: new Date().toISOString(),
   };
-  const file = path.join(worktree, ".opencode", "baselines", "content-hash.json");
+  const file = path.join(worktree, snapshotRelative);
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, `${JSON.stringify(snapshot, null, 2)}\n`, "utf8");
   const marker = {
     created: false,
     existed_before: false,
     method: "content-hash",
+    run_id: runId,
     commit: snapshot.commit,
     digest,
-    snapshot: path.join(".opencode", "baselines", "content-hash.json"),
+    snapshot: snapshotRelative.replace(/\\/g, "/"),
     worktree: path.resolve(worktree),
   };
-  writeMarker(worktree, marker);
+  writeMarker(worktree, runId, marker);
   return {
     ok: true,
     created: false,
     existed_before: false,
     method: "content-hash",
+    run_id: runId,
     commit: snapshot.commit,
     digest,
     message:
-      "Git is not available. Recorded a content-hash baseline at .opencode/baselines/content-hash.json instead of a commit.",
+      "Git is not available. Recorded a content-hash baseline under .opencode/baselines instead of a commit.",
   };
+}
+
+/**
+ * Recompute the content-hash snapshot and report paths that differ from it.
+ */
+export function diffContentHashBaseline(worktree, marker) {
+  const { entries, digest } = snapshotEntries(worktree);
+  let baselineEntries = [];
+  if (marker?.snapshot) {
+    try {
+      const saved = JSON.parse(fs.readFileSync(path.join(worktree, marker.snapshot), "utf8"));
+      baselineEntries = Array.isArray(saved?.files) ? saved.files : [];
+    } catch {
+      baselineEntries = [];
+    }
+  }
+  const before = new Map(
+    baselineEntries.map((entry) => [entry.path, `${entry.type}:${entry.sha256 || entry.target || ""}`]),
+  );
+  const after = new Map(
+    entries.map((entry) => [entry.path, `${entry.type}:${entry.sha256 || entry.target || ""}`]),
+  );
+  const dirty = [];
+  for (const [relative, identity] of after) {
+    if (before.get(relative) !== identity) dirty.push(relative);
+  }
+  for (const relative of before.keys()) {
+    if (!after.has(relative)) dirty.push(relative);
+  }
+  dirty.sort();
+  const workspaceDigest = `sha256:${digest}`;
+  return {
+    available: true,
+    clean: dirty.length === 0,
+    dirty_paths: dirty,
+    workspace_digest: workspaceDigest,
+    content_digest: workspaceDigest,
+    checked_at: new Date().toISOString(),
+    source: "content-hash",
+  };
+}
+
+function emptyHooksPath(root) {
+  const hooks = path.join(root, ".git", "nexus-empty-hooks");
+  fs.mkdirSync(hooks, { recursive: true });
+  return hooks.replace(/\\/g, "/");
+}
+
+function commitCommand(hooksPath, { message, empty = false } = {}) {
+  return [
+    "-c",
+    `core.hooksPath=${hooksPath}`,
+    "-c",
+    "commit.gpgsign=false",
+    "-c",
+    "core.autocrlf=false",
+    "-c",
+    `user.name=${LOCAL_NAME}`,
+    "-c",
+    `user.email=${LOCAL_EMAIL}`,
+    "commit",
+    "--no-verify",
+    "-q",
+    ...(empty ? ["--allow-empty"] : []),
+    "-m",
+    message,
+  ];
+}
+
+function ensureExclude(root, extraPaths = []) {
+  const excludeFile = path.join(root, ".git", "info", "exclude");
+  fs.mkdirSync(path.dirname(excludeFile), { recursive: true });
+  const lines = [
+    ".opencode/",
+    "node_modules/",
+    ".venv/",
+    "venv/",
+    "__pycache__/",
+    "dist/",
+    "build/",
+    "coverage/",
+    ".cache/",
+    "*.bin",
+    ...extraPaths,
+  ];
+  const existing = fs.existsSync(excludeFile) ? fs.readFileSync(excludeFile, "utf8") : "";
+  const have = new Set(existing.split(/\r?\n/).map((line) => line.trim()).filter(Boolean));
+  const missing = lines.filter((line) => !have.has(line));
+  if (missing.length === 0 && existing) return;
+  const prefix = existing && !existing.endsWith("\n") ? `${existing}\n` : existing;
+  fs.writeFileSync(excludeFile, `${prefix}${missing.join("\n")}\n`, "utf8");
+}
+
+function collectLargeFiles(root, maxBytes) {
+  const skipped = [];
+  function walk(relative) {
+    const absolute = path.join(root, relative);
+    let children;
+    try {
+      children = fs.readdirSync(absolute, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const child of children) {
+      if (SKIP_DIRECTORIES.has(child.name)) continue;
+      const childRelative = relative ? `${relative}/${child.name}` : child.name;
+      const childAbsolute = path.join(absolute, child.name);
+      let stat;
+      try {
+        stat = fs.lstatSync(childAbsolute);
+      } catch {
+        continue;
+      }
+      if (stat.isSymbolicLink()) continue;
+      if (stat.isDirectory()) {
+        walk(childRelative);
+        continue;
+      }
+      if (stat.isFile() && stat.size > maxBytes) skipped.push(childRelative.replace(/\\/g, "/"));
+    }
+  }
+  walk("");
+  return skipped;
+}
+
+function sameWorktree(left, right) {
+  if (!left || !right) return false;
+  const a = path.resolve(left);
+  const b = path.resolve(right);
+  if (process.platform === "win32") return a.toLowerCase() === b.toLowerCase();
+  return a === b;
+}
+
+function gitDirIdentity(root) {
+  const stat = fs.lstatSync(path.join(root, ".git"));
+  return {
+    ino: stat.ino,
+    dev: stat.dev,
+    ctimeMs: stat.ctimeMs,
+  };
+}
+
+function gitDirMatches(root, recorded) {
+  if (!recorded || typeof recorded !== "object") return false;
+  let stat;
+  try {
+    stat = fs.lstatSync(path.join(root, ".git"));
+  } catch {
+    return false;
+  }
+  if (stat.ino && recorded.ino) {
+    return stat.ino === recorded.ino && stat.dev === recorded.dev;
+  }
+  return stat.ctimeMs === recorded.ctimeMs;
 }
 
 /**
@@ -142,10 +345,12 @@ export function writeContentHashBaseline(worktree) {
  */
 export function ensurePrivateBaseline(worktree, options = {}) {
   const root = path.resolve(worktree);
+  const runId = options.runId || null;
   const gitBin = options.gitBin || "git";
   const env = options.env || process.env;
+  const maxFileBytes = Number(options.maxFileBytes) > 0 ? Number(options.maxFileBytes) : DEFAULT_MAX_FILE_BYTES;
   const version = run(gitBin, ["--version"], root, env);
-  if (gitMissing(version)) return writeContentHashBaseline(root);
+  if (gitMissing(version)) return writeContentHashBaseline(root, { runId });
 
   const inside = run(gitBin, ["rev-parse", "--is-inside-work-tree"], root, env);
   const gitDir = path.join(root, ".git");
@@ -163,21 +368,36 @@ export function ensurePrivateBaseline(worktree, options = {}) {
       created: false,
       existed_before: true,
       method: "existing-git",
+      run_id: runId,
       head: head.status === 0 ? String(head.stdout || "").trim() || null : null,
       message: null,
     };
   }
-
-  const init = run(gitBin, ["init"], root, env);
-  if (init.status !== 0) {
-    rollbackCreatedGit(root);
+  if (!runId) {
     return {
       ok: false,
       created: false,
       method: "git",
-      message: `Private git baseline failed: git init exited ${init.status}. ${String(init.stderr || "").trim()}`,
+      message: "Private git baseline requires a run_id.",
     };
   }
+
+  const template = fs.mkdtempSync(path.join(os.tmpdir(), "nexus-git-template-"));
+  try {
+    const init = run(gitBin, ["init", `--template=${template}`], root, env);
+    if (init.status !== 0) {
+      rollbackCreatedGit(root);
+      return {
+        ok: false,
+        created: false,
+        method: "git",
+        message: `Private git baseline failed: git init exited ${init.status}. ${String(init.stderr || "").trim()}`,
+      };
+    }
+  } finally {
+    fs.rmSync(template, { recursive: true, force: true });
+  }
+
   const localConfig = [
     ["config", "--local", "user.name", LOCAL_NAME],
     ["config", "--local", "user.email", LOCAL_EMAIL],
@@ -196,7 +416,21 @@ export function ensurePrivateBaseline(worktree, options = {}) {
       };
     }
   }
-  const added = run(gitBin, ["add", "-A"], root, env);
+
+  const skipped = collectLargeFiles(root, maxFileBytes);
+  try {
+    ensureExclude(root, skipped);
+  } catch (error) {
+    rollbackCreatedGit(root);
+    return {
+      ok: false,
+      created: true,
+      existed_before: false,
+      method: "git",
+      message: `Private git baseline failed while writing .git/info/exclude: ${error.message}`,
+    };
+  }
+  const added = run(gitBin, ["-c", "core.autocrlf=false", "add", "-A"], root, env);
   if (added.status !== 0) {
     rollbackCreatedGit(root);
     return {
@@ -207,11 +441,12 @@ export function ensurePrivateBaseline(worktree, options = {}) {
       message: `Private git baseline failed: git add -A exited ${added.status}.`,
     };
   }
-  let committed = run(gitBin, ["commit", "-m", BASELINE_COMMIT_MESSAGE], root, env);
+  const hooksPath = emptyHooksPath(root);
+  let committed = run(gitBin, commitCommand(hooksPath, { message: BASELINE_COMMIT_MESSAGE }), root, env);
   if (committed.status !== 0) {
     committed = run(
       gitBin,
-      ["commit", "--allow-empty", "-m", BASELINE_COMMIT_MESSAGE],
+      commitCommand(hooksPath, { message: BASELINE_COMMIT_MESSAGE, empty: true }),
       root,
       env,
     );
@@ -238,46 +473,80 @@ export function ensurePrivateBaseline(worktree, options = {}) {
       message: "Private git baseline failed: git rev-parse HEAD returned no commit.",
     };
   }
+  let identity;
+  try {
+    identity = gitDirIdentity(root);
+  } catch (error) {
+    rollbackCreatedGit(root);
+    return {
+      ok: false,
+      created: true,
+      existed_before: false,
+      method: "git",
+      message: `Private git baseline failed while recording .git identity: ${error.message}`,
+    };
+  }
   const marker = {
     created: true,
     existed_before: false,
     method: "git",
+    run_id: runId,
     commit,
     message: BASELINE_COMMIT_MESSAGE,
     worktree: root,
+    git_dir: identity,
+    skipped,
   };
-  writeMarker(root, marker);
+  writeMarker(root, runId, marker);
+  const skippedNote = skipped.length > 0 ? ` Skipped ${skipped.length} file(s) over ${maxFileBytes} bytes.` : "";
   return {
     ok: true,
     created: true,
     existed_before: false,
     method: "git",
+    run_id: runId,
     commit,
-    message: `Private git baseline created at ${commit}. Nexus will remove this .git when the run finishes.`,
+    skipped,
+    message: `Private git baseline created at ${commit}. Nexus removes this .git only if it is still the sole commit when the run finishes.${skippedNote}`,
   };
 }
 
-function baselineCommitIsOurs(root, commit, gitBin, env) {
-  const type = run(gitBin, ["cat-file", "-t", commit], root, env);
-  if (type.status !== 0 || String(type.stdout || "").trim() !== "commit") return false;
-  const roots = run(gitBin, ["rev-list", "--max-parents=0", "HEAD"], root, env);
-  if (roots.status !== 0) return false;
-  return String(roots.stdout || "")
+function removalBlocker(root, marker, gitBin, env) {
+  const head = run(gitBin, ["rev-parse", "HEAD"], root, env);
+  const commit = head.status === 0 ? String(head.stdout || "").trim() : "";
+  if (!commit || commit !== marker.commit) return "head-moved";
+  const count = run(gitBin, ["rev-list", "--count", "HEAD"], root, env);
+  if (count.status !== 0 || Number(String(count.stdout || "").trim()) !== 1) return "extra-commits";
+  const refs = run(gitBin, ["show-ref"], root, env);
+  const names = String(refs.stdout || "")
     .split(/\r?\n/)
-    .map((line) => line.trim())
-    .includes(commit);
+    .map((line) => line.trim().split(/\s+/).pop())
+    .filter(Boolean);
+  const heads = names.filter((name) => name.startsWith("refs/heads/"));
+  const other = names.filter((name) => !name.startsWith("refs/heads/"));
+  if (heads.length > 1 || other.length > 0) return "extra-refs";
+  const worktrees = run(gitBin, ["worktree", "list", "--porcelain"], root, env);
+  const listed = String(worktrees.stdout || "")
+    .split(/\r?\n/)
+    .filter((line) => line.startsWith("worktree "));
+  if (listed.length > 1) return "extra-worktrees";
+  return null;
 }
 
 /**
- * Remove only a `.git` directory this process created for the private baseline.
+ * Remove only a `.git` directory this run created, and only while HEAD is
+ * still exactly the baseline commit.
  */
 export function cleanupPrivateBaseline(worktree, options = {}) {
   const root = path.resolve(worktree);
-  const marker = readPrivateBaseline(root);
-  if (!marker || marker.created !== true || marker.existed_before !== false) {
+  const runId = options.runId || null;
+  if (!runId) return { ok: true, removed: false, reason: "missing-run-id" };
+  const marker = readPrivateBaseline(root, runId);
+  if (!marker || marker.created !== true || marker.existed_before !== false || marker.run_id !== runId) {
     return { ok: true, removed: false, reason: "not-created-here" };
   }
   if (marker.method !== "git") {
+    removeMarker(root, runId);
     return { ok: true, removed: false, reason: "not-a-git-baseline" };
   }
   const env = options.env || process.env;
@@ -297,19 +566,94 @@ export function cleanupPrivateBaseline(worktree, options = {}) {
   try {
     stat = fs.lstatSync(gitDir);
   } catch (error) {
-    if (error?.code === "ENOENT") return { ok: true, removed: false, reason: "already-absent" };
+    if (error?.code === "ENOENT") {
+      removeMarker(root, runId);
+      return { ok: true, removed: false, reason: "already-absent" };
+    }
     return { ok: false, removed: false, reason: error.message };
   }
   if (stat.isSymbolicLink() || !stat.isDirectory()) {
     return { ok: false, removed: false, reason: "refusing-non-directory-git" };
   }
-  if (marker.worktree && path.resolve(marker.worktree) !== root) {
+  if (marker.worktree && !sameWorktree(marker.worktree, root)) {
     return { ok: false, removed: false, reason: "worktree-mismatch" };
   }
-  const gitBin = options.gitBin || "git";
-  if (marker.commit && !baselineCommitIsOurs(root, marker.commit, gitBin, env)) {
-    return { ok: false, removed: false, reason: "baseline-commit-missing" };
+  if (!gitDirMatches(root, marker.git_dir)) {
+    return { ok: false, removed: false, reason: "git-dir-identity-mismatch" };
   }
-  fs.rmSync(gitDir, { recursive: true, force: false });
+  const gitBin = options.gitBin || "git";
+  const blocker = removalBlocker(root, marker, gitBin, env);
+  if (blocker) return { ok: true, removed: false, reason: blocker };
+  try {
+    fs.rmSync(gitDir, { recursive: true, force: false });
+  } catch (error) {
+    return {
+      ok: false,
+      removed: false,
+      reason: `cleanup-failed: ${error?.message || error}`,
+    };
+  }
+  removeMarker(root, runId);
   return { ok: true, removed: true, reason: "removed-private-baseline" };
+}
+
+/**
+ * Commit a direct-mode orchestrator edit so verification has a real HEAD.
+ * The CLI does this. The orchestrator is not allowed to run git commit.
+ */
+export function sealDirectSelfEdit(worktree, options = {}) {
+  const root = path.resolve(worktree);
+  const gitBin = options.gitBin || "git";
+  const env = options.env || process.env;
+  const allowed = (Array.isArray(options.allowedFiles) ? options.allowedFiles : []).filter(
+    (file) => typeof file === "string" && file.trim() && !file.replace(/\\/g, "/").split("/").includes(".."),
+  );
+  const head = run(gitBin, ["rev-parse", "HEAD"], root, env);
+  if (head.status !== 0) {
+    return { ok: false, message: "direct seal requires a git HEAD" };
+  }
+  try {
+    ensureExclude(root);
+  } catch (error) {
+    return { ok: false, message: `direct seal could not update .git/info/exclude: ${error.message}` };
+  }
+  const status = run(gitBin, ["status", "--porcelain"], root, env);
+  if (status.status !== 0) {
+    return { ok: false, message: "direct seal cannot read git status" };
+  }
+  if (!String(status.stdout || "").trim()) {
+    return { ok: true, commit: String(head.stdout || "").trim(), committed: false };
+  }
+  if (allowed.length === 0) {
+    return { ok: false, message: "direct seal has no allowed files to commit" };
+  }
+  const added = run(gitBin, ["-c", "core.autocrlf=false", "add", "--", ...allowed], root, env);
+  if (added.status !== 0) {
+    return {
+      ok: false,
+      message: `direct seal failed: git add exited ${added.status}. ${String(added.stderr || "").trim()}`,
+    };
+  }
+  let hooksPath;
+  try {
+    hooksPath = emptyHooksPath(root);
+  } catch (error) {
+    return { ok: false, message: `direct seal could not disable hooks: ${error.message}` };
+  }
+  const committed = run(
+    gitBin,
+    commitCommand(hooksPath, { message: DIRECT_EDIT_COMMIT_MESSAGE }),
+    root,
+    env,
+  );
+  if (committed.status !== 0) {
+    return {
+      ok: false,
+      message: `direct seal failed: git commit exited ${committed.status}. ${String(committed.stderr || "").trim()}`,
+    };
+  }
+  const after = run(gitBin, ["rev-parse", "HEAD"], root, env);
+  const commit = after.status === 0 ? String(after.stdout || "").trim() : "";
+  if (!commit) return { ok: false, message: "direct seal failed: HEAD is unavailable after commit" };
+  return { ok: true, commit, committed: true };
 }

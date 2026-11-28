@@ -11,11 +11,11 @@ import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { DEFAULT_IGNORE_PATTERNS, isIgnoredPath } from "./path-filter.js";
 import { validateContainedPath } from "./filesystem-boundary.js";
-import { readPrivateBaseline } from "./private-baseline.js";
+import { diffContentHashBaseline, readPrivateBaseline } from "./private-baseline.js";
 
-function runGit(worktree, args) {
+function runGit(worktree, args, gitBin = "git") {
   try {
-    const result = spawnSync("git", args, {
+    const result = spawnSync(gitBin, args, {
       cwd: worktree,
       encoding: "utf8",
       maxBuffer: 20 * 1024 * 1024,
@@ -240,7 +240,7 @@ function entryForFile(worktree, relative) {
  *
  * @returns {{available:boolean, clean?:boolean, dirty_paths?:string[], workspace_digest?:string, content_digest?:string, checked_at?:string, error?:string}}
  */
-export function inspectWorkspace(worktree) {
+export function inspectWorkspace(worktree, options = {}) {
   const root =
     typeof worktree === "string" && worktree.trim()
       ? path.resolve(worktree)
@@ -272,25 +272,23 @@ export function inspectWorkspace(worktree) {
     };
   }
 
-  const status = runGit(root, [
-    "status",
-    "--porcelain=v1",
-    "--untracked-files=all",
-    "-z",
-  ]);
+  const status = runGit(
+    root,
+    ["status", "--porcelain=v1", "--untracked-files=all", "-z"],
+    options.gitBin || "git",
+  );
   if (!status.ok) {
     if (status.error?.code === "ENOENT") {
-      const marker = readPrivateBaseline(root);
+      const marker = options.runId ? readPrivateBaseline(root, options.runId) : null;
       if (marker?.method === "content-hash" && marker.digest) {
-        return {
-          available: true,
-          clean: true,
-          dirty_paths: [],
-          workspace_digest: marker.digest,
-          content_digest: marker.digest,
-          checked_at: new Date().toISOString(),
-          source: "content-hash",
-        };
+        try {
+          return diffContentHashBaseline(root, marker);
+        } catch (error) {
+          return {
+            available: false,
+            error: `content-hash baseline cannot be compared: ${error.message}`,
+          };
+        }
       }
     }
     return {

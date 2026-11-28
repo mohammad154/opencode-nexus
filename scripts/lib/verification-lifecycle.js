@@ -23,6 +23,7 @@ import { runStatePath, writeRunState } from "./migrate-artifacts.js";
 import { requiresTdd } from "./policy.js";
 import { trustedPolicyForState } from "./policy-snapshot.js";
 import { withFileLock } from "./lock.js";
+import { isDirectFastPath, noteDirectVerification } from "./fast-path.js";
 
 function nowIso() {
   return new Date().toISOString();
@@ -614,6 +615,9 @@ function runVerificationLifecycleUnlocked({
   };
 
   const fail = (code, error, status = "FAILED") => {
+    if (status === "FAILED" || status === "TIMED_OUT") {
+      currentState = noteDirectVerification(currentState, { failed: true });
+    }
     update({ status, failureReason: code });
     onProgress?.({ type: "run_complete", ok: false, status, code, error });
     return { ok: false, code, error, state: currentState, artifact };
@@ -637,6 +641,10 @@ function runVerificationLifecycleUnlocked({
     }
     if (!measured.ok) return fail("POST_IMPACT_FAILED", measured.error);
     postImpact = sealProviderArtifact(measured.report, head);
+    const measuredRisk = riskFromImpact(postImpact, currentState);
+    if (measuredRisk && isDirectFastPath(currentState)) {
+      currentState = noteDirectVerification(currentState, { risk: measuredRisk });
+    }
     replaceStep(artifact, {
       id: "post-impact",
       kind: "impact",
@@ -703,7 +711,7 @@ function runVerificationLifecycleUnlocked({
   // stand in for a provider step when the workspace is unchanged across TDD, so
   // the recorded result provably belongs to this run's identity.
   const workspaceBeforeTdd =
-    needsTdd && !priorTdd ? inspectWorkspace(root) : null;
+    needsTdd && !priorTdd ? inspectWorkspace(root, { runId: currentState.run_id }) : null;
   if (needsTdd) {
     if (priorTdd) {
       tddEvidence = artifact.tdd_evidence;
@@ -766,7 +774,7 @@ function runVerificationLifecycleUnlocked({
   // here can then be reused by a later phase, and results sealed by an earlier
   // phase can be matched against these steps. The post-run measurement below
   // remains the authoritative sealed evidence for the completion gate.
-  const runWorkspace = inspectWorkspace(root);
+  const runWorkspace = inspectWorkspace(root, { runId: currentState.run_id });
   const identityContext =
     runWorkspace.available === true && runWorkspace.workspace_digest
       ? verificationIdentityContext({
@@ -851,7 +859,7 @@ function runVerificationLifecycleUnlocked({
   // Measure the source worktree immediately before sealing verification
   // evidence. The completion gate re-measures this identity later, so the
   // sealed artifact and its durable summary must carry the exact same result.
-  const workspace = inspectWorkspace(root);
+  const workspace = inspectWorkspace(root, { runId: currentState.run_id });
   const workspaceEvidence = {
     workspace_clean: workspace.available === true && workspace.clean === true,
     dirty_paths: Array.isArray(workspace.dirty_paths)

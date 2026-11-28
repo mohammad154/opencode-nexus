@@ -10,9 +10,9 @@ Nexus is a **fixed** three-agent execution workflow for OpenCode. The orchestrat
 
 ## Three invariants
 
-1. Every standard request starts with brainstorming and a plan. Direct mode, chosen by `nexus triage` and `nexus run init`, keeps a five-line session plan instead of `PLAN.md` when the task is compact-eligible, unclassified, git-less, or has no test suite.
+1. Every standard request starts with brainstorming and a plan. Direct mode, chosen by `nexus triage` and `nexus run init`, keeps a five-line session plan instead of `PLAN.md` when the task is compact-eligible, git-less, or has no test suite. An unclassified request on a repository with history and tests stays standard, and a direct run escalates when size, risk, or a safety signal appears.
 2. Every standard implementer call requires fresh impact analysis. Direct mode edits in the current directory with no feature branch.
-3. Every standard implementation must be approved by an independent reviewer. Direct mode dispatches the reviewer only after the check fails twice or impact risk is HIGH/CRITICAL.
+3. Every standard implementation must be approved by an independent reviewer. Direct mode dispatches the reviewer only after the check fails twice or impact risk is HIGH/CRITICAL, and it still runs final verification before COMPLETED.
 
 `NEXUS_FAST_PATH=0` disables direct mode. Safety signals, HIGH/UNKNOWN risk, and a change above 5 files or 150 lines stay on the standard pipeline. An explicit `standard` label with no size or risk evidence does not.
 

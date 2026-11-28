@@ -1303,38 +1303,39 @@ const ADVISOR_HARD_REASON = new Set([
 ]);
 
 function subagentTimeout(state, ctx, role) {
-  return (
-    ctx?.subagent_timeouts?.[role] ||
-    state?.subagent_timeouts?.[role] ||
-    readSubagentTimeouts(ctx?.worktree || state?.worktree)[role] ||
-    null
-  );
+  const worktree = ctx?.worktree || state?.worktree;
+  const runId = state?.run_id;
+  if (!worktree || !runId) return null;
+  const record = readSubagentTimeouts(worktree, runId, state?.current_unit || null)[role];
+  if (!record || record.run_id !== runId || record.status !== "TIMED_OUT") return null;
+  return record;
 }
 
-function planAdvisorTimedOut(state, ctx, advisor) {
-  return (
-    advisor?.status === "TIMED_OUT" ||
-    advisor?.verdict === "TIMED_OUT" ||
-    subagentTimeout(state, ctx, "plan-advisor")?.status === "TIMED_OUT"
-  );
+function planAdvisorTimedOut(state, ctx) {
+  return subagentTimeout(state, ctx, "plan-advisor")?.status === "TIMED_OUT";
 }
 
-function acceptSealedVerification(state, ctx) {
-  if (subagentTimeout(state, ctx, "reviewer")?.status !== "TIMED_OUT") return false;
-  const review = ctx.review_handoff || ctx.unified_handoff || state?.last_review_handoff;
-  if (review && review.verdict && review.verdict !== "TIMED_OUT" && review.status !== "TIMED_OUT") {
-    return false;
-  }
+function taskVerificationPassed(state) {
   const status = state?.verification?.status || state?.verification_status;
-  return status === "PASSED";
+  return state?.verification?.phase === "FINAL" ? false : status === "PASSED";
 }
 
-function directCompleteFromVerifying(state, from, ctx) {
-  return (
-    from === "VERIFYING" &&
-    isDirectFastPath(state) &&
-    !directReviewRequired(state, ctx)
-  );
+function maySkipTaskReview(state, from, ctx) {
+  if (from === "VERIFYING" && isDirectFastPath(state) && !directReviewRequired(state, ctx)) {
+    return true;
+  }
+  if (
+    (from === "VERIFYING" || from === "REVIEWING") &&
+    subagentTimeout(state, ctx, "reviewer") &&
+    taskVerificationPassed(state)
+  ) {
+    const review = ctx.review_handoff || ctx.unified_handoff || state?.last_review_handoff;
+    if (review && review.verdict && review.verdict !== "TIMED_OUT" && review.status !== "TIMED_OUT") {
+      return false;
+    }
+    return true;
+  }
+  return false;
 }
 
 /**
@@ -1418,14 +1419,8 @@ export function canTransition(state, to, ctx = {}) {
   if (from === "BRAINSTORMING" && isDirectFastPath(state)) {
     allowed.add("IMPLEMENTING");
   }
-  if (directCompleteFromVerifying(state, from, ctx)) {
-    allowed.add("COMPLETED");
-  }
-  if (
-    (from === "VERIFYING" || from === "REVIEWING" || from === "FINAL_REVIEWING") &&
-    acceptSealedVerification(state, ctx)
-  ) {
-    allowed.add("COMPLETED");
+  if (maySkipTaskReview(state, from, ctx)) {
+    allowed.add("FINAL_VERIFYING");
   }
   allowed.add("BLOCKED");
   allowed.add("FAILED");
@@ -1471,7 +1466,7 @@ export function canTransition(state, to, ctx = {}) {
         );
       }
     }
-    const advisorTimedOut = planAdvisorTimedOut(state, ctx, advisor);
+    const advisorTimedOut = planAdvisorTimedOut(state, ctx);
     const parallelAdvisor =
       state.fast_path?.advisor_parallel === true &&
       !(decision.reason_codes || []).some((code) => ADVISOR_HARD_REASON.has(code));
@@ -1703,7 +1698,7 @@ export function canTransition(state, to, ctx = {}) {
         parallelDecision.required &&
         !parallelHard &&
         !parallelAdvisor &&
-        !planAdvisorTimedOut(state, ctx, parallelAdvisor)
+        !planAdvisorTimedOut(state, ctx)
       ) {
         errors.push(
           "IMPLEMENTING requires the parallel plan-advisor handoff or a TIMED_OUT record before coding starts",
@@ -1830,7 +1825,9 @@ export function canTransition(state, to, ctx = {}) {
     const raw = ctx.implementer_handoff || ctx.handoff;
     const directSelfEdit = isDirectFastPath(state) && !raw;
     if (!raw && !directSelfEdit) errors.push("VERIFYING requires implementer handoff");
-    else if (raw) {
+    else if (directSelfEdit && !ctx.direct_seal?.commit) {
+      errors.push("direct VERIFYING requires the CLI-measured direct_seal.commit");
+    } else if (raw) {
       const {
         ok,
         errors: he,
@@ -1900,6 +1897,10 @@ export function canTransition(state, to, ctx = {}) {
   }
 
   if (to === "FINAL_VERIFYING") {
+    const skipReview = maySkipTaskReview(state, from, ctx);
+    if (skipReview) {
+      assertCompletedVerification(state, ctx, errors, { phase: "TASK" });
+    } else {
     const reuse = from === "REVIEWING" && finalReviewReuseRequested(ctx);
     if (!reuse && from !== "FINAL_REVIEWING" && from !== "BLOCKED") {
       errors.push("FINAL_VERIFYING must follow FINAL_REVIEWING");
@@ -1941,27 +1942,18 @@ export function canTransition(state, to, ctx = {}) {
         `FINAL_VERIFYING blocked by unresolved findings: ${high.map((f) => f.id).join(", ")}`,
       );
     }
+    }
   }
 
   if (to === "COMPLETED") {
-    const shortcut =
-      directCompleteFromVerifying(state, from, ctx) ||
-      acceptSealedVerification(state, ctx);
     if (ctx.skip_final_verification === true) {
       errors.push("skip_final_verification is not allowed");
     }
-    if (!shortcut) {
-      if (from !== "FINAL_VERIFYING" && from !== "BLOCKED") {
-        errors.push("COMPLETED must follow FINAL_VERIFYING");
-      }
-      if (from === "FINAL_VERIFYING") {
-        assertCompletedVerification(state, ctx, errors, { phase: "FINAL" });
-      }
-    } else {
-      const status = state.verification?.status || state.verification_status;
-      if (status !== "PASSED") {
-        errors.push("COMPLETED requires PASSED verification");
-      }
+    if (from !== "FINAL_VERIFYING" && from !== "BLOCKED") {
+      errors.push("COMPLETED must follow FINAL_VERIFYING");
+    }
+    if (from === "FINAL_VERIFYING") {
+      assertCompletedVerification(state, ctx, errors, { phase: "FINAL" });
     }
     // The convergence gate: the plan's intent must be demonstrably covered.
     errors.push(...convergenceErrors(state, { label: "COMPLETED" }));
@@ -2161,6 +2153,12 @@ function agentCallsForTransition(from, to, state, ctx) {
     return count > 0
       ? { count, agent: "plan-advisor" }
       : { count: 0, agent: null };
+  }
+  if (
+    to === "FINAL_VERIFYING" &&
+    maySkipTaskReview(state, from, ctx)
+  ) {
+    return { count: 0, agent: null };
   }
   if (to === "VERIFYING" && from === "IMPLEMENTING") {
     if (
@@ -2653,6 +2651,8 @@ export function transition(state, to, evidence = {}, providers = null) {
       const { data } = normalizeAndValidateHandoff("implementer", raw);
       next.last_implementer_handoff = data;
       if (data.commit) next.implementer_commit = data.commit;
+    } else if (ctx.direct_seal?.commit) {
+      next.implementer_commit = ctx.direct_seal.commit;
     }
     // Never carry evidence forward from a previous implementation attempt.
     // The new lifecycle only accepts artifacts written by `nexus verify` at

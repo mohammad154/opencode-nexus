@@ -1,3 +1,6 @@
+import fs from "node:fs";
+import { fileURLToPath } from "node:url";
+
 /**
  * Structured review findings + fix-loop policy + approval admissibility.
  *
@@ -165,8 +168,20 @@ export const DEFAULT_MAX_REVIEW_ROUNDS = 1;
 export const DEFAULT_MAX_REVIEW_ROUNDS_HIGH = 2;
 
 function finiteNumber(value) {
+  if (value == null) return null;
+  if (typeof value === "string" && value.trim() === "") return null;
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
+}
+
+function workflowConfig(workflow) {
+  if (workflow && typeof workflow === "object") return workflow;
+  try {
+    const file = fileURLToPath(new URL("../../config/default-workflow.json", import.meta.url));
+    return JSON.parse(fs.readFileSync(file, "utf8"));
+  } catch {
+    return {};
+  }
 }
 
 /**
@@ -175,6 +190,7 @@ function finiteNumber(value) {
  * NEXUS_MAX_REVIEW_ROUNDS and NEXUS_MAX_REVIEW_ROUNDS_HIGH override the defaults.
  */
 export function resolveMaxReviewRounds(state = {}, workflow = null, env = process.env) {
+  const configured = workflowConfig(workflow);
   const risk = String(
     state?.impact?.risk ||
       state?.impact?.report?.risk ||
@@ -185,12 +201,12 @@ export function resolveMaxReviewRounds(state = {}, workflow = null, env = proces
   const high = risk === "HIGH" || risk === "CRITICAL";
   let base =
     finiteNumber(state?.max_review_rounds) ??
-    finiteNumber(workflow?.maxReviewRounds) ??
+    finiteNumber(configured?.maxReviewRounds) ??
     finiteNumber(env?.NEXUS_MAX_REVIEW_ROUNDS) ??
     DEFAULT_MAX_REVIEW_ROUNDS;
   let highCap =
     finiteNumber(state?.max_review_rounds_high) ??
-    finiteNumber(workflow?.maxReviewRoundsHigh) ??
+    finiteNumber(configured?.maxReviewRoundsHigh) ??
     finiteNumber(env?.NEXUS_MAX_REVIEW_ROUNDS_HIGH) ??
     DEFAULT_MAX_REVIEW_ROUNDS_HIGH;
   base = Math.max(0, Math.floor(base));

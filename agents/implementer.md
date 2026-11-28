@@ -34,7 +34,8 @@ permission:
     "**/.opencode/nexus.json": deny
     ".opencode/handoffs/**": allow
     "**/.opencode/handoffs/**": allow
-    "**/*..*": deny
+    "**/../**": deny
+    "../**": deny
   bash:
     "*": allow
     "git restore*": deny

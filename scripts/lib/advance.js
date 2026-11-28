@@ -412,6 +412,10 @@ export function planAdvanceStep(next, facts) {
     case "transition_to_completed":
       return execute("authorize_completed", { to: "COMPLETED" });
 
+    case "transition_to_final_verifying":
+    case "advance_to_final_verifying":
+      return execute("authorize_final_verifying", { to: "FINAL_VERIFYING" });
+
     // ---- explicitly not automated: documented repairs stay deliberate
     case "dispatch_plan_advisor":
       return stop("AGENT", "PLAN_ADVISOR_DISPATCH_REQUIRED", next.instruction, {

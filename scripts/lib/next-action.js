@@ -491,17 +491,21 @@ function timeoutRecord(timeouts, role) {
 function timeoutAction(runId, state, role, record, runState) {
   const degraded = degradeSubagentTimeout(role, record, runState);
   if (!degraded || degraded.action === "skip_advisor") return null;
-  if (degraded.action === "accept_sealed_verification") {
+  if (degraded.action === "advance_to_final_verifying") {
     return {
       ok: true,
       run_id: runId,
       state,
-      action: "transition_to_completed",
+      action: "advance_to_final_verifying",
       agent: null,
       skill: "nexus-orchestrating",
-      command: "nexus run transition --to COMPLETED",
+      command: "nexus run transition --to FINAL_VERIFYING",
       instruction: degraded.instruction,
-      steps: ["nexus run transition --to COMPLETED"],
+      steps: [
+        "nexus run transition --to FINAL_VERIFYING",
+        "nexus verify",
+        "After final verification PASSED: nexus run transition --to COMPLETED",
+      ],
     };
   }
   if (degraded.action === "redispatch_once") {
@@ -538,7 +542,9 @@ function resolveNextActionInternal(runState, opts = {}) {
   const state = runState?.state || null;
   const runId = runState?.run_id || null;
   const hasPlan = planExists(worktree);
-  const timeouts = opts.timeouts || readSubagentTimeouts(worktree);
+  const timeouts =
+    opts.timeouts ||
+    readSubagentTimeouts(worktree, runId, runState?.current_unit || null);
 
   if (!state) {
     return {
@@ -757,7 +763,7 @@ function resolveNextActionInternal(runState, opts = {}) {
           instruction:
             "Pre-impact is ready and plan-advisor was started in parallel. Do not dispatch the implementer until the advisor handoff arrives or the advisor is TIMED_OUT.",
           steps: [
-            "Wait for the plan-advisor handoff, or for .opencode/subagent-timeouts.json to record TIMED_OUT",
+            "Wait for the plan-advisor handoff, or for the run-scoped timeout record to say TIMED_OUT",
             "Then dispatch the implementer",
           ],
         };
@@ -852,13 +858,17 @@ function resolveNextActionInternal(runState, opts = {}) {
                 ok: true,
                 run_id: runId,
                 state,
-                action: "transition_to_completed",
+                action: "transition_to_final_verifying",
                 agent: null,
                 skill: "nexus-orchestrating",
-                command: "nexus run transition --to COMPLETED",
+                command: "nexus run transition --to FINAL_VERIFYING",
                 instruction:
-                  "Direct mode check passed. A reviewer is required only after a second failed check or HIGH risk. Authorize COMPLETED.",
-                steps: ["nexus run transition --to COMPLETED"],
+                  "Direct mode task check passed. Run final verification before COMPLETED. A reviewer is required only after a second failed check or HIGH risk.",
+                steps: [
+                  "nexus run transition --to FINAL_VERIFYING",
+                  "nexus verify",
+                  "After final verification PASSED: nexus run transition --to COMPLETED",
+                ],
               };
             }
           }

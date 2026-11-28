@@ -12,7 +12,8 @@ permission:
     "*": deny
     ".opencode/handoffs/**": allow
     "**/.opencode/handoffs/**": allow
-    "**/*..*": deny
+    "**/../**": deny
+    "../**": deny
   bash:
     "*": deny
     "git status*": allow

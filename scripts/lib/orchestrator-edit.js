@@ -64,17 +64,97 @@ function normalizeRelative(worktree, filePath) {
   return { absolute, relative };
 }
 
+function comparePath(file) {
+  const normalized = String(file || "").replace(/\\/g, "/").replace(/^\.\//, "");
+  return process.platform === "win32" ? normalized.toLowerCase() : normalized;
+}
+
 export function isOrchestratorControlPath(relative) {
   const file = String(relative || "").replace(/\\/g, "/").replace(/^\.\//, "");
-  return file === "AGENTS.md" || file.endsWith("/AGENTS.md") || file === ".opencode" || file.startsWith(".opencode/");
+  const folded = process.platform === "win32" ? file.toLowerCase() : file;
+  const agents = process.platform === "win32" ? "agents.md" : "AGENTS.md";
+  return (
+    folded === agents ||
+    folded.endsWith(`/${agents}`) ||
+    folded === ".opencode" ||
+    folded.startsWith(".opencode/")
+  );
 }
 
 export function isImplementerProtectedPath(relative) {
-  const file = String(relative || "").replace(/\\/g, "/").replace(/^\.\//, "");
+  const file = comparePath(relative);
+  const prefixes = IMPLEMENTER_PROTECTED.map((prefix) => comparePath(prefix));
   if (file === ".opencode/handoffs" || file.startsWith(".opencode/handoffs/")) return false;
-  return IMPLEMENTER_PROTECTED.some(
-    (prefix) => file === prefix || file.startsWith(`${prefix}/`),
-  );
+  return prefixes.some((prefix) => file === prefix || file.startsWith(`${prefix}/`));
+}
+
+function patchPaths(patchText) {
+  const paths = [];
+  for (const line of String(patchText || "").split(/\r?\n/)) {
+    const match = line.match(/^\*\*\*\s+(?:Add|Update|Delete) File:\s*(.+?)\s*$/);
+    if (match) paths.push(match[1].trim());
+  }
+  return paths;
+}
+
+function patchLineCount(patchText) {
+  let count = 0;
+  for (const line of String(patchText || "").split(/\r?\n/)) {
+    if (line.startsWith("+++") || line.startsWith("---") || line.startsWith("***")) continue;
+    if (line.startsWith("+") || line.startsWith("-")) count += 1;
+  }
+  return count;
+}
+
+export function collectEditTargets(args = {}) {
+  const targets = [];
+  const direct = editFilePath(args);
+  const edits = Array.isArray(args.edits) ? args.edits : [];
+  if (edits.length > 0) {
+    for (const edit of edits) {
+      targets.push({
+        filePath: edit?.filePath || edit?.file_path || edit?.path || direct,
+        args: edit || {},
+      });
+    }
+  }
+  const patch = args.patchText || args.patch_text || args.patch || null;
+  if (typeof patch === "string" && patch.trim()) {
+    const paths = patchPaths(patch);
+    const lines = patchLineCount(patch);
+    if (paths.length === 0) targets.push({ filePath: null, args: {}, lineCount: lines });
+    for (const filePath of paths) targets.push({ filePath, args: {}, lineCount: lines });
+  }
+  if (targets.length === 0 && (direct || args.content != null || args.contents != null || args.oldString != null || args.newString != null)) {
+    targets.push({ filePath: direct, args });
+  }
+  return targets;
+}
+
+export function isInstalledPackageEdit(worktree, filePath) {
+  if (!filePath || typeof filePath !== "string") return false;
+  const absolute = path.isAbsolute(filePath) ? path.resolve(filePath) : path.resolve(worktree || "", filePath);
+  const relative = worktree ? path.relative(path.resolve(worktree), absolute) : absolute;
+  if (worktree && relative && !relative.startsWith("..") && !path.isAbsolute(relative)) return false;
+  return absolute.replace(/\\/g, "/").includes("/@mohammad154/opencode-nexus/");
+}
+
+const BASH_DENY = [
+  { pattern: /(^|[\s;&|])git\s+init\b/i, reason: "git init is performed by the nexus CLI" },
+  { pattern: /(^|[\s;&|])git\s+add\b/i, reason: "git add is performed by the nexus CLI" },
+  { pattern: /(^|[\s;&|])git\s+commit\b/i, reason: "git commit is performed by the nexus CLI" },
+  { pattern: />>?/, reason: "orchestrator bash cannot redirect output" },
+  { pattern: /\bfind\b[\s\S]*\s-delete\b/i, reason: "find -delete is not a read-only probe" },
+  { pattern: /\bfind\b[\s\S]*\s-exec(?:dir)?\b/i, reason: "find -exec is not a read-only probe" },
+];
+
+export function assessOrchestratorBash(command) {
+  const text = String(command || "");
+  if (!text.trim()) return { ok: false, action: "deny", reason: "bash command is missing" };
+  for (const rule of BASH_DENY) {
+    if (rule.pattern.test(text)) return { ok: false, action: "deny", reason: rule.reason };
+  }
+  return { ok: true, action: "allow" };
 }
 
 /**
@@ -87,6 +167,7 @@ export function assessOrchestratorEdit({
   runState = null,
   env = process.env,
   lineLimit = DIRECT_EDIT_LINE_LIMIT,
+  lineCount = null,
 } = {}) {
   if (!filePath || typeof filePath !== "string") {
     return { ok: false, action: "deny", reason: "edit path is missing" };
@@ -120,7 +201,7 @@ export function assessOrchestratorEdit({
   if (!isDirectFastPath(runState)) {
     return { ok: false, action: "deny", reason: "production edits require direct mode" };
   }
-  const lines = editLineCount(args);
+  const lines = Number.isFinite(lineCount) ? lineCount : editLineCount(args);
   if (lines > lineLimit) {
     return {
       ok: false,
@@ -152,13 +233,64 @@ export function assessImplementerEdit({ worktree, filePath } = {}) {
 }
 
 export function assessToolEdit({ agent, worktree, input = {}, args = {}, runState = null, env } = {}) {
-  if (!EDIT_TOOLS.has(editToolName(input))) return null;
-  const filePath = editFilePath(args);
+  const tool = editToolName(input);
+  if ((tool === "bash" || tool === "shell") && agent === "orchestrator") {
+    return assessOrchestratorBash(args.command || args.cmd || "");
+  }
+  if (!EDIT_TOOLS.has(tool)) return null;
+  const targets = collectEditTargets(args);
+  if (targets.length === 0) {
+    if (agent === "orchestrator" || agent === "implementer") {
+      return { ok: false, action: "deny", reason: "edit path is missing" };
+    }
+    return null;
+  }
   if (agent === "orchestrator") {
-    return assessOrchestratorEdit({ worktree, filePath, args, runState, env });
+    let productionLines = 0;
+    let sawProduction = false;
+    let countedPatch = false;
+    for (const target of targets) {
+      if (isInstalledPackageEdit(worktree, target.filePath)) {
+        return { ok: false, action: "deny", reason: "edits to the installed Nexus package are denied" };
+      }
+      const pathDecision = assessOrchestratorEdit({
+        worktree,
+        filePath: target.filePath,
+        args: target.args,
+        runState,
+        env,
+        lineLimit: Number.POSITIVE_INFINITY,
+      });
+      if (!pathDecision.ok) return pathDecision;
+      if (pathDecision.reason === "control-plane") continue;
+      sawProduction = true;
+      if (Number.isFinite(target.lineCount)) {
+        if (!countedPatch) {
+          productionLines += target.lineCount;
+          countedPatch = true;
+        }
+      } else {
+        productionLines += editLineCount(target.args || {});
+      }
+    }
+    if (sawProduction && productionLines > DIRECT_EDIT_LINE_LIMIT) {
+      return {
+        ok: false,
+        action: "deny",
+        reason: `direct-mode orchestrator edits are limited to ${DIRECT_EDIT_LINE_LIMIT} lines (got ${productionLines})`,
+      };
+    }
+    return { ok: true, action: "allow", reason: sawProduction ? "direct-edit" : "control-plane" };
   }
   if (agent === "implementer") {
-    return assessImplementerEdit({ worktree, filePath });
+    for (const target of targets) {
+      if (isInstalledPackageEdit(worktree, target.filePath)) {
+        return { ok: false, action: "deny", reason: "edits to the installed Nexus package are denied" };
+      }
+      const decision = assessImplementerEdit({ worktree, filePath: target.filePath });
+      if (!decision.ok) return decision;
+    }
+    return { ok: true, action: "allow" };
   }
   return null;
 }

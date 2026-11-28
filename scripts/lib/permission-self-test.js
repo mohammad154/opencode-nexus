@@ -149,6 +149,7 @@ export function runPermissionSelfTest(options = {}) {
   );
 
   expectAction(errors, "ls probe", orchestratorBash("ls -la /app"), "allow");
+  expectAction(errors, "bare ls", orchestratorBash("ls"), "allow");
   expectAction(
     errors,
     "python version",
@@ -157,9 +158,51 @@ export function runPermissionSelfTest(options = {}) {
   );
   expectAction(
     errors,
-    "git commit baseline",
+    "git commit denied",
     orchestratorBash("git commit -m nexus-baseline"),
-    "allow",
+    "deny",
+  );
+  expectAction(
+    errors,
+    "git commit amend denied",
+    orchestratorBash("git commit --amend -m rewrite"),
+    "deny",
+  );
+  expectAction(
+    errors,
+    "cat redirect denied",
+    orchestratorBash("cat file > src/main.py"),
+    "deny",
+  );
+  expectAction(
+    errors,
+    "find delete denied",
+    orchestratorBash("find . -delete"),
+    "deny",
+  );
+  expectAction(
+    errors,
+    "find exec denied",
+    orchestratorBash("find . -exec rm -rf {} +"),
+    "deny",
+  );
+  expectAction(
+    errors,
+    "top-level relative edit is ask",
+    orchestratorEdit("main.py"),
+    "ask",
+  );
+  expectAction(
+    errors,
+    "double-dot filename is not traversal",
+    orchestratorEdit("foo..bar.js"),
+    "ask",
+  );
+  expectAction(
+    errors,
+    "orchestrator runs deny",
+    orchestratorEdit("/app/.opencode/runs/run-1/state.json"),
+    "deny",
   );
   expectAction(
     errors,

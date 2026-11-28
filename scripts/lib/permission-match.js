@@ -14,13 +14,29 @@ export function normalizePermissionPath(value) {
     .replace(/\/{2,}/g, "/");
 }
 
+function caseInsensitivePlatform(platform = process.platform) {
+  return platform === "win32" || platform === "darwin";
+}
+
 /**
+ * OpenCode Wildcard.match: `*` is any run of characters, `?` is one character,
+ * and a trailing `" *"` is optional. Windows and macOS compare case-insensitively.
+ *
  * @param {string} pattern
+ * @param {{ platform?: string }} [options]
  * @returns {RegExp}
  */
-export function permissionPatternToRegExp(pattern) {
-  const normalized = normalizePermissionPath(pattern);
-  if (normalized === "*") return /^[\s\S]*$/;
+export function permissionPatternToRegExp(pattern, options = {}) {
+  let normalized = normalizePermissionPath(pattern);
+  let optionalTrailing = false;
+  if (normalized.endsWith(" *")) {
+    optionalTrailing = true;
+    normalized = normalized.slice(0, -2);
+  }
+  if (normalized === "*") {
+    const flags = caseInsensitivePlatform(options.platform) ? "i" : "";
+    return new RegExp("^[\\s\\S]*$", flags);
+  }
   let source = "";
   for (let index = 0; index < normalized.length; index += 1) {
     const char = normalized[index];
@@ -29,14 +45,20 @@ export function permissionPatternToRegExp(pattern) {
       if (normalized[index + 1] === "*") index += 1;
       continue;
     }
+    if (char === "?") {
+      source += ".";
+      continue;
+    }
     if ("\\^$+?.()|[]{}".includes(char)) source += `\\${char}`;
     else source += char;
   }
-  return new RegExp(`^${source}$`);
+  if (optionalTrailing) source = `(?:${source}(?: .*)?)`;
+  const flags = caseInsensitivePlatform(options.platform) ? "i" : "";
+  return new RegExp(`^${source}$`, flags);
 }
 
-export function permissionPatternMatches(pattern, value) {
-  return permissionPatternToRegExp(pattern).test(normalizePermissionPath(value));
+export function permissionPatternMatches(pattern, value, options = {}) {
+  return permissionPatternToRegExp(pattern, options).test(normalizePermissionPath(value));
 }
 
 /**
@@ -46,12 +68,12 @@ export function permissionPatternMatches(pattern, value) {
  * @param {string} value
  * @returns {"allow"|"deny"|"ask"}
  */
-export function evaluatePermissionRules(rules, value) {
+export function evaluatePermissionRules(rules, value, options = {}) {
   if (!rules || typeof rules !== "object" || Array.isArray(rules)) return "ask";
   let action = "ask";
   let matched = false;
   for (const [pattern, rule] of Object.entries(rules)) {
-    if (!permissionPatternMatches(pattern, value)) continue;
+    if (!permissionPatternMatches(pattern, value, options)) continue;
     const normalized = String(rule || "").trim().toLowerCase();
     if (normalized === "allow" || normalized === "deny" || normalized === "ask") {
       action = normalized;

@@ -16,7 +16,9 @@ reported invalidation reason.
 
 ## A subagent wait never finishes
 
-Plan-advisor, reviewer, and implementer calls have wall-clock budgets (5, 10, and 20 minutes by default). When a budget expires, Nexus writes `.opencode/subagent-timeouts.json` and `.opencode/handoffs/<role>-timeout.json` with status `TIMED_OUT`, then aborts the child session when the host exposes one. `nexus next` skips a timed-out advisor, accepts sealed verification after a timed-out reviewer, and re-dispatches a timed-out implementer once. Override a budget with `budget_ms` on that role in `nexus.models.json`, or with `NEXUS_PLAN_ADVISOR_BUDGET_MS`, `NEXUS_REVIEWER_BUDGET_MS`, or `NEXUS_IMPLEMENTER_BUDGET_MS`.
+Plan-advisor, reviewer, and implementer calls have wall-clock budgets (5, 10, and 20 minutes by default). When a budget expires, the plugin writes `.opencode/runs/<run_id>/subagent-timeouts.json` with status `TIMED_OUT` and aborts the child session mapped to that call. `nexus next` skips a timed-out advisor, continues to final verification after a timed-out reviewer, and re-dispatches a timed-out implementer once for that unit. A timeout cannot mark the run COMPLETED. Override a budget with `budget_ms` on that role in `nexus.models.json`, or with `NEXUS_PLAN_ADVISOR_BUDGET_MS`, `NEXUS_REVIEWER_BUDGET_MS`, or `NEXUS_IMPLEMENTER_BUDGET_MS`.
+
+A private baseline `.git` is removed only when this run created it and HEAD is still that single commit. `COMPLETED` and `FAILED` try the removal. `BLOCKED` and abandoned runs keep `.git`; `nexus run cleanup` retries the same check. A feature branch, extra commit, or linked worktree keeps the repository so a later merge still has a git directory.
 
 ## The workspace is not a git repository
 

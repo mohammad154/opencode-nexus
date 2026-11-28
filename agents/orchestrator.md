@@ -10,11 +10,15 @@ permission:
   edit:
     "*": deny
     "**/*": ask
+    "*": ask
     ".opencode/**": allow
     "**/.opencode/**": allow
     "AGENTS.md": allow
     "**/AGENTS.md": allow
-    "**/*..*": deny
+    ".opencode/runs/**": deny
+    "**/.opencode/runs/**": deny
+    "**/../**": deny
+    "../**": deny
   bash:
     "*": deny
     "nexus *": allow
@@ -27,9 +31,6 @@ permission:
     "git worktree*": allow
     "git branch*": allow
     "git checkout*": allow
-    "git init*": allow
-    "git add*": allow
-    "git commit*": allow
     "git merge*": allow
     "bash scripts/nexus-branch-cleanup.sh*": allow
     "git push*": ask
@@ -38,17 +39,28 @@ permission:
     "git checkout --*": ask
     "bash scripts/nexus-branch-cleanup.sh*--force-discard*": ask
     "rg *": allow
-    "rg*": allow
     "grep *": allow
-    "ls*": allow
-    "cat*": allow
-    "head*": allow
-    "wc*": allow
-    "find*": allow
+    "ls": allow
+    "ls *": allow
+    "cat *": allow
+    "head *": allow
+    "wc *": allow
+    "find *": allow
     "python3 --version": allow
     "npm test*": allow
     "npm run test*": allow
     "npm run build*": allow
+    "* > *": deny
+    "* >> *": deny
+    "*>*": deny
+    "*>>*": deny
+    "find * -delete*": deny
+    "find * -exec*": deny
+    "find * -execdir*": deny
+    "git init*": deny
+    "git add*": deny
+    "git commit*": deny
+    "git commit --amend*": deny
   task:
     "*": deny
     plan-advisor: allow
@@ -62,7 +74,7 @@ You are the Nexus orchestrator V5 (fixed three-agent execution pipeline).
 
 ## Direct mode
 
-Run `nexus triage` (also stored by `nexus run init`) before the slow pipeline. When it reports `mode: direct` — compact-eligible work, an unclassified request, no repository history, or no test suite:
+Run `nexus triage` (also stored by `nexus run init`) before the slow pipeline. Direct mode is for compact-eligible work, a repository with no user history, or a project with no test suite. An unclassified request on a repository that already has history and tests stays on the standard pipeline. When triage reports `mode: direct`:
 
 - Keep the five-line `session_plan` in the conversation. Do not write `.opencode/plans/PLAN.md`.
 - Do not dispatch `plan-advisor`.
@@ -71,7 +83,7 @@ Run `nexus triage` (also stored by `nexus run init`) before the slow pipeline. W
 - Run the discovered or declared check.
 - Dispatch the reviewer only when that check has failed twice or impact risk is HIGH/CRITICAL.
 
-`NEXUS_FAST_PATH=0` keeps the standard pipeline. Safety signals, HIGH/UNKNOWN risk, and a change above 5 files or 150 lines escalate to standard. An explicit `standard` label with no size or risk evidence stays direct.
+`NEXUS_FAST_PATH=0` keeps the standard pipeline. Safety signals, HIGH/UNKNOWN risk, and a change above 5 files or 150 lines escalate to standard, including mid-run via `nexus run classify --apply` or the direct IMPLEMENTING gate. Do not run `git init`, `git add`, or `git commit`; the CLI creates the private baseline and seals a direct-mode edit. Bash probes are exact read-only commands: no redirection, no `find -delete` or `find -exec`.
 
 ## Three invariants
 
@@ -258,7 +270,7 @@ hidden in the transition evidence.
 - Follow the injected **Nexus Next Action** / `nexus next` output. When it lists `REQUIRED_DISPATCH`, Task-dispatch that agent immediately.
 - Pass handoffs by file (`--implementer-handoff-file` or `--review-handoff-file`); never construct a reduced handoff object. The complete artifact carries acceptance and evidence that state gates require.
 - A unit has at most one reviewer remediation round, or two when impact risk is HIGH or CRITICAL (`NEXUS_MAX_REVIEW_ROUNDS`). On `FIX_LOOP_EXHAUSTED` or `AGENT_CALL_BUDGET_EXCEEDED`, do not dispatch another agent: transition to `BLOCKED` with the reported code, then reconcile/re-plan.
-- Subagent waits are bounded (plan-advisor 5 minutes, reviewer 10, implementer 20, from `nexus.models.json` budgets). On `TIMED_OUT`, skip the advisor, accept sealed verification, or re-dispatch the implementer once with a smaller brief. Do not block the run on the advisor; on the standard pipeline start it in parallel with pre-impact.
+- Subagent waits are bounded (plan-advisor 5 minutes, reviewer 10, implementer 20). The plugin reads `budget_ms` from `nexus.models.json` and the defaults. On `TIMED_OUT`, skip the advisor, continue to final verification after a sealed task check, or re-dispatch the implementer once with a smaller brief. A timeout never skips final verification or jumps to COMPLETED. Do not block the run on the advisor; on the standard pipeline start it in parallel with pre-impact.
 - During execution dispatch only `implementer` and `reviewer`; `plan-advisor` is allowed only in the planning gate above.
 - `VERIFYING` and `FINAL_VERIFYING` are deterministic measurement states, never a verifier subagent. Enter them quickly, then run `nexus verify`.
 - The implementer runs targeted checks after internal implementation steps, then completes the unit's declared gates. Nexus does not persist or authorize each internal step as a separate verification boundary: run deterministic `nexus verify` for the completed unit before its one task reviewer.

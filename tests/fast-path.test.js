@@ -21,15 +21,22 @@ function run(mode = "direct", extra = {}) {
   };
 }
 
-test("unclassified work defaults to direct and a five-line session plan", () => {
+test("unclassified work on a repo with history and tests stays standard", () => {
   const decision = selectFastPath({}, { workspace: withHistory });
+  assert.equal(decision.mode, "standard");
+  assert.equal(decision.plan_file, true);
+  assert.ok(decision.reasons.includes("UNCLASSIFIED_REQUIRES_STANDARD"));
+});
+
+test("git-less unclassified work is direct and keeps a five-line session plan", () => {
+  const decision = selectFastPath({}, { workspace: { repo_history: false, test_suite: true } });
   assert.equal(decision.mode, "direct");
   assert.equal(decision.plan_file, false);
   assert.equal(decision.plan_advisor, false);
   assert.equal(decision.worktree, false);
   assert.equal(decision.branch, false);
   assert.equal(sessionPlanLines(decision.session_plan).length, 5);
-  assert.ok(decision.reasons.includes("UNCLASSIFIED_DEFAULT_DIRECT"));
+  assert.ok(decision.reasons.includes("NO_REPO_HISTORY"));
 });
 
 test("three files and 120 lines with history and tests stay standard", () => {
@@ -104,13 +111,13 @@ test("NEXUS_FAST_PATH=0 and explicit deep stay standard", () => {
   assert.ok(deep.reasons.includes("EXPLICIT_DEEP"));
 });
 
-test("an explicit standard label without size or risk evidence stays direct", () => {
+test("an explicit standard label on a repo with history and tests stays standard", () => {
   const decision = selectFastPath(
     { planning_mode: "standard" },
     { workspace: withHistory },
   );
-  assert.equal(decision.mode, "direct");
-  assert.ok(decision.reasons.includes("EXPLICIT_STANDARD_WITHOUT_EVIDENCE"));
+  assert.equal(decision.mode, "standard");
+  assert.ok(decision.reasons.includes("EXPLICIT_STANDARD_KEPT"));
 });
 
 test("direct mode can enter IMPLEMENTING without PLAN.md", () => {
@@ -131,17 +138,21 @@ test("direct mode can verify an orchestrator edit without an implementer handoff
     acceptance_criteria: ["the change works"],
   });
   assert.equal(started.ok, true, JSON.stringify(started.errors));
-  const verified = transition(started.state, "VERIFYING", {});
+  const verified = transition(started.state, "VERIFYING", {
+    direct_seal: { commit: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" },
+  });
   assert.equal(verified.ok, true, JSON.stringify(verified.errors));
   assert.equal(verified.state.state, "VERIFYING");
+  assert.equal(verified.state.implementer_commit, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
 });
 
-test("direct mode completes from VERIFYING when the check has not failed twice", () => {
+test("direct mode does not jump from task VERIFYING to COMPLETED", () => {
   const state = run("direct", { check_failures: 1 });
   state.state = "VERIFYING";
   state.verification = { status: "PASSED", phase: "TASK" };
   const result = canTransition(state, "COMPLETED", {});
-  assert.equal(result.ok, true, JSON.stringify(result.errors));
+  assert.equal(result.ok, false);
+  assert.match(result.errors.join("\n"), /illegal transition/);
 });
 
 test("HIGH risk in direct mode does not skip the reviewer", () => {
