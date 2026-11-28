@@ -17,10 +17,12 @@
  */
 import { latestActiveRunState, readRunState } from "./lib/migrate-artifacts.js";
 import {
-  convergenceErrors,
+  convergenceReport,
   formatTrace,
+  plannedUnitIds,
   traceMatrix,
 } from "./lib/traceability.js";
+import { readReviewerTimeouts } from "./lib/subagent-budget.js";
 import { createMetricsTelemetry } from "./lib/providers.js";
 
 function parseArgs(argv) {
@@ -53,7 +55,12 @@ function main() {
   }
 
   const matrix = traceMatrix(state);
-  const errors = convergenceErrors(state, { label: "COMPLETED" });
+  const convergence = convergenceReport(state, {
+    label: "COMPLETED",
+    reviewerTimeouts: readReviewerTimeouts(worktree, state.run_id, plannedUnitIds(state)),
+  });
+  const errors = convergence.errors;
+  const warnings = convergence.warnings;
   // A verdict accepted in the current transition is recorded by the reducer
   // afterwards. Show it as pending so the report is not confusing, but never
   // count it as coverage: the ledger is the authority.
@@ -72,6 +79,7 @@ function main() {
     ...matrix,
     pending_approval: pendingApproval,
     errors,
+    warnings,
   };
 
   createMetricsTelemetry({ worktree }).emit({
@@ -96,6 +104,7 @@ function main() {
               `Pending (approved, not yet recorded by a transition): ${pendingApproval.unit} at ${pendingApproval.reviewed_commit || "unknown commit"}`,
             ]
           : []),
+        ...(warnings.length ? ["", ...warnings.map((w) => `warning: ${w}`)] : []),
         ...(errors.length ? ["", ...errors.map((e) => `- ${e}`)] : []),
       ].join("\n");
   process.stdout.write(`${text}\n`);

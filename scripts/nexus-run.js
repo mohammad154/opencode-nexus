@@ -737,7 +737,13 @@ function cmdTransition(flags) {
     { ok: true, state: r.state },
     r.state,
   );
-  console.log(JSON.stringify({ ok: true, state: r.state }, null, 2));
+  console.log(
+    JSON.stringify(
+      { ok: true, state: r.state, ...(r.warnings ? { warnings: r.warnings } : {}) },
+      null,
+      2,
+    ),
+  );
 }
 
 function cmdValidateHandoff(flags) {

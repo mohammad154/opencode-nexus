@@ -40,6 +40,7 @@ import {
 import { checkPlanFile } from "./plan-check.js";
 import {
   convergenceErrors,
+  convergenceReport,
   plannedUnitIds,
   traceMatrix,
 } from "./traceability.js";
@@ -62,7 +63,7 @@ import {
   directReviewRequired,
   isDirectFastPath,
 } from "./fast-path.js";
-import { readSubagentTimeouts } from "./subagent-budget.js";
+import { readReviewerTimeouts, readSubagentTimeouts } from "./subagent-budget.js";
 import { assertReviewPackageBound } from "./review-package.js";
 
 export const STATES = [
@@ -1345,6 +1346,7 @@ function maySkipTaskReview(state, from, ctx) {
  */
 export function canTransition(state, to, ctx = {}) {
   const errors = [];
+  const warnings = [];
   const from = state?.state;
   if (!from) return { ok: false, errors: ["missing current state"] };
   // Normalize legacy alias before unknown-state check
@@ -1955,8 +1957,15 @@ export function canTransition(state, to, ctx = {}) {
     if (from === "FINAL_VERIFYING") {
       assertCompletedVerification(state, ctx, errors, { phase: "FINAL" });
     }
-    // The convergence gate: the plan's intent must be demonstrably covered.
-    errors.push(...convergenceErrors(state, { label: "COMPLETED" }));
+    // The convergence gate: the plan's intent must be demonstrably covered. A
+    // run-scoped reviewer timeout is a terminal review outcome for its unit;
+    // it is reported as a warning, never as silent coverage.
+    const convergence = convergenceReport(state, {
+      label: "COMPLETED",
+      reviewerTimeouts: reviewerTimeoutsForCompletion(state, ctx),
+    });
+    errors.push(...convergence.errors);
+    warnings.push(...convergence.warnings);
   }
 
   // The historical charge is recorded when the implementer handoff enters
@@ -1968,7 +1977,13 @@ export function canTransition(state, to, ctx = {}) {
     if (!dispatchBudget.ok) errors.push(...dispatchBudget.errors);
   }
 
-  return { ok: errors.length === 0, errors };
+  return { ok: errors.length === 0, errors, warnings };
+}
+
+function reviewerTimeoutsForCompletion(state, ctx) {
+  const worktree = ctx?.worktree || state?.worktree;
+  if (!worktree || !state?.run_id) return {};
+  return readReviewerTimeouts(worktree, state.run_id, plannedUnitIds(state));
 }
 
 function getImplementerAgent(state, ctx = {}) {
@@ -2706,7 +2721,12 @@ export function transition(state, to, evidence = {}, providers = null) {
     time: nowIso(),
   });
 
-  return { ok: true, state: next, errors: [] };
+  return {
+    ok: true,
+    state: next,
+    errors: [],
+    ...(check.warnings?.length ? { warnings: check.warnings } : {}),
+  };
 }
 
 export { effectivePolicy, maxReview, assertScopeLock, assertTransitionScopeLock };

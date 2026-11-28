@@ -43,6 +43,8 @@ permission:
     "git checkout*": deny
     "git clean*": deny
     "git switch*": deny
+    "*.opencode/runs*": deny
+    "*subagent-timeouts*": deny
   task:
     "*": deny
 ---

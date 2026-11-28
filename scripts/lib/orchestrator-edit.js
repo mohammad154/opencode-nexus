@@ -148,6 +148,25 @@ const BASH_DENY = [
   { pattern: /\bfind\b[\s\S]*\s-exec(?:dir)?\b/i, reason: "find -exec is not a read-only probe" },
 ];
 
+const IMPLEMENTER_BASH_DENY = [
+  {
+    pattern: /\.opencode[\\/]+runs\b/i,
+    reason: "implementer bash cannot touch orchestrator-owned run state",
+  },
+  {
+    pattern: /subagent-timeouts/i,
+    reason: "implementer bash cannot touch subagent timeout records",
+  },
+];
+
+export function assessImplementerBash(command) {
+  const text = String(command || "");
+  for (const rule of IMPLEMENTER_BASH_DENY) {
+    if (rule.pattern.test(text)) return { ok: false, action: "deny", reason: rule.reason };
+  }
+  return { ok: true, action: "allow" };
+}
+
 export function assessOrchestratorBash(command) {
   const text = String(command || "");
   if (!text.trim()) return { ok: false, action: "deny", reason: "bash command is missing" };
@@ -234,8 +253,11 @@ export function assessImplementerEdit({ worktree, filePath } = {}) {
 
 export function assessToolEdit({ agent, worktree, input = {}, args = {}, runState = null, env } = {}) {
   const tool = editToolName(input);
-  if ((tool === "bash" || tool === "shell") && agent === "orchestrator") {
-    return assessOrchestratorBash(args.command || args.cmd || "");
+  if (tool === "bash" || tool === "shell") {
+    const command = args.command || args.cmd || "";
+    if (agent === "orchestrator") return assessOrchestratorBash(command);
+    if (agent === "implementer") return assessImplementerBash(command);
+    return null;
   }
   if (!EDIT_TOOLS.has(tool)) return null;
   const targets = collectEditTargets(args);

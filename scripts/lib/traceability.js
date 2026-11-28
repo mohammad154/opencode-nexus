@@ -351,6 +351,27 @@ export function requirementMappingErrors(planCheckOrState = {}) {
 }
 
 /**
+ * A recorded reviewer timeout is the terminal review outcome for its unit only
+ * when it belongs to this run, names this unit, comes from the reviewer role,
+ * and is newer than every review recorded for the unit. A review whose time
+ * cannot be read counts as newer, so the gate fails closed on it.
+ */
+export function acceptedReviewerTimeout(state = {}, unit, record) {
+  if (!record || typeof record !== "object") return false;
+  if (!state.run_id || record.run_id !== state.run_id) return false;
+  if (record.role !== "reviewer" || record.status !== "TIMED_OUT") return false;
+  if (String(record.unit || "") !== String(unit)) return false;
+  const timedOutAt = Date.parse(record.at || "");
+  if (!Number.isFinite(timedOutAt)) return false;
+  return historyEntries(state)
+    .filter((entry) => String(entry.id || entry.unit_or_task || entry.unit || "") === String(unit))
+    .every((entry) => {
+      const reviewedAt = Date.parse(entry.review_handoff?.created_at || "");
+      return Number.isFinite(reviewedAt) && reviewedAt < timedOutAt;
+    });
+}
+
+/**
  * The convergence gate. Every planned execution unit must have an approved
  * review, and every planned acceptance criterion must carry a PASS from it.
  *
@@ -359,17 +380,33 @@ export function requirementMappingErrors(planCheckOrState = {}) {
  *
  * @param {object} state durable run state
  * @param {{label?: string}} [opts]
- * @returns {string[]} verbatim gate errors
+ * @returns {{errors: string[], warnings: string[], accepted_timeouts: object[]}}
  */
-export function convergenceErrors(state = {}, opts = {}) {
+export function convergenceReport(state = {}, opts = {}) {
   const label = opts.label || "COMPLETED";
+  const report = { errors: [], warnings: [], accepted_timeouts: [] };
   const units = plannedUnitIds(state);
-  if (units.length === 0) return [];
+  if (units.length === 0) return report;
 
   const matrix = traceMatrix(state);
-  const errors = [];
+  const errors = report.errors;
 
-  const unreviewed = matrix.units.filter((unit) => !unit.reviewed).map((unit) => unit.unit);
+  const acceptedTimeouts = new Map();
+  for (const unit of matrix.units) {
+    if (unit.reviewed) continue;
+    const record = opts.reviewerTimeouts?.[unit.unit];
+    if (acceptedReviewerTimeout(state, unit.unit, record)) acceptedTimeouts.set(unit.unit, record);
+  }
+  for (const [unit, record] of acceptedTimeouts) {
+    report.accepted_timeouts.push({ unit, role: "reviewer", at: record.at, attempts: record.attempts ?? null });
+    report.warnings.push(
+      `${label}: unit ${unit} has no approved review; its reviewer timed out at ${record.at} and that timeout is accepted as the terminal review outcome`,
+    );
+  }
+
+  const unreviewed = matrix.units
+    .filter((unit) => !unit.reviewed && !acceptedTimeouts.has(unit.unit))
+    .map((unit) => unit.unit);
   if (unreviewed.length > 0) {
     errors.push(
       `${label} requires an approved task review for every planned execution unit; missing: ${unreviewed.join(", ")}`,
@@ -399,7 +436,11 @@ export function convergenceErrors(state = {}, opts = {}) {
     );
   }
 
-  return errors;
+  return report;
+}
+
+export function convergenceErrors(state = {}, opts = {}) {
+  return convergenceReport(state, opts).errors;
 }
 
 /** Human-readable trace report. */

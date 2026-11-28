@@ -95,6 +95,20 @@ export function readSubagentTimeouts(worktree, runId, unit = null) {
   return out;
 }
 
+/**
+ * Reviewer TIMED_OUT records for planned units, keyed by unit. The completion
+ * gate decides whether each one is terminal; this reader only filters to this
+ * run's records, so a forged or foreign file is never trusted by itself.
+ */
+export function readReviewerTimeouts(worktree, runId, units = []) {
+  const out = {};
+  for (const unit of units) {
+    const record = readSubagentTimeouts(worktree, runId, unit).reviewer;
+    if (record) out[unit] = record;
+  }
+  return out;
+}
+
 function writeJsonAtomic(file, value) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const temporary = `${file}.${process.pid}.tmp`;
