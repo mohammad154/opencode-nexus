@@ -48,6 +48,14 @@ jobs:
         run: bash scripts/test-optional-agents.sh
       - name: Uninstall lifecycle
         run: bash scripts/test-uninstall-lifecycle.sh
+      - name: Install OpenCode 1.19.6 for the real parser test
+        run: npm install --prefix "$RUNNER_TEMP/opencode" --no-save opencode-ai@1.19.6
+        shell: bash
+      - name: Agent frontmatter loads in OpenCode
+        run: node --test tests/review3-frontmatter.test.js
+        env:
+          NEXUS_OPENCODE_BIN: ${{ runner.temp }}/opencode/node_modules/.bin/opencode
+        shell: bash
 
   ci:
     name: CI
