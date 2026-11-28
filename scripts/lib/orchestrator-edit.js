@@ -157,8 +157,14 @@ export function assessImplementerBash(command, options = {}) {
   for (const rule of IMPLEMENTER_BASH_DENY) {
     if (rule.pattern.test(text)) return { ok: false, action: "deny", reason: rule.reason };
   }
-  const stateRoot = protectedStateRoot(options.env || process.env).replace(/\\/g, "/");
-  if (/nexus-control[\\/]/i.test(text) || text.replace(/\\/g, "/").includes(stateRoot)) {
+  const env = options.env || process.env;
+  const normalizedText = text.replace(/\\/g, "/");
+  const roots = [protectedStateRoot(env), String(env.NEXUS_STATE_DIR || "").trim()];
+  const touchesStateRoot = roots.some((root) => {
+    const normalized = root.replace(/\\/g, "/").replace(/\/+$/, "");
+    return normalized.length > 0 && normalizedText.includes(normalized);
+  });
+  if (/nexus-control[\\/]/i.test(text) || touchesStateRoot) {
     return { ok: false, action: "deny", reason: "implementer bash cannot touch protected Nexus state" };
   }
   return { ok: true, action: "allow" };

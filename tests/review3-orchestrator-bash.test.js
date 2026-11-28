@@ -194,4 +194,5 @@ test("the implementer cannot reach Nexus protected state", () => {
   assert.equal(assessImplementerBash("cat /tmp/custom-state/worktrees/x", { env: { NEXUS_STATE_DIR: "/tmp/custom-state" } }).ok, false);
   assert.equal(assessImplementerBash("cat src/app.js", { env: { NEXUS_STATE_DIR: "/tmp/custom-state" } }).ok, true);
   assert.equal(assessImplementerBash("npm test").ok, true);
+  assert.equal(assessImplementerBash("ls", { env: { NEXUS_STATE_DIR: "/" } }).ok, true, "a filesystem-root override must not deny every command");
 });
