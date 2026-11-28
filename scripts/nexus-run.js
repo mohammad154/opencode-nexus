@@ -1078,10 +1078,15 @@ function cmdVerify(flags) {
       },
       result.state || state,
     );
+    const noChecksWarning =
+      result.ok && result.verification?.no_automated_checks?.ok === true
+        ? result.verification.no_automated_checks.message
+        : null;
     const body = {
       ok: result.ok,
       ...(result.code ? { code: result.code } : {}),
       ...(result.error ? { error: result.error } : {}),
+      ...(noChecksWarning ? { warnings: [noChecksWarning] } : {}),
       state: result.state || state,
       verification: result.verification || null,
       artifact: result.artifact || null,
@@ -1090,6 +1095,7 @@ function cmdVerify(flags) {
       console.log(JSON.stringify(body, null, 2));
     } else if (result.ok) {
       console.log(`Verification PASSED`);
+      if (noChecksWarning) console.log(`Warning: ${noChecksWarning}`);
       const summary = result.state?.verification;
       if (summary?.total_steps != null) {
         console.log(`${summary.completed_steps || 0}/${summary.total_steps} verification steps completed`);

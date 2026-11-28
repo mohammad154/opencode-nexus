@@ -155,6 +155,15 @@ as meaningful verification.
 If every available step is skipped or unavailable, the provider returns
 `VERIFICATION_UNAVAILABLE`; this is not a passing verification result.
 
+The one exception is a direct run in a workspace that had no test suite at init
+and still has none. `nexus verify` then passes with
+`verification_mode: NO_AUTOMATED_CHECKS` and a warning. The evidence proves only
+that the sealed direct edit stayed within `allowed_files` and that the workspace
+is clean; no test, lint, or build result backs it. Standard runs always need a
+runnable check. A test directory that appears after the seal, or a change
+outside `allowed_files`, still fails verification (`VERIFICATION_UNAVAILABLE` or
+`DIRECT_SCOPE_DRIFT`).
+
 ## Workspace integrity rejects a runtime symlink
 
 Package managers commonly create executable links under

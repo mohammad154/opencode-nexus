@@ -24,6 +24,7 @@ import { requiresTdd } from "./policy.js";
 import { trustedPolicyForState } from "./policy-snapshot.js";
 import { withFileLock } from "./lock.js";
 import { isDirectFastPath, noteDirectVerification } from "./fast-path.js";
+import { noAutomatedCheckEvidence, NO_AUTOMATED_CHECKS_MODE } from "./no-automated-checks.js";
 
 function nowIso() {
   return new Date().toISOString();
@@ -844,8 +845,12 @@ function runVerificationLifecycleUnlocked({
   }
 
   let baselineComparison = null;
+  let noChecks = null;
   let ok = providerRun?.ok === true && hasExecutedVerificationCheck(providerRun);
-  if (baseline && provider.compare) {
+  if (providerRun?.code === "VERIFICATION_UNAVAILABLE" && providerRun?.timed_out !== true) {
+    noChecks = noAutomatedCheckEvidence(root, currentState, { head });
+    ok = noChecks.ok === true;
+  } else if (baseline && provider.compare) {
     baselineComparison = provider.compare(baseline, providerRun);
     if (baselineComparison.ok !== true) {
       ok = false;
@@ -892,6 +897,8 @@ function runVerificationLifecycleUnlocked({
       reused_steps: providerRun?.reused_steps ?? 0,
       ran_steps: providerRun?.ran_steps ?? providerRun?.executed_steps ?? 0,
       timed_out: providerRun?.timed_out === true,
+      verification_mode: noChecks?.ok === true ? NO_AUTOMATED_CHECKS_MODE : "EXECUTED_CHECKS",
+      no_automated_checks: noChecks,
       ...workspaceEvidence,
     },
     head,
@@ -912,12 +919,12 @@ function runVerificationLifecycleUnlocked({
     );
   }
   if (!ok) {
-    return fail(
-      providerRun?.code || "VERIFICATION_FAILED",
-      providerRun?.code === "VERIFICATION_UNAVAILABLE"
-        ? "zero executable verification checks"
-        : "verification checks failed",
-    );
+    if (noChecks?.eligible) return fail(noChecks.code, noChecks.message);
+    if (providerRun?.code === "VERIFICATION_UNAVAILABLE") {
+      const reason = noChecks ? `: ${noChecks.message}` : "";
+      return fail(providerRun.code, `zero executable verification checks${reason}`);
+    }
+    return fail(providerRun?.code || "VERIFICATION_FAILED", "verification checks failed");
   }
 
   update({ status: "PASSED" });
