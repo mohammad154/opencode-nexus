@@ -443,7 +443,7 @@ test("orchestrator can finish the default local branch but keeps critical side e
   );
   const bash = orchestrator.match(/\n  bash:\n((?:    .*\n)+)/)?.[1] || "";
   for (const command of [
-    "git symbolic-ref*",
+    "git symbolic-ref HEAD",
     "git checkout*",
     "git merge*",
     "bash scripts/nexus-branch-cleanup.sh*",
@@ -454,7 +454,7 @@ test("orchestrator can finish the default local branch but keeps critical side e
     "git push*",
     "git reset*",
     "git clean*",
-    "git checkout --*",
+    "git checkout -- *",
     "bash scripts/nexus-branch-cleanup.sh*--force-discard*",
   ]) {
     assert.match(bash, new RegExp(`"${command.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}": ask`));

@@ -12,6 +12,7 @@ import {
 } from "../scripts/lib/traceability.js";
 import { readReviewerTimeouts, recordSubagentTimeout } from "../scripts/lib/subagent-budget.js";
 import { assessToolEdit } from "../scripts/lib/orchestrator-edit.js";
+import { protectedRunDir } from "../scripts/lib/protected-state.js";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const HEAD = "a".repeat(40);
@@ -99,7 +100,7 @@ function makeWorktree() {
 }
 
 function timeoutFile(worktree, runId) {
-  return path.join(worktree, ".opencode", "runs", runId, "subagent-timeouts.json");
+  return path.join(protectedRunDir(worktree, runId), "subagent-timeouts.json");
 }
 
 function writeTimeoutFile(worktree, runId, document) {
@@ -332,11 +333,14 @@ test("an accepted timeout does not waive sealed final verification", () => {
 
 test("implementer bash cannot forge or read run-scoped timeout records", () => {
   const forgery = `node -e "require('fs').writeFileSync('.opencode/runs/conv/subagent-timeouts.json','{}')"`;
+  const protectedForgery = `echo '{}' > ${protectedRunDir("/workspace", "conv")}/subagent-timeouts.json`;
   for (const command of [
     "echo '{}' > .opencode/runs/conv/subagent-timeouts.json",
     "cat .opencode/runs/conv/state.json",
     "sed -i 's/x/y/' ./.opencode/runs/conv/subagent-timeouts.json",
     "cp /tmp/x.json subagent-timeouts.json",
+    "cat ~/.local/state/nexus-control/worktrees/abc/runs/conv/subagent-timeouts.json",
+    protectedForgery,
     forgery,
   ]) {
     const decision = assessToolEdit({

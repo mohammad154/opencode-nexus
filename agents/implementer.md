@@ -45,6 +45,7 @@ permission:
     "git switch*": deny
     "*.opencode/runs*": deny
     "*subagent-timeouts*": deny
+    "*nexus-control*": deny
   task:
     "*": deny
 ---

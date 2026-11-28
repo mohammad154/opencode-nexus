@@ -7,6 +7,8 @@
 import path from "node:path";
 import { validateContainedPath } from "./filesystem-boundary.js";
 import { isDirectFastPath, DIRECT_EDIT_LINE_LIMIT } from "./fast-path.js";
+import { assessOrchestratorBash } from "./orchestrator-bash.js";
+import { protectedStateRoot } from "./protected-state.js";
 
 const EDIT_TOOLS = new Set([
   "edit",
@@ -139,15 +141,6 @@ export function isInstalledPackageEdit(worktree, filePath) {
   return absolute.replace(/\\/g, "/").includes("/@mohammad154/opencode-nexus/");
 }
 
-const BASH_DENY = [
-  { pattern: /(^|[\s;&|])git\s+init\b/i, reason: "git init is performed by the nexus CLI" },
-  { pattern: /(^|[\s;&|])git\s+add\b/i, reason: "git add is performed by the nexus CLI" },
-  { pattern: /(^|[\s;&|])git\s+commit\b/i, reason: "git commit is performed by the nexus CLI" },
-  { pattern: />>?/, reason: "orchestrator bash cannot redirect output" },
-  { pattern: /\bfind\b[\s\S]*\s-delete\b/i, reason: "find -delete is not a read-only probe" },
-  { pattern: /\bfind\b[\s\S]*\s-exec(?:dir)?\b/i, reason: "find -exec is not a read-only probe" },
-];
-
 const IMPLEMENTER_BASH_DENY = [
   {
     pattern: /\.opencode[\\/]+runs\b/i,
@@ -159,22 +152,19 @@ const IMPLEMENTER_BASH_DENY = [
   },
 ];
 
-export function assessImplementerBash(command) {
+export function assessImplementerBash(command, options = {}) {
   const text = String(command || "");
   for (const rule of IMPLEMENTER_BASH_DENY) {
     if (rule.pattern.test(text)) return { ok: false, action: "deny", reason: rule.reason };
   }
-  return { ok: true, action: "allow" };
-}
-
-export function assessOrchestratorBash(command) {
-  const text = String(command || "");
-  if (!text.trim()) return { ok: false, action: "deny", reason: "bash command is missing" };
-  for (const rule of BASH_DENY) {
-    if (rule.pattern.test(text)) return { ok: false, action: "deny", reason: rule.reason };
+  const stateRoot = protectedStateRoot(options.env || process.env).replace(/\\/g, "/");
+  if (/nexus-control[\\/]/i.test(text) || text.replace(/\\/g, "/").includes(stateRoot)) {
+    return { ok: false, action: "deny", reason: "implementer bash cannot touch protected Nexus state" };
   }
   return { ok: true, action: "allow" };
 }
+
+export { assessOrchestratorBash };
 
 /**
  * @returns {{ ok: boolean, action?: "allow"|"deny", reason?: string, relative?: string }}
@@ -251,12 +241,30 @@ export function assessImplementerEdit({ worktree, filePath } = {}) {
   return { ok: true, action: "allow", relative: located.relative };
 }
 
+export const NEXUS_AGENT_NAMES = new Set(["orchestrator", "implementer", "reviewer", "plan-advisor"]);
+
+/**
+ * A named agent that Nexus does not own must not edit during an active run.
+ * This is the fail-closed fallback when an agent file is malformed and OpenCode
+ * applies its default (allow) edit permission to that agent.
+ */
+export function assessUnknownAgentEdit({ agent, tool, runState = null } = {}) {
+  if (!runState || typeof agent !== "string" || !agent.trim()) return null;
+  if (NEXUS_AGENT_NAMES.has(agent)) return null;
+  if (!EDIT_TOOLS.has(String(tool || "").trim().toLowerCase())) return null;
+  return {
+    ok: false,
+    action: "deny",
+    reason: `agent "${agent}" may not edit during an active Nexus run`,
+  };
+}
+
 export function assessToolEdit({ agent, worktree, input = {}, args = {}, runState = null, env } = {}) {
   const tool = editToolName(input);
   if (tool === "bash" || tool === "shell") {
     const command = args.command || args.cmd || "";
-    if (agent === "orchestrator") return assessOrchestratorBash(command);
-    if (agent === "implementer") return assessImplementerBash(command);
+    if (agent === "orchestrator") return assessOrchestratorBash(command, { worktree });
+    if (agent === "implementer") return assessImplementerBash(command, { env });
     return null;
   }
   if (!EDIT_TOOLS.has(tool)) return null;

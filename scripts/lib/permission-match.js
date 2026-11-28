@@ -97,11 +97,18 @@ function unquote(value) {
 /**
  * Indentation-sensitive YAML subset for agent frontmatter.
  * Handles nested maps and quoted keys. It is not a general YAML parser.
+ *
+ * A key repeated inside one map throws. YAML parsers disagree on duplicates
+ * (OpenCode drops the whole frontmatter, which turns the agent into an
+ * allow-all agent), so Nexus refuses the file instead of picking a winner.
  */
 export function parseSimpleYaml(text) {
   const root = {};
+  const keysByMap = new Map([[root, new Set()]]);
   const stack = [{ indent: -1, value: root }];
-  for (const rawLine of String(text ?? "").split(/\r?\n/)) {
+  const lines = String(text ?? "").split(/\r?\n/);
+  for (let index = 0; index < lines.length; index += 1) {
+    const rawLine = lines[index];
     if (!rawLine.trim() || rawLine.trimStart().startsWith("#")) continue;
     const indent = rawLine.match(/^ */)?.[0].length ?? 0;
     const line = rawLine.trim();
@@ -111,9 +118,15 @@ export function parseSimpleYaml(text) {
     const rest = line.slice(separator + 1).trim();
     while (stack.length > 1 && indent <= stack[stack.length - 1].indent) stack.pop();
     const parent = stack[stack.length - 1].value;
+    const siblings = keysByMap.get(parent);
+    if (siblings.has(key)) {
+      throw new Error(`duplicate YAML key "${key}" at frontmatter line ${index + 1}`);
+    }
+    siblings.add(key);
     if (!rest) {
       const child = {};
       parent[key] = child;
+      keysByMap.set(child, new Set());
       stack.push({ indent, value: child });
     } else {
       parent[key] = unquote(rest);

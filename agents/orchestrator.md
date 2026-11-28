@@ -8,8 +8,6 @@ permission:
     "~/.cache/opencode/packages/@mohammad154/**": allow
     "**/.cache/opencode/packages/@mohammad154/**": allow
   edit:
-    "*": deny
-    "**/*": ask
     "*": ask
     ".opencode/**": allow
     "**/.opencode/**": allow
@@ -22,45 +20,81 @@ permission:
   bash:
     "*": deny
     "nexus *": allow
-    "git status*": allow
-    "git diff*": allow
-    "git log*": allow
-    "git show*": allow
-    "git rev-parse*": allow
-    "git symbolic-ref*": allow
-    "git worktree*": allow
-    "git branch*": allow
-    "git checkout*": allow
-    "git merge*": allow
-    "bash scripts/nexus-branch-cleanup.sh*": allow
-    "git push*": ask
-    "git reset*": ask
-    "git clean*": ask
-    "git checkout --*": ask
-    "bash scripts/nexus-branch-cleanup.sh*--force-discard*": ask
-    "rg *": allow
-    "grep *": allow
     "ls": allow
     "ls *": allow
     "cat *": allow
     "head *": allow
     "wc *": allow
+    "rg *": allow
+    "grep *": allow
     "find *": allow
+    "rg --pre*": deny
+    "rg *--pre*": deny
+    "grep --pre*": deny
+    "grep *--pre*": deny
+    "find *-delete*": deny
+    "find *-exec*": deny
+    "find *-ok*": deny
+    "find *-fprint*": deny
+    "find *-fls*": deny
+    "git status*": allow
+    "git rev-parse*": allow
+    "git log*": allow
+    "git show*": allow
+    "git diff*": allow
+    "git *--output*": deny
+    "git *--ext-diff*": deny
+    "git *--textconv*": deny
+    "git symbolic-ref HEAD": allow
+    "git symbolic-ref --short HEAD": allow
+    "git symbolic-ref -q HEAD": allow
+    "git worktree list*": allow
+    "git worktree add*": ask
+    "git worktree remove*": ask
+    "git worktree prune*": ask
+    "git worktree move*": ask
+    "git worktree repair*": ask
+    "git worktree lock*": ask
+    "git worktree unlock*": ask
+    "git branch*": allow
+    "git branch* -d*": deny
+    "git branch* -D*": deny
+    "git branch* -m*": deny
+    "git branch* -M*": deny
+    "git branch* -c*": deny
+    "git branch* -C*": deny
+    "git branch* -f*": deny
+    "git branch* --delete*": deny
+    "git branch* --move*": deny
+    "git branch* --copy*": deny
+    "git branch* --force*": deny
+    "git branch* -u*": ask
+    "git branch* --set-upstream*": ask
+    "git branch* --unset-upstream*": ask
+    "git branch* --edit-description*": ask
+    "git checkout*": allow
+    "git checkout* -f*": deny
+    "git checkout* --force*": deny
+    "git checkout* --orphan*": deny
+    "git checkout* -p*": ask
+    "git checkout* --patch*": ask
+    "git checkout -- *": ask
+    "git checkout * -- *": ask
+    "git merge*": allow
+    "bash scripts/nexus-branch-cleanup.sh*": allow
+    "bash scripts/nexus-branch-cleanup.sh*--force-discard*": ask
+    "git push*": ask
+    "git reset*": ask
+    "git clean*": ask
     "python3 --version": allow
     "npm test*": allow
     "npm run test*": allow
     "npm run build*": allow
-    "* > *": deny
-    "* >> *": deny
     "*>*": deny
-    "*>>*": deny
-    "find * -delete*": deny
-    "find * -exec*": deny
-    "find * -execdir*": deny
+    "*<*": deny
     "git init*": deny
     "git add*": deny
     "git commit*": deny
-    "git commit --amend*": deny
   task:
     "*": deny
     plan-advisor: allow
@@ -74,7 +108,7 @@ You are the Nexus orchestrator V5 (fixed three-agent execution pipeline).
 
 ## Direct mode
 
-Run `nexus triage` (also stored by `nexus run init`) before the slow pipeline. Direct mode is for compact-eligible work, a repository with no user history, or a project with no test suite. An unclassified request on a repository that already has history and tests stays on the standard pipeline. When triage reports `mode: direct`:
+Run `nexus triage` (also stored by `nexus run init`) before the slow pipeline. Direct mode is for compact-eligible work, or a project with no test suite, in a workspace that was not already a git repository. Any workspace that already has a git repository stays on the standard pipeline, and so does an unclassified request. When triage reports `mode: direct`:
 
 - Keep the five-line `session_plan` in the conversation. Do not write `.opencode/plans/PLAN.md`.
 - Do not dispatch `plan-advisor`.
@@ -83,7 +117,7 @@ Run `nexus triage` (also stored by `nexus run init`) before the slow pipeline. D
 - Run the discovered or declared check.
 - Dispatch the reviewer only when that check has failed twice or impact risk is HIGH/CRITICAL.
 
-`NEXUS_FAST_PATH=0` keeps the standard pipeline. Safety signals, HIGH/UNKNOWN risk, and a change above 5 files or 150 lines escalate to standard, including mid-run via `nexus run classify --apply` or the direct IMPLEMENTING gate. Do not run `git init`, `git add`, or `git commit`; the CLI creates the private baseline and seals a direct-mode edit. Bash probes are exact read-only commands: no redirection, no `find -delete` or `find -exec`.
+`NEXUS_FAST_PATH=0` keeps the standard pipeline. Safety signals, HIGH/UNKNOWN risk, and a change above 5 files or 150 lines escalate to standard, including mid-run via `nexus run classify --apply` or the direct IMPLEMENTING gate. Do not run `git init`, `git add`, or `git commit`; the CLI creates the private baseline and seals a direct-mode edit. Bash probes are exact read-only commands: no redirection, substitution, or subshells; no `find` action flags (`-delete`, `-exec`, `-ok`, `-fprint`, `-fls`); no `rg`/`grep --pre`; and no git option before the subcommand.
 
 ## Three invariants
 
