@@ -296,6 +296,21 @@ function runtimeFile(relativePath, label = "runtime path") {
   return candidate;
 }
 
+/**
+ * The private-baseline record is authoritative about who created the git
+ * repository. A repository this run did not create is an existing repository
+ * and always takes the standard pipeline.
+ */
+function applyPrivateBaselineFacts(workspace, baseline) {
+  if (baseline?.method === "existing-git") {
+    return { ...workspace, existing_git: true };
+  }
+  if (baseline?.created === true || baseline?.method === "content-hash") {
+    return { ...workspace, repo_history: false, existing_git: false };
+  }
+  return workspace;
+}
+
 function cmdInit(flags) {
   const explicit = flags["run-id"];
   const id = explicit ? String(explicit) : defaultRunId();
@@ -324,11 +339,8 @@ function cmdInit(flags) {
     console.error(baseline.message || "Private git baseline failed.");
     process.exit(2);
   }
-  const workspace = probeWorkspace(root);
-  if (baseline.created || baseline.method === "content-hash") {
-    workspace.repo_history = false;
-  }
-    state.private_baseline = {
+  const workspace = applyPrivateBaselineFacts(probeWorkspace(root), baseline);
+  state.private_baseline = {
     method: baseline.method,
     created: baseline.created === true,
     existed_before: baseline.existed_before !== false,
@@ -397,10 +409,7 @@ function cmdClassify(flags) {
       headResult.status === 0
         ? String(headResult.stdout || "").trim() || null
         : null;
-    const workspace = probeWorkspace(worktree());
-    if (state.private_baseline?.created || state.private_baseline?.method === "content-hash") {
-      workspace.repo_history = false;
-    }
+    const workspace = applyPrivateBaselineFacts(probeWorkspace(worktree()), state.private_baseline);
     const decision = selectFastPath(
       { ...input, risk: result?.risk || input.risk },
       { workspace },
@@ -527,6 +536,7 @@ function cmdTransition(flags) {
     !evidence.handoff
   ) {
     const sealed = sealDirectSelfEdit(worktree(), {
+      runId: state.run_id,
       allowedFiles: evidence.allowed_files || state.allowed_files || [],
     });
     if (!sealed.ok) {
@@ -727,8 +737,8 @@ function cmdTransition(flags) {
     });
     if (cleaned.removed) {
       console.error("Removed the private git baseline created for this run.");
-    } else if (cleaned.ok === false) {
-      console.error(`Private git baseline was kept: ${cleaned.reason}`);
+    } else if (cleaned.kept || cleaned.ok === false) {
+      console.error(`Private git baseline was kept: ${cleaned.reason}.`);
     }
   }
   recordTrajectory(

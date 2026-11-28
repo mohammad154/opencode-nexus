@@ -130,6 +130,7 @@ export function probeWorkspace(root) {
   const cwd = root ? path.resolve(root) : process.cwd();
   const inside = gitOk(cwd, ["rev-parse", "--is-inside-work-tree"]);
   let repoHistory = false;
+  let existingGit = false;
   if (inside.ok && inside.stdout === "true") {
     const count = gitOk(cwd, ["rev-list", "--count", "HEAD"]);
     const subject = gitOk(cwd, ["log", "-1", "--format=%s"]);
@@ -137,9 +138,11 @@ export function probeWorkspace(root) {
     const baselineOnly =
       count.ok && commits === 1 && subject.stdout === "nexus-baseline";
     repoHistory = count.ok && commits > 0 && !baselineOnly;
+    existingGit = !baselineOnly;
   }
   return {
     repo_history: repoHistory,
+    existing_git: existingGit,
     test_suite: workspaceHasTestSuite(cwd),
   };
 }
@@ -218,6 +221,7 @@ export function selectFastPath(input = {}, options = {}) {
   const hasSize =
     Number.isFinite(sizes.files) || Number.isFinite(sizes.lines) || Number.isFinite(sizes.units);
   const history = workspaceFact(input, options, "repo_history");
+  const existingGit = workspaceFact(input, options, "existing_git");
   const tests = workspaceFact(input, options, "test_suite");
   const noHistory = history === false;
   const noTests = tests === false;
@@ -244,6 +248,12 @@ export function selectFastPath(input = {}, options = {}) {
   } else if (oversize) {
     mode = "standard";
     reasons.push("EVIDENCE_OF_SIZE");
+  } else if (existingGit === true) {
+    mode = "standard";
+    reasons.push("EXISTING_GIT_REPOSITORY");
+  } else if (history === true) {
+    mode = "standard";
+    reasons.push("EXISTING_REPO_HISTORY");
   } else if (compact.eligible) {
     mode = "direct";
     reasons.push("COMPACT_ELIGIBLE", ...compact.reason_codes);
@@ -284,6 +294,7 @@ export function selectFastPath(input = {}, options = {}) {
       hard.length === 0 &&
       explicit !== "deep",
     repo_history: history,
+    existing_git: existingGit,
     test_suite: tests,
     worktree: !direct,
     branch: !direct,

@@ -3,11 +3,12 @@
  *
  * Nexus creates the repo itself. It never asks the orchestrator to run
  * git init/add/commit, never writes global git config, and never commits
- * into an existing repository. The marker lives under
- * `.opencode/runs/<run_id>/`, which agents cannot edit. `.git` is removed
- * only when this run created it and HEAD is still exactly that one baseline
- * commit, with no other refs or worktrees. A content-hash snapshot is used
- * only when the git binary itself is missing.
+ * into or edits an existing repository. The marker lives in the protected run
+ * directory outside the project (protected-state.js), so project code and agent
+ * shell commands cannot forge it. `.git` is removed only when this run created
+ * it and every commit after the baseline is one of this run's recorded
+ * direct-edit seals, with no extra branches, tags, or worktrees. A content-hash
+ * snapshot is used only when the git binary itself is missing.
  */
 import { createHash } from "node:crypto";
 import fs from "node:fs";
@@ -15,6 +16,7 @@ import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { validateContainedPath } from "./filesystem-boundary.js";
+import { protectedRunDir } from "./protected-state.js";
 import {
   changedPathsFromEntries,
   normalizeAllowedFiles,
@@ -35,9 +37,6 @@ const SKIP_DIRECTORIES = new Set([
   ".venv",
   "venv",
   "__pycache__",
-  "dist",
-  "build",
-  "coverage",
   ".cache",
 ]);
 
@@ -54,8 +53,8 @@ function gitMissing(result) {
 }
 
 export function baselineMarkerPath(worktree, runId) {
-  if (!worktree || !runId) return null;
-  return path.join(worktree, ".opencode", "runs", String(runId), "private-baseline.json");
+  const dir = protectedRunDir(worktree, runId);
+  return dir ? path.join(dir, "private-baseline.json") : null;
 }
 
 export function readPrivateBaseline(worktree, runId) {
@@ -89,13 +88,22 @@ function writeMarker(worktree, runId, marker) {
   return file;
 }
 
+function removeContentHashSnapshot(worktree, runId, marker) {
+  const dir = protectedRunDir(worktree, runId);
+  if (!dir || typeof marker?.snapshot !== "string") return;
+  const file = path.resolve(worktree, marker.snapshot);
+  if (path.dirname(file) !== dir) return;
+  fs.rmSync(file, { force: true });
+}
+
 function removeMarker(worktree, runId) {
   const file = baselineMarkerPath(worktree, runId);
   if (!file) return;
   try {
     fs.rmSync(file, { force: true });
+    fs.rmdirSync(path.dirname(file));
   } catch {
-    // The git directory was already removed. A leftover marker is not a repo.
+    // A missing marker or a run directory that still holds timeout records is kept.
   }
 }
 
@@ -154,8 +162,17 @@ export function writeContentHashBaseline(worktree, options = {}) {
       message: "Content-hash baseline requires a run_id.",
     };
   }
+  const runDir = protectedRunDir(worktree, runId);
+  if (!runDir) {
+    return {
+      ok: false,
+      created: false,
+      method: "content-hash",
+      message: "Content-hash baseline requires a valid run_id.",
+    };
+  }
   const { entries, digest } = snapshotEntries(worktree);
-  const snapshotRelative = path.join(".opencode", "baselines", `${runId}-content-hash.json`);
+  const snapshotFile = path.join(runDir, "content-hash.json");
   const snapshot = {
     method: "content-hash",
     algorithm: "sha256",
@@ -165,9 +182,8 @@ export function writeContentHashBaseline(worktree, options = {}) {
     files: entries,
     created_at: new Date().toISOString(),
   };
-  const file = path.join(worktree, snapshotRelative);
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, `${JSON.stringify(snapshot, null, 2)}\n`, "utf8");
+  fs.mkdirSync(path.dirname(snapshotFile), { recursive: true });
+  fs.writeFileSync(snapshotFile, `${JSON.stringify(snapshot, null, 2)}\n`, "utf8");
   const marker = {
     created: false,
     existed_before: false,
@@ -175,7 +191,7 @@ export function writeContentHashBaseline(worktree, options = {}) {
     run_id: runId,
     commit: snapshot.commit,
     digest,
-    snapshot: snapshotRelative.replace(/\\/g, "/"),
+    snapshot: snapshotFile,
     worktree: path.resolve(worktree),
   };
   writeMarker(worktree, runId, marker);
@@ -188,7 +204,7 @@ export function writeContentHashBaseline(worktree, options = {}) {
     commit: snapshot.commit,
     digest,
     message:
-      "Git is not available. Recorded a content-hash baseline under .opencode/baselines instead of a commit.",
+      "Git is not available. Recorded a content-hash baseline in the protected run directory instead of a commit.",
   };
 }
 
@@ -200,7 +216,7 @@ export function diffContentHashBaseline(worktree, marker) {
   let baselineEntries = [];
   if (marker?.snapshot) {
     try {
-      const saved = JSON.parse(fs.readFileSync(path.join(worktree, marker.snapshot), "utf8"));
+      const saved = JSON.parse(fs.readFileSync(path.resolve(worktree, marker.snapshot), "utf8"));
       baselineEntries = Array.isArray(saved?.files) ? saved.files : [];
     } catch {
       baselineEntries = [];
@@ -232,10 +248,17 @@ export function diffContentHashBaseline(worktree, marker) {
   };
 }
 
-function emptyHooksPath(root) {
-  const hooks = path.join(root, ".git", "nexus-empty-hooks");
-  fs.mkdirSync(hooks, { recursive: true });
-  return hooks.replace(/\\/g, "/");
+/**
+ * Run `fn` with a fresh empty hooks directory under the OS temp dir, so no
+ * repository or global hook can run and nothing is left inside `.git`.
+ */
+function withEmptyHooks(fn) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "nexus-no-hooks-"));
+  try {
+    return fn(dir.replace(/\\/g, "/"));
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 }
 
 function commitCommand(hooksPath, { message, empty = false } = {}) {
@@ -268,9 +291,6 @@ function ensureExclude(root, extraPaths = []) {
     ".venv/",
     "venv/",
     "__pycache__/",
-    "dist/",
-    "build/",
-    "coverage/",
     ".cache/",
     "*.bin",
     ...extraPaths,
@@ -380,12 +400,12 @@ export function ensurePrivateBaseline(worktree, options = {}) {
       message: null,
     };
   }
-  if (!runId) {
+  if (!runId || !baselineMarkerPath(root, runId)) {
     return {
       ok: false,
       created: false,
       method: "git",
-      message: "Private git baseline requires a run_id.",
+      message: "Private git baseline requires a valid run_id.",
     };
   }
 
@@ -448,14 +468,12 @@ export function ensurePrivateBaseline(worktree, options = {}) {
       message: `Private git baseline failed: git add -A exited ${added.status}.`,
     };
   }
-  const hooksPath = emptyHooksPath(root);
-  let committed = run(gitBin, commitCommand(hooksPath, { message: BASELINE_COMMIT_MESSAGE }), root, env);
+  let committed = withEmptyHooks((hooksPath) =>
+    run(gitBin, commitCommand(hooksPath, { message: BASELINE_COMMIT_MESSAGE }), root, env),
+  );
   if (committed.status !== 0) {
-    committed = run(
-      gitBin,
-      commitCommand(hooksPath, { message: BASELINE_COMMIT_MESSAGE, empty: true }),
-      root,
-      env,
+    committed = withEmptyHooks((hooksPath) =>
+      run(gitBin, commitCommand(hooksPath, { message: BASELINE_COMMIT_MESSAGE, empty: true }), root, env),
     );
   }
   if (committed.status !== 0) {
@@ -502,9 +520,21 @@ export function ensurePrivateBaseline(worktree, options = {}) {
     message: BASELINE_COMMIT_MESSAGE,
     worktree: root,
     git_dir: identity,
+    seal_commits: [],
     skipped,
   };
-  writeMarker(root, runId, marker);
+  try {
+    writeMarker(root, runId, marker);
+  } catch (error) {
+    rollbackCreatedGit(root);
+    return {
+      ok: false,
+      created: true,
+      existed_before: false,
+      method: "git",
+      message: `Private git baseline failed while writing the protected marker: ${error.message}`,
+    };
+  }
   const skippedNote = skipped.length > 0 ? ` Skipped ${skipped.length} file(s) over ${maxFileBytes} bytes.` : "";
   return {
     ok: true,
@@ -514,16 +544,70 @@ export function ensurePrivateBaseline(worktree, options = {}) {
     run_id: runId,
     commit,
     skipped,
-    message: `Private git baseline created at ${commit}. Nexus removes this .git only if it is still the sole commit when the run finishes.${skippedNote}`,
+    message: `Private git baseline created at ${commit}. Nexus removes this .git when the run finishes only if it still holds just the baseline and this run's direct-edit seals.${skippedNote}`,
   };
 }
 
-function removalBlocker(root, marker, gitBin, env) {
+function commitLines(result) {
+  return String(result?.stdout || "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+function commitIdentity(root, sha, gitBin, env) {
+  const info = run(gitBin, ["show", "-s", "--format=%an%x1f%ae%x1f%s", sha], root, env);
+  if (info.status !== 0) return null;
+  const [name, email, subject] = String(info.stdout || "").trim().split("\u001f");
+  return { name, email, subject };
+}
+
+/**
+ * Every commit reachable from HEAD must be this run's baseline or one of the
+ * direct-edit seals recorded in the protected marker, in a straight chain from
+ * the baseline, each with the Nexus identity. Anything else (a user commit, a
+ * rebase, or a forged object) keeps `.git`.
+ */
+function sealChainBlocker(root, marker, gitBin, env) {
+  const sealed = sealedCommits(marker);
+  const expectedHead = sealed.length > 0 ? sealed[sealed.length - 1] : marker.commit;
   const head = run(gitBin, ["rev-parse", "HEAD"], root, env);
   const commit = head.status === 0 ? String(head.stdout || "").trim() : "";
-  if (!commit || commit !== marker.commit) return "head-moved";
-  const count = run(gitBin, ["rev-list", "--count", "HEAD"], root, env);
-  if (count.status !== 0 || Number(String(count.stdout || "").trim()) !== 1) return "extra-commits";
+  if (!commit || commit !== expectedHead) return "head-moved";
+  const reachable = run(gitBin, ["rev-list", "HEAD"], root, env);
+  if (reachable.status !== 0) return "extra-commits";
+  const owned = new Set([marker.commit, ...sealed]);
+  const listed = commitLines(reachable);
+  if (listed.length !== owned.size || listed.some((sha) => !owned.has(sha))) return "extra-commits";
+  const roots = run(gitBin, ["rev-list", "--max-parents=0", "HEAD"], root, env);
+  if (roots.status !== 0 || commitLines(roots).join(" ") !== marker.commit) return "extra-commits";
+  let parent = marker.commit;
+  for (const sha of sealed) {
+    const actual = run(gitBin, ["rev-parse", `${sha}^`], root, env);
+    if (actual.status !== 0 || String(actual.stdout || "").trim() !== parent) return "extra-commits";
+    parent = sha;
+  }
+  const expected = [
+    [marker.commit, BASELINE_COMMIT_MESSAGE],
+    ...sealed.map((sha) => [sha, DIRECT_EDIT_COMMIT_MESSAGE]),
+  ];
+  for (const [sha, subject] of expected) {
+    const identity = commitIdentity(root, sha, gitBin, env);
+    if (
+      !identity ||
+      identity.name !== LOCAL_NAME ||
+      identity.email !== LOCAL_EMAIL ||
+      identity.subject !== subject
+    ) {
+      return "foreign-commit";
+    }
+  }
+  return null;
+}
+
+function removalBlocker(root, marker, gitBin, env) {
+  const chain = sealChainBlocker(root, marker, gitBin, env);
+  if (chain) return chain;
   const refs = run(gitBin, ["show-ref"], root, env);
   const names = String(refs.stdout || "")
     .split(/\r?\n/)
@@ -541,20 +625,34 @@ function removalBlocker(root, marker, gitBin, env) {
 }
 
 /**
- * Remove only a `.git` directory this run created, and only while HEAD is
- * still exactly the baseline commit.
+ * Remove only a `.git` directory this run created, and only while its history
+ * is exactly the run's baseline plus its own direct-edit seals.
  */
+const BENIGN_CLEANUP_REASONS = new Set([
+  "missing-run-id",
+  "not-created-here",
+  "not-a-git-baseline",
+  "already-absent",
+  "removed-private-baseline",
+]);
+
 export function cleanupPrivateBaseline(worktree, options = {}) {
+  const result = removePrivateBaseline(worktree, options);
+  return { ...result, kept: !result.removed && !BENIGN_CLEANUP_REASONS.has(result.reason) };
+}
+
+function removePrivateBaseline(worktree, options = {}) {
   const root = path.resolve(worktree);
   const runId = options.runId || null;
   if (!runId) return { ok: true, removed: false, reason: "missing-run-id" };
   const marker = readPrivateBaseline(root, runId);
-  if (!marker || marker.created !== true || marker.existed_before !== false || marker.run_id !== runId) {
-    return { ok: true, removed: false, reason: "not-created-here" };
-  }
-  if (marker.method !== "git") {
+  if (marker?.method === "content-hash" && marker.run_id === runId) {
+    removeContentHashSnapshot(root, runId, marker);
     removeMarker(root, runId);
     return { ok: true, removed: false, reason: "not-a-git-baseline" };
+  }
+  if (!marker || marker.created !== true || marker.existed_before !== false || marker.run_id !== runId) {
+    return { ok: true, removed: false, reason: "not-created-here" };
   }
   const env = options.env || process.env;
   const keep = String(env.NEXUS_KEEP_PRIVATE_BASELINE || "").trim();
@@ -612,27 +710,57 @@ function firstLine(text) {
   return String(text || "").split(/\r?\n/).find((line) => line.trim()) || "";
 }
 
+function sealedCommits(marker) {
+  if (!Array.isArray(marker?.seal_commits)) return [];
+  return marker.seal_commits.filter((sha) => typeof sha === "string" && /^[0-9a-f]{40}$|^[0-9a-f]{64}$/.test(sha));
+}
+
+function ownedPrivateMarker(root, marker, runId) {
+  return Boolean(
+    marker &&
+      marker.created === true &&
+      marker.existed_before === false &&
+      marker.method === "git" &&
+      marker.run_id === runId &&
+      marker.commit &&
+      sameWorktree(marker.worktree, root) &&
+      gitDirMatches(root, marker.git_dir),
+  );
+}
+
 /**
  * Seal a direct-mode edit as a CLI-authored commit so verification has a real
  * HEAD. Only changed paths that are listed in `allowedFiles` are staged and
  * committed, with a pathspec so nothing else in the index is swept in. Any
  * change outside the list refuses the seal with a scope-drift error and
- * commits nothing. The orchestrator never runs git itself.
+ * commits nothing. Only a repository this run created (protected marker) is
+ * sealed; the orchestrator never runs git itself.
  */
 export function sealDirectSelfEdit(worktree, options = {}) {
   const root = path.resolve(worktree);
   const gitBin = options.gitBin || "git";
   const env = options.env || process.env;
+  const runId = options.runId || null;
+  const marker = runId ? readPrivateBaseline(root, runId) : null;
+  if (!ownedPrivateMarker(root, marker, runId)) {
+    return sealFailure(
+      "SEAL_NOT_PRIVATE",
+      "direct seal refused: this workspace has no private baseline created by this run. Nexus commits only into the baseline it created; an existing repository stays on the standard pipeline. Nothing was committed.",
+    );
+  }
   const allowed = normalizeAllowedFiles(options.allowedFiles);
+  const sealed = sealedCommits(marker);
+  const expectedHead = sealed.length > 0 ? sealed[sealed.length - 1] : marker.commit;
   const head = run(gitBin, ["rev-parse", "HEAD"], root, env);
   if (head.status !== 0) {
     return sealFailure("SEAL_NO_HEAD", "direct seal requires a git HEAD. Start the run with nexus run init.");
   }
   const headCommit = String(head.stdout || "").trim();
-  try {
-    ensureExclude(root);
-  } catch (error) {
-    return sealFailure("SEAL_EXCLUDE_FAILED", `direct seal could not update .git/info/exclude: ${error.message}`);
+  if (headCommit !== expectedHead) {
+    return sealFailure(
+      "SEAL_HEAD_MOVED",
+      "direct seal refused: HEAD is not the last commit this run sealed. Nothing was committed.",
+    );
   }
   const status = run(gitBin, ["status", "--porcelain=v1", "-z", "--untracked-files=all"], root, env);
   if (status.status !== 0) {
@@ -675,22 +803,13 @@ export function sealDirectSelfEdit(worktree, options = {}) {
   if (!String(pending.stdout || "").trim()) {
     return { ok: true, commit: headCommit, committed: false, files: [] };
   }
-  let hooksPath;
-  try {
-    hooksPath = emptyHooksPath(root);
-  } catch (error) {
-    return sealFailure("SEAL_HOOKS_FAILED", `direct seal could not disable hooks: ${error.message}`);
-  }
-  const committed = run(
-    gitBin,
-    [
-      "--literal-pathspecs",
-      ...commitCommand(hooksPath, { message: DIRECT_EDIT_COMMIT_MESSAGE }),
-      "--",
-      ...changed,
-    ],
-    root,
-    env,
+  const committed = withEmptyHooks((hooksPath) =>
+    run(
+      gitBin,
+      ["--literal-pathspecs", ...commitCommand(hooksPath, { message: DIRECT_EDIT_COMMIT_MESSAGE }), "--", ...changed],
+      root,
+      env,
+    ),
   );
   if (committed.status !== 0) {
     return sealFailure(
@@ -701,5 +820,6 @@ export function sealDirectSelfEdit(worktree, options = {}) {
   const after = run(gitBin, ["rev-parse", "HEAD"], root, env);
   const commit = after.status === 0 ? String(after.stdout || "").trim() : "";
   if (!commit) return sealFailure("SEAL_NO_HEAD", "direct seal failed: HEAD is unavailable after commit");
+  writeMarker(root, runId, { ...marker, seal_commits: [...sealed, commit] });
   return { ok: true, commit, committed: true, files: changed };
 }

@@ -7,6 +7,7 @@
  */
 import fs from "node:fs";
 import path from "node:path";
+import { protectedRunDir } from "./protected-state.js";
 
 export const DEFAULT_ROLE_BUDGETS_MS = Object.freeze({
   "plan-advisor": 5 * 60 * 1000,
@@ -17,7 +18,8 @@ export const DEFAULT_ROLE_BUDGETS_MS = Object.freeze({
 export const DEFAULT_REVIEWER_STEPS = 24;
 
 function timeoutFile(worktree, runId) {
-  return path.join(worktree, ".opencode", "runs", String(runId), "subagent-timeouts.json");
+  const dir = protectedRunDir(worktree, runId);
+  return dir ? path.join(dir, "subagent-timeouts.json") : null;
 }
 
 export function roleBudgetMs(role, models = {}, env = process.env) {
@@ -65,9 +67,10 @@ export function subagentRoleFromTaskArgs(args = {}) {
 }
 
 function readTimeoutDocument(worktree, runId) {
-  if (!worktree || !runId) return null;
+  const file = timeoutFile(worktree, runId);
+  if (!file) return null;
   try {
-    const data = JSON.parse(fs.readFileSync(timeoutFile(worktree, runId), "utf8"));
+    const data = JSON.parse(fs.readFileSync(file, "utf8"));
     if (!data || typeof data !== "object" || Array.isArray(data)) return null;
     if (data.run_id !== runId) return null;
     return data;
@@ -130,6 +133,7 @@ export function recordSubagentTimeout(worktree, event = {}) {
   const callID = event.callID || event.call_id || null;
   if (!runId) throw new Error("subagent timeout requires run_id");
   if (!callID) throw new Error("subagent timeout requires call_id");
+  if (!timeoutFile(worktree, runId)) throw new Error(`subagent timeout run_id is not a valid run id: ${runId}`);
   const unit = String(event.unit || event.unit_id || "unit-1");
   const current = readTimeoutDocument(worktree, runId) || { run_id: runId, records: {} };
   const records = current.records && typeof current.records === "object" ? current.records : {};

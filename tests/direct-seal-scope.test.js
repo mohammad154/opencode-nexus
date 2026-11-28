@@ -5,10 +5,13 @@ import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { sealDirectSelfEdit } from "../scripts/lib/private-baseline.js";
+import { ensurePrivateBaseline, sealDirectSelfEdit } from "../scripts/lib/private-baseline.js";
+import { protectedRunDir } from "../scripts/lib/protected-state.js";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const runCli = path.join(repoRoot, "scripts", "nexus-run.js");
+process.env.NEXUS_STATE_DIR ||= fs.mkdtempSync(path.join(os.tmpdir(), "nexus-seal-state-"));
+const RUN_ID = "seal-scope";
 
 function sentinelEnv() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "nexus-seal-cfg-"));
@@ -39,18 +42,19 @@ function makeRepo() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "nexus-seal-"));
   const sentinel = sentinelEnv();
   const env = sentinel.env;
-  git(root, env, ["init", "-q"]);
   fs.mkdirSync(path.join(root, "src"));
   fs.writeFileSync(path.join(root, "src", "app.js"), "export const value = 1;\n");
   fs.writeFileSync(path.join(root, "src", "other.js"), "export const other = 1;\n");
-  git(root, env, ["add", "-A"]);
-  git(root, env, ["commit", "-q", "-m", "nexus-baseline"]);
+  const baseline = ensurePrivateBaseline(root, { runId: RUN_ID, env });
+  assert.equal(baseline.ok, true, baseline.message);
   return {
     root,
     env,
+    runId: RUN_ID,
     base: git(root, env, ["rev-parse", "HEAD"]),
     cleanup() {
       fs.rmSync(root, { recursive: true, force: true });
+      fs.rmSync(protectedRunDir(root, RUN_ID), { recursive: true, force: true });
       fs.rmSync(sentinel.dir, { recursive: true, force: true });
     },
   };
@@ -67,7 +71,7 @@ test("in-scope edit seals only the allowed file", () => {
   const repo = makeRepo();
   try {
     fs.writeFileSync(path.join(repo.root, "src", "app.js"), "export const value = 2;\n");
-    const sealed = sealDirectSelfEdit(repo.root, {
+    const sealed = sealDirectSelfEdit(repo.root, { runId: repo.runId,
       allowedFiles: ["src/app.js"],
       env: repo.env,
     });
@@ -85,7 +89,7 @@ test("an out-of-scope change refuses the seal with a scope-drift error and commi
   try {
     fs.writeFileSync(path.join(repo.root, "src", "app.js"), "export const value = 2;\n");
     fs.writeFileSync(path.join(repo.root, "src", "other.js"), "export const other = 2;\n");
-    const sealed = sealDirectSelfEdit(repo.root, {
+    const sealed = sealDirectSelfEdit(repo.root, { runId: repo.runId,
       allowedFiles: ["src/app.js"],
       env: repo.env,
     });
@@ -108,7 +112,7 @@ test("a pre-staged out-of-scope file is refused and never swept into the seal", 
     fs.writeFileSync(path.join(repo.root, "src", "app.js"), "export const value = 2;\n");
     fs.writeFileSync(path.join(repo.root, "src", "other.js"), "export const other = 2;\n");
     git(repo.root, repo.env, ["add", "src/other.js"]);
-    const sealed = sealDirectSelfEdit(repo.root, {
+    const sealed = sealDirectSelfEdit(repo.root, { runId: repo.runId,
       allowedFiles: ["src/app.js"],
       env: repo.env,
     });
@@ -123,7 +127,7 @@ test("an allowed file that does not exist is tolerated and not passed to git", (
   const repo = makeRepo();
   try {
     fs.writeFileSync(path.join(repo.root, "src", "app.js"), "export const value = 2;\n");
-    const sealed = sealDirectSelfEdit(repo.root, {
+    const sealed = sealDirectSelfEdit(repo.root, { runId: repo.runId,
       allowedFiles: ["src/app.js", "src/missing.js"],
       env: repo.env,
     });
@@ -138,7 +142,7 @@ test("a deleted in-scope file is committed as a deletion", () => {
   const repo = makeRepo();
   try {
     fs.rmSync(path.join(repo.root, "src", "app.js"));
-    const sealed = sealDirectSelfEdit(repo.root, {
+    const sealed = sealDirectSelfEdit(repo.root, { runId: repo.runId,
       allowedFiles: ["src/app.js"],
       env: repo.env,
     });
@@ -154,7 +158,7 @@ test("a rename that moves a file out of scope is refused through its old path", 
   const repo = makeRepo();
   try {
     git(repo.root, repo.env, ["mv", "src/app.js", "src/renamed.js"]);
-    const sealed = sealDirectSelfEdit(repo.root, {
+    const sealed = sealDirectSelfEdit(repo.root, { runId: repo.runId,
       allowedFiles: ["src/app.js"],
       env: repo.env,
     });
@@ -169,7 +173,7 @@ test("a rename that moves a file out of scope is refused through its old path", 
 test("no change seals to the current HEAD without creating a commit", () => {
   const repo = makeRepo();
   try {
-    const sealed = sealDirectSelfEdit(repo.root, { allowedFiles: ["src/app.js"], env: repo.env });
+    const sealed = sealDirectSelfEdit(repo.root, { runId: repo.runId, allowedFiles: ["src/app.js"], env: repo.env });
     assert.equal(sealed.ok, true);
     assert.equal(sealed.committed, false);
     assert.equal(sealed.commit, repo.base);
@@ -184,7 +188,7 @@ test("a directory that is not a repository refuses with a coded error, not a raw
   try {
     const sealed = sealDirectSelfEdit(dir, { allowedFiles: ["a.js"], env: sentinel.env });
     assert.equal(sealed.ok, false);
-    assert.equal(sealed.code, "SEAL_NO_HEAD");
+    assert.equal(sealed.code, "SEAL_NOT_PRIVATE");
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
     fs.rmSync(sentinel.dir, { recursive: true, force: true });

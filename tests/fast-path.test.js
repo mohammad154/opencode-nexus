@@ -25,7 +25,26 @@ test("unclassified work on a repo with history and tests stays standard", () => 
   const decision = selectFastPath({}, { workspace: withHistory });
   assert.equal(decision.mode, "standard");
   assert.equal(decision.plan_file, true);
-  assert.ok(decision.reasons.includes("UNCLASSIFIED_REQUIRES_STANDARD"));
+  assert.ok(decision.reasons.includes("EXISTING_REPO_HISTORY"));
+});
+
+test("an existing git repository with no history is never direct", () => {
+  const decision = selectFastPath(
+    { files_changed: 1, estimated_lines: 10, risk: "LOW", cohesive_unit: true, known_pattern: true },
+    { workspace: { repo_history: false, existing_git: true, test_suite: false } },
+  );
+  assert.equal(decision.mode, "standard");
+  assert.ok(decision.reasons.includes("EXISTING_GIT_REPOSITORY"));
+  assert.equal(decision.existing_git, true);
+});
+
+test("a repository the run created itself is not treated as existing", () => {
+  const decision = selectFastPath(
+    { files_changed: 1, estimated_lines: 10, risk: "LOW", cohesive_unit: true, known_pattern: true },
+    { workspace: { repo_history: false, existing_git: false, test_suite: true } },
+  );
+  assert.equal(decision.mode, "direct");
+  assert.ok(decision.reasons.includes("COMPACT_ELIGIBLE"));
 });
 
 test("git-less unclassified work is direct and keeps a five-line session plan", () => {
@@ -45,10 +64,10 @@ test("three files and 120 lines with history and tests stay standard", () => {
     { workspace: withHistory },
   );
   assert.equal(decision.mode, "standard");
-  assert.ok(decision.reasons.includes("EVIDENCE_OF_SIZE_OR_RISK"));
+  assert.ok(decision.reasons.includes("EXISTING_REPO_HISTORY"));
 });
 
-test("compact evidence selects direct even when the repo has history and tests", () => {
+test("compact evidence on a repo with history stays standard", () => {
   const decision = selectFastPath(
     {
       files_changed: 4,
@@ -58,6 +77,22 @@ test("compact evidence selects direct even when the repo has history and tests",
       known_pattern: true,
     },
     { workspace: withHistory },
+  );
+  assert.equal(decision.mode, "standard");
+  assert.ok(decision.reasons.includes("EXISTING_REPO_HISTORY"));
+  assert.ok(!decision.reasons.includes("COMPACT_ELIGIBLE"));
+});
+
+test("compact evidence on a git-less workspace selects direct", () => {
+  const decision = selectFastPath(
+    {
+      files_changed: 4,
+      estimated_lines: 140,
+      risk: "MEDIUM",
+      cohesive_unit: true,
+      known_pattern: true,
+    },
+    { workspace: { repo_history: false, test_suite: true } },
   );
   assert.equal(decision.mode, "direct");
   assert.ok(decision.reasons.includes("COMPACT_ELIGIBLE"));
@@ -84,7 +119,7 @@ test("no repository history selects direct", () => {
 test("no test suite selects direct when the change is within the compact size", () => {
   const decision = selectFastPath(
     { files_changed: 2, estimated_lines: 40 },
-    { workspace: noTests },
+    { workspace: { test_suite: false } },
   );
   assert.equal(decision.mode, "direct");
   assert.ok(decision.reasons.includes("NO_TEST_SUITE"));
@@ -117,7 +152,7 @@ test("an explicit standard label on a repo with history and tests stays standard
     { workspace: withHistory },
   );
   assert.equal(decision.mode, "standard");
-  assert.ok(decision.reasons.includes("EXPLICIT_STANDARD_KEPT"));
+  assert.ok(decision.reasons.includes("EXISTING_REPO_HISTORY"));
 });
 
 test("direct mode can enter IMPLEMENTING without PLAN.md", () => {

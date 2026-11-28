@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { protectedRunDir } from "../scripts/lib/protected-state.js";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const runCli = path.join(repoRoot, "scripts", "nexus-run.js");
@@ -20,11 +21,13 @@ function run(root, args, env) {
 
 test("direct mode reaches COMPLETED through nexus verify", { timeout: 180000 }, () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "nexus-direct-e2e-"));
+  const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), "nexus-direct-state-"));
   const globalConfig = path.join(root, "global-gitconfig");
   fs.writeFileSync(globalConfig, "# untouched\n");
   const env = {
     ...process.env,
     NEXUS_WORKTREE: root,
+    NEXUS_STATE_DIR: stateRoot,
     GIT_CONFIG_GLOBAL: globalConfig,
     GIT_CONFIG_SYSTEM: "/dev/null",
     GIT_CONFIG_NOSYSTEM: "1",
@@ -88,9 +91,11 @@ test("direct mode reaches COMPLETED through nexus verify", { timeout: 180000 }, 
     const completed = run(root, ["transition", "--run-id", "direct-e2e", "--to", "COMPLETED"], env);
     assert.equal(completed.status, 0, `${completed.stderr}\n${completed.stdout}`);
     assert.equal(JSON.parse(completed.stdout).state.state, "COMPLETED");
-    assert.equal(fs.existsSync(path.join(root, ".git")), true);
+    assert.equal(fs.existsSync(path.join(root, ".git")), false, "the private .git must be removed at COMPLETED");
+    assert.equal(fs.existsSync(path.join(protectedRunDir(root, "direct-e2e", env), "private-baseline.json")), false);
     assert.equal(fs.readFileSync(globalConfig, "utf8").startsWith("# untouched"), true);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(stateRoot, { recursive: true, force: true });
   }
 });
