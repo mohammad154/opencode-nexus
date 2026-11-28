@@ -530,7 +530,21 @@ function cmdTransition(flags) {
       allowedFiles: evidence.allowed_files || state.allowed_files || [],
     });
     if (!sealed.ok) {
-      console.error(JSON.stringify({ ok: false, error: sealed.message }, null, 2));
+      console.error(
+        JSON.stringify(
+          {
+            ok: false,
+            code: sealed.code || "DIRECT_SEAL_FAILED",
+            error: sealed.message,
+            ...(sealed.hint ? { hint: sealed.hint } : {}),
+            ...(sealed.out_of_scope
+              ? { out_of_scope: sealed.out_of_scope, allowed_files: sealed.allowed_files }
+              : {}),
+          },
+          null,
+          2,
+        ),
+      );
       process.exit(2);
     }
     evidence.direct_seal = sealed;

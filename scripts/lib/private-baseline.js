@@ -15,6 +15,13 @@ import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { validateContainedPath } from "./filesystem-boundary.js";
+import {
+  changedPathsFromEntries,
+  normalizeAllowedFiles,
+  outOfScopePaths,
+  parseStatusZ,
+  SCOPE_DRIFT_HINT,
+} from "./direct-scope.js";
 
 export const BASELINE_COMMIT_MESSAGE = "nexus-baseline";
 export const DIRECT_EDIT_COMMIT_MESSAGE = "nexus-direct-edit";
@@ -597,63 +604,102 @@ export function cleanupPrivateBaseline(worktree, options = {}) {
   return { ok: true, removed: true, reason: "removed-private-baseline" };
 }
 
+function sealFailure(code, message, extra = {}) {
+  return { ok: false, code, message, ...extra };
+}
+
+function firstLine(text) {
+  return String(text || "").split(/\r?\n/).find((line) => line.trim()) || "";
+}
+
 /**
- * Commit a direct-mode orchestrator edit so verification has a real HEAD.
- * The CLI does this. The orchestrator is not allowed to run git commit.
+ * Seal a direct-mode edit as a CLI-authored commit so verification has a real
+ * HEAD. Only changed paths that are listed in `allowedFiles` are staged and
+ * committed, with a pathspec so nothing else in the index is swept in. Any
+ * change outside the list refuses the seal with a scope-drift error and
+ * commits nothing. The orchestrator never runs git itself.
  */
 export function sealDirectSelfEdit(worktree, options = {}) {
   const root = path.resolve(worktree);
   const gitBin = options.gitBin || "git";
   const env = options.env || process.env;
-  const allowed = (Array.isArray(options.allowedFiles) ? options.allowedFiles : []).filter(
-    (file) => typeof file === "string" && file.trim() && !file.replace(/\\/g, "/").split("/").includes(".."),
-  );
+  const allowed = normalizeAllowedFiles(options.allowedFiles);
   const head = run(gitBin, ["rev-parse", "HEAD"], root, env);
   if (head.status !== 0) {
-    return { ok: false, message: "direct seal requires a git HEAD" };
+    return sealFailure("SEAL_NO_HEAD", "direct seal requires a git HEAD. Start the run with nexus run init.");
   }
+  const headCommit = String(head.stdout || "").trim();
   try {
     ensureExclude(root);
   } catch (error) {
-    return { ok: false, message: `direct seal could not update .git/info/exclude: ${error.message}` };
+    return sealFailure("SEAL_EXCLUDE_FAILED", `direct seal could not update .git/info/exclude: ${error.message}`);
   }
-  const status = run(gitBin, ["status", "--porcelain"], root, env);
+  const status = run(gitBin, ["status", "--porcelain=v1", "-z", "--untracked-files=all"], root, env);
   if (status.status !== 0) {
-    return { ok: false, message: "direct seal cannot read git status" };
+    return sealFailure(
+      "SEAL_STATUS_UNAVAILABLE",
+      `direct seal cannot read git status. ${firstLine(status.stderr)}`.trim(),
+    );
   }
-  if (!String(status.stdout || "").trim()) {
-    return { ok: true, commit: String(head.stdout || "").trim(), committed: false };
+  const changed = changedPathsFromEntries(parseStatusZ(status.stdout));
+  if (changed.length === 0) return { ok: true, commit: headCommit, committed: false, files: [] };
+  const outOfScope = outOfScopePaths(changed, allowed);
+  if (outOfScope.length > 0) {
+    return sealFailure(
+      "DIRECT_SCOPE_DRIFT",
+      `direct seal refused: ${outOfScope.length} path(s) changed outside allowed_files (${outOfScope.join(", ")}). Nothing was committed.`,
+      { hint: SCOPE_DRIFT_HINT, out_of_scope: outOfScope, allowed_files: allowed },
+    );
   }
-  if (allowed.length === 0) {
-    return { ok: false, message: "direct seal has no allowed files to commit" };
+  const staged = run(
+    gitBin,
+    ["--literal-pathspecs", "-c", "core.autocrlf=false", "add", "-A", "--", ...changed],
+    root,
+    env,
+  );
+  if (staged.status !== 0) {
+    return sealFailure(
+      "SEAL_STAGE_FAILED",
+      `direct seal could not stage ${changed.join(", ")}. ${firstLine(staged.stderr)}`.trim(),
+    );
   }
-  const added = run(gitBin, ["-c", "core.autocrlf=false", "add", "--", ...allowed], root, env);
-  if (added.status !== 0) {
-    return {
-      ok: false,
-      message: `direct seal failed: git add exited ${added.status}. ${String(added.stderr || "").trim()}`,
-    };
+  const pending = run(
+    gitBin,
+    ["--literal-pathspecs", "diff", "--cached", "--name-only", "-z", "--", ...changed],
+    root,
+    env,
+  );
+  if (pending.status !== 0) {
+    return sealFailure("SEAL_STAGE_FAILED", "direct seal cannot read the staged changes");
+  }
+  if (!String(pending.stdout || "").trim()) {
+    return { ok: true, commit: headCommit, committed: false, files: [] };
   }
   let hooksPath;
   try {
     hooksPath = emptyHooksPath(root);
   } catch (error) {
-    return { ok: false, message: `direct seal could not disable hooks: ${error.message}` };
+    return sealFailure("SEAL_HOOKS_FAILED", `direct seal could not disable hooks: ${error.message}`);
   }
   const committed = run(
     gitBin,
-    commitCommand(hooksPath, { message: DIRECT_EDIT_COMMIT_MESSAGE }),
+    [
+      "--literal-pathspecs",
+      ...commitCommand(hooksPath, { message: DIRECT_EDIT_COMMIT_MESSAGE }),
+      "--",
+      ...changed,
+    ],
     root,
     env,
   );
   if (committed.status !== 0) {
-    return {
-      ok: false,
-      message: `direct seal failed: git commit exited ${committed.status}. ${String(committed.stderr || "").trim()}`,
-    };
+    return sealFailure(
+      "SEAL_COMMIT_FAILED",
+      `direct seal could not commit ${changed.join(", ")}. ${firstLine(committed.stderr)}`.trim(),
+    );
   }
   const after = run(gitBin, ["rev-parse", "HEAD"], root, env);
   const commit = after.status === 0 ? String(after.stdout || "").trim() : "";
-  if (!commit) return { ok: false, message: "direct seal failed: HEAD is unavailable after commit" };
-  return { ok: true, commit, committed: true };
+  if (!commit) return sealFailure("SEAL_NO_HEAD", "direct seal failed: HEAD is unavailable after commit");
+  return { ok: true, commit, committed: true, files: changed };
 }
