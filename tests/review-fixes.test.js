@@ -154,7 +154,9 @@ test("M2 a failing global hook does not abort the private baseline", () => {
   fs.mkdirSync(hooks);
   fs.writeFileSync(path.join(hooks, "pre-commit"), "#!/bin/sh\nexit 1\n");
   fs.chmodSync(path.join(hooks, "pre-commit"), 0o755);
-  fs.appendFileSync(globalConfig, `[core]\n\thooksPath = ${hooks}\n`);
+  // Git config treats backslashes as escapes, so a raw Windows path is a bad line.
+  const hooksForGit = hooks.replace(/\\/g, "/");
+  fs.appendFileSync(globalConfig, `[core]\n\thooksPath = ${hooksForGit}\n`);
   try {
     fs.writeFileSync(path.join(root, "app.js"), "export const app = 1;\n");
     const created = ensurePrivateBaseline(root, { env, runId: "hooks" });
