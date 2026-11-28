@@ -1,3 +1,6 @@
+import fs from "node:fs";
+import { fileURLToPath } from "node:url";
+
 /**
  * Structured review findings + fix-loop policy + approval admissibility.
  *
@@ -157,9 +160,59 @@ export function classifyReviewerCommands(handoff = {}, sealedSource = null) {
   };
 }
 
-// A review loop costs an implementer and a reviewer call. Keep the ceiling
-// small and deterministic so one hard unit cannot consume the whole run.
+// A review loop costs an implementer and a reviewer call. The runtime cap is
+// one round (two when impact risk is HIGH or CRITICAL). The legacy constant
+// remains for callers that still pass an explicit attempt ceiling.
 export const DEFAULT_MAX_FIX_LOOP_ATTEMPTS = 3;
+export const DEFAULT_MAX_REVIEW_ROUNDS = 1;
+export const DEFAULT_MAX_REVIEW_ROUNDS_HIGH = 2;
+
+function finiteNumber(value) {
+  if (value == null) return null;
+  if (typeof value === "string" && value.trim() === "") return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function workflowConfig(workflow) {
+  if (workflow && typeof workflow === "object") return workflow;
+  try {
+    const file = fileURLToPath(new URL("../../config/default-workflow.json", import.meta.url));
+    return JSON.parse(fs.readFileSync(file, "utf8"));
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Review rounds allowed for this run.
+ * Default is 1. HIGH/CRITICAL impact uses at least the high-risk cap (2).
+ * NEXUS_MAX_REVIEW_ROUNDS and NEXUS_MAX_REVIEW_ROUNDS_HIGH override the defaults.
+ */
+export function resolveMaxReviewRounds(state = {}, workflow = null, env = process.env) {
+  const configured = workflowConfig(workflow);
+  const risk = String(
+    state?.impact?.risk ||
+      state?.impact?.report?.risk ||
+      state?.risk ||
+      state?.fast_path?.risk ||
+      "",
+  ).toUpperCase();
+  const high = risk === "HIGH" || risk === "CRITICAL";
+  let base =
+    finiteNumber(state?.max_review_rounds) ??
+    finiteNumber(configured?.maxReviewRounds) ??
+    finiteNumber(env?.NEXUS_MAX_REVIEW_ROUNDS) ??
+    DEFAULT_MAX_REVIEW_ROUNDS;
+  let highCap =
+    finiteNumber(state?.max_review_rounds_high) ??
+    finiteNumber(configured?.maxReviewRoundsHigh) ??
+    finiteNumber(env?.NEXUS_MAX_REVIEW_ROUNDS_HIGH) ??
+    DEFAULT_MAX_REVIEW_ROUNDS_HIGH;
+  base = Math.max(0, Math.floor(base));
+  highCap = Math.max(0, Math.floor(highCap));
+  return high ? Math.max(base, highCap) : base;
+}
 
 // Keep automatic verification repair bounded to one implementer/review pass.
 export const DEFAULT_MAX_VERIFICATION_REPAIR_ATTEMPTS = 1;
@@ -409,13 +462,13 @@ export function isApprovalAdmissible(handoff, state = {}, opts = {}) {
 export function fixLoopDecision({
   findings = [],
   attempt = 0,
-  max_attempts = DEFAULT_MAX_FIX_LOOP_ATTEMPTS,
+  max_attempts = DEFAULT_MAX_REVIEW_ROUNDS,
 } = {}) {
   const openHigh = unresolvedHighFindings(findings);
   const currentAttempt = Math.max(0, Math.floor(Number(attempt) || 0));
   const maxAttempts = Math.max(
     0,
-    Math.floor(Number(max_attempts) || DEFAULT_MAX_FIX_LOOP_ATTEMPTS),
+    Math.floor(Number(max_attempts) || DEFAULT_MAX_REVIEW_ROUNDS),
   );
   if (currentAttempt >= maxAttempts) {
     return {

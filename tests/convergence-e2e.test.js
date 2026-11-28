@@ -30,7 +30,8 @@ function sh(root, command, args) {
     cwd: root,
     encoding: "utf8",
     maxBuffer: 32 * 1024 * 1024,
-    env: { ...process.env, NEXUS_WORKTREE: root },
+    // This file pins the standard pipeline. Direct mode is covered separately.
+    env: { ...process.env, NEXUS_WORKTREE: root, NEXUS_FAST_PATH: "0" },
   });
 }
 const git = (root, ...args) => String(sh(root, "git", args).stdout || "").trim();

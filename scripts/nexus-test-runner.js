@@ -1,12 +1,25 @@
 #!/usr/bin/env node
 
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const scriptPath = fileURLToPath(import.meta.url);
 const projectRoot = path.resolve(path.dirname(scriptPath), "..");
+
+/**
+ * A developer's shell may point Nexus at another worktree or keep baselines.
+ * NODE_TEST_CONTEXT makes a nested `node --test` report to its parent instead
+ * of running the files, so it is removed too. Tests must not inherit either.
+ */
+const HERMETIC_UNSET = [
+  "NEXUS_WORKTREE",
+  "NEXUS_KEEP_PRIVATE_BASELINE",
+  "NEXUS_FAST_PATH",
+  "NODE_TEST_CONTEXT",
+];
 
 function compareNames(left, right) {
   if (left.name < right.name) return -1;
@@ -65,11 +78,20 @@ export function runTests({
     };
   }
 
-  const result = spawnSync(process.execPath, ["--test", ...testFiles], {
-    cwd: root,
-    shell: false,
-    stdio,
-  });
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "nexus-test-state-"));
+  const env = { ...process.env, NEXUS_STATE_DIR: stateDir };
+  for (const name of HERMETIC_UNSET) delete env[name];
+  let result;
+  try {
+    result = spawnSync(process.execPath, ["--test", ...testFiles], {
+      cwd: root,
+      env,
+      shell: false,
+      stdio,
+    });
+  } finally {
+    fs.rmSync(stateDir, { recursive: true, force: true });
+  }
 
   return {
     status:

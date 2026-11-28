@@ -3,9 +3,10 @@ description: Conditional planning-only challenger. Proposes cohesive execution u
 mode: subagent
 permission:
   external_directory:
-    "/usr/local/lib/node_modules/@mohammad154/opencode-nexus/**": allow
-    "/usr/local/lib/node_modules/@mohammad154/opencode-nexus/schemas/*": allow
+    "**/@mohammad154/opencode-nexus/**": allow
+    "**/@mohammad154/opencode-nexus/schemas/*": allow
     "~/.cache/opencode/packages/@mohammad154/**": allow
+    "**/.cache/opencode/packages/@mohammad154/**": allow
   edit:
     "*": deny
   bash:

@@ -37,6 +37,17 @@ import {
   CLASSIFY_APPLY_SOURCE,
 } from "./lib/state-machine.js";
 import { createDefaultProviders } from "./lib/providers.js";
+import {
+  escalationDecision,
+  isDirectFastPath,
+  probeWorkspace,
+  selectFastPath,
+} from "./lib/fast-path.js";
+import {
+  cleanupPrivateBaseline,
+  ensurePrivateBaseline,
+  sealDirectSelfEdit,
+} from "./lib/private-baseline.js";
 import { createVerificationProvider } from "./lib/providers/verification-provider.js";
 import { runVerificationLifecycle } from "./lib/verification-lifecycle.js";
 import { assessDrift } from "./lib/drift.js";
@@ -285,6 +296,21 @@ function runtimeFile(relativePath, label = "runtime path") {
   return candidate;
 }
 
+/**
+ * The private-baseline record is authoritative about who created the git
+ * repository. A repository this run did not create is an existing repository
+ * and always takes the standard pipeline.
+ */
+function applyPrivateBaselineFacts(workspace, baseline) {
+  if (baseline?.method === "existing-git") {
+    return { ...workspace, existing_git: true };
+  }
+  if (baseline?.created === true || baseline?.method === "content-hash") {
+    return { ...workspace, repo_history: false, existing_git: false };
+  }
+  return workspace;
+}
+
 function cmdInit(flags) {
   const explicit = flags["run-id"];
   const id = explicit ? String(explicit) : defaultRunId();
@@ -307,7 +333,29 @@ function cmdInit(flags) {
   const state = createEmptyRunState(id, {
     workflow: "default",
   });
-  writeRunState(worktree(), state);
+  const root = worktree();
+  const baseline = ensurePrivateBaseline(root, { runId: id });
+  if (!baseline.ok) {
+    console.error(baseline.message || "Private git baseline failed.");
+    process.exit(2);
+  }
+  const workspace = applyPrivateBaselineFacts(probeWorkspace(root), baseline);
+  state.private_baseline = {
+    method: baseline.method,
+    created: baseline.created === true,
+    existed_before: baseline.existed_before !== false,
+    commit: baseline.commit || null,
+    run_id: id,
+  };
+  state.fast_path = selectFastPath(
+    {},
+    {
+      workspace,
+      enabled: flags["no-triage"] ? false : undefined,
+    },
+  );
+  if (baseline.message) console.error(baseline.message);
+  writeRunState(root, state);
   recordTrajectory(flags, { command: "init", run_id: id }, { ok: true, state }, state);
   console.log(JSON.stringify({ ok: true, state }, null, 2));
 }
@@ -361,10 +409,30 @@ function cmdClassify(flags) {
       headResult.status === 0
         ? String(headResult.stdout || "").trim() || null
         : null;
+    const workspace = applyPrivateBaselineFacts(probeWorkspace(worktree()), state.private_baseline);
+    const decision = selectFastPath(
+      { ...input, risk: result?.risk || input.risk },
+      { workspace },
+    );
+    let escalated = false;
+    if (isDirectFastPath(state) && decision.mode === "standard") {
+      state = {
+        ...state,
+        fast_path: {
+          ...state.fast_path,
+          ...decision,
+          escalated_from: "direct",
+        },
+      };
+      escalated = true;
+      writeRunState(worktree(), state);
+    }
     const classification = {
       ...result,
       classification_source: CLASSIFY_APPLY_SOURCE,
       worktree_head: worktreeHead,
+      fast_path: state.fast_path || null,
+      escalated,
     };
     const { artifact_digest: _omit, ...forDigest } = classification;
     classification.artifact_digest = `sha256:${createHash("sha256")
@@ -388,6 +456,8 @@ function cmdClassify(flags) {
           warning:
             "V5: nexus classify --apply no longer transitions run state. Use brainstorming → PLANNED.",
           classification: result,
+          fast_path: state.fast_path || null,
+          escalated,
           state,
         },
         null,
@@ -440,7 +510,56 @@ function cmdTransition(flags) {
   // The CLI's selected worktree is authoritative. Never let an evidence file
   // redirect identity checks or state persistence to a different checkout.
   evidence.worktree = worktree();
-  if (to === "IMPLEMENTING") {
+  if (to === "IMPLEMENTING" && state.state === "BRAINSTORMING" && isDirectFastPath(state)) {
+    const decision = escalationDecision(state, evidence);
+    if (decision) {
+      state = {
+        ...state,
+        fast_path: {
+          ...state.fast_path,
+          ...decision,
+          escalated_from: "direct",
+        },
+      };
+      writeRunState(worktree(), state);
+      const errors = [
+        `direct mode escalated to standard (${decision.reasons.join(", ")}). Continue with PLANNED, pre-impact, and a feature branch.`,
+      ];
+      console.error(JSON.stringify({ ok: false, code: "ESCALATED_TO_STANDARD", errors, state }, null, 2));
+      process.exit(3);
+    }
+  }
+  if (
+    to === "VERIFYING" &&
+    isDirectFastPath(state) &&
+    !evidence.implementer_handoff &&
+    !evidence.handoff
+  ) {
+    const sealed = sealDirectSelfEdit(worktree(), {
+      runId: state.run_id,
+      allowedFiles: evidence.allowed_files || state.allowed_files || [],
+    });
+    if (!sealed.ok) {
+      console.error(
+        JSON.stringify(
+          {
+            ok: false,
+            code: sealed.code || "DIRECT_SEAL_FAILED",
+            error: sealed.message,
+            ...(sealed.hint ? { hint: sealed.hint } : {}),
+            ...(sealed.out_of_scope
+              ? { out_of_scope: sealed.out_of_scope, allowed_files: sealed.allowed_files }
+              : {}),
+          },
+          null,
+          2,
+        ),
+      );
+      process.exit(2);
+    }
+    evidence.direct_seal = sealed;
+  }
+  if (to === "IMPLEMENTING" && !(isDirectFastPath(state) && state.state === "BRAINSTORMING")) {
     const sourceCommit =
       evidence.drift?.current_head ||
       evidence.current_head ||
@@ -611,13 +730,30 @@ function cmdTransition(flags) {
       process.exit(3);
     }
   }
+  if (to === "COMPLETED" || to === "FAILED") {
+    const cleaned = cleanupPrivateBaseline(worktree(), {
+      runId: r.state.run_id,
+      fastPathMode: r.state.fast_path?.mode,
+    });
+    if (cleaned.removed) {
+      console.error("Removed the private git baseline created for this run.");
+    } else if (cleaned.kept || cleaned.ok === false) {
+      console.error(`Private git baseline was kept: ${cleaned.reason}.`);
+    }
+  }
   recordTrajectory(
     flags,
     { command: "transition", to },
     { ok: true, state: r.state },
     r.state,
   );
-  console.log(JSON.stringify({ ok: true, state: r.state }, null, 2));
+  console.log(
+    JSON.stringify(
+      { ok: true, state: r.state, ...(r.warnings ? { warnings: r.warnings } : {}) },
+      null,
+      2,
+    ),
+  );
 }
 
 function cmdValidateHandoff(flags) {
@@ -886,6 +1022,20 @@ function cmdBaseline(flags) {
   console.log(JSON.stringify({ ok: true, baseline }, null, 2));
 }
 
+function cmdCleanup(flags) {
+  const state = resolveRun(flags);
+  const cleaned = cleanupPrivateBaseline(worktree(), {
+    runId: state?.run_id || flags["run-id"] || null,
+    fastPathMode: state?.fast_path?.mode,
+  });
+  const payload = { ok: cleaned.ok !== false, ...cleaned, run_id: state?.run_id || null };
+  if (cleaned.ok === false) {
+    console.error(JSON.stringify(payload, null, 2));
+    process.exit(2);
+  }
+  console.log(JSON.stringify(payload, null, 2));
+}
+
 function cmdVerify(flags) {
   if (flags.baseline) {
     return cmdBaseline(flags);
@@ -944,10 +1094,15 @@ function cmdVerify(flags) {
       },
       result.state || state,
     );
+    const noChecksWarning =
+      result.ok && result.verification?.no_automated_checks?.ok === true
+        ? result.verification.no_automated_checks.message
+        : null;
     const body = {
       ok: result.ok,
       ...(result.code ? { code: result.code } : {}),
       ...(result.error ? { error: result.error } : {}),
+      ...(noChecksWarning ? { warnings: [noChecksWarning] } : {}),
       state: result.state || state,
       verification: result.verification || null,
       artifact: result.artifact || null,
@@ -956,6 +1111,7 @@ function cmdVerify(flags) {
       console.log(JSON.stringify(body, null, 2));
     } else if (result.ok) {
       console.log(`Verification PASSED`);
+      if (noChecksWarning) console.log(`Warning: ${noChecksWarning}`);
       const summary = result.state?.verification;
       if (summary?.total_steps != null) {
         console.log(`${summary.completed_steps || 0}/${summary.total_steps} verification steps completed`);
@@ -1047,9 +1203,11 @@ function main() {
         return cmdBaseline(flags);
       case "verify":
         return cmdVerify(flags);
+      case "cleanup":
+        return cmdCleanup(flags);
       default:
         console.error(
-          `Unknown or missing command. Use: init|classify|transition|validate-handoff|status|resume|drift|can-transition|inspect|worktree|baseline|verify`,
+          `Unknown or missing command. Use: init|classify|transition|validate-handoff|status|resume|drift|can-transition|inspect|worktree|baseline|verify|cleanup`,
         );
         process.exit(2);
     }

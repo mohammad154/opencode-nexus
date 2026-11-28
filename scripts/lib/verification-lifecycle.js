@@ -23,6 +23,8 @@ import { runStatePath, writeRunState } from "./migrate-artifacts.js";
 import { requiresTdd } from "./policy.js";
 import { trustedPolicyForState } from "./policy-snapshot.js";
 import { withFileLock } from "./lock.js";
+import { isDirectFastPath, noteDirectVerification } from "./fast-path.js";
+import { noAutomatedCheckEvidence, NO_AUTOMATED_CHECKS_MODE } from "./no-automated-checks.js";
 
 function nowIso() {
   return new Date().toISOString();
@@ -614,6 +616,9 @@ function runVerificationLifecycleUnlocked({
   };
 
   const fail = (code, error, status = "FAILED") => {
+    if (status === "FAILED" || status === "TIMED_OUT") {
+      currentState = noteDirectVerification(currentState, { failed: true });
+    }
     update({ status, failureReason: code });
     onProgress?.({ type: "run_complete", ok: false, status, code, error });
     return { ok: false, code, error, state: currentState, artifact };
@@ -637,6 +642,10 @@ function runVerificationLifecycleUnlocked({
     }
     if (!measured.ok) return fail("POST_IMPACT_FAILED", measured.error);
     postImpact = sealProviderArtifact(measured.report, head);
+    const measuredRisk = riskFromImpact(postImpact, currentState);
+    if (measuredRisk && isDirectFastPath(currentState)) {
+      currentState = noteDirectVerification(currentState, { risk: measuredRisk });
+    }
     replaceStep(artifact, {
       id: "post-impact",
       kind: "impact",
@@ -703,7 +712,7 @@ function runVerificationLifecycleUnlocked({
   // stand in for a provider step when the workspace is unchanged across TDD, so
   // the recorded result provably belongs to this run's identity.
   const workspaceBeforeTdd =
-    needsTdd && !priorTdd ? inspectWorkspace(root) : null;
+    needsTdd && !priorTdd ? inspectWorkspace(root, { runId: currentState.run_id }) : null;
   if (needsTdd) {
     if (priorTdd) {
       tddEvidence = artifact.tdd_evidence;
@@ -766,7 +775,7 @@ function runVerificationLifecycleUnlocked({
   // here can then be reused by a later phase, and results sealed by an earlier
   // phase can be matched against these steps. The post-run measurement below
   // remains the authoritative sealed evidence for the completion gate.
-  const runWorkspace = inspectWorkspace(root);
+  const runWorkspace = inspectWorkspace(root, { runId: currentState.run_id });
   const identityContext =
     runWorkspace.available === true && runWorkspace.workspace_digest
       ? verificationIdentityContext({
@@ -836,8 +845,12 @@ function runVerificationLifecycleUnlocked({
   }
 
   let baselineComparison = null;
+  let noChecks = null;
   let ok = providerRun?.ok === true && hasExecutedVerificationCheck(providerRun);
-  if (baseline && provider.compare) {
+  if (providerRun?.code === "VERIFICATION_UNAVAILABLE" && providerRun?.timed_out !== true) {
+    noChecks = noAutomatedCheckEvidence(root, currentState, { head });
+    ok = noChecks.ok === true;
+  } else if (baseline && provider.compare) {
     baselineComparison = provider.compare(baseline, providerRun);
     if (baselineComparison.ok !== true) {
       ok = false;
@@ -851,7 +864,7 @@ function runVerificationLifecycleUnlocked({
   // Measure the source worktree immediately before sealing verification
   // evidence. The completion gate re-measures this identity later, so the
   // sealed artifact and its durable summary must carry the exact same result.
-  const workspace = inspectWorkspace(root);
+  const workspace = inspectWorkspace(root, { runId: currentState.run_id });
   const workspaceEvidence = {
     workspace_clean: workspace.available === true && workspace.clean === true,
     dirty_paths: Array.isArray(workspace.dirty_paths)
@@ -884,6 +897,8 @@ function runVerificationLifecycleUnlocked({
       reused_steps: providerRun?.reused_steps ?? 0,
       ran_steps: providerRun?.ran_steps ?? providerRun?.executed_steps ?? 0,
       timed_out: providerRun?.timed_out === true,
+      verification_mode: noChecks?.ok === true ? NO_AUTOMATED_CHECKS_MODE : "EXECUTED_CHECKS",
+      no_automated_checks: noChecks,
       ...workspaceEvidence,
     },
     head,
@@ -904,12 +919,12 @@ function runVerificationLifecycleUnlocked({
     );
   }
   if (!ok) {
-    return fail(
-      providerRun?.code || "VERIFICATION_FAILED",
-      providerRun?.code === "VERIFICATION_UNAVAILABLE"
-        ? "zero executable verification checks"
-        : "verification checks failed",
-    );
+    if (noChecks?.eligible) return fail(noChecks.code, noChecks.message);
+    if (providerRun?.code === "VERIFICATION_UNAVAILABLE") {
+      const reason = noChecks ? `: ${noChecks.message}` : "";
+      return fail(providerRun.code, `zero executable verification checks${reason}`);
+    }
+    return fail(providerRun?.code || "VERIFICATION_FAILED", "verification checks failed");
   }
 
   update({ status: "PASSED" });

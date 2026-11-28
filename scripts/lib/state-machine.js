@@ -40,6 +40,7 @@ import {
 import { checkPlanFile } from "./plan-check.js";
 import {
   convergenceErrors,
+  convergenceReport,
   plannedUnitIds,
   traceMatrix,
 } from "./traceability.js";
@@ -50,13 +51,19 @@ import {
   assertTransitionScopeLock,
 } from "./scope-lock.js";
 import {
-  DEFAULT_MAX_FIX_LOOP_ATTEMPTS,
   DEFAULT_MAX_VERIFICATION_REPAIR_ATTEMPTS,
   classifyReviewerCommands,
   fixLoopDecision,
   isApprovalAdmissible,
   isBlockingFinding,
+  resolveMaxReviewRounds,
 } from "./review-protocol.js";
+import {
+  directImplementErrors,
+  directReviewRequired,
+  isDirectFastPath,
+} from "./fast-path.js";
+import { readReviewerTimeouts, readSubagentTimeouts } from "./subagent-budget.js";
 import { assertReviewPackageBound } from "./review-package.js";
 
 export const STATES = [
@@ -1284,6 +1291,54 @@ export function revalidateTransitionEvidence(to, ctx, providers, state = {}) {
 }
 
 
+const ADVISOR_HARD_REASON = new Set([
+  "PUBLIC_CONTRACT",
+  "SECURITY_BOUNDARY",
+  "MIGRATION",
+  "DESTRUCTIVE_CHANGE",
+  "ARCHITECTURAL_CHOICE",
+  "MULTI_SUBSYSTEM",
+  "HIGH_IMPACT",
+  "UNKNOWN_IMPACT",
+  "DEEP_PLANNING_DEPTH",
+]);
+
+function subagentTimeout(state, ctx, role) {
+  const worktree = ctx?.worktree || state?.worktree;
+  const runId = state?.run_id;
+  if (!worktree || !runId) return null;
+  const record = readSubagentTimeouts(worktree, runId, state?.current_unit || null)[role];
+  if (!record || record.run_id !== runId || record.status !== "TIMED_OUT") return null;
+  return record;
+}
+
+function planAdvisorTimedOut(state, ctx) {
+  return subagentTimeout(state, ctx, "plan-advisor")?.status === "TIMED_OUT";
+}
+
+function taskVerificationPassed(state) {
+  const status = state?.verification?.status || state?.verification_status;
+  return state?.verification?.phase === "FINAL" ? false : status === "PASSED";
+}
+
+function maySkipTaskReview(state, from, ctx) {
+  if (from === "VERIFYING" && isDirectFastPath(state) && !directReviewRequired(state, ctx)) {
+    return true;
+  }
+  if (
+    (from === "VERIFYING" || from === "REVIEWING") &&
+    subagentTimeout(state, ctx, "reviewer") &&
+    taskVerificationPassed(state)
+  ) {
+    const review = ctx.review_handoff || ctx.unified_handoff || state?.last_review_handoff;
+    if (review && review.verdict && review.verdict !== "TIMED_OUT" && review.status !== "TIMED_OUT") {
+      return false;
+    }
+    return true;
+  }
+  return false;
+}
+
 /**
  * @param {object} state run state
  * @param {string} to
@@ -1291,6 +1346,7 @@ export function revalidateTransitionEvidence(to, ctx, providers, state = {}) {
  */
 export function canTransition(state, to, ctx = {}) {
   const errors = [];
+  const warnings = [];
   const from = state?.state;
   if (!from) return { ok: false, errors: ["missing current state"] };
   // Normalize legacy alias before unknown-state check
@@ -1362,6 +1418,12 @@ export function canTransition(state, to, ctx = {}) {
       allowed.add(resumeTarget);
     }
   }
+  if (from === "BRAINSTORMING" && isDirectFastPath(state)) {
+    allowed.add("IMPLEMENTING");
+  }
+  if (maySkipTaskReview(state, from, ctx)) {
+    allowed.add("FINAL_VERIFYING");
+  }
   allowed.add("BLOCKED");
   allowed.add("FAILED");
 
@@ -1406,7 +1468,11 @@ export function canTransition(state, to, ctx = {}) {
         );
       }
     }
-    if (decision.required && !advisor) {
+    const advisorTimedOut = planAdvisorTimedOut(state, ctx);
+    const parallelAdvisor =
+      state.fast_path?.advisor_parallel === true &&
+      !(decision.reason_codes || []).some((code) => ADVISOR_HARD_REASON.has(code));
+    if (decision.required && !advisor && !advisorTimedOut && !parallelAdvisor) {
       errors.push(
         `plan-advisor is required before PLANNED (${decision.reason_codes.join(", ")}); one independent plan-advisor handoff is missing`,
       );
@@ -1428,15 +1494,15 @@ export function canTransition(state, to, ctx = {}) {
         `planning mode ${planningMode} permits ${allowedAdvisorCalls} plan-advisor call(s); got ${advisorCalls}`,
       );
     }
-    if (decision.required && advisorCalls < 1) {
+    if (decision.required && advisorCalls < 1 && !advisorTimedOut && !parallelAdvisor) {
       errors.push(
         `plan-advisor is required before PLANNED (${decision.reason_codes.join(", ")}); no completed plan-advisor call was recorded`,
       );
     }
-    if (planningMode === "compact" && advisorCalls > 0) {
+    if (planningMode === "compact" && advisorCalls > 0 && !advisorTimedOut) {
       errors.push("compact planning must not spend a plan-advisor call");
     }
-    if (advisor) {
+    if (advisor && !advisorTimedOut) {
       const advisorSchema = validatePlanAdvisorHandoff(advisor);
       if (!advisorSchema.ok) {
         errors.push(
@@ -1521,11 +1587,11 @@ export function canTransition(state, to, ctx = {}) {
           const decision = fixLoopDecision({
             findings: data.findings || [],
             attempt: fixLoopAttemptsForUnit(state, unit),
-            max_attempts: DEFAULT_MAX_FIX_LOOP_ATTEMPTS,
+            max_attempts: resolveMaxReviewRounds(state),
           });
           if (decision.action === "block") {
             errors.push(
-              `FIX_LOOP_EXHAUSTED: ${unit} reached ${DEFAULT_MAX_FIX_LOOP_ATTEMPTS} remediation attempt(s); transition to BLOCKED and reconcile instead of redispatching`,
+              `FIX_LOOP_EXHAUSTED: ${unit} reached ${resolveMaxReviewRounds(state)} remediation attempt(s); transition to BLOCKED and reconcile instead of redispatching`,
             );
           }
         } else if (data.verdict === "APPROVED" && from === "FINAL_REVIEWING") {
@@ -1618,7 +1684,29 @@ export function canTransition(state, to, ctx = {}) {
     }
   }
 
-  if (to === "IMPLEMENTING") {
+  if (to === "IMPLEMENTING" && from === "BRAINSTORMING" && isDirectFastPath(state)) {
+    errors.push(...directImplementErrors(state, ctx));
+  } else if (to === "IMPLEMENTING") {
+    if (state.fast_path?.advisor_parallel === true) {
+      const parallelAdvisor = planAdvisorEvidence(ctx, state);
+      const parallelMode =
+        planningModeFromContext(ctx, state) ||
+        normalizePlanningMode(state.planning_mode, "compact");
+      const parallelDecision = resolvePlanAdvisorDecision(ctx, state, parallelMode);
+      const parallelHard = (parallelDecision.reason_codes || []).some((code) =>
+        ADVISOR_HARD_REASON.has(code),
+      );
+      if (
+        parallelDecision.required &&
+        !parallelHard &&
+        !parallelAdvisor &&
+        !planAdvisorTimedOut(state, ctx)
+      ) {
+        errors.push(
+          "IMPLEMENTING requires the parallel plan-advisor handoff or a TIMED_OUT record before coding starts",
+        );
+      }
+    }
     if (
       (ctx.require_policy_snapshot === true ||
         (typeof ctx.worktree === "string" && ctx.worktree.trim())) &&
@@ -1737,8 +1825,11 @@ export function canTransition(state, to, ctx = {}) {
 
   if (to === "VERIFYING") {
     const raw = ctx.implementer_handoff || ctx.handoff;
-    if (!raw) errors.push("VERIFYING requires implementer handoff");
-    else {
+    const directSelfEdit = isDirectFastPath(state) && !raw;
+    if (!raw && !directSelfEdit) errors.push("VERIFYING requires implementer handoff");
+    else if (directSelfEdit && !ctx.direct_seal?.commit) {
+      errors.push("direct VERIFYING requires the CLI-measured direct_seal.commit");
+    } else if (raw) {
       const {
         ok,
         errors: he,
@@ -1808,6 +1899,10 @@ export function canTransition(state, to, ctx = {}) {
   }
 
   if (to === "FINAL_VERIFYING") {
+    const skipReview = maySkipTaskReview(state, from, ctx);
+    if (skipReview) {
+      assertCompletedVerification(state, ctx, errors, { phase: "TASK" });
+    } else {
     const reuse = from === "REVIEWING" && finalReviewReuseRequested(ctx);
     if (!reuse && from !== "FINAL_REVIEWING" && from !== "BLOCKED") {
       errors.push("FINAL_VERIFYING must follow FINAL_REVIEWING");
@@ -1849,20 +1944,28 @@ export function canTransition(state, to, ctx = {}) {
         `FINAL_VERIFYING blocked by unresolved findings: ${high.map((f) => f.id).join(", ")}`,
       );
     }
+    }
   }
 
   if (to === "COMPLETED") {
-    if (from !== "FINAL_VERIFYING" && from !== "BLOCKED") {
-      errors.push("COMPLETED must follow FINAL_VERIFYING");
-    }
     if (ctx.skip_final_verification === true) {
       errors.push("skip_final_verification is not allowed");
+    }
+    if (from !== "FINAL_VERIFYING" && from !== "BLOCKED") {
+      errors.push("COMPLETED must follow FINAL_VERIFYING");
     }
     if (from === "FINAL_VERIFYING") {
       assertCompletedVerification(state, ctx, errors, { phase: "FINAL" });
     }
-    // The convergence gate: the plan's intent must be demonstrably covered.
-    errors.push(...convergenceErrors(state, { label: "COMPLETED" }));
+    // The convergence gate: the plan's intent must be demonstrably covered. A
+    // run-scoped reviewer timeout is a terminal review outcome for its unit;
+    // it is reported as a warning, never as silent coverage.
+    const convergence = convergenceReport(state, {
+      label: "COMPLETED",
+      reviewerTimeouts: reviewerTimeoutsForCompletion(state, ctx),
+    });
+    errors.push(...convergence.errors);
+    warnings.push(...convergence.warnings);
   }
 
   // The historical charge is recorded when the implementer handoff enters
@@ -1874,7 +1977,13 @@ export function canTransition(state, to, ctx = {}) {
     if (!dispatchBudget.ok) errors.push(...dispatchBudget.errors);
   }
 
-  return { ok: errors.length === 0, errors };
+  return { ok: errors.length === 0, errors, warnings };
+}
+
+function reviewerTimeoutsForCompletion(state, ctx) {
+  const worktree = ctx?.worktree || state?.worktree;
+  if (!worktree || !state?.run_id) return {};
+  return readReviewerTimeouts(worktree, state.run_id, plannedUnitIds(state));
 }
 
 function getImplementerAgent(state, ctx = {}) {
@@ -2060,7 +2169,20 @@ function agentCallsForTransition(from, to, state, ctx) {
       ? { count, agent: "plan-advisor" }
       : { count: 0, agent: null };
   }
+  if (
+    to === "FINAL_VERIFYING" &&
+    maySkipTaskReview(state, from, ctx)
+  ) {
+    return { count: 0, agent: null };
+  }
   if (to === "VERIFYING" && from === "IMPLEMENTING") {
+    if (
+      isDirectFastPath(state) &&
+      !ctx.implementer_handoff &&
+      !ctx.handoff
+    ) {
+      return { count: 0, agent: null };
+    }
     return { count: 1, agent: "implementer" };
   }
   if (to === "FINAL_VERIFYING" && from === "REVIEWING") {
@@ -2139,11 +2261,15 @@ export function preflightImplementerHandoff(ctx = {}) {
  * Apply transition; returns { ok, state, errors }.
  */
 export function transition(state, to, evidence = {}, providers = null) {
+  const from = state?.state;
   const prov = providers || createDefaultProviders();
   let ctx = { ...evidence };
   if (to === "IMPACT_READY") to = "TASK_IMPACT_READY";
 
-  if (to === "VERIFYING") {
+  if (
+    to === "VERIFYING" &&
+    !(isDirectFastPath(state) && !ctx.implementer_handoff && !ctx.handoff)
+  ) {
     const preflightErrors = preflightImplementerHandoff(ctx);
     if (preflightErrors.length) {
       return {
@@ -2400,6 +2526,13 @@ export function transition(state, to, evidence = {}, providers = null) {
       next.policy_snapshot = ctx.policy_snapshot;
       next.policy_snapshot_required = true;
     }
+    if (from === "BRAINSTORMING" && isDirectFastPath(state)) {
+      const plan = ctx.session_plan || ctx.sessionPlan || state.fast_path?.session_plan;
+      if (plan) {
+        next.fast_path = { ...(next.fast_path || state.fast_path || {}), session_plan: plan };
+      }
+      if (!ctx.current_unit && !state.current_unit) next.current_unit = "unit-1";
+    }
     if (ctx.branch) next.branch = ctx.branch;
     if (ctx.current_unit) next.current_unit = ctx.current_unit;
     if (ctx.drift?.plan_commit) next.plan_commit = ctx.drift.plan_commit;
@@ -2533,6 +2666,8 @@ export function transition(state, to, evidence = {}, providers = null) {
       const { data } = normalizeAndValidateHandoff("implementer", raw);
       next.last_implementer_handoff = data;
       if (data.commit) next.implementer_commit = data.commit;
+    } else if (ctx.direct_seal?.commit) {
+      next.implementer_commit = ctx.direct_seal.commit;
     }
     // Never carry evidence forward from a previous implementation attempt.
     // The new lifecycle only accepts artifacts written by `nexus verify` at
@@ -2586,7 +2721,12 @@ export function transition(state, to, evidence = {}, providers = null) {
     time: nowIso(),
   });
 
-  return { ok: true, state: next, errors: [] };
+  return {
+    ok: true,
+    state: next,
+    errors: [],
+    ...(check.warnings?.length ? { warnings: check.warnings } : {}),
+  };
 }
 
 export { effectivePolicy, maxReview, assertScopeLock, assertTransitionScopeLock };

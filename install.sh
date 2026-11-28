@@ -204,9 +204,10 @@ if ! jq --arg p "$PLUGIN_SPEC" --arg name "$PKG_NAME" --arg legacy "$LEGACY_GIT_
   | .permission.external_directory = (
       (.permission.external_directory // {})
       + {
-          "/usr/local/lib/node_modules/@mohammad154/opencode-nexus/**": "allow",
-          "/usr/local/lib/node_modules/@mohammad154/opencode-nexus/schemas/*": "allow",
-          "~/.cache/opencode/packages/@mohammad154/**": "allow"
+          "**/@mohammad154/opencode-nexus/**": "allow",
+          "**/@mohammad154/opencode-nexus/schemas/*": "allow",
+          "~/.cache/opencode/packages/@mohammad154/**": "allow",
+          "**/.cache/opencode/packages/@mohammad154/**": "allow"
         }
     )
   | .permission.skill = (
@@ -279,9 +280,27 @@ echo "  [opencode] Conditional planning agent: plan-advisor"
 echo "  [opencode] Done → $CONFIG_FILE agents: $AGENTS_DIR/"
 
 echo ""; echo "[scripts] Checking:"
-for s in nexus-impact.js nexus-blast.sh nexus-blast.js nexus-branch-cleanup.sh nexus-estimate-calls.js nexus-plan-check.js nexus-run.js nexus-classify.js; do if [[ -f "$SCRIPT_DIR/scripts/$s" ]]; then echo "  ✓ scripts/$s"; else echo "  ✗ missing $s"; fi; done
+for s in nexus-impact.js nexus-blast.sh nexus-blast.js nexus-branch-cleanup.sh nexus-estimate-calls.js nexus-plan-check.js nexus-run.js nexus-classify.js nexus-permission-self-test.js; do if [[ -f "$SCRIPT_DIR/scripts/$s" ]]; then echo "  ✓ scripts/$s"; else echo "  ✗ missing $s"; fi; done
 chmod +x "$SCRIPT_DIR/scripts/nexus-blast.sh" "$SCRIPT_DIR/scripts/nexus-branch-cleanup.sh" 2>/dev/null || true
-chmod a+r "$SCRIPT_DIR/scripts/nexus-blast.js" "$SCRIPT_DIR/scripts/nexus-estimate-calls.js" "$SCRIPT_DIR/scripts/nexus-plan-check.js" "$SCRIPT_DIR/scripts/nexus-run.js" "$SCRIPT_DIR/scripts/nexus-classify.js" 2>/dev/null || true
+chmod a+r "$SCRIPT_DIR/scripts/nexus-blast.js" "$SCRIPT_DIR/scripts/nexus-estimate-calls.js" "$SCRIPT_DIR/scripts/nexus-plan-check.js" "$SCRIPT_DIR/scripts/nexus-run.js" "$SCRIPT_DIR/scripts/nexus-classify.js" "$SCRIPT_DIR/scripts/nexus-permission-self-test.js" 2>/dev/null || true
+
+echo ""; echo "[permissions] Self-test: orchestrator absolute-path write"
+NODE_BIN=""
+if command -v node >/dev/null 2>&1; then
+  NODE_BIN="$(command -v node)"
+else
+  for candidate in /usr/local/bin/node /usr/bin/node; do
+    if [[ -x "$candidate" ]]; then NODE_BIN="$candidate"; break; fi
+  done
+fi
+if [[ -z "$NODE_BIN" ]]; then
+  echo "  Error: node is required to verify orchestrator write permissions." >&2
+  exit 1
+fi
+if ! "$NODE_BIN" "$SCRIPT_DIR/scripts/nexus-permission-self-test.js"; then
+  echo "  Error: permission self-test failed. Refusing to finish install." >&2
+  exit 1
+fi
 
 cat <<END
 

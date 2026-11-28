@@ -32,7 +32,8 @@ function sh(root, command, args) {
   const result = spawnSync(command, args, {
     cwd: root,
     maxBuffer: 32 * 1024 * 1024,
-    env: { ...process.env, NEXUS_WORKTREE: root },
+    // This file pins the standard pipeline. Direct mode is covered separately.
+    env: { ...process.env, NEXUS_WORKTREE: root, NEXUS_FAST_PATH: "0" },
   });
   return {
     ...result,

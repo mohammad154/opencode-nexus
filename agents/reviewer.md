@@ -1,14 +1,19 @@
 ---
 description: Independent adversarial review of every execution unit — try to disprove correctness. Evidence-backed PASS/FAIL per acceptance criterion; never rubber-stamp.
 mode: subagent
+steps: 24
 permission:
   external_directory:
-    "/usr/local/lib/node_modules/@mohammad154/opencode-nexus/**": allow
-    "/usr/local/lib/node_modules/@mohammad154/opencode-nexus/schemas/*": allow
+    "**/@mohammad154/opencode-nexus/**": allow
+    "**/@mohammad154/opencode-nexus/schemas/*": allow
     "~/.cache/opencode/packages/@mohammad154/**": allow
+    "**/.cache/opencode/packages/@mohammad154/**": allow
   edit:
     "*": deny
     ".opencode/handoffs/**": allow
+    "**/.opencode/handoffs/**": allow
+    "**/../**": deny
+    "../**": deny
   bash:
     "*": deny
     "git status*": allow

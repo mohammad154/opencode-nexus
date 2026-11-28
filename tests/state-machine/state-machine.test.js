@@ -401,24 +401,48 @@ test("REQUEST_CHANGES remediation attempts are persisted and capped per unit", (
     current_unit: "unit-1",
     implementer_commit: "impl222",
     head_commit: "base111",
-    fix_loop_attempts: { "unit-1": 2 },
+    fix_loop_attempts: {},
   };
   const evidence = {
     review_handoff: requestChanges,
     planned_targets: ["src/app.js"],
     impact: sealedImpact({ phase: "pre", pre_impact: true, trusted: false }),
   };
-  const third = transition(state, "TASK_IMPACT_READY", evidence, providers);
-  assert.equal(third.ok, true, JSON.stringify(third.errors));
-  assert.equal(third.state.fix_loop_attempts["unit-1"], 3);
+  const first = transition(state, "TASK_IMPACT_READY", evidence, providers);
+  assert.equal(first.ok, true, JSON.stringify(first.errors));
+  assert.equal(first.state.fix_loop_attempts["unit-1"], 1);
 
   const exhausted = canTransition(
-    { ...state, fix_loop_attempts: { "unit-1": 3 } },
+    { ...state, fix_loop_attempts: { "unit-1": 1 } },
     "TASK_IMPACT_READY",
     evidence,
   );
   assert.equal(exhausted.ok, false);
   assert.match(exhausted.errors.join(" "), /FIX_LOOP_EXHAUSTED/);
+
+  const high = transition(
+    {
+      ...state,
+      impact: { risk: "HIGH" },
+      fix_loop_attempts: { "unit-1": 1 },
+    },
+    "TASK_IMPACT_READY",
+    evidence,
+    providers,
+  );
+  assert.equal(high.ok, true, JSON.stringify(high.errors));
+  assert.equal(high.state.fix_loop_attempts["unit-1"], 2);
+  const highExhausted = canTransition(
+    {
+      ...state,
+      impact: { risk: "HIGH" },
+      fix_loop_attempts: { "unit-1": 2 },
+    },
+    "TASK_IMPACT_READY",
+    evidence,
+  );
+  assert.equal(highExhausted.ok, false);
+  assert.match(highExhausted.errors.join(" "), /FIX_LOOP_EXHAUSTED/);
 });
 
 test("IMPLEMENTING is rejected before dispatch when the agent-call budget is exhausted", () => {

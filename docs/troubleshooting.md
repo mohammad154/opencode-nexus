@@ -14,6 +14,16 @@
 Never delete a cache to hide an unexpected result. Rebuild it and inspect the
 reported invalidation reason.
 
+## A subagent wait never finishes
+
+Plan-advisor, reviewer, and implementer calls have wall-clock budgets (5, 10, and 20 minutes by default). When a budget expires, the plugin writes `subagent-timeouts.json` for that run to the protected state directory (`$NEXUS_STATE_DIR`, else `$XDG_STATE_HOME/nexus-control`, else `~/.local/state/nexus-control`) with status `TIMED_OUT`, and aborts the child session mapped to that call. The file is not in the project, so a timeout written by project code is ignored. `nexus next` skips a timed-out advisor, continues to final verification after a timed-out reviewer, and re-dispatches a timed-out implementer once for that unit. A timeout cannot mark the run COMPLETED. Override a budget with `budget_ms` on that role in your OpenCode config directory's `nexus.models.json` (a project's `.opencode/nexus.models.json` is ignored), or with `NEXUS_PLAN_ADVISOR_BUDGET_MS`, `NEXUS_REVIEWER_BUDGET_MS`, or `NEXUS_IMPLEMENTER_BUDGET_MS`.
+
+A private baseline `.git` is removed only when this run created it. Its only commits after the baseline are `nexus-direct-edit` seals recorded in the run's protected marker, HEAD is the last of those seals, and no other refs or worktrees exist. `COMPLETED` and `FAILED` try the removal. `BLOCKED` and abandoned runs keep `.git`; `nexus run cleanup` retries the same check. A feature branch, a commit that is not a recorded seal, or a linked worktree keeps the repository so a later merge still has a git directory. A repository with its own history is never sealed or cleaned by direct mode.
+
+## The workspace is not a git repository
+
+`nexus run init` creates a private baseline (`git init`, `git add -A`, commit `nexus-baseline`) with a repo-local name and email. It does not change global git config or an existing repository. Nexus removes that `.git` when the run reaches `COMPLETED` or `FAILED`. Set `NEXUS_KEEP_PRIVATE_BASELINE=1` to keep it. If the `git` binary is missing, init records a content-hash snapshot in the protected state directory instead and plan-check accepts that token in place of `NO_GIT_REPO`.
+
 ## PLANNED is blocked by the plan-advisor decision
 
 Two distinct errors come from the deterministic planning decision.
@@ -144,6 +154,15 @@ as meaningful verification.
 
 If every available step is skipped or unavailable, the provider returns
 `VERIFICATION_UNAVAILABLE`; this is not a passing verification result.
+
+The one exception is a direct run in a workspace that had no test suite at init
+and still has none. `nexus verify` then passes with
+`verification_mode: NO_AUTOMATED_CHECKS` and a warning. The evidence proves only
+that the sealed direct edit stayed within `allowed_files` and that the workspace
+is clean; no test, lint, or build result backs it. Standard runs always need a
+runnable check. A test directory that appears after the seal, or a change
+outside `allowed_files`, still fails verification (`VERIFICATION_UNAVAILABLE` or
+`DIRECT_SCOPE_DRIFT`).
 
 ## Workspace integrity rejects a runtime symlink
 

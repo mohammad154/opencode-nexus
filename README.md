@@ -352,7 +352,7 @@ nexus run validate-handoff \
   --file .opencode/handoffs/<run>-implementer.json
 ```
 
-V5 has one fixed workflow—there is no profile selection or direct/no-dispatch path. `nexus classify` is advisory; `nexus run classify --apply` records its evidence but does not advance run state. A stale or uncertain analysis must be revalidated before the affected gate can pass.
+V5 has one fixed workflow and one fixed roster—there is no profile selection. `nexus classify` is advisory; `nexus run classify --apply` records its evidence and can escalate a direct run to the standard pipeline, but it does not advance run state. A stale or uncertain analysis must be revalidated before the affected gate can pass. `nexus triage` (also run by `nexus run init`) selects **direct** execution only for compact-eligible work or a project with no test suite, and only in a workspace that is not already a git repository. Any existing git repository, including one with no commits, stays on the standard pipeline, and direct mode never seals, commits to, or edits the excludes or hooks of a user's repository. An unclassified request stays standard. Direct mode keeps a five-line session plan, no `PLAN.md`, no plan-advisor, no feature branch, and at most a 20-line orchestrator edit or one implementer. The reviewer runs only after the check fails twice or risk is HIGH, and final verification still runs before COMPLETED. `NEXUS_FAST_PATH=0` or `workflow.fastPath: false` keeps the full pipeline. Workspaces that are not already a git repository get a private `nexus-baseline` commit with a repo-local identity. Nexus deletes that `.git` only when the run finishes at `COMPLETED` or `FAILED`, and only if every commit after the baseline is a recorded `nexus-direct-edit` seal, HEAD is the last of them, and there are no other refs or worktrees. `nexus run cleanup` retries the same check. A content-hash snapshot is used only when the `git` binary is missing.
 
 Implementer handoffs use **schema_version `1.1`** and reviewer handoffs use **schema_version `1.2`** (shared envelope: `run_id`, `unit_or_task`, `agent`, `base_commit`, `created_at`). Planning-advisor handoffs use their dedicated schema. Legacy `1.0` / `0.9` handoffs migrate as `legacy_unverified` and cannot satisfy completion gates. Classification artifacts cannot authorize a state transition or bypass a required gate. Impact trust requires provider revalidation — a caller-supplied `trusted: true` label is not enough.
 
@@ -366,7 +366,7 @@ request → brainstorm → plan advisor? → plan-check → (per unit) pre-impac
                                                       └─ stale or blocked → reconcile
 ```
 
-Only the **implementer** writes production code. Nexus uses one fixed V5 workflow:
+On the standard pipeline only the **implementer** writes production code. In direct mode the orchestrator may edit at most 20 lines. Nexus uses one fixed V5 roster:
 
 - Every implementer dispatch requires fresh pre-impact evidence.
 - Planning depth and the independent planning challenge are separate decisions. Nexus derives both from reported evidence: a `plan-advisor` call is required for any safety signal (public contract, security boundary, migration, destructive change, architectural choice, multi-subsystem work, HIGH/CRITICAL/UNKNOWN impact), for deep planning, for declared uncertainty, and whenever the evidence is too thin to judge — so a clear `standard` plan can legitimately spend zero advisor calls. The decision is persisted with reason codes; compact plans never spend one.
@@ -375,7 +375,7 @@ Only the **implementer** writes production code. Nexus uses one fixed V5 workflo
 - The implementer runs targeted checks after internal steps. Nexus does not persist or authorize each step as a separate verification boundary: it runs deterministic `nexus verify` for the completed unit before dispatching one task reviewer.
 - Every task receives a task-scoped review package and reviewer after verification. A review package is a deterministic *selection* (unit brief, acceptance, changed/production files, impact callers, sealed verification summary, focused hunks) and names the read-only command for anything it omits; the reviewer keeps full read-only git access.
 - The reviewer **consumes** sealed deterministic verification instead of replaying it. It may still run a focused probe for a specific hypothesis the sealed evidence does not answer, declared in `adversarial_checks` with `hypothesis`, `command`, and `reason`. An `APPROVED` handoff that re-runs a sealed passing command and reports `PASS`, or declares a command without a hypothesis and reason, is rejected.
-- A reviewer `REQUEST_CHANGES` is capped at three remediation attempts per execution unit; exhaustion or an agent-call-budget limit becomes `BLOCKED`, not another subagent dispatch.
+- A reviewer `REQUEST_CHANGES` is capped at one remediation round per execution unit, or two when impact risk is HIGH or CRITICAL (`NEXUS_MAX_REVIEW_ROUNDS`, `NEXUS_MAX_REVIEW_ROUNDS_HIGH`). Exhaustion or an agent-call-budget limit becomes `BLOCKED`, not another subagent dispatch. Subagent waits are bounded: plan-advisor 5 minutes, reviewer 10, implementer 20 (`budget_ms` in `nexus.models.json`, read by the plugin). A timeout is a run-scoped `TIMED_OUT` record in the protected state directory outside the project: skip the advisor, continue to final verification, or re-dispatch the implementer once. A timeout never skips final verification.
 - After the final task, a final review package and reviewer examine the whole branch and its multi-unit integration before final verification. The package includes `Previous task review evidence`; the final reviewer can reuse a task result only when `review_evidence_bound: true`, `files_changed_after_review` is available, and the criterion's owning files are absent from that list, then focus on integration and later changes. This never skips the final or task review. A single-unit run may reuse its task review only with the explicit digest/HEAD-bound gate.
 - Impact risk controls verification-ladder intensity; it does not select a workflow profile or change the review roster.
 - `IMPLEMENTING → VERIFYING` and `FINAL_REVIEWING → FINAL_VERIFYING` are fast authorization transitions. They persist `verification_status: PENDING`; they do not execute tests.
@@ -423,10 +423,7 @@ cp ~/.config/opencode/nexus.models.example.json ~/.config/opencode/nexus.models.
 nexus install
 ```
 
-The default implementer has `"steps": 64`: a finite ceiling on agentic tool
-iterations. At the ceiling OpenCode requests a text summary instead of allowing
-unbounded tool calls. You can set a different positive `steps` value in your
-`nexus.models.json` override when a unit demonstrably needs it.
+The default implementer has `"steps": 64` and the reviewer has `"steps": 24`: finite ceilings on agentic tool iterations. At the ceiling OpenCode requests a text summary instead of allowing unbounded tool calls. Wall-clock budgets sit beside those models (`budget_ms`, or `NEXUS_PLAN_ADVISOR_BUDGET_MS`, `NEXUS_REVIEWER_BUDGET_MS`, and `NEXUS_IMPLEMENTER_BUDGET_MS`). You can set a different positive `steps` value in your `nexus.models.json` override when a unit demonstrably needs it.
 
 One-off overrides (no file edit):
 

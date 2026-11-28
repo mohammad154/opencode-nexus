@@ -32,6 +32,7 @@ Commands:
   impact         Nexus Impact Engine (git + AST + affected tests)
   blast          Alias for impact (compatibility)
   classify       Risk classifier CLI
+  triage         Choose direct or standard execution (compact tasks skip the slow pipeline)
   estimate       Estimate minimum agent calls for a plan
   plan-check     Deterministic PLAN.md linter (no LLM calls)
   project-profile Advisory cached project recon facts (commands, CI, guides)
@@ -100,6 +101,7 @@ Subcommands:
   worktree          Manage task worktrees (create, list, remove)
   baseline          Capture verification baseline (--run-id <id>)
   verify            Run deterministic verification (--baseline, --compare, --resume)
+  cleanup           Remove a private baseline .git only when HEAD is still that one commit
 
 Transition handoffs:
   --implementer-handoff-file <path>  Complete implementer handoff (legacy: --handoff-file)
@@ -530,6 +532,9 @@ switch (command) {
     break;
   case "classify":
     cmdClassify(args);
+    break;
+  case "triage":
+    runNodeScript("nexus-triage.js", args);
     break;
   case "estimate":
     cmdEstimate(args);

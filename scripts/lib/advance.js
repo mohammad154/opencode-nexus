@@ -412,11 +412,27 @@ export function planAdvanceStep(next, facts) {
     case "transition_to_completed":
       return execute("authorize_completed", { to: "COMPLETED" });
 
+    case "transition_to_final_verifying":
+    case "advance_to_final_verifying":
+      return execute("authorize_final_verifying", { to: "FINAL_VERIFYING" });
+
     // ---- explicitly not automated: documented repairs stay deliberate
     case "dispatch_plan_advisor":
       return stop("AGENT", "PLAN_ADVISOR_DISPATCH_REQUIRED", next.instruction, {
         dispatch: preparedDispatch("plan-advisor", facts, next),
       });
+    case "direct_execute":
+      return stop("SELF", "DIRECT_EXECUTE", next.instruction);
+    case "await_plan_advisor":
+      return stop("AGENT", "PLAN_ADVISOR_OUTSTANDING", next.instruction, {
+        dispatch: preparedDispatch("plan-advisor", facts, next),
+      });
+    case "redispatch_once":
+      return stop("AGENT", "SUBAGENT_TIMEOUT_REDISPATCH", next.instruction, {
+        dispatch: next.agent ? preparedDispatch(next.agent, facts, next) : null,
+      });
+    case "block_for_subagent_timeout":
+      return stop("MANUAL", "SUBAGENT_TIMED_OUT", next.instruction);
 
     case "repair_verification":
       return stop("MANUAL", "VERIFICATION_REPAIR_AVAILABLE", next.instruction);

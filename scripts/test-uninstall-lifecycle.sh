@@ -5,6 +5,7 @@
 #   - uninstall WITHOUT jq still removes/restores agent files (not just JSON).
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+NODE_BIN_DIR="$(dirname "$(command -v node)")"
 
 pass() { echo "PASS: $*"; }
 fail() { echo "FAIL: $*" >&2; exit 1; }
@@ -17,7 +18,7 @@ trap 'rm -rf "$T1" "${T2:-}" "${T3:-}" "${T4:-}" "${T5:-}" "${T6:-}" "${T7:-}"' 
   CD="$HOME/.config/opencode"; AD="$CD/agents"
   mkdir -p "$AD" "$HOME/bin" "$HOME/project"
   printf '#!/bin/sh\nexit 0\n' >"$HOME/bin/opencode"; chmod +x "$HOME/bin/opencode"
-  export PATH="$HOME/bin:/usr/bin:/bin"
+  export PATH="$HOME/bin:$NODE_BIN_DIR:/usr/bin:/bin"
   printf '{}\n' >"$CD/opencode.json"
   git init -q "$HOME/project"
   for ag in orchestrator implementer reviewer; do
@@ -42,7 +43,7 @@ T3="$(mktemp -d)"
   CD="$HOME/.config/opencode"; AD="$CD/agents"
   mkdir -p "$AD" "$CD/plugins" "$HOME/bin" "$HOME/project"
   printf '#!/bin/sh\nexit 0\n' >"$HOME/bin/opencode"; chmod +x "$HOME/bin/opencode"
-  export PATH="$HOME/bin:/usr/bin:/bin"
+  export PATH="$HOME/bin:$NODE_BIN_DIR:/usr/bin:/bin"
   git init -q "$HOME/project"
   cat >"$CD/opencode.json" <<'JSON'
 {
@@ -127,7 +128,7 @@ T2="$(mktemp -d)"
   CD="$HOME/.config/opencode"; AD="$CD/agents"
   mkdir -p "$AD" "$HOME/bin" "$HOME/project"
   printf '#!/bin/sh\nexit 0\n' >"$HOME/bin/opencode"; chmod +x "$HOME/bin/opencode"
-  export PATH="$HOME/bin:/usr/bin:/bin"
+  export PATH="$HOME/bin:$NODE_BIN_DIR:/usr/bin:/bin"
   printf '{}\n' >"$CD/opencode.json"
   git init -q "$HOME/project"
   ( cd "$HOME/project" && "$ROOT/install.sh" ) >/dev/null 2>&1
@@ -155,7 +156,7 @@ T4="$(mktemp -d)"
   CD="$HOME/.config/opencode"; AD="$CD/agents"
   mkdir -p "$AD" "$HOME/bin" "$HOME/project"
   printf '#!/bin/sh\nexit 0\n' >"$HOME/bin/opencode"; chmod +x "$HOME/bin/opencode"
-  export PATH="$HOME/bin:/usr/bin:/bin"
+  export PATH="$HOME/bin:$NODE_BIN_DIR:/usr/bin:/bin"
   printf '{}\n' >"$CD/opencode.json"
   git init -q "$HOME/project"
   printf 'ORIGINAL USER orchestrator\n' >"$AD/orchestrator.md"
@@ -181,7 +182,7 @@ T5="$(mktemp -d)"
   CD="$HOME/.config/opencode"
   mkdir -p "$CD" "$HOME/bin" "$HOME/project"
   printf '#!/bin/sh\nexit 0\n' >"$HOME/bin/opencode"; chmod +x "$HOME/bin/opencode"
-  export PATH="$HOME/bin:/usr/bin:/bin"
+  export PATH="$HOME/bin:$NODE_BIN_DIR:/usr/bin:/bin"
   git init -q "$HOME/project"
   printf '{ "permission": { "skill": "allow", "other": "keep" } }\n' >"$CD/opencode.json"
   ( cd "$HOME/project" && "$ROOT/install.sh" ) >/dev/null 2>&1
@@ -210,7 +211,7 @@ T6="$(mktemp -d)"
   CD="$HOME/.config/opencode"
   mkdir -p "$CD" "$HOME/bin" "$HOME/project"
   printf '#!/bin/sh\nexit 0\n' >"$HOME/bin/opencode"; chmod +x "$HOME/bin/opencode"
-  export PATH="$HOME/bin:/usr/bin:/bin"
+  export PATH="$HOME/bin:$NODE_BIN_DIR:/usr/bin:/bin"
   git init -q "$HOME/project"
   printf '{ "permission": { "skill": "allow" } }\n' >"$CD/opencode.json"
   ( cd "$HOME/project" && "$ROOT/install.sh" ) >/dev/null 2>&1
@@ -225,7 +226,7 @@ T7="$(mktemp -d)"
   CD="$HOME/.config/opencode"
   mkdir -p "$CD" "$HOME/bin" "$HOME/project"
   printf '#!/bin/sh\nexit 0\n' >"$HOME/bin/opencode"; chmod +x "$HOME/bin/opencode"
-  export PATH="$HOME/bin:/usr/bin:/bin"
+  export PATH="$HOME/bin:$NODE_BIN_DIR:/usr/bin:/bin"
   git init -q "$HOME/project"
   printf '%s\n' '{
     "permission": { "skill": "ask" },
